@@ -1,5 +1,5 @@
 import { Reflector } from '@nestjs/core';
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
@@ -22,6 +22,14 @@ export class UserRolesGuard implements CanActivate {
       throw new UnauthorizedException('No se encontró el usuario en la solicitud');
     }
 
-    return requiredRoles.some((role) => user.role === role);
+    const hasRole = requiredRoles.some((role) => user.role === role);
+    
+    if (!hasRole) {
+      throw new ForbiddenException(
+        `Acceso denegado. Se requiere uno de los siguientes roles: ${requiredRoles.join(', ')}. Tu rol actual es: ${user.role}`
+      );
+    }
+
+    return true;
   }
 } 
