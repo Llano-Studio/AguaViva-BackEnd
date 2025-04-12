@@ -21,6 +21,8 @@ export class MailService {
   }
 
   private async loadTemplate(templateName: string): Promise<handlebars.TemplateDelegate> {
+
+    console.log(__dirname);
     const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
     const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
     return handlebars.compile(templateContent);

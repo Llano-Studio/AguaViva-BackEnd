@@ -115,6 +115,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         email: true,
         name: true,
         role: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
