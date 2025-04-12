@@ -30,7 +30,7 @@ export class AuthController {
   }
 
   @Get('profile')
-  @Auth(Role.ADMIN)
+  @Auth()
   getProfile(
     @GetUser() user: User
   ) {
