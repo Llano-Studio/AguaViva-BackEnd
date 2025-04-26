@@ -7,21 +7,397 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            Int           @id @default(autoincrement())
+  email         String        @unique
+  password      String
+  name          String
+  role          Role          @default(ADMIN)
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  recoveryToken String?       @unique
+  route_sheet   route_sheet[]
+}
+
+model client_contract {
+  contract_id                Int                          @id @default(autoincrement())
+  customer_id                Int
+  price_list_id              Int
+  start_date                 DateTime                     @db.Date
+  end_date                   DateTime?                    @db.Date
+  notes                      String?
+  customer                   customer                     @relation(fields: [customer_id], references: [customer_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contract_customer")
+  price_list                 price_list                   @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_contract_pricelist")
+  contract_delivery_schedule contract_delivery_schedule[]
+  order_header               order_header[]
+}
+
+model contract_delivery_schedule {
+  schedule_id     Int             @id @default(autoincrement())
+  contract_id     Int
+  day_of_week     Int             @db.SmallInt
+  scheduled_time  DateTime        @db.Time(6)
+  client_contract client_contract @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_schedule_contract")
+}
+
+model country {
+  country_id Int        @id @db.SmallInt
+  code       String     @unique @db.VarChar(10)
+  name       String     @db.VarChar(100)
+  province   province[]
+}
+
+model customer {
+  customer_id           Int                     @id @default(autoincrement())
+  name                  String                  @db.VarChar(100)
+  tax_id                String                  @db.VarChar(20)
+  vat_category          String                  @db.VarChar(10)
+  phone                 String?                 @db.VarChar(20)
+  mobile                String?                 @db.VarChar(20)
+  address               String                  @db.VarChar(200)
+  locality_id           Int                     @db.SmallInt
+  zone_id               Int                     @db.SmallInt
+  registration_date     DateTime                @db.Date
+  status                String                  @db.VarChar(20)
+  debt                  Decimal                 @default(0) @db.Decimal(10, 2)
+  notes                 String?
+  subscription_plan_id  Int?                    @db.SmallInt
+  client_contract       client_contract[]
+  locality              locality                @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_locality")
+  subscription_plan     subscription_plan?      @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_subscription_plan")
+  zone                  zone                    @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_zone")
+  customer_subscription customer_subscription[]
+  order_header          order_header[]
+  payment_installment   payment_installment[]
+  payment_transaction   payment_transaction[]
+}
+
+model customer_subscription {
+  subscription_id      Int                  @id @default(autoincrement())
+  customer_id          Int
+  subscription_plan_id Int                  @db.SmallInt
+  start_date           DateTime             @db.Date
+  end_date             DateTime?            @db.Date
+  status               String               @db.VarChar(20)
+  notes                String?
+  customer             customer             @relation(fields: [customer_id], references: [customer_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_customer")
+  subscription_plan    subscription_plan    @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
+  subscription_cycle   subscription_cycle[]
+}
+
+model installment_order_link {
+  link_id             Int                 @id @default(autoincrement())
+  installment_id      Int
+  order_id            Int
+  payment_installment payment_installment @relation(fields: [installment_id], references: [installment_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_installment_order_installment")
+  order_header        order_header        @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_installment_order_order")
+}
+
+model inventory {
+  warehouse_id Int       @db.SmallInt
+  product_id   Int
+  quantity     Int
+  product      product   @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventory_product")
+  warehouse    warehouse @relation(fields: [warehouse_id], references: [warehouse_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventory_warehouse")
+
+  @@id([warehouse_id, product_id])
+}
+
+model locality {
+  locality_id       Int                 @id @db.SmallInt
+  province_id       Int                 @db.SmallInt
+  code              String              @db.VarChar(10)
+  name              String              @db.VarChar(100)
+  zone_id           Int?                @db.SmallInt
+  customer          customer[]
+  province          province            @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
+  zone              zone?               @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_zone")
+  prospect_customer prospect_customer[]
+  warehouse         warehouse[]
+}
+
+model movement_type {
+  movement_type_id Int              @id @db.SmallInt
+  code             String           @unique @db.VarChar(10)
+  description      String           @db.VarChar(100)
+  stock_movement   stock_movement[]
+}
+
+model order_header {
+  order_id                Int                      @id @default(autoincrement())
+  customer_id             Int
+  contract_id             Int?
+  sale_channel_id         Int                      @default(1) @db.SmallInt
+  order_date              DateTime                 @db.Timestamp(6)
+  scheduled_delivery_date DateTime?                @db.Timestamp(6)
+  delivery_time           DateTime?                @db.Time(6)
+  total_amount            Decimal                  @db.Decimal(10, 2)
+  paid_amount             Decimal                  @db.Decimal(10, 2)
+  order_type              String                   @db.VarChar(20)
+  status                  String                   @db.VarChar(20)
+  notes                   String?
+  installment_order_link  installment_order_link[]
+  client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
+  customer                customer                 @relation(fields: [customer_id], references: [customer_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_customer")
+  sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
+  order_item              order_item[]
+  payment_transaction     payment_transaction[]
+  route_sheet_detail      route_sheet_detail[]
+}
+
+model order_item {
+  order_item_id      Int          @id @default(autoincrement())
+  order_id           Int
+  product_id         Int
+  quantity           Int
+  subtotal           Decimal      @db.Decimal(10, 2)
+  delivered_quantity Int?         @default(0)
+  returned_quantity  Int?         @default(0)
+  order_header       order_header @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_order")
+  product            product      @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_product")
+}
+
+model payment_installment {
+  installment_id         Int                      @id @default(autoincrement())
+  customer_id            Int
+  due_date               DateTime                 @db.Timestamp(6)
+  delivered_quantity     Int
+  amount_paid            Decimal                  @db.Decimal(10, 2)
+  total_amount           Decimal                  @db.Decimal(10, 2)
+  installment_order_link installment_order_link[]
+  customer               customer                 @relation(fields: [customer_id], references: [customer_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_installment_customer")
+}
+
+model payment_line {
+  payment_line_id     Int                 @id @default(autoincrement())
+  transaction_id      Int
+  product_id          Int?
+  quantity            Int
+  unit_price          Decimal             @db.Decimal(10, 2)
+  subtotal            Decimal             @db.Decimal(10, 2)
+  notes               String?
+  product             product?            @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_line_product")
+  payment_transaction payment_transaction @relation(fields: [transaction_id], references: [transaction_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_line_transaction")
+}
+
+model payment_method {
+  payment_method_id   Int                   @id @db.SmallInt
+  code                String                @unique @db.VarChar(20)
+  description         String                @db.VarChar(100)
+  payment_transaction payment_transaction[]
+}
+
+model payment_transaction {
+  transaction_id     Int            @id @default(autoincrement())
+  transaction_date   DateTime       @db.Timestamp(6)
+  customer_id        Int
+  order_id           Int?
+  document_number    String         @db.VarChar(20)
+  receipt_number     String?        @db.VarChar(20)
+  transaction_type   String         @db.VarChar(10)
+  previous_balance   Decimal        @db.Decimal(10, 2)
+  transaction_amount Decimal        @db.Decimal(10, 2)
+  total              Decimal        @db.Decimal(10, 2)
+  payment_method_id  Int            @default(1) @db.SmallInt
+  notes              String?
+  payment_line       payment_line[]
+  customer           customer       @relation(fields: [customer_id], references: [customer_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_customer")
+  order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
+  payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
+}
+
+model price_list {
+  price_list_id   Int               @id @default(autoincrement())
+  name            String            @db.VarChar(50)
+  effective_date  DateTime          @db.Date
+  client_contract client_contract[]
+  price_list_item price_list_item[]
+}
+
+model price_list_item {
+  price_list_item_id Int        @id @default(autoincrement())
+  price_list_id      Int
+  product_id         Int
+  unit_price         Decimal    @db.Decimal(10, 2)
+  price_list         price_list @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pricelistitem_pricelist")
+  product            product    @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pricelistitem_product")
+}
+
+model product {
+  product_id                Int                         @id @default(autoincrement())
+  category_id               Int                         @db.SmallInt
+  description               String                      @db.VarChar(100)
+  volume_liters             Decimal?                    @db.Decimal(5, 2)
+  price                     Decimal                     @db.Decimal(10, 2)
+  is_returnable             Boolean
+  serial_number             String?                     @db.VarChar(50)
+  notes                     String?
+  inventory                 inventory[]
+  order_item                order_item[]
+  payment_line              payment_line[]
+  price_list_item           price_list_item[]
+  product_category          product_category            @relation(fields: [category_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product_category")
+  stock_movement            stock_movement[]
+  subscription_cycle_detail subscription_cycle_detail[]
+  subscription_plan_product subscription_plan_product[]
+  vehicle_inventory         vehicle_inventory[]
+}
+
+model product_category {
+  category_id Int       @id @db.SmallInt
+  name        String    @db.VarChar(50)
+  product     product[]
+}
+
+model prospect_customer {
+  prospect_customer_id Int      @id @default(autoincrement())
+  name                 String   @db.VarChar(100)
+  tax_id               String?  @db.VarChar(20)
+  phone                String?  @db.VarChar(20)
+  mobile               String?  @db.VarChar(20)
+  address              String   @db.VarChar(200)
+  locality_id          Int      @db.SmallInt
+  zone_id              Int      @db.SmallInt
+  registration_date    DateTime @db.Date
+  notes                String?
+  locality             locality @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prospect_locality")
+  zone                 zone     @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prospect_zone")
+}
+
+model province {
+  province_id Int        @id @db.SmallInt
+  country_id  Int        @db.SmallInt
+  code        String     @unique @db.VarChar(10)
+  name        String     @db.VarChar(100)
+  locality    locality[]
+  country     country    @relation(fields: [country_id], references: [country_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_province_country")
+}
+
+model route_sheet {
+  route_sheet_id     Int                  @id @default(autoincrement())
+  driver_id          Int
+  vehicle_id         Int                  @db.SmallInt
+  delivery_date      DateTime             @db.Date
+  route_notes        String?
+  User               User                 @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_driver")
+  vehicle            vehicle              @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_vehicle")
+  route_sheet_detail route_sheet_detail[]
+}
+
+model route_sheet_detail {
+  route_sheet_detail_id Int          @id @default(autoincrement())
+  route_sheet_id        Int
+  order_id              Int
+  delivery_status       String       @db.VarChar(20)
+  delivery_time         DateTime?    @db.Timestamp(6)
+  comments              String?
+  digital_signature_id  String?      @db.VarChar(100)
+  order_header          order_header @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
+  route_sheet           route_sheet  @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+}
+
+model sale_channel {
+  sale_channel_id Int            @id @db.SmallInt
+  code            String         @unique @db.VarChar(20)
+  description     String         @db.VarChar(100)
+  order_header    order_header[]
+}
+
+model stock_movement {
+  stock_movement_id                                            Int           @id @default(autoincrement())
+  movement_date                                                DateTime      @db.Timestamp(6)
+  movement_type_id                                             Int           @db.SmallInt
+  product_id                                                   Int
+  source_warehouse_id                                          Int?          @db.SmallInt
+  destination_warehouse_id                                     Int?          @db.SmallInt
+  quantity                                                     Int
+  remarks                                                      String?
+  warehouse_stock_movement_destination_warehouse_idTowarehouse warehouse?    @relation("stock_movement_destination_warehouse_idTowarehouse", fields: [destination_warehouse_id], references: [warehouse_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_dest_warehouse")
+  movement_type                                                movement_type @relation(fields: [movement_type_id], references: [movement_type_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_movement_type")
+  product                                                      product       @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_product")
+  warehouse_stock_movement_source_warehouse_idTowarehouse      warehouse?    @relation("stock_movement_source_warehouse_idTowarehouse", fields: [source_warehouse_id], references: [warehouse_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_source_warehouse")
+}
+
+model subscription_cycle {
+  cycle_id                  Int                         @id @default(autoincrement())
+  subscription_id           Int
+  cycle_start               DateTime                    @db.Date
+  cycle_end                 DateTime                    @db.Date
+  notes                     String?
+  customer_subscription     customer_subscription       @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_subscription")
+  subscription_cycle_detail subscription_cycle_detail[]
+}
+
+model subscription_cycle_detail {
+  cycle_detail_id    Int                @id @default(autoincrement())
+  cycle_id           Int
+  product_id         Int
+  planned_quantity   Int
+  delivered_quantity Int                @default(0)
+  remaining_balance  Int
+  subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_detail_cycle")
+  product            product            @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_detail_product")
+}
+
+model subscription_plan {
+  subscription_plan_id      Int                         @id @db.SmallInt
+  name                      String                      @db.VarChar(50)
+  description               String?
+  customer                  customer[]
+  customer_subscription     customer_subscription[]
+  subscription_plan_product subscription_plan_product[]
+}
+
+model subscription_plan_product {
+  spp_id               Int               @id @default(autoincrement())
+  subscription_plan_id Int               @db.SmallInt
+  product_id           Int
+  product_quantity     Int
+  subscription_plan    subscription_plan @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_spp_plan")
+  product              product           @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_spp_product")
+}
+
+model vehicle {
+  vehicle_id        Int                 @id @db.SmallInt
+  code              String              @unique @db.VarChar(20)
+  name              String              @db.VarChar(50)
+  description       String?
+  route_sheet       route_sheet[]
+  vehicle_inventory vehicle_inventory[]
+}
+
+model vehicle_inventory {
+  vehicle_id      Int     @db.SmallInt
+  product_id      Int
+  quantity_loaded Int
+  quantity_empty  Int?
+  product         product @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vehicleinventory_product")
+  vehicle         vehicle @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vehicleinventory_vehicle")
+
+  @@id([vehicle_id, product_id])
+}
+
+model warehouse {
+  warehouse_id                                                      Int              @id @db.SmallInt
+  name                                                              String           @db.VarChar(100)
+  locality_id                                                       Int?             @db.SmallInt
+  inventory                                                         inventory[]
+  stock_movement_stock_movement_destination_warehouse_idTowarehouse stock_movement[] @relation("stock_movement_destination_warehouse_idTowarehouse")
+  stock_movement_stock_movement_source_warehouse_idTowarehouse      stock_movement[] @relation("stock_movement_source_warehouse_idTowarehouse")
+  locality                                                          locality?        @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_warehouse_locality")
+}
+
+model zone {
+  zone_id           Int                 @id @db.SmallInt
+  code              String              @unique @db.VarChar(10)
+  name              String              @db.VarChar(100)
+  customer          customer[]
+  locality          locality[]
+  prospect_customer prospect_customer[]
+}
+
 enum Role {
   USER
   ADMIN
 }
-
-model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  password      String
-  name          String
-  role          Role     @default(ADMIN)
-  isActive      Boolean  @default(true)
-  recoveryToken String?  @unique
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-
