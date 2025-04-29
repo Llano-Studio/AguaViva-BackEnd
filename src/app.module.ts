@@ -1,19 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CustomersModule } from './customers/customers.module';
+import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
-import { ProspectCustomerModule } from './prospect-customer/prospect-customer.module';
+import { ZonesModule } from './zones/zones.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    CustomersModule, 
+    PersonsModule, 
     AuthModule,
     MailModule,
-    ProspectCustomerModule,
+    ZonesModule,
   ],
 })
 export class AppModule {}
