@@ -36,7 +36,7 @@ export class AuthController {
   }
 
   @Get('profile')
-  @Auth()
+  @Auth(Role.ADMIN, Role.USER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener perfil del usuario logueado' })
   getProfile(
