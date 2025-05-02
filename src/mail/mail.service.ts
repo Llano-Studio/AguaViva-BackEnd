@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import * as handlebars from 'handlebars';
 import * as fs from 'fs';
@@ -21,11 +21,13 @@ export class MailService {
   }
 
   private async loadTemplate(templateName: string): Promise<handlebars.TemplateDelegate> {
-
-    console.log(__dirname);
     const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
-    const templateContent = await fs.promises.readFile(templatePath, 'utf-8');
-    return handlebars.compile(templateContent);
+    try {
+      const content = await fs.promises.readFile(templatePath, 'utf-8');
+      return handlebars.compile(content);
+    } catch (err) {
+      throw new InternalServerErrorException(`No se pudo cargar la plantilla ${templateName}`);
+    }
   }
 
   async sendPasswordRecoveryEmail(email: string, token: string) {

@@ -123,7 +123,17 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zone_id: dto.zoneId,
     };
 
-    return this.person.update({ where: { person_id: id }, data });
+    try {
+      return await this.person.update({ where: { person_id: id }, data });
+    } catch (error) {
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('El teléfono ya está en uso por otra persona.');
+      }
+      throw error;
+    }
   }
 
   async deletePerson(id: number) {

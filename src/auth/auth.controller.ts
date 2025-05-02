@@ -9,6 +9,8 @@ import { User } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { RecoverPasswordDto } from './dto/recover-password.dto';
+import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -16,21 +18,27 @@ export class AuthController {
     private readonly authService: AuthService) { }
 
   @Post('register')
+  @ApiOperation({ summary: 'Registrar nuevo usuario' })
+  @ApiResponse({ status: 201, description: 'Usuario registrado' })
   register(
-    @Body() registerUserDto: RegisterUserDto
+    @Body() dto: RegisterUserDto
   ) {
-    return this.authService.register(registerUserDto);
+    return this.authService.register(dto);
   }
 
   @Post('login')
+  @ApiOperation({ summary: 'Iniciar sesión' })
+  @ApiResponse({ status: 200, description: 'Token de acceso' })
   login(
-    @Body() loginUserDto: LoginUserDto
+    @Body() dto: LoginUserDto
   ) {
-    return this.authService.login(loginUserDto);
+    return this.authService.login(dto);
   }
 
   @Get('profile')
   @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Obtener perfil del usuario logueado' })
   getProfile(
     @GetUser() user: User
   ) {
@@ -70,18 +78,21 @@ export class AuthController {
 
   @Put('profile/password')
   @Auth()
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cambiar mi propia contraseña' })
   updatePassword(
-    @GetUser() user: User,
-    @Body() updatePasswordDto: UpdatePasswordDto
+    @GetUser() user: User, 
+    @Body() dto: UpdatePasswordDto
   ) {
-    return this.authService.updatePassword(user.id, updatePasswordDto);
+    return this.authService.updatePassword(user.id, dto);
   }
 
   @Post('recover-password')
+  @ApiOperation({ summary: 'Solicitar recuperación de contraseña' })
   recoverPassword(
-    @Body() recoverPasswordDto: RecoverPasswordDto
+    @Body() dto: RecoverPasswordDto
   ) {
-    return this.authService.recoverPassword(recoverPasswordDto);
+    return this.authService.recoverPassword(dto);
   }
 
   @Get('check-status')
@@ -93,10 +104,11 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @ApiOperation({ summary: 'Restablecer contraseña con token' })
+  @ApiResponse({ status: 200, description: 'Contraseña actualizada' })
   resetPassword(
-    @Query('token') token: string,
-    @Body('password') password: string,
+    @Body() dto: ResetPasswordDto
   ) {
-    return this.authService.resetPassword(token, password);
+    return this.authService.resetPassword(dto.token, dto.password);
   }
 }

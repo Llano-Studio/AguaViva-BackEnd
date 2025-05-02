@@ -350,7 +350,7 @@ model subscription_plan_product {
 }
 
 model vehicle {
-  vehicle_id        Int                 @id @db.SmallInt
+  vehicle_id        Int                 @id @default(autoincrement()) @db.SmallInt
   code              String              @unique @db.VarChar(20)
   name              String              @db.VarChar(50)
   description       String?
