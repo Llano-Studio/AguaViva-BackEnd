@@ -58,14 +58,27 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   }
 
   async findAllPersons() {
-    return this.person.findMany();
+    return this.person.findMany({
+      include: {
+        locality: {
+          include: {
+            province: true
+          }
+        },
+        zone: true
+      }
+    });
   }
 
   async findPersonById(id: number) {
     const person = await this.person.findUnique({
-      where: {
-        person_id: id
-      },
+      where: { person_id: id },
+      include: {
+        locality: {
+          include: { province: true }
+        },
+        zone: true
+      }
     });
     if (!person) throw new NotFoundException(`Persona ${id} no encontrada`);
     return person;

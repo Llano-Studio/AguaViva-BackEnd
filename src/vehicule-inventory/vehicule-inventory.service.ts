@@ -3,13 +3,13 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { CreateVehicleInventoryDto } from './dto/create-vehicule-inventory.dto';
 import { UpdateVehicleInventoryDto } from './dto/update-vehicule-inventory.dto';
 
-
 @Injectable()
 export class VehicleInventoryService extends PrismaClient implements OnModuleInit {
 
   async onModuleInit() {
     await this.$connect();
   }
+
   async createVehicleInventory(dto: CreateVehicleInventoryDto) {
     try {
       return await this.vehicle_inventory.create({ data: dto });
@@ -22,12 +22,26 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
   }
 
   async getAllVehicleInventory() {
-    return this.vehicle_inventory.findMany();
+    return this.vehicle_inventory.findMany({
+      include: {
+        vehicle: true,
+        product: true,
+      },
+    });
   }
 
-
   async getVehicleInventoryById(vehicle_id: number, product_id: number) {
-    return this.ensureExists(vehicle_id, product_id);
+    const inv = await this.vehicle_inventory.findUnique({
+      where: { vehicle_id_product_id: { vehicle_id, product_id } },
+      include: {
+        vehicle: true,
+        product: true,
+      },
+    });
+    if (!inv) {
+      throw new NotFoundException(`Inventario no encontrado para vehículo ${vehicle_id} y producto ${product_id}`);
+    }
+    return inv;
   }
 
   async updateVehicleInventoryById(vehicle_id: number, product_id: number, dto: UpdateVehicleInventoryDto) {
@@ -54,8 +68,9 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
     const inv = await this.vehicle_inventory.findUnique({
       where: { vehicle_id_product_id: { vehicle_id, product_id } },
     });
-    if (!inv) throw new NotFoundException(`Inventario no encontrado para vehículo ${vehicle_id} y producto ${product_id}`);
+    if (!inv) {
+      throw new NotFoundException(`Inventario no encontrado para vehículo ${vehicle_id} y producto ${product_id}`);
+    }
     return inv;
   }
-
 }

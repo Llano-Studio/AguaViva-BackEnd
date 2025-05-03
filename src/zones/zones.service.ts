@@ -23,11 +23,19 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
   }
 
   async getAllZones(): Promise<zone[]> {
-    return this.zone.findMany();
+    return this.zone.findMany({
+      include: {
+        locality: true,
+        person: true
+      }
+    });
   }
 
   async getZoneById(id: number): Promise<zone> {
-    const zone = await this.zone.findUnique({ where: { zone_id: id } });
+    const zone = await this.zone.findUnique({
+      where: { zone_id: id },
+      include: { locality: true, person: true }
+    });
     if (!zone) throw new NotFoundException('Zona no encontrada');
     return zone;
   }

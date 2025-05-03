@@ -3,7 +3,6 @@ import { AppModule } from './app.module';
 import {
   ValidationPipe,
   Logger,
-  VersioningType,
 } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as helmet from 'helmet';
@@ -32,10 +31,6 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
 
   app.useGlobalPipes(
     new ValidationPipe({

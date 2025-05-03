@@ -6,6 +6,8 @@ import { MailModule } from './mail/mail.module';
 import { ZonesModule } from './zones/zones.module';
 import { VehiculeModule } from './vehicule/vehicule.module';
 import { VehiculeInventoryModule } from './vehicule-inventory/vehicule-inventory.module';
+import { ProductModule } from './product/product.module';
+import { ProductCategoryModule } from './product-category/product-category.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { VehiculeInventoryModule } from './vehicule-inventory/vehicule-inventory
     ZonesModule,
     VehiculeModule,
     VehiculeInventoryModule,
+    ProductModule,
+    ProductCategoryModule,
   ],
 })
 export class AppModule {}

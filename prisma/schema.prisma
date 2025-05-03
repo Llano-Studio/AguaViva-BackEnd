@@ -251,7 +251,7 @@ model product {
 }
 
 model product_category {
-  category_id Int       @id @db.SmallInt
+  category_id Int       @id @default(autoincrement()) @db.SmallInt
   name        String    @db.VarChar(50)
   product     product[]
 }

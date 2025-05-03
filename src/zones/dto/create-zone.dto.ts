@@ -1,13 +1,13 @@
-import { IsNotEmpty, IsString } from "class-validator";
+import { IsString, IsNotEmpty, } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateZoneDto {
+  @ApiProperty({ example: 'Z001' })
+  @IsString() @IsNotEmpty()
+  code: string;
 
-    @IsString()
-    @IsNotEmpty()
-    code: string;
-
-    @IsString()
-    @IsNotEmpty()
-    name: string;
+  @ApiProperty({ example: 'Zona Norte' })
+  @IsString() @IsNotEmpty()
+  name: string;
 
 }

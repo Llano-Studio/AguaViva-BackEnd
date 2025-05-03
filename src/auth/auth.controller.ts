@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Delete, Param, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Delete, Param, Query, ParseEnumPipe } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -9,13 +9,16 @@ import { User } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { RecoverPasswordDto } from './dto/recover-password.dto';
-import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RolesService } from './roles.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
-    private readonly authService: AuthService) { }
+    private readonly authService: AuthService,
+    private readonly rolesService: RolesService
+  ) { }
 
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
@@ -110,5 +113,17 @@ export class AuthController {
     @Body() dto: ResetPasswordDto
   ) {
     return this.authService.resetPassword(dto.token, dto.password);
+  }
+
+  @Get('roles/:role/modules')
+  @ApiParam({ name: 'role', enum: Role, description: 'El rol a consultar' })
+  @ApiOperation({ summary: 'Obtener los módulos (paths) accesibles por rol' })
+  @ApiResponse({ status: 200, description: 'Lista de módulos', schema: {
+    example: ['auth','persons','zones']
+  }})
+  getModulesForRole(
+    @Param('role', new ParseEnumPipe(Role)) role: Role,
+  ): string[] {
+    return this.rolesService.getModulesForRole(role);
   }
 }
