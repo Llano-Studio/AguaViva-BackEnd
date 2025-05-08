@@ -12,6 +12,7 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ProductCategoryService } from './product-category.service';
@@ -20,7 +21,7 @@ import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @ApiTags('Categories')
-@Auth(Role.ADMIN, Role.USER)
+@ApiBearerAuth()
 @Controller('categories')
 export class ProductCategoryController {
   constructor(
@@ -28,6 +29,7 @@ export class ProductCategoryController {
   ) {}
 
   @Get()
+  @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Listar todas las categorías de productos' })
   @ApiResponse({
     status: 200,
@@ -38,6 +40,7 @@ export class ProductCategoryController {
   }
 
   @Get(':id')
+  @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Obtener una categoría de productos por ID' })
   @ApiResponse({ status: 200, description: 'Categoria de producto encontrada.' })
   @ApiResponse({ status: 404, description: 'Categoria de producto no encontrada' })
@@ -48,6 +51,7 @@ export class ProductCategoryController {
   }
 
   @Post()
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Crear una nueva categoría de productos' })
   @ApiResponse({
     status: 201,
@@ -55,7 +59,7 @@ export class ProductCategoryController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflictoso — La categoría de producto ya existe.',
+    description: 'Conflictoso — La categoría de producto ya existe por nombre.',
   })
   createProductCategory(
     @Body() dto: CreateProductCategoryDto,
@@ -64,12 +68,13 @@ export class ProductCategoryController {
   }
 
   @Put(':id')
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Actualizar una categoría de productos por ID' })
   @ApiResponse({ status: 200, description: 'Categoria de producto actualizada.' })
   @ApiResponse({ status: 404, description: 'Categoria de producto no encontrada.' })
   @ApiResponse({
     status: 409,
-    description: 'Conflicto — La categoría de producto ya existe.',
+    description: 'Conflicto — El nombre de la categoría de producto ya existe.',
   })
   updateProductCategoryById(
     @Param('id', ParseIntPipe) id: number,
@@ -79,12 +84,14 @@ export class ProductCategoryController {
   }
 
   @Delete(':id')
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Eliminar una categoría de productos por ID' })
   @ApiResponse({
     status: 200,
     description: 'Categoría de producto eliminada exitosamente.',
   })
   @ApiResponse({ status: 404, description: 'Categoría de producto no encontrada.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - La categoría no puede ser eliminada porque tiene productos asociados.'})
   deleteProductCategoryById(
     @Param('id', ParseIntPipe) id: number,
   ) {

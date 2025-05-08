@@ -16,7 +16,7 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
       });
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('El código de zona ya existe.');
+        throw new ConflictException(`La zona con el código '${createZoneDto.code}' ya existe.`);
       }
       throw new InternalServerErrorException('Error al crear la zona.');
     }
@@ -41,6 +41,7 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
   }
 
   async updateZoneById(id: number, updateZoneDto: UpdateZoneDto): Promise<zone> {
+    await this.getZoneById(id);
     try {
       const updated = await this.zone.update({
         where: { zone_id: id },
@@ -52,18 +53,27 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
         throw new NotFoundException('Zona no encontrada');
       }
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('El código de zona ya existe.');
+        const newCode = (updateZoneDto as any).code;
+        const message = newCode 
+          ? `El código de zona '${newCode}' ya está en uso por otra zona.`
+          : 'Conflicto de unicidad al actualizar la zona (ej. código duplicado).';
+        throw new ConflictException(message);
       }
       throw new InternalServerErrorException('Error al actualizar la zona.');
     }
   }
 
-  async deleteZoneById(id: number): Promise<zone> {
+  async deleteZoneById(id: number): Promise<{ message: string, deleted: boolean }> {
+    await this.getZoneById(id);
     try {
-      return await this.zone.delete({ where: { zone_id: id } });
+      await this.zone.delete({ where: { zone_id: id } });
+      return { message: 'Zona eliminada correctamente.', deleted: true };
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Zona no encontrada');
+      }
+      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new ConflictException('No se puede eliminar la zona porque está siendo referenciada (ej. por localidades o personas). Elimine o reasigne estas referencias primero.');
       }
       throw new InternalServerErrorException('Error al eliminar la zona.');
     }

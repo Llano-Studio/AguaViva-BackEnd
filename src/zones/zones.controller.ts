@@ -20,6 +20,7 @@ export class ZonesController {
   @Post()
   @ApiOperation({ summary: 'Crear una zona' })
   @ApiResponse({ status: 201, description: 'Zona creada', type: CreateZoneDto })
+  @ApiResponse({ status: 409, description: 'Conflicto - El código de la zona ya existe.' })
   createZone(
     @Body() dto: CreateZoneDto
   ) {
@@ -34,9 +35,10 @@ export class ZonesController {
   }
 
   @Get(':id')
-  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la Zona' })
   @ApiOperation({ summary: 'Obtener zona por ID' })
   @ApiResponse({ status: 200, description: 'Datos de la zona', type: CreateZoneDto })
+  @ApiResponse({ status: 404, description: 'Zona no encontrada.' })
   getZoneById(
     @Param('id', ParseIntPipe) id: number
   ) {
@@ -44,9 +46,11 @@ export class ZonesController {
   }
 
   @Patch(':id')
-  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la Zona' })
   @ApiOperation({ summary: 'Actualizar zona' })
   @ApiResponse({ status: 200, description: 'Zona actualizada', type: CreateZoneDto })
+  @ApiResponse({ status: 404, description: 'Zona no encontrada.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - El código de la zona ya está en uso.' })
   updateZoneById(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateZoneDto,
@@ -55,9 +59,11 @@ export class ZonesController {
   }
 
   @Delete(':id')
-  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'id', type: Number, description: 'ID de la Zona' })
   @ApiOperation({ summary: 'Eliminar zona' })
   @ApiResponse({ status: 200, description: 'Zona eliminada' })
+  @ApiResponse({ status: 404, description: 'Zona no encontrada.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - La zona está en uso y no puede ser eliminada.' })
   deleteZoneById(@Param('id', ParseIntPipe) id: number) {
     return this.zonesService.deleteZoneById(id);
   }

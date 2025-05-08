@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -7,12 +7,13 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
 @ApiTags('Products')
-@Auth(Role.ADMIN, Role.USER)
+@ApiBearerAuth()
 @Controller('products')
 export class ProductController {
   constructor(private readonly service: ProductService) {}
 
   @Get()
+  @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Listar todos los productos' })
   @ApiResponse({ status: 200, description: 'Listar todos los productos.' })
   getAllProducts() {
@@ -20,6 +21,7 @@ export class ProductController {
   }
 
   @Get(':id')
+  @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Obtener un producto por su id' })
   @ApiResponse({ status: 200, description: 'Producto encontrado.' })
   @ApiResponse({ status: 404, description: 'Product no encontrado.' })
@@ -30,6 +32,7 @@ export class ProductController {
   }
 
   @Post()
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Crear un nuevo producto' })
   @ApiResponse({ status: 201, description: 'Producto creado.' })
   createProduct(
@@ -39,6 +42,7 @@ export class ProductController {
   }
 
   @Put(':id')
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Actualizar un producto por su id' })
   @ApiResponse({ status: 200, description: 'Producto actualizado.' })
   updateProductById(
@@ -49,6 +53,7 @@ export class ProductController {
   }
 
   @Delete(':id')
+  @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Eliminar un producto por su id' })
   @ApiResponse({ status: 200, description: 'Producto eliminado.' })
   deleteProductById(

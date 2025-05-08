@@ -4,7 +4,7 @@ import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { ZonesModule } from './zones/zones.module';
-import { VehiculeModule } from './vehicule/vehicule.module';
+import { VehicleModule } from './vehicule/vehicle.module';
 import { VehiculeInventoryModule } from './vehicule-inventory/vehicule-inventory.module';
 import { ProductModule } from './product/product.module';
 import { ProductCategoryModule } from './product-category/product-category.module';
@@ -18,7 +18,7 @@ import { ProductCategoryModule } from './product-category/product-category.modul
     AuthModule,
     MailModule,
     ZonesModule,
-    VehiculeModule,
+    VehicleModule,
     VehiculeInventoryModule,
     ProductModule,
     ProductCategoryModule,

@@ -4,8 +4,10 @@ import {
   IsInt,
   IsDateString,
   IsNotEmpty,
+  IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PersonType } from '../../constants/enums';
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Juan Pérez' })
@@ -21,6 +23,11 @@ export class CreatePersonDto {
   @IsOptional()
   address?: string;
 
+  @ApiPropertyOptional({ example: '30123456789' })
+  @IsString()
+  @IsOptional()
+  taxId?: string;
+
   @ApiProperty({ example: 2, description: 'ID de la localidad' })
   @IsInt()
   localityId: number;
@@ -34,8 +41,12 @@ export class CreatePersonDto {
   @IsOptional()
   registrationDate?: string;
 
-  @ApiProperty({ example: 'client' })
-  @IsString() 
+  @ApiProperty({ 
+    example: 'INDIVIDUAL', 
+    enum: PersonType, 
+    description: 'Tipo de persona (INDIVIDUAL/COMPANY)' 
+  })
+  @IsEnum(PersonType)
   @IsNotEmpty()
-  type: string;
+  type: PersonType;
 }

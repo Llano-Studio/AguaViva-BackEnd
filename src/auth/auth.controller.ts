@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Delete, Param, Query, ParseEnumPipe } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -57,26 +57,26 @@ export class AuthController {
   @Get('users/:id')
   @Auth(Role.ADMIN)
   getUserById(
-    @Param('id') id: string
+    @Param('id', ParseIntPipe) id: number
   ) {
-    return this.authService.getUserById(+id);
+    return this.authService.getUserById(id);
   }
 
   @Put('users/:id')
   @Auth(Role.ADMIN)
   updateUser(
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto
   ) {
-    return this.authService.updateUser(+id, updateUserDto);
+    return this.authService.updateUser(id, updateUserDto);
   }
 
   @Delete('users/:id')
   @Auth(Role.ADMIN)
   deleteUser(
-    @Param('id') id: string
+    @Param('id', ParseIntPipe) id: number
   ) {
-    return this.authService.deleteUser(+id);
+    return this.authService.deleteUser(id);
   }
 
   @Put('profile/password')

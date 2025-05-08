@@ -21,35 +21,25 @@ export class ProductCategoryService extends PrismaClient implements OnModuleInit
   }
 
   async getProductCategoryById(id: number) {
-    try {
-      const category = await this.product_category.findUnique(
-        {
-          where: {
-            category_id: id
-          },
-          include: {
-            product: true
-          }
-        }
-      );
-      if (!category) throw new NotFoundException(`Categoria de producto con ID ${id} no encontrada`);
-      return category;
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException('Error al obtener la categoria de producto');
+    const category = await this.product_category.findUnique({
+      where: { category_id: id },
+      include: { product: true },
+    });
+    if (!category) {
+      throw new NotFoundException(`Categoria de producto con ID ${id} no encontrada`);
     }
+    return category;
   }
 
   async createProductCategory(dto: CreateProductCategoryDto) {
     try {
-      return await this.product_category.create(
-        {
-          data: dto
-        });
+      return await this.product_category.create({
+        data: dto,
+      });
     } catch (error: any) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new ConflictException('Categoria ya existe');
+          throw new ConflictException(`La categoría con el nombre '${dto.name}' ya existe.`);
         }
       }
       throw new InternalServerErrorException('Error al crear una categoria');
@@ -60,15 +50,13 @@ export class ProductCategoryService extends PrismaClient implements OnModuleInit
     await this.getProductCategoryById(id);
     try {
       return await this.product_category.update({
-        where: {
-          category_id: id
-        },
-        data: dto
+        where: { category_id: id },
+        data: dto,
       });
     } catch (error: any) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new ConflictException('Error al actualizar la categoria');
+          throw new ConflictException(`El nombre de categoría '${dto.name}' ya está en uso.`);
         }
       }
       throw new InternalServerErrorException(`Error al actualizar la categoria con id #${id}`);
@@ -78,16 +66,20 @@ export class ProductCategoryService extends PrismaClient implements OnModuleInit
   async deleteProductCategoryById(id: number) {
     await this.getProductCategoryById(id);
     try {
-      await this.product_category.delete(
-        {
-          where: {
-            category_id: id
-          }
-        });
-      return { deleted: true };
+      await this.product_category.delete({
+        where: { category_id: id },
+      });
+      return { message: 'Categoría de producto eliminada exitosamente.', deleted: true };
     } catch (error: any) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new InternalServerErrorException('Error al eliminar la categoria, el id no existe');
+        if (error.code === 'P2003') {
+          throw new ConflictException(
+            'No se puede eliminar la categoría porque tiene productos asociados. Elimine o reasigne los productos primero.',
+          );
+        }
+        throw new InternalServerErrorException(
+          'Error al eliminar la categoría debido a una restricción de base de datos.',
+        );
       }
       throw new InternalServerErrorException(`Error al eliminar la categoria con id #${id}`);
     }

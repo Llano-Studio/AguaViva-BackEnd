@@ -9,6 +9,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { PersonType } from '../constants/enums';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -41,6 +42,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       name: dto.name,
       phone: dto.phone,
       address: dto.address,
+      tax_id: dto.taxId,
       ...(registration_date && { registration_date }),
       locality: { connect: { locality_id: dto.localityId } },
       zone: { connect: { zone_id: dto.zoneId } },
@@ -92,6 +94,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             contains: name,
             mode: 'insensitive'
           }
+        },
+        include: {
+          locality: {
+            include: { province: true }
+          },
+          zone: true
         }
       });
 
@@ -109,10 +117,33 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             contains: address,
             mode: 'insensitive'
           }
+        },
+        include: {
+          locality: {
+            include: { province: true }
+          },
+          zone: true
         }
       });
     if (!persons || persons.length === 0) {
       throw new NotFoundException('No se encontró ninguna persona con esa dirección');
+    }
+    return persons;
+  }
+
+  async findPersonByType(type: PersonType) {
+    const persons = await this.person.findMany({
+      where: { type },
+      include: {
+        locality: {
+          include: { province: true }
+        },
+        zone: true
+      }
+    });
+    
+    if (!persons || persons.length === 0) {
+      throw new NotFoundException(`No se encontraron personas de tipo ${type}`);
     }
     return persons;
   }
@@ -130,10 +161,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
 
     const data: Prisma.personUncheckedUpdateInput = {
-      ...dto,
+      name: dto.name,
+      phone: dto.phone,
+      address: dto.address,
+      tax_id: dto.taxId,
       registration_date: dto.registrationDate ? new Date(dto.registrationDate) : undefined,
       locality_id: dto.localityId,
       zone_id: dto.zoneId,
+      ...(dto.type && { type: dto.type }),
     };
 
     try {
