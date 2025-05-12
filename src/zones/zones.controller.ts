@@ -1,6 +1,7 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe,
+  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
   ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth,
 } from '@nestjs/swagger';
@@ -10,7 +11,7 @@ import { UpdateZoneDto } from './dto/update-zone.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 
-@ApiTags('zones')
+@ApiTags('Zonas')
 @ApiBearerAuth()
 @Auth(Role.ADMIN)
 @Controller('zones')
@@ -28,6 +29,7 @@ export class ZonesController {
   }
 
   @Get()
+  @UseInterceptors(CacheInterceptor)
   @ApiOperation({ summary: 'Listar todas las zonas' })
   @ApiResponse({ status: 200, description: 'Listado de zonas', type: [CreateZoneDto] })
   getAllZones() {

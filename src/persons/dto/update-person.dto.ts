@@ -6,7 +6,7 @@ import {
   IsEnum,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PersonType } from '../../constants/enums';
+import { PersonType } from '../../common/constants/enums';
 
 export class UpdatePersonDto {
   @ApiPropertyOptional({ example: 'Juan Pérez' })
@@ -47,7 +47,7 @@ export class UpdatePersonDto {
   @ApiPropertyOptional({ 
     example: 'INDIVIDUAL', 
     enum: PersonType, 
-    description: 'Tipo de persona (INDIVIDUAL/COMPANY)' 
+    description: 'Tipo de persona (INDIVIDUAL/PLAN)' 
   })
   @IsEnum(PersonType)
   @IsOptional()

@@ -7,7 +7,9 @@ import {
   Param,
   Body,
   ParseIntPipe,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
   ApiTags,
   ApiOperation,
@@ -20,7 +22,7 @@ import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
-@ApiTags('Categories')
+@ApiTags('Categorías de productos')
 @ApiBearerAuth()
 @Controller('categories')
 export class ProductCategoryController {
@@ -30,6 +32,7 @@ export class ProductCategoryController {
 
   @Get()
   @Auth(Role.ADMIN, Role.USER)
+  @UseInterceptors(CacheInterceptor)
   @ApiOperation({ summary: 'Listar todas las categorías de productos' })
   @ApiResponse({
     status: 200,

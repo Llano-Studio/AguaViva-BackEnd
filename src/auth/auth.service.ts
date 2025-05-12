@@ -1,14 +1,18 @@
-import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
-import { PrismaClient, Role, User } from '@prisma/client';
+import { PrismaClient, Role, User, Prisma } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { RecoverPasswordDto } from './dto/recover-password.dto';
 import { MailService } from '../mail/mail.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { FilterUsersDto } from './dto/filter-users.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
@@ -20,106 +24,221 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   constructor(
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {
     super();
+  }
+
+  private generateJwtToken(payload: JwtPayload, expiresIn: string | number): string {
+    return this.jwtService.sign(payload, { expiresIn });
+  }
+
+  private async generateAndStoreRefreshToken(userId: number): Promise<string> {
+    const refreshTokenExpiresIn = this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION_TIME') || '7d';
+
+
+    const refreshTokenPayload: JwtPayload = { id: userId };
+    const refreshToken = this.generateJwtToken(refreshTokenPayload, refreshTokenExpiresIn);
+
+
+    const now = new Date();
+    let expiresAt = new Date(now);
+    if (typeof refreshTokenExpiresIn === 'string') {
+
+      const daysMatch = refreshTokenExpiresIn.match(/^(\d+)d$/);
+      if (daysMatch) {
+        expiresAt.setDate(now.getDate() + parseInt(daysMatch[1], 10));
+      } else {
+        expiresAt.setDate(now.getDate() + 7);
+      }
+    } else if (typeof refreshTokenExpiresIn === 'number') {
+      expiresAt = new Date(now.getTime() + refreshTokenExpiresIn * 1000);
+    } else {
+      expiresAt.setDate(now.getDate() + 7);
+    }
+
+    await this.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: userId,
+        expiresAt: expiresAt,
+      },
+    });
+
+    return refreshToken;
   }
 
   async register(registerUserDto: RegisterUserDto) {
     const { email, password, name } = registerUserDto;
 
-    // Verificar si el usuario ya existe
-    const existingUser = await this.user.findUnique({
-      where: { email },
-    });
+    const existingUser = await this.user.findUnique(
+      {
+        where: { email }
+      });
 
     if (existingUser) {
       throw new BadRequestException('El usuario ya está registrado');
     }
 
-    // Encriptar la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear el usuario
     const user = await this.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        role: Role.USER,
-      },
+      data: { email, password: hashedPassword, name, role: Role.USER },
     });
 
-    // Generar JWT
-    const token = this.generateJwt(user.id);
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+
+    const accessToken = this.generateJwtToken(
+      { id: user.id },
+      accessTokenExpiresIn
+    );
+
+    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role
       },
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 
   async login(loginUserDto: LoginUserDto) {
     const { email, password } = loginUserDto;
 
-    // Buscar el usuario
-    const user = await this.user.findUnique({
-      where: { email },
-    });
+    const user = await this.user.findUnique({ where: { email } });
 
     if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Credenciales inválidas (usuario)');
     }
 
-    // Validar la contraseña
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
+      throw new UnauthorizedException('Credenciales inválidas (contraseña)');
     }
 
-    // Generar JWT
-    const token = this.generateJwt(user.id);
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
+    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
     return {
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role
       },
-      token,
+      accessToken,
+      refreshToken,
     };
   }
 
   async checkAuthStatus(user: User) {
+
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessToken = this.generateJwtToken(
+      { id: user.id },
+      accessTokenExpiresIn
+    );
+    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
+
     return {
-      ...user,
-      token: this.generateJwt(user.id),
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      accessToken,
+      refreshToken,
     };
   }
 
-  private generateJwt(userId: number) {
-    const payload: JwtPayload = { id: userId };
-    return this.jwtService.sign(payload);
-  }
+  async getAllUsers(filters?: FilterUsersDto) {
+    try {
+      const whereClause: Prisma.UserWhereInput = {};
 
-  async getAllUsers() {
-    return this.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+
+      if (filters) {
+        if (filters.search) {
+          whereClause.OR = [
+            {
+              name:
+              {
+                contains: filters.search,
+                mode: 'insensitive'
+              }
+            },
+            {
+              email: {
+                contains: filters.search,
+                mode: 'insensitive'
+              }
+            }
+          ];
+        }
+
+        if (filters.role) {
+          whereClause.role = filters.role;
+        }
+
+        if (filters.isActive !== undefined) {
+          whereClause.isActive = filters.isActive;
+        }
+      }
+
+      // Configurar paginación
+      const page = filters?.page || 1;
+      const limit = filters?.limit || 10;
+      const skip = (page - 1) * limit;
+
+      // Obtener total de usuarios que coinciden con el filtro
+      const totalUsers = await this.user.count({
+        where: whereClause
+      });
+
+      // Obtener usuarios paginados
+      const users = await this.user.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' }
+      });
+
+      // Mapear a DTOs de respuesta
+      const userDtos = users.map(user => new UserResponseDto({
+        ...user,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+      }));
+
+      // Retornar con metadatos de paginación
+      return {
+        data: userDtos,
+        meta: {
+          total: totalUsers,
+          page: page,
+          limit: limit,
+          totalPages: Math.ceil(totalUsers / limit)
+        }
+      };
+    } catch (error) {
+      console.error('Error al obtener usuarios:', error);
+      throw new InternalServerErrorException('Error al obtener la lista de usuarios');
+    }
   }
 
   async getUserById(id: number) {
@@ -130,6 +249,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         email: true,
         name: true,
         role: true,
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -266,5 +386,108 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     } catch (error) {
       throw new UnauthorizedException('Token inválido o expirado');
     }
+  }
+
+  async createUser(createUserDto: CreateUserDto) {
+    const { email, password, name, role, isActive = true, notes } = createUserDto;
+
+    // Verificar si el usuario ya existe
+    const existingUser = await this.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('El usuario ya está registrado');
+    }
+
+    // Encriptar la contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    try {
+      // Crear el usuario con los datos proporcionados
+      const user = await this.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+          role,
+          isActive,
+          // Añadir notas en un futuro si el modelo de usuario lo soporta
+        },
+      });
+
+      // Devolver el usuario creado sin la contraseña
+      return new UserResponseDto({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+           
+        if (error.code === 'P2002') {
+          throw new BadRequestException('El correo electrónico ya está registrado');
+        }
+      }
+      console.error('Error al crear usuario:', error);
+      throw new InternalServerErrorException('Error al crear el usuario');
+    }
+  }
+
+  async validateAndParseRefreshToken(token: string): Promise<JwtPayload | null> {
+    try {
+ 
+      const payload = this.jwtService.verify<JwtPayload>(token);
+      return payload;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async handleRefreshToken(oldRefreshTokenString: string): Promise<{ accessToken: string; refreshToken: string }> {
+
+    const refreshTokenPayload = await this.validateAndParseRefreshToken(oldRefreshTokenString);
+    if (!refreshTokenPayload || !refreshTokenPayload.id) {
+      throw new UnauthorizedException('Refresh token inválido o expirado.');
+    }
+
+    const userId = refreshTokenPayload.id;
+
+    const storedRefreshToken = await this.refreshToken.findUnique({
+      where: { 
+        token: oldRefreshTokenString 
+      },
+    });
+
+    if (!storedRefreshToken) {
+      throw new UnauthorizedException('Refresh token no encontrado en la base de datos o ya invalidado.');
+    }
+
+    if (storedRefreshToken.userId !== userId) {
+      throw new UnauthorizedException('Refresh token no pertenece al usuario.');
+    }
+
+    if (new Date(storedRefreshToken.expiresAt) < new Date()) {
+      await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
+      throw new UnauthorizedException('Refresh token expirado (según base de datos).');
+    }
+
+    await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
+
+    // 4. Generar un nuevo access_token
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const newAccessToken = this.generateJwtToken({ id: userId }, accessTokenExpiresIn);
+
+    // 5. Generar y guardar un nuevo refresh_token
+    const newRefreshToken = await this.generateAndStoreRefreshToken(userId);
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
   }
 }

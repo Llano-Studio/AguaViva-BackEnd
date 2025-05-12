@@ -6,7 +6,7 @@ import { CreateVehicleInventoryDto } from './dto/create-vehicule-inventory.dto';
 import { Role } from '@prisma/client';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
-@ApiTags('Vehicle Inventories')
+@ApiTags('Inventario de vehículos')
 @ApiBearerAuth()
 @Controller('vehicle-inventories')
 export class VehicleInventoryController {

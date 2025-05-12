@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseInterceptors } from '@nestjs/common';
+import { CacheInterceptor } from '@nestjs/cache-manager';
 import { CreateVehicleDto } from './dto/create-vehicule.dto';
 import { UpdateVehicleDto } from './dto/update-vehicule.dto';
 import { VehicleService } from './vehicle.service';
@@ -6,7 +7,7 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 
-@ApiTags('Vehicles')
+@ApiTags('Vehículos')
 @ApiBearerAuth()
 @Controller('vehicles')
 export class VehicleController {
@@ -29,6 +30,7 @@ export class VehicleController {
 
   @Get()
   @Auth(Role.ADMIN, Role.USER)
+  @UseInterceptors(CacheInterceptor)
   @ApiOperation({ summary: 'Listar todos los vehículos o filtrar por código' })
   @ApiQuery({ name: 'code', required: false, description: 'Filtrar por código de vehículo' })
   @ApiResponse({ status: 200, description: 'Lista de vehículos.', type: [CreateVehicleDto] })

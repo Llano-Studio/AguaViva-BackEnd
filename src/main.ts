@@ -1,4 +1,4 @@
-import { NestFactory, HttpAdapterHost } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import {
   ValidationPipe,
@@ -8,11 +8,15 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as helmet from 'helmet';
 import * as compression from 'compression';
 import { json, urlencoded } from 'express';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { DatabaseErrorInterceptor } from './common/interceptors/database-error.interceptor';
+import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
+import { join } from 'path';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
   });
 
@@ -40,8 +44,15 @@ async function bootstrap() {
     }),
   );
 
-  const { httpAdapter } = app.get(HttpAdapterHost);
-  app.enableShutdownHooks();
+  // Aplicar el interceptor global para manejar errores de base de datos
+  app.useGlobalInterceptors(new DatabaseErrorInterceptor());
+
+  // Aplicar el filtro global para manejar excepciones de base de datos
+  app.useGlobalFilters(new DatabaseExceptionFilter());
+
+  app.useStaticAssets(join(process.cwd(), 'public'));
+
+  app.enableShutdownHooks();  
 
   // Swagger
   const swaggerConfig = new DocumentBuilder()
@@ -54,9 +65,7 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig, {
-    include: [AppModule],
-  });
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
   });

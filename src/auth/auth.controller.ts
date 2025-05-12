@@ -1,18 +1,25 @@
-import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe, Query, ValidationPipe, UseGuards, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Role, User } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
+import {
+  RegisterUserDto,
+  LoginUserDto,
+  LoginResponseDto,
+  UpdateUserDto,
+  UpdatePasswordDto,
+  RecoverPasswordDto,
+  ResetPasswordDto,
+  CreateUserDto,
+  FilterUsersDto,
+  UserResponseDto
+} from './dto/';
 import { GetUser } from './decorators/get-user.decorator';
-import { Role } from '@prisma/client';
 import { Auth } from './decorators/auth.decorator';
-import { User } from '@prisma/client';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdatePasswordDto } from './dto/update-password.dto';
-import { RecoverPasswordDto } from './dto/recover-password.dto';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
-import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RolesService } from './roles.service';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
+@ApiTags('Autenticación/Usuarios')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -22,20 +29,31 @@ export class AuthController {
 
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
-  @ApiResponse({ status: 201, description: 'Usuario registrado' })
+  @ApiResponse({ status: 201, description: 'Usuario registrado', type: LoginResponseDto })
   register(
-    @Body() dto: RegisterUserDto
+    @Body(ValidationPipe) dto: RegisterUserDto
   ) {
     return this.authService.register(dto);
   }
 
   @Post('login')
   @ApiOperation({ summary: 'Iniciar sesión' })
-  @ApiResponse({ status: 200, description: 'Token de acceso' })
+  @ApiResponse({ status: 200, description: 'Tokens de acceso y refresco', type: LoginResponseDto })
   login(
-    @Body() dto: LoginUserDto
-  ) {
+    @Body(ValidationPipe) dto: LoginUserDto
+  ): Promise<LoginResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Post('refresh-token')
+  @UseGuards(JwtRefreshGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Refrescar token de acceso' })
+  @ApiResponse({ status: 200, description: 'Nuevos tokens generados', type: LoginResponseDto })
+  @ApiResponse({ status: 401, description: 'Refresh token inválido o expirado' })
+  async refreshToken(@Req() req: any) {
+    const userRefreshToken = req.user.refreshToken;
+    return this.authService.handleRefreshToken(userRefreshToken);
   }
 
   @Get('profile')
@@ -50,8 +68,41 @@ export class AuthController {
 
   @Get('users')
   @Auth(Role.ADMIN)
-  getAllUsers() {
-    return this.authService.getAllUsers();
+  @ApiOperation({ summary: 'Obtener listado de usuarios con filtros y paginación' })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de usuarios paginado',
+    schema: {
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/UserResponseDto' }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
+      }
+    }
+  })
+  getAllUsers(
+    @Query(
+      new ValidationPipe(
+        {
+          transform: true,
+          transformOptions: {
+            enableImplicitConversion: true
+          }
+        }
+      ))
+    filterDto: FilterUsersDto
+  ) {
+    return this.authService.getAllUsers(filterDto);
   }
 
   @Get('users/:id')
@@ -60,6 +111,17 @@ export class AuthController {
     @Param('id', ParseIntPipe) id: number
   ) {
     return this.authService.getUserById(id);
+  }
+
+  @Post('users')
+  @Auth(Role.ADMIN)
+  @ApiOperation({ summary: 'Crear un nuevo usuario (admin)' })
+  @ApiResponse({ status: 201, description: 'Usuario creado exitosamente', type: UserResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o usuario ya existe' })
+  createUser(
+    @Body() createUserDto: CreateUserDto
+  ) {
+    return this.authService.createUser(createUserDto);
   }
 
   @Put('users/:id')
@@ -84,7 +146,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Cambiar mi propia contraseña' })
   updatePassword(
-    @GetUser() user: User, 
+    @GetUser() user: User,
     @Body() dto: UpdatePasswordDto
   ) {
     return this.authService.updatePassword(user.id, dto);
@@ -99,7 +161,9 @@ export class AuthController {
   }
 
   @Get('check-status')
-  @Auth()
+
+  @ApiOperation({ summary: 'Verificar estado de autenticación y obtener nuevos tokens' })
+  @ApiResponse({ status: 200, description: 'Estado y nuevos tokens', type: LoginResponseDto })
   checkAuthStatus(
     @GetUser() user: User
   ) {
@@ -118,9 +182,12 @@ export class AuthController {
   @Get('roles/:role/modules')
   @ApiParam({ name: 'role', enum: Role, description: 'El rol a consultar' })
   @ApiOperation({ summary: 'Obtener los módulos (paths) accesibles por rol' })
-  @ApiResponse({ status: 200, description: 'Lista de módulos', schema: {
-    example: ['auth','persons','zones']
-  }})
+  @ApiResponse({
+    status: 200, description: 'Lista de módulos', schema: {
+      example: ['auth', 'persons', 'zones']
+    }
+  })
+  @Auth(Role.ADMIN)
   getModulesForRole(
     @Param('role', new ParseEnumPipe(Role)) role: Role,
   ): string[] {

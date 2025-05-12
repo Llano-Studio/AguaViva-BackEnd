@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, IsBoolean, IsOptional, IsNumber } from 'class-validator';
+import { IsInt, IsString, IsBoolean, IsOptional, IsNumber, ValidateIf } from 'class-validator';
 
 export class CreateProductDto {
   @ApiProperty({ example: 1, description: 'ID de la categoría' })
@@ -10,10 +10,11 @@ export class CreateProductDto {
   @IsString()
   description: string;
 
-  @ApiProperty({ example: 1.5, description: 'Volumen en litros', required: false })
+  @ApiProperty({ example: 1.5, description: 'Volumen en litros', required: false, nullable: true })
   @IsOptional()
   @IsNumber()
-  volume_liters?: number;
+  @ValidateIf((o, v) => v !== null)
+  volume_liters?: number | null;
 
   @ApiProperty({ example: 50.0, description: 'Precio unitario' })
   @IsNumber()
@@ -23,13 +24,15 @@ export class CreateProductDto {
   @IsBoolean()
   is_returnable: boolean;
 
-  @ApiProperty({ example: 'SN123456', description: 'Número de serie', required: false })
+  @ApiProperty({ example: 'SN123456', description: 'Número de serie', required: false, nullable: true })
   @IsOptional()
   @IsString()
-  serial_number?: string;
+  @ValidateIf((o, v) => v !== null)
+  serial_number?: string | null;
 
-  @ApiProperty({ example: 'Producto importado', description: 'Notas adicionales', required: false })
+  @ApiProperty({ example: 'Producto importado', description: 'Notas adicionales', required: false, nullable: true })
   @IsOptional()
   @IsString()
-  notes?: string;
+  @ValidateIf((o, v) => v !== null)
+  notes?: string | null;
 }

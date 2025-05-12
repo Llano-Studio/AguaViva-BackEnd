@@ -7,7 +7,7 @@ import {
   IsEnum,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PersonType } from '../../constants/enums';
+import { PersonType } from '../../common/constants/enums';
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Juan Pérez' })
@@ -44,7 +44,7 @@ export class CreatePersonDto {
   @ApiProperty({ 
     example: 'INDIVIDUAL', 
     enum: PersonType, 
-    description: 'Tipo de persona (INDIVIDUAL/COMPANY)' 
+    description: 'Tipo de persona (INDIVIDUAL/PLAN)' 
   })
   @IsEnum(PersonType)
   @IsNotEmpty()
