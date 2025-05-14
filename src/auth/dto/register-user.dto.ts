@@ -1,4 +1,5 @@
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class RegisterUserDto {
   @IsEmail()
@@ -16,4 +17,13 @@ export class RegisterUserDto {
   @IsString()
   @MinLength(1)
   name: string;
+
+  @ApiProperty({
+    description: 'Archivo de imagen de perfil (opcional)',
+    type: 'string',
+    format: 'binary',
+    required: false
+  })
+  @IsOptional()
+  profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
 } 

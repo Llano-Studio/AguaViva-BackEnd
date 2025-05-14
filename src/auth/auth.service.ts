@@ -68,13 +68,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     return refreshToken;
   }
 
-  async register(registerUserDto: RegisterUserDto) {
+  async register(registerUserDto: RegisterUserDto, profileImage?: any) {
     const { email, password, name } = registerUserDto;
 
-    const existingUser = await this.user.findUnique(
-      {
-        where: { email }
-      });
+    const existingUser = await this.user.findUnique({ where: { email } });
 
     if (existingUser) {
       throw new BadRequestException('El usuario ya está registrado');
@@ -82,9 +79,18 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await this.user.create({
-      data: { email, password: hashedPassword, name, role: Role.USER },
-    });
+    const userData: Prisma.UserCreateInput = {
+      email,
+      password: hashedPassword,
+      name,
+      role: Role.USER, 
+    };
+
+    if (profileImage?.filename) { 
+      userData.profileImageUrl = profileImage.filename; 
+    }
+
+    const user = await this.user.create({ data: userData });
 
     const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
 
@@ -96,12 +102,16 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
     return {
-      user: {
+      user: new UserResponseDto({
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
-      },
+        role: user.role,
+        isActive: user.isActive,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt?.toISOString(),
+        profileImageUrl: user.profileImageUrl === null ? undefined : user.profileImageUrl 
+      }),
       accessToken,
       refreshToken,
     };
@@ -162,7 +172,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     try {
       const whereClause: Prisma.UserWhereInput = {};
 
-
       if (filters) {
         if (filters.search) {
           whereClause.OR = [
@@ -191,17 +200,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         }
       }
 
-      // Configurar paginación
       const page = filters?.page || 1;
       const limit = filters?.limit || 10;
       const skip = (page - 1) * limit;
 
-      // Obtener total de usuarios que coinciden con el filtro
       const totalUsers = await this.user.count({
         where: whereClause
       });
 
-      // Obtener usuarios paginados
       const users = await this.user.findMany({
         where: whereClause,
         select: {
@@ -212,20 +218,24 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           isActive: true,
           createdAt: true,
           updatedAt: true,
+          profileImageUrl: true, 
+          // notes: true, 
         },
         skip,
         take: limit,
         orderBy: { name: 'asc' }
       });
 
-      // Mapear a DTOs de respuesta
+      const appUrl = this.configService.get<string>('APP_URL') || ''; 
+
       const userDtos = users.map(user => new UserResponseDto({
         ...user,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/uploads/profile-images/${user.profileImageUrl}` : undefined, 
+        // notes: user.notes === null ? undefined : user.notes, 
       }));
 
-      // Retornar con metadatos de paginación
       return {
         data: userDtos,
         meta: {
@@ -252,52 +262,73 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        profileImageUrl: true, 
+        // notes: true, 
       },
     });
 
     if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+      throw new BadRequestException(`Usuario con ID ${id} no encontrado.`);
     }
 
-    return user;
+    const appUrl = this.configService.get<string>('APP_URL') || ''; 
+
+    return new UserResponseDto({
+      ...user,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+      profileImageUrl: user.profileImageUrl ? `${appUrl}/uploads/profile-images/${user.profileImageUrl}` : undefined, 
+      // notes: user.notes === null ? undefined : user.notes, 
+    });
   }
 
-  async updateUser(id: number, updateUserDto: UpdateUserDto) {
-    const user = await this.user.findUnique({ where: { id } });
+  async updateUser(id: number, updateUserDto: UpdateUserDto, profileImage?: any) {
+    const { name, email, role, isActive } = updateUserDto;
 
+    const user = await this.user.findUnique({ where: { id } });
     if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+      throw new BadRequestException(`Usuario con ID ${id} no encontrado.`);
     }
 
-    // Verificar si el email ya existe en otro usuario
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const existingUser = await this.user.findUnique({
-        where: { email: updateUserDto.email },
-      });
-
-      if (existingUser) {
-        throw new BadRequestException('El email ya está en uso por otro usuario');
+    if (email && email !== user.email) {
+      const existingUserWithEmail = await this.user.findUnique({ where: { email } });
+      if (existingUserWithEmail && existingUserWithEmail.id !== id) {
+        throw new BadRequestException('El correo electrónico ya está en uso por otro usuario.');
       }
     }
 
-    return this.user.update({
-      where: { id },
-      data: {
-        name: updateUserDto.name,
-        email: updateUserDto.email,
-        role: updateUserDto.role,
-        isActive: updateUserDto.isActive,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const dataToUpdate: Prisma.UserUpdateInput = {};
+    if (name) dataToUpdate.name = name;
+    if (email) dataToUpdate.email = email;
+    if (role) dataToUpdate.role = role;
+    if (isActive !== undefined) dataToUpdate.isActive = isActive;
+
+    if (profileImage?.filename) {
+      dataToUpdate.profileImageUrl = profileImage.filename;
+    }
+
+    try {
+      const updatedUser = await this.user.update({
+        where: { id },
+        data: dataToUpdate,
+      });
+      return new UserResponseDto({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+        createdAt: updatedUser.createdAt.toISOString(),
+        updatedAt: updatedUser.updatedAt?.toISOString(),
+        profileImageUrl: updatedUser.profileImageUrl === null ? undefined : updatedUser.profileImageUrl,
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException('Error al actualizar usuario: El correo electrónico ya está en uso por otro usuario.');
+      }
+      throw new InternalServerErrorException('Error al actualizar el usuario.');
+    }
   }
 
   async deleteUser(id: number) {
@@ -388,53 +419,49 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async createUser(createUserDto: CreateUserDto) {
-    const { email, password, name, role, isActive = true, notes } = createUserDto;
+  async createUser(createUserDto: CreateUserDto, profileImage?: any) {
+    const { email, password, name, role, isActive, notes } = createUserDto;
 
-    // Verificar si el usuario ya existe
-    const existingUser = await this.user.findUnique({
-      where: { email },
-    });
-
+    const existingUser = await this.user.findUnique({ where: { email } });
     if (existingUser) {
-      throw new BadRequestException('El usuario ya está registrado');
+      throw new BadRequestException('El correo electrónico ya está en uso.');
     }
 
-    // Encriptar la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
+    const userData: Prisma.UserCreateInput = {
+      email,
+      password: hashedPassword,
+      name,
+      role,
+      isActive,
+    };
+    if (createUserDto.notes) {
+    }
+
+    if (profileImage?.filename) {
+      userData.profileImageUrl = profileImage.filename;
+    }
 
     try {
-      // Crear el usuario con los datos proporcionados
-      const user = await this.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          name,
-          role,
-          isActive,
-          // Añadir notas en un futuro si el modelo de usuario lo soporta
-        },
-      });
-
-      // Devolver el usuario creado sin la contraseña
-      return new UserResponseDto({
+      const user = await this.user.create({ data: userData });
+      return new UserResponseDto({ 
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
         isActive: user.isActive,
         createdAt: user.createdAt.toISOString(),
-        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+        updatedAt: user.updatedAt?.toISOString(),
+        profileImageUrl: user.profileImageUrl === null ? undefined : user.profileImageUrl,
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-           
-        if (error.code === 'P2002') {
-          throw new BadRequestException('El correo electrónico ya está registrado');
+        if (error.code === 'P2002') { 
+          throw new BadRequestException('Error al crear usuario: El correo electrónico ya existe.');
         }
       }
-      console.error('Error al crear usuario:', error);
-      throw new InternalServerErrorException('Error al crear el usuario');
+      console.error('Error creating user:', error); 
+      throw new InternalServerErrorException('Error al crear el usuario.');
     }
   }
 
@@ -491,3 +518,4 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     };
   }
 }
+

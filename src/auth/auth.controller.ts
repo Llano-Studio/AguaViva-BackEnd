@@ -1,5 +1,8 @@
-import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe, Query, ValidationPipe, UseGuards, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe, Query, ValidationPipe, UseGuards, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Role, User } from '@prisma/client';
 import { AuthService } from './auth.service';
 import {
@@ -19,6 +22,25 @@ import { Auth } from './decorators/auth.decorator';
 import { RolesService } from './roles.service';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
+// Función auxiliar para generar nombres de archivo
+const editFileName = (req, file, callback) => {
+  const name = file.originalname.split('.')[0];
+  const fileExtName = extname(file.originalname);
+  const randomName = Array(4)
+    .fill(null)
+    .map(() => Math.round(Math.random() * 16).toString(16))
+    .join('');
+  callback(null, `${name}-${randomName}${fileExtName}`);
+};
+
+// Función auxiliar para filtrar tipos de archivo (opcional pero recomendado)
+const imageFileFilter = (req, file, callback) => {
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+    return callback(new Error('¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif)!'), false);
+  }
+  callback(null, true);
+};
+
 @ApiTags('Autenticación/Usuarios')
 @Controller('auth')
 export class AuthController {
@@ -30,10 +52,19 @@ export class AuthController {
   @Post('register')
   @ApiOperation({ summary: 'Registrar nuevo usuario' })
   @ApiResponse({ status: 201, description: 'Usuario registrado', type: LoginResponseDto })
+  @UseInterceptors(FileInterceptor('profileImage', { 
+    storage: diskStorage({
+      destination: './uploads/profile-images',
+      filename: editFileName,
+    }),
+    fileFilter: imageFileFilter, 
+  }))
+  @ApiConsumes('multipart/form-data') 
   register(
-    @Body(ValidationPipe) dto: RegisterUserDto
+    @Body(ValidationPipe) dto: RegisterUserDto,
+    @UploadedFile() profileImage?: any 
   ) {
-    return this.authService.register(dto);
+    return this.authService.register(dto, profileImage);
   }
 
   @Post('login')
@@ -118,19 +149,37 @@ export class AuthController {
   @ApiOperation({ summary: 'Crear un nuevo usuario (admin)' })
   @ApiResponse({ status: 201, description: 'Usuario creado exitosamente', type: UserResponseDto })
   @ApiResponse({ status: 400, description: 'Datos inválidos o usuario ya existe' })
+  @UseInterceptors(FileInterceptor('profileImage', {
+    storage: diskStorage({
+      destination: './uploads/profile-images',
+      filename: editFileName,
+    }),
+    fileFilter: imageFileFilter,
+  }))
+  @ApiConsumes('multipart/form-data')
   createUser(
-    @Body() createUserDto: CreateUserDto
+    @Body() createUserDto: CreateUserDto,
+    @UploadedFile() profileImage?: any
   ) {
-    return this.authService.createUser(createUserDto);
+    return this.authService.createUser(createUserDto, profileImage);
   }
 
   @Put('users/:id')
   @Auth(Role.ADMIN)
+  @UseInterceptors(FileInterceptor('profileImage', {
+    storage: diskStorage({
+      destination: './uploads/profile-images',
+      filename: editFileName,
+    }),
+    fileFilter: imageFileFilter,
+  }))
+  @ApiConsumes('multipart/form-data')
   updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateUserDto: UpdateUserDto
+    @Body() updateUserDto: UpdateUserDto,
+    @UploadedFile() profileImage?: any
   ) {
-    return this.authService.updateUser(id, updateUserDto);
+    return this.authService.updateUser(id, updateUserDto, profileImage);
   }
 
   @Delete('users/:id')

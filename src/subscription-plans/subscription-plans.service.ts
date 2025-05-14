@@ -73,9 +73,6 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
         data: updateSubscriptionPlanDto,
       });
     } catch (error) {
-        // Aquí P2002 sería si el DTO intenta cambiar `name` a uno que ya existe y `name` es único.
-        // Dado que `name` no es único en el schema, P2002 no debería ocurrir por `name`.
-        // Si `subscription_plan_id` se pudiera cambiar y causara conflicto, P2002 aplicaría.
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
              throw new ConflictException(`Error de conflicto al actualizar el plan. Verifique los datos.`);
         }
@@ -85,7 +82,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async remove(id: number): Promise<{ message: string }> {
-    await this.findOne(id); // Verificar que existe
+    await this.findOne(id); 
 
     const activeCustomerSubscriptions = await this.customer_subscription.count({
       where: {
@@ -100,12 +97,11 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
       );
     }
 
-    // Eliminar primero los productos asociados al plan en subscription_plan_product
+   
     await this.subscription_plan_product.deleteMany({
         where: { subscription_plan_id: id }
     });
     
-    // Luego eliminar el plan en sí
     await this.subscription_plan.delete({
       where: { subscription_plan_id: id },
     });
@@ -113,16 +109,14 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async addProductToPlan(planId: number, addProductToPlanDto: AddProductToPlanDto): Promise<SubscriptionPlanPrisma> {
-    // Verificar que el plan existe
     await this.findOne(planId);
 
-    // Verificar que el producto existe
+ 
     const product = await this.product.findUnique({ where: { product_id: addProductToPlanDto.product_id } });
     if (!product) {
       throw new NotFoundException(`Producto con ID ${addProductToPlanDto.product_id} no encontrado.`);
     }
 
-    // Verificar si el producto ya está en el plan
     const existingProductInPlan = await this.subscription_plan_product.findFirst({
       where: {
         subscription_plan_id: planId,
@@ -144,7 +138,6 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
           product_quantity: addProductToPlanDto.product_quantity,
         },
       });
-      // Devolver el plan actualizado con todos sus productos
       return this.findOne(planId);
     } catch (error) {
       console.error(`Error adding product to plan ${planId}: `, error);
@@ -153,15 +146,12 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async updateProductInPlan(planId: number, productId: number, updateProductInPlanDto: UpdateProductInPlanDto): Promise<SubscriptionPlanPrisma> {
-    // Verificar que el plan existe
     await this.findOne(planId);
-    // Verificar que el producto existe
      const product = await this.product.findUnique({ where: { product_id: productId } });
     if (!product) {
       throw new NotFoundException(`Producto con ID ${productId} no encontrado.`);
     }
 
-    // Verificar que la asociación producto-plan existe
     const existingEntry = await this.subscription_plan_product.findFirst({
       where: {
         subscription_plan_id: planId,
@@ -178,7 +168,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
     try {
       await this.subscription_plan_product.update({
         where: {
-          spp_id: existingEntry.spp_id // Usar el ID de la tabla de unión
+          spp_id: existingEntry.spp_id 
         },
         data: {
           product_quantity: updateProductInPlanDto.product_quantity,
@@ -192,15 +182,13 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async removeProductFromPlan(planId: number, productId: number): Promise<SubscriptionPlanPrisma> {
-    // Verificar que el plan existe
     await this.findOne(planId);
-     // Verificar que el producto existe (opcional, pero bueno para un mensaje claro si el ID de producto es incorrecto)
+    
     const product = await this.product.findUnique({ where: { product_id: productId } });
     if (!product) {
       throw new NotFoundException(`Producto con ID ${productId} no encontrado (no se puede eliminar de un plan si el producto en sí no existe).`);
     }
 
-    // Verificar que la asociación producto-plan existe para obtener su ID
     const existingEntry = await this.subscription_plan_product.findFirst({
       where: {
         subscription_plan_id: planId,
@@ -217,10 +205,10 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
     try {
       await this.subscription_plan_product.delete({
         where: { 
-            spp_id: existingEntry.spp_id // Usar el ID de la tabla de unión
+            spp_id: existingEntry.spp_id 
         },
       });
-      return this.findOne(planId); // Devolver el plan actualizado
+      return this.findOne(planId); 
     } catch (error) {
       console.error(`Error removing product ${productId} from plan ${planId}: `, error);
       throw new InternalServerErrorException('Error al eliminar producto del plan de suscripción.');
@@ -228,13 +216,12 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async adjustProductQuantitiesInPlan(planId: number, dto: AdjustPlanProductQuantitiesDto): Promise<SubscriptionPlanPrisma> {
-    // Consultar el plan con sus productos directamente aquí para ayudar al linter con la inferencia de tipos
     const planWithProducts = await this.subscription_plan.findUnique({
       where: { subscription_plan_id: planId },
       include: {
         subscription_plan_product: {
           include: {
-            product: true, // Es bueno tener los detalles del producto por si se necesitaran
+            product: true, 
           },
         },
       },
@@ -244,7 +231,6 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
       throw new NotFoundException(`Plan de suscripción con ID ${planId} no encontrado.`);
     }
 
-    // Acceder a la relación a través de la variable local planWithProducts
     if (!planWithProducts.subscription_plan_product || planWithProducts.subscription_plan_product.length === 0) {
       return planWithProducts; 
     }
@@ -257,7 +243,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
     }
 
     return this.$transaction(async (tx) => {
-      for (const spp of planWithProducts.subscription_plan_product) { // Usar planWithProducts aquí
+      for (const spp of planWithProducts.subscription_plan_product) { 
         const originalQuantity = new Decimal(spp.product_quantity);
         let newQuantityDecimal = originalQuantity.mul(factor);
 
@@ -285,7 +271,6 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
         });
       }
       
-      // Devolver el plan actualizado usando el cliente de transacción
       const updatedPlan = await tx.subscription_plan.findUniqueOrThrow({
         where: { subscription_plan_id: planId },
         include: {
@@ -308,10 +293,9 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
       throw new BadRequestException('El cambio porcentual no puede resultar en un factor negativo.');
     }
 
-    // Obtener todos los planes que tienen un precio establecido
     const plansToUpdate = await this.subscription_plan.findMany({
       where: {
-        price: { not: null }, // Solo actualizar planes que tengan un precio base
+        price: { not: null }, 
       },
     });
 
@@ -323,23 +307,18 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
 
     return this.$transaction(async (tx) => {
       for (const plan of plansToUpdate) {
-        if (plan.price) { // Doble verificación, aunque el findMany ya filtra
+        if (plan.price) { 
           const originalPrice = new Decimal(plan.price);
           let newPriceDecimal = originalPrice.mul(factor);
 
-          // Redondear a 2 decimales. Si el precio se vuelve negativo, se podría establecer a 0 o lanzar error.
-          // Por ahora, permitiremos precios negativos si el factor es muy bajo, pero un precio negativo no tiene sentido.
-          // Idealmente, si newPriceDecimal < 0, newPriceDecimal = 0 o lanzar error.
-          // Para simplificar, si el factor es positivo, el precio no se volverá negativo a menos que originalPrice sea negativo.
           if (newPriceDecimal.isNegative()) {
-            // Opcional: decidir si lanzar un error o establecer a 0
-            // console.warn(`El nuevo precio calculado para el plan ${plan.subscription_plan_id} es negativo (${newPriceDecimal.toFixed(2)}). Se establecerá a 0.`);
-            // newPriceDecimal = new Decimal(0);
-            // O lanzar un error:
-            throw new BadRequestException(`El ajuste resultaría en un precio negativo para el plan ${plan.name} (ID: ${plan.subscription_plan_id}).`);
+ 
+            console.warn(`El nuevo precio calculado para el plan ${plan.subscription_plan_id} es negativo (${newPriceDecimal.toFixed(2)}). Se establecerá a 0.`);
+            newPriceDecimal = new Decimal(0);
+            // throw new BadRequestException(`El ajuste resultaría en un precio negativo para el plan ${plan.name} (ID: ${plan.subscription_plan_id}).`);
           }
 
-          const newPriceFixed = newPriceDecimal.toFixed(2); // Redondeo a 2 decimales y convierte a string para guardar
+          const newPriceFixed = newPriceDecimal.toFixed(2); 
 
           await tx.subscription_plan.update({
             where: { subscription_plan_id: plan.subscription_plan_id },

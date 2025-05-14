@@ -53,6 +53,13 @@ export class UserResponseDto {
   })
   notes?: string;
 
+  @ApiProperty({
+    description: 'URL de la imagen de perfil del usuario',
+    example: 'http://localhost:3000/uploads/profile-images/user-default.png',
+    required: false
+  })
+  profileImageUrl?: string;
+
   constructor(partial: Partial<UserResponseDto>) {
     Object.assign(this, partial);
   }

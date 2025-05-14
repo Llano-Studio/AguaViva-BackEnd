@@ -59,11 +59,11 @@ export class SubscriptionPlansController {
     return this.subscriptionPlansService.remove(id);
   }
 
-  // --- Endpoints para gestionar productos en un plan ---
+
 
   @Post(':planId/products')
   @ApiOperation({ summary: 'Añadir un producto a un plan de suscripción específico' })
-  @ApiResponse({ status: 201, description: 'Producto añadido al plan exitosamente.' }) // Idealmente un DTO de respuesta que incluya el plan completo
+  @ApiResponse({ status: 201, description: 'Producto añadido al plan exitosamente.' }) 
   @ApiResponse({ status: 404, description: 'Plan de suscripción o Producto no encontrado.' })
   @ApiResponse({ status: 409, description: 'El producto ya existe en este plan.' })
   async addProductToPlan(
@@ -75,7 +75,7 @@ export class SubscriptionPlansController {
 
   @Patch(':planId/products/:productId')
   @ApiOperation({ summary: 'Actualizar la cantidad de un producto en un plan de suscripción' })
-  @ApiResponse({ status: 200, description: 'Producto en plan actualizado exitosamente.' }) // Idealmente un DTO de respuesta
+  @ApiResponse({ status: 200, description: 'Producto en plan actualizado exitosamente.' })
   @ApiResponse({ status: 404, description: 'Plan, producto o la asociación producto-plan no encontrada.' })
   async updateProductInPlan(
     @Param('planId', ParseIntPipe) planId: number,
@@ -88,7 +88,7 @@ export class SubscriptionPlansController {
   @Delete(':planId/products/:productId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Eliminar un producto de un plan de suscripción' })
-  @ApiResponse({ status: 200, description: 'Producto eliminado del plan exitosamente.' }) // Idealmente un DTO de respuesta
+  @ApiResponse({ status: 200, description: 'Producto eliminado del plan exitosamente.' }) 
   @ApiResponse({ status: 404, description: 'Plan, producto o la asociación producto-plan no encontrada.' })
   async removeProductFromPlan(
     @Param('planId', ParseIntPipe) planId: number,
@@ -99,7 +99,7 @@ export class SubscriptionPlansController {
 
   @Patch(':planId/products/adjust-quantities')
   @ApiOperation({ summary: 'Ajustar las cantidades de todos los productos en un plan por un porcentaje.' })
-  @ApiResponse({ status: 200, description: 'Cantidades de productos en el plan ajustadas exitosamente.' }) // Idealmente un DTO de respuesta
+  @ApiResponse({ status: 200, description: 'Cantidades de productos en el plan ajustadas exitosamente.' }) 
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. porcentaje incorrecto).' })
   @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
   async adjustProductQuantitiesInPlan(

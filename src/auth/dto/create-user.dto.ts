@@ -55,4 +55,13 @@ export class CreateUserDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({
+    description: 'Archivo de imagen de perfil (opcional)',
+    type: 'string',
+    format: 'binary',
+    required: false
+  })
+  @IsOptional()
+  profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
 }
