@@ -44,6 +44,13 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
     if (!user.isActive) {
       throw new UnauthorizedException('Usuario inactivo.');
     }
-    return { user: user as ValidatedUserForStrategy, refreshToken };
+
+    const validatedUser = {
+      ...user,
+      createdAt: new Date(user.createdAt),
+      updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
+    };
+
+    return { user: validatedUser as ValidatedUserForStrategy, refreshToken };
   }
 } 
