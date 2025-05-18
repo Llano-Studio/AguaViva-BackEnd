@@ -157,28 +157,138 @@ export class OrdersController {
     }
 
     @Post('one-off')
-    @ApiOperation({ summary: 'Crear una nueva compra de una sola vez (one-off purchase)' })
-    @ApiResponse({ status: 201, description: 'Compra de una sola vez creada exitosamente.' })
-    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
-    @ApiResponse({ status: 404, description: 'Alguna entidad relacionada no fue encontrada.' })
+    @ApiOperation({ 
+        summary: 'Crear una nueva compra de una sola vez (one-off purchase)',
+        description: 'Crea una nueva compra de una sola vez con sus ítems asociados. Este tipo de compra es para clientes ocasionales sin contrato fijo.'
+    })
+    @ApiResponse({ 
+        status: 201, 
+        description: 'Compra de una sola vez creada exitosamente.',
+        schema: {
+            properties: {
+                id: { type: 'number' },
+                customer_id: { type: 'number' },
+                date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'number' },
+                status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
+                payment_status: { type: 'string', enum: ['PENDING', 'PAID', 'PARTIAL'] },
+                items: { 
+                    type: 'array',
+                    items: {
+                        properties: {
+                            product_id: { type: 'number' },
+                            quantity: { type: 'number' },
+                            unit_price: { type: 'number' },
+                            subtotal: { type: 'number' }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o validaciones fallidas.' })
+    @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
+    @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
     createOneOffPurchase(
-        @Body() createOneOffPurchaseDto: CreateOneOffPurchaseDto
+        @Body(ValidationPipe) createOneOffPurchaseDto: CreateOneOffPurchaseDto
     ) {
         return this.oneOffPurchaseService.create(createOneOffPurchaseDto);
     }
 
     @Get('one-off')
-    @ApiOperation({ summary: 'Obtener todas las compras de una sola vez (one-off purchases)' })
-    @ApiResponse({ status: 200, description: 'Compras de una sola vez obtenidas exitosamente.' })
+    @ApiOperation({ 
+        summary: 'Obtener todas las compras de una sola vez (one-off purchases)',
+        description: 'Retorna una lista paginada de compras de una sola vez con opciones de filtrado.'
+    })
+    @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
+    @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde' })
+    @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta' })
+    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado de la compra', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] })
+    @ApiQuery({ name: 'paymentStatus', required: false, description: 'Filtrar por estado de pago', enum: ['PENDING', 'PAID', 'PARTIAL'] })
+    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente' })
+    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
+    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Lista de compras de una sola vez obtenida exitosamente.',
+        schema: {
+            properties: {
+                data: {
+                    type: 'array',
+                    items: {
+                        properties: {
+                            id: { type: 'number' },
+                            customer_id: { type: 'number' },
+                            date: { type: 'string', format: 'date-time' },
+                            total_amount: { type: 'number' },
+                            status: { type: 'string' },
+                            payment_status: { type: 'string' }
+                        }
+                    }
+                },
+                meta: {
+                    properties: {
+                        total: { type: 'number' },
+                        page: { type: 'number' },
+                        limit: { type: 'number' }
+                    }
+                }
+            }
+        }
+    })
     findAllOneOffPurchases(
-        @Query() filterOneOffPurchasesDto: FilterOneOffPurchasesDto
+        @Query(ValidationPipe) filterOneOffPurchasesDto: FilterOneOffPurchasesDto
     ) {
         return this.oneOffPurchaseService.findAll(filterOneOffPurchasesDto);
     }
 
     @Get('one-off/:id')
-    @ApiOperation({ summary: 'Obtener una compra de una sola vez (one-off purchase) por su ID' })
-    @ApiResponse({ status: 200, description: 'Compra de una sola vez encontrada.' })
+    @ApiOperation({ 
+        summary: 'Obtener una compra de una sola vez (one-off purchase) por su ID',
+        description: 'Retorna los detalles completos de una compra de una sola vez específica, incluyendo sus ítems.'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra de una sola vez', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra de una sola vez encontrada exitosamente.',
+        schema: {
+            properties: {
+                id: { type: 'number' },
+                customer_id: { type: 'number' },
+                customer: {
+                    properties: {
+                        id: { type: 'number' },
+                        name: { type: 'string' },
+                        tax_id: { type: 'string' },
+                        address: { type: 'string' }
+                    }
+                },
+                date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'number' },
+                status: { type: 'string' },
+                payment_status: { type: 'string' },
+                items: {
+                    type: 'array',
+                    items: {
+                        properties: {
+                            id: { type: 'number' },
+                            product_id: { type: 'number' },
+                            product: {
+                                properties: {
+                                    id: { type: 'number' },
+                                    name: { type: 'string' },
+                                    description: { type: 'string' }
+                                }
+                            },
+                            quantity: { type: 'number' },
+                            unit_price: { type: 'number' },
+                            subtotal: { type: 'number' }
+                        }
+                    }
+                }
+            }
+        }
+    })
     @ApiResponse({ status: 404, description: 'Compra de una sola vez no encontrada.' })
     findOneOneOffPurchase(
         @Param('id', ParseIntPipe) id: number
@@ -187,21 +297,52 @@ export class OrdersController {
     }
 
     @Patch('one-off/:id')
-    @ApiOperation({ summary: 'Actualizar una compra de una sola vez (one-off purchase) por su ID' })
-    @ApiResponse({ status: 200, description: 'Compra de una sola vez actualizada exitosamente.' })
+    @ApiOperation({ 
+        summary: 'Actualizar una compra de una sola vez (one-off purchase) por su ID',
+        description: 'Actualiza los detalles de una compra de una sola vez existente, incluyendo sus ítems si se proporcionan.'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra de una sola vez', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra de una sola vez actualizada exitosamente.',
+        schema: {
+            properties: {
+                id: { type: 'number' },
+                customer_id: { type: 'number' },
+                date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'number' },
+                status: { type: 'string' },
+                payment_status: { type: 'string' }
+            }
+        }
+    })
     @ApiResponse({ status: 404, description: 'Compra de una sola vez no encontrada.' })
     @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    @ApiResponse({ status: 409, description: 'Conflicto al actualizar (ej. estado no permitido).' })
     updateOneOffPurchase(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updateOneOffPurchaseDto: UpdateOneOffPurchaseDto
+        @Body(ValidationPipe) updateOneOffPurchaseDto: UpdateOneOffPurchaseDto
     ) {
         return this.oneOffPurchaseService.update(id, updateOneOffPurchaseDto);
     }
 
     @Delete('one-off/:id')
-    @ApiOperation({ summary: 'Eliminar una compra de una sola vez (one-off purchase) por su ID' })
-    @ApiResponse({ status: 200, description: 'Compra de una sola vez eliminada exitosamente.' })
+    @ApiOperation({ 
+        summary: 'Eliminar una compra de una sola vez (one-off purchase) por su ID',
+        description: 'Elimina una compra de una sola vez y sus ítems asociados. Solo permite eliminar compras en estado PENDING.'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra de una sola vez', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra de una sola vez eliminada exitosamente.',
+        schema: {
+            properties: {
+                message: { type: 'string' }
+            }
+        }
+    })
     @ApiResponse({ status: 404, description: 'Compra de una sola vez no encontrada.' })
+    @ApiResponse({ status: 409, description: 'No se puede eliminar una compra que no está en estado PENDING.' })
     removeOneOffPurchase(
         @Param('id', ParseIntPipe) id: number
     ) {
