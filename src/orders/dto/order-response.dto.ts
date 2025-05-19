@@ -146,7 +146,22 @@ export class OrderResponseDto {
         properties: {
             person_id: { type: 'number', example: 1 },
             name: { type: 'string', example: 'Juan Pérez' },
-            phone: { type: 'string', example: '1234567890' }
+            phone: { type: 'string', example: '1234567890' },
+            locality: { 
+                type: 'object', 
+                properties: {
+                    locality_id: { type: 'number', example: 1 },
+                    name: { type: 'string', example: 'Centro' },
+                    zone: {
+                        type: 'object',
+                        properties: {
+                            zone_id: { type: 'number', example: 1 },
+                            name: { type: 'string', example: 'Zona Norte' }
+                        }
+                    }
+                },
+                nullable: true
+            }
         },
         additionalProperties: false
     })
@@ -154,6 +169,14 @@ export class OrderResponseDto {
         person_id: number;
         name: string;
         phone: string;
+        locality?: {
+            locality_id: number;
+            name: string;
+            zone?: {
+                zone_id: number;
+                name: string;
+            }
+        }
     };
 
     @ApiProperty({

@@ -55,14 +55,17 @@ export class OrdersController {
         summary: 'Obtener todos los pedidos regulares',
         description: 'Retorna una lista paginada de pedidos regulares con opciones de filtrado.'
     })
+    @ApiQuery({ name: 'searchTerm', required: false, description: 'Término de búsqueda general (busca en cliente, número de pedido)' })
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
     @ApiQuery({ name: 'orderDateFrom', required: false, description: 'Filtrar por fecha de pedido desde' })
     @ApiQuery({ name: 'orderDateTo', required: false, description: 'Filtrar por fecha de pedido hasta' })
     @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado del pedido' })
     @ApiQuery({ name: 'orderType', required: false, description: 'Filtrar por tipo de pedido' })
     @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente' })
-    @ApiQuery({ name: 'page', required: false, description: 'Número de página' })
-    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página' })
+    @ApiQuery({ name: 'orderId', required: false, description: 'Filtrar por número/ID de pedido', type: Number })
+    @ApiQuery({ name: 'zoneId', required: false, description: 'Filtrar por ID de zona', type: Number })
+    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
+    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
     @ApiResponse({ 
         status: 200, 
         description: 'Lista de pedidos obtenida exitosamente.',

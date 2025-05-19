@@ -23,15 +23,37 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         await this.$connect();
     }
 
-    private mapToOrderResponseDto(order: PrismaOrderHeader & {
-        order_item?: (PrismaOrderItem & { product: PrismaProduct })[];
-        customer?: PrismaPerson | null;
-        sale_channel?: PrismaSaleChannel | null;
-        client_contract?: PrismaClientContract | null;
-    }): OrderResponseDto {
-        const customerData = order.customer 
-            ? { person_id: order.customer.person_id, name: order.customer.name || '', phone: order.customer.phone }
+    private mapToOrderResponseDto(order: any): OrderResponseDto {
+        // Preparar información de la zona y localidad si existe
+        let localityInfo: any = undefined;
+        
+        if (order.customer?.locality) {
+            localityInfo = {
+                locality_id: order.customer.locality.locality_id || 0,
+                name: order.customer.locality.name || ''
+            };
+            
+            if (order.customer.locality.zone) {
+                localityInfo.zone = {
+                    zone_id: order.customer.locality.zone.zone_id || 0,
+                    name: order.customer.locality.zone.name || ''
+                };
+            }
+        }
+        
+        // Preparar datos del cliente
+        const customerData: any = order.customer 
+            ? { 
+                person_id: order.customer.person_id, 
+                name: order.customer.name || '', 
+                phone: order.customer.phone
+            }
             : { person_id: 0, name: '', phone: '' };
+            
+        // Añadir locality solo si existe
+        if (localityInfo) {
+            customerData.locality = localityInfo;
+        }
 
         const saleChannelData = order.sale_channel
             ? { sale_channel_id: order.sale_channel.sale_channel_id, name: order.sale_channel.description || '' }
@@ -227,23 +249,103 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     async findAll(filterOrdersDto: FilterOrdersDto): Promise<OrderResponseDto[]> {
-        const { customerName, orderDateFrom, orderDateTo, status, orderType, customerId, page = 1, limit = 10 } = filterOrdersDto;
+        const { 
+            searchTerm, customerName, orderDateFrom, orderDateTo, 
+            status, orderType, customerId, orderId, zoneId,
+            page = 1, limit = 10 
+        } = filterOrdersDto;
+        
         const skip = (page - 1) * limit;
         const where: Prisma.order_headerWhereInput = {};
+        
+        // Búsqueda por ID específico del pedido
+        if (orderId) where.order_id = orderId;
+        
+        // Filtros específicos
         if (status) where.status = status as PrismaOrderStatus;
         if (orderType) where.order_type = orderType as PrismaOrderType;
         if (customerId) where.customer_id = customerId;
-        if (customerName) where.customer = { name: { contains: customerName, mode: 'insensitive' } };
+        
+        // Preparar condiciones para customer y locality
+        let customerWhere: Prisma.personWhereInput = {};
+        
+        // Búsqueda por zona
+        if (zoneId) {
+            customerWhere.locality = { 
+                zone_id: zoneId 
+            };
+        }
+        
+        // Búsqueda por nombre de cliente
+        if (customerName) {
+            customerWhere.name = { 
+                contains: customerName, 
+                mode: 'insensitive' 
+            };
+        }
+        
+        // Aplicar filtros de cliente si hay alguno
+        if (Object.keys(customerWhere).length > 0) {
+            where.customer = customerWhere;
+        }
+        
+        // Búsqueda por término general
+        if (searchTerm) {
+            // Intentar convertir searchTerm a número para buscar por ID
+            const searchAsNumber = !isNaN(parseInt(searchTerm)) ? parseInt(searchTerm) : undefined;
+            
+            const searchConditions: Prisma.order_headerWhereInput[] = [];
+            
+            // Búsqueda por nombre de cliente
+            searchConditions.push({
+                customer: {
+                    name: { contains: searchTerm, mode: 'insensitive' }
+                }
+            });
+            
+            // Búsqueda por ID si es un número
+            if (searchAsNumber) {
+                searchConditions.push({
+                    order_id: searchAsNumber
+                });
+            }
+            
+            // Añadir OR condition para búsqueda general
+            where.OR = searchConditions;
+        }
+        
+        // Filtro por fechas
         if (orderDateFrom || orderDateTo) {
             where.order_date = {};
             if (orderDateFrom) where.order_date.gte = new Date(orderDateFrom);
-            if (orderDateTo) { const toDate = new Date(orderDateTo); toDate.setHours(23, 59, 59, 999); where.order_date.lte = toDate; }
+            if (orderDateTo) { 
+                const toDate = new Date(orderDateTo); 
+                toDate.setHours(23, 59, 59, 999); 
+                where.order_date.lte = toDate; 
+            }
         }
+        
         try {
             const orders = await this.order_header.findMany({
-                where, include: { order_item: { include: { product: true } }, customer: true, sale_channel: true },
-                orderBy: { order_date: 'desc' }, skip: skip, take: limit,
+                where, 
+                include: { 
+                    order_item: { include: { product: true } }, 
+                    customer: { 
+                        include: { 
+                            locality: { 
+                                include: { 
+                                    zone: true 
+                                } 
+                            } 
+                        } 
+                    }, 
+                    sale_channel: true
+                },
+                orderBy: { order_date: 'desc' }, 
+                skip: skip, 
+                take: limit,
             });
+            
             return orders.map(order => this.mapToOrderResponseDto(order));
         } catch (error) {
             console.error('Error al obtener los pedidos:', error);
