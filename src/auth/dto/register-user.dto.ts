@@ -25,5 +25,5 @@ export class RegisterUserDto {
     required: false
   })
   @IsOptional()
-  profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
+  profileImage?: any; 
 } 

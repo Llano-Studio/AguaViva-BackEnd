@@ -415,7 +415,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      return { message: 'Contraseña actualizada correctamente' };
+      return { 
+        success: true,
+        message: 'Contraseña actualizada correctamente' 
+      };
+      
     } catch (error) {
       throw new UnauthorizedException('Token inválido o expirado');
     }
