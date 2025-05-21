@@ -19,7 +19,7 @@ import { RolesService } from './roles.service';
       useFactory: (configService: ConfigService) => {
        return {
         secret: configService.get('JWT_SECRET') || 'sgarav-secret-key',
-        signOptions: { expiresIn: '24h' },
+        signOptions: { expiresIn: '4h' },
        }
       }
     }),

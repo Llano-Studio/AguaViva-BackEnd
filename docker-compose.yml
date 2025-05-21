@@ -23,3 +23,19 @@ services:
       - PGADMIN_DEFAULT_EMAIL=superman@google.com
     restart: always
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - FRONTEND_URL=http://localhost:5173
+

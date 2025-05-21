@@ -15,12 +15,10 @@ export class RolesService {
 
   getModulesForRole(role: Role): string[] {
     const modules = new Set<string>();
-    this.logger.log(`Buscando módulos para el rol: ${role}`);
 
     try {
       for (const module of this.modulesContainer.values()) {
         const moduleName = module.metatype?.name || 'Unknown Module';
-        this.logger.log(`Analizando módulo: ${moduleName}`);
 
         const controllers = module.controllers as Map<string, InstanceWrapper>;
         for (const controller of controllers.values()) {
@@ -32,21 +30,14 @@ export class RolesService {
           }
 
           const controllerName = metatype.name;
-          this.logger.log(`Analizando controlador: ${controllerName}`);
-
           // Intenta obtener los roles del controlador
           const controllerRoles = this.reflector.get<Role[]>(ROLES_KEY, metatype) || [];
-          this.logger.log(`Roles encontrados en ${controllerName}: ${controllerRoles.join(', ') || 'ninguno'}`);
-
           // Intenta obtener el path del controlador de varias formas
           const path = Reflect.getMetadata('path', metatype) || 
                       this.reflector.get('path', metatype);
 
           if (path) {
-            this.logger.log(`Path encontrado en ${controllerName}: ${path}`);
-            
             if (controllerRoles.includes(role)) {
-              this.logger.log(`Agregando módulo ${path} para rol ${role}`);
               modules.add(path);
             }
           } else {

@@ -92,7 +92,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
     const user = await this.user.create({ data: userData });
 
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
 
     const accessToken = this.generateJwtToken(
       { id: user.id },
@@ -132,7 +132,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       throw new UnauthorizedException('Credenciales inválidas (contraseña)');
     }
 
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
     const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
     const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
@@ -150,7 +150,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
   async checkAuthStatus(user: User) {
 
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
     const accessToken = this.generateJwtToken(
       { id: user.id },
       accessTokenExpiresIn
@@ -389,7 +389,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     // Enviar correo
     await this.mailService.sendPasswordRecoveryEmail(user.email, recoveryToken);
 
-    return { message: 'Se ha enviado un correo con las instrucciones para recuperar la contraseña' };
+    return { 
+      success: true,
+      message: 'Se ha enviado un correo con las instrucciones para recuperar la contraseña' };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -506,7 +508,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
 
     // 4. Generar un nuevo access_token
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '1h';
+    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
     const newAccessToken = this.generateJwtToken({ id: userId }, accessTokenExpiresIn);
 
     // 5. Generar y guardar un nuevo refresh_token
