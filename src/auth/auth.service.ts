@@ -93,6 +93,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const user = await this.user.create({ data: userData });
 
     const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
+    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
 
     const accessToken = this.generateJwtToken(
       { id: user.id },
@@ -110,7 +111,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         isActive: user.isActive,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt?.toISOString(),
-        profileImageUrl: user.profileImageUrl === null ? undefined : user.profileImageUrl 
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined
       }),
       accessToken,
       refreshToken,
@@ -232,7 +233,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         ...user,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
-        profileImageUrl: user.profileImageUrl ? `${appUrl}/uploads/profile-images/${user.profileImageUrl}` : undefined, 
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined, 
         // notes: user.notes === null ? undefined : user.notes, 
       }));
 
@@ -271,13 +272,13 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       throw new BadRequestException(`Usuario con ID ${id} no encontrado.`);
     }
 
-    const appUrl = this.configService.get<string>('APP_URL') || ''; 
+    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000'; 
 
     return new UserResponseDto({
       ...user,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
-      profileImageUrl: user.profileImageUrl ? `${appUrl}/uploads/profile-images/${user.profileImageUrl}` : undefined, 
+      profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined, 
       // notes: user.notes === null ? undefined : user.notes, 
     });
   }
@@ -312,6 +313,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         where: { id },
         data: dataToUpdate,
       });
+      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
       return new UserResponseDto({
         id: updatedUser.id,
         email: updatedUser.email,
@@ -320,7 +322,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         isActive: updatedUser.isActive,
         createdAt: updatedUser.createdAt.toISOString(),
         updatedAt: updatedUser.updatedAt?.toISOString(),
-        profileImageUrl: updatedUser.profileImageUrl === null ? undefined : updatedUser.profileImageUrl,
+        profileImageUrl: updatedUser.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${updatedUser.profileImageUrl}` : undefined,
       });
     } catch (error) {
       console.error('Error updating user:', error);
@@ -362,7 +364,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       data: { password: hashedPassword },
     });
 
-    return { message: 'Contraseña actualizada correctamente' };
+    return {
+      success: true, 
+      message: 'Contraseña actualizada correctamente' };
   }
 
   async recoverPassword(recoverPasswordDto: RecoverPasswordDto) {
@@ -450,6 +454,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
     try {
       const user = await this.user.create({ data: userData });
+      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
       return new UserResponseDto({ 
         id: user.id,
         email: user.email,
@@ -458,7 +463,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         isActive: user.isActive,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt?.toISOString(),
-        profileImageUrl: user.profileImageUrl === null ? undefined : user.profileImageUrl,
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined,
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {

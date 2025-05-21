@@ -50,9 +50,8 @@ async function bootstrap() {
   // Aplicar el filtro global para manejar excepciones de base de datos
   app.useGlobalFilters(new DatabaseExceptionFilter());
 
-  // app.useStaticAssets(join(process.cwd(), 'public')); // Comentamos o eliminamos la anterior si no se usa
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { // process.cwd() apunta a la raíz del proyecto
-    prefix: '/uploads/',
+  app.useStaticAssets(join(process.cwd(), 'public'), { 
+    prefix: '/public/',
   });
 
   app.enableShutdownHooks();  

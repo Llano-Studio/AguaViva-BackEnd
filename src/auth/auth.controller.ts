@@ -69,7 +69,7 @@ export class AuthController {
   })
   @UseInterceptors(FileInterceptor('profileImage', { 
     storage: diskStorage({
-      destination: './uploads/profile-images',
+      destination: './public/uploads/profile-images',
       filename: editFileName,
     }),
     fileFilter: imageFileFilter, 
@@ -309,7 +309,7 @@ export class AuthController {
   })
   @UseInterceptors(FileInterceptor('profileImage', {
     storage: diskStorage({
-      destination: './uploads/profile-images',
+      destination: './public/uploads/profile-images',
       filename: editFileName,
     }),
     fileFilter: imageFileFilter,
@@ -361,7 +361,7 @@ export class AuthController {
   })
   @UseInterceptors(FileInterceptor('profileImage', {
     storage: diskStorage({
-      destination: './uploads/profile-images',
+      destination: './public/uploads/profile-images',
       filename: editFileName,
     }),
     fileFilter: imageFileFilter,
