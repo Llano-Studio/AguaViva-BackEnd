@@ -1,98 +1,232 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🌊 SGARAV - Sistema de Gestión de Agua Retornable y Venta
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 📋 Descripción
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**SGARAV** es una API backend robusta desarrollada con **NestJS** para la gestión integral de una empresa especializada en la distribución de agua embotellada. El sistema maneja tanto productos retornables como no retornables, proporcionando una solución completa para la administración interna de la empresa.
 
-## Description
+### 🎯 Funcionalidades Principales
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- 📦 **Gestión de Productos**: Administración de planes y productos de agua embotellada
+- 🔄 **Sistema Retornable**: Control de envases retornables y no retornables
+- 👥 **Gestión de Clientes**: Registro y administración de clientes corporativos e individuales
+- 📋 **Gestión de Pedidos**: Procesamiento y seguimiento de órdenes de compra
+- 📊 **Control de Stock**: Monitoreo en tiempo real de inventarios
+- 🏢 **Administración Interna**: Herramientas para la gestión operativa de la empresa
 
-## Project setup
+## 🛠️ Tecnologías Utilizadas
 
-```bash
-$ npm install
-```
+- **Backend Framework**: [NestJS](https://nestjs.com/) - Framework progresivo de Node.js
+- **Base de Datos**: [PostgreSQL](https://www.postgresql.org/) - Base de datos relacional
+- **ORM**: [Prisma](https://www.prisma.io/) - Next-generation ORM para Node.js y TypeScript
+- **Runtime**: [Node.js 20 LTS](https://nodejs.org/) - Entorno de ejecución JavaScript
+- **Contenedores**: [Docker](https://www.docker.com/) - Containerización de la aplicación
+- **Lenguaje**: [TypeScript](https://www.typescriptlang.org/) - JavaScript con tipado estático
 
-## Compile and run the project
+## 🚀 Instalación y Configuración
 
-```bash
-# development
-$ npm run start
+### Prerrequisitos
 
-# watch mode
-$ npm run start:dev
+- Node.js 20.x o superior
+- Docker y Docker Compose
+- PostgreSQL (si no se usa Docker)
 
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
+### 1. Clonar el Repositorio
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+git clone <repository-url>
+cd sgarav
 ```
 
-## Deployment
+### 2. Configuración de Variables de Entorno
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Crear un archivo `.env` basado en `.env.example`:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```env
+# Base de Datos
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=sgarav_db
+DB_USER=postgres
+DB_PASSWORD=123456
+
+# Aplicación
+NODE_ENV=development
+PORT=3000
+
+# JWT (si se implementa autenticación)
+JWT_SECRET=your-secret-key-here
+```
+
+### 3. Instalación con Docker (Recomendado)
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Construir y levantar los servicios
+docker-compose up -d
+
+# Ver logs de la aplicación
+docker-compose logs -f app
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Instalación Manual
 
-## Resources
+```bash
+# Instalar dependencias
+npm install
 
-Check out a few resources that may come in handy when working with NestJS:
+# Generar cliente Prisma
+npx prisma generate
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Ejecutar migraciones
+npx prisma migrate dev
 
-## Support
+# Seedear datos iniciales (opcional)
+npx prisma db seed
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 📝 Scripts Disponibles
 
-## Stay in touch
+```bash
+# Desarrollo
+npm run start:dev          # Ejecutar en modo desarrollo con hot-reload
+npm run start:debug        # Ejecutar en modo debug
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# Producción
+npm run build              # Compilar aplicación
+npm run start:prod         # Ejecutar en modo producción
 
-## License
+# Base de Datos
+npx prisma migrate dev     # Ejecutar migraciones en desarrollo
+npx prisma migrate deploy  # Ejecutar migraciones en producción
+npx prisma studio          # Abrir Prisma Studio (GUI de BD)
+npx prisma generate        # Generar cliente Prisma
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# Testing
+npm run test               # Ejecutar tests unitarios
+npm run test:e2e          # Ejecutar tests end-to-end
+npm run test:cov          # Ejecutar tests con coverage
+
+# Linting y Formateo
+npm run lint              # Ejecutar ESLint
+npm run format            # Formatear código con Prettier
+```
+
+## 🏗️ Estructura del Proyecto
+
+```
+src/
+├── modules/              # Módulos de la aplicación
+│   ├── products/        # Gestión de productos
+│   ├── customers/       # Gestión de clientes
+│   ├── orders/          # Gestión de pedidos
+│   ├── inventory/       # Control de inventario
+│   └── auth/           # Autenticación (si aplica)
+├── common/              # Utilidades compartidas
+│   ├── dto/            # Data Transfer Objects
+│   ├── guards/         # Guards de autenticación
+│   ├── decorators/     # Decoradores personalizados
+│   └── filters/        # Filtros de excepción
+├── database/           # Configuración de base de datos
+├── config/             # Configuraciones de la app
+└── main.ts            # Punto de entrada de la aplicación
+```
+
+## 🔗 Endpoints Principales
+
+### Productos
+- `GET /products` - Listar productos
+- `POST /products` - Crear producto
+- `GET /products/:id` - Obtener producto por ID
+- `PUT /products/:id` - Actualizar producto
+- `DELETE /products/:id` - Eliminar producto
+
+### Clientes
+- `GET /customers` - Listar clientes
+- `POST /customers` - Crear cliente
+- `GET /customers/:id` - Obtener cliente por ID
+- `PUT /customers/:id` - Actualizar cliente
+
+### Pedidos
+- `GET /orders` - Listar pedidos
+- `POST /orders` - Crear pedido
+- `GET /orders/:id` - Obtener pedido por ID
+- `PUT /orders/:id/status` - Actualizar estado del pedido
+
+### Inventario
+- `GET /inventory` - Consultar stock
+- `POST /inventory/adjust` - Ajustar inventario
+- `GET /inventory/movements` - Historial de movimientos
+
+## 🐳 Docker
+
+El proyecto incluye configuración completa de Docker para facilitar el despliegue:
+
+```yaml
+# docker-compose.yml incluye:
+- Aplicación NestJS (Puerto 3000)
+- Base de datos PostgreSQL (Puerto 5432)
+- Volúmenes persistentes para datos
+- Health checks configurados
+```
+
+### Comandos Docker Útiles
+
+```bash
+# Reconstruir la aplicación
+docker-compose build app
+
+# Ver logs en tiempo real
+docker-compose logs -f
+
+# Ejecutar comandos dentro del contenedor
+docker-compose exec app npm run prisma:studio
+
+# Limpiar volúmenes (¡CUIDADO! - Elimina datos)
+docker-compose down -v
+```
+
+## 🔒 Seguridad
+
+- ✅ Imagen base actualizada a Node.js 20 LTS
+- ✅ Variables de entorno para configuración sensible
+- ✅ Health checks configurados
+- ✅ Usuario no-root en contenedor Docker
+- ✅ Validación de datos de entrada con DTOs
+
+
+## 📊 Monitoreo y Salud
+
+La aplicación incluye un endpoint de health check:
+
+```
+GET /health
+```
+
+Respuesta:
+```json
+{
+  "status": "ok",
+  "info": {
+    "database": { "status": "up" }
+  }
+}
+```
+
+## 🤝 Contribución
+
+1. Fork del proyecto
+2. Crear rama de feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit de cambios (`git commit -am 'Agregar nueva funcionalidad'`)
+4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Crear Pull Request
+
+## 📄 Licencia
+
+Este proyecto es de uso interno de la empresa. Todos los derechos reservados.
+
+## 📞 Soporte
+
+Para soporte técnico o consultas sobre el proyecto, contactar al equipo de desarrollo.
+
+---
+
+**Desarrollado con ❤️ para la gestión eficiente de agua embotellada**
