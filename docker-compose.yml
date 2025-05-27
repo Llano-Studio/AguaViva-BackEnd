@@ -1,29 +1,18 @@
 services:
-  postgres:
-    container_name: sgarav-postgres
+  db:
+    container_name: postgres_database
     image: postgres:16.3
     volumes:
       - ./postgres:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=sgarav_db
-      - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=123456
     restart: always
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - sgarav-network
 
-  pgadmin:
-    container_name: sgarav-pgadmin
+  pgAdmin:
     depends_on:
-      postgres:
-        condition: service_healthy
+      - db
     image: dpage/pgadmin4:8.6
     volumes:
       - ./pgadmin:/var/lib/pgadmin
@@ -31,57 +20,5 @@ services:
       - "8080:80"
     environment:
       - PGADMIN_DEFAULT_PASSWORD=123456
-      - PGADMIN_DEFAULT_EMAIL=admin@sgarav.com
+      - PGADMIN_DEFAULT_EMAIL=superman@google.com
     restart: always
-    networks:
-      - sgarav-network
-
-  backend:
-    container_name: sgarav-backend
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./public:/app/public
-    restart: always
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - APP_URL=http://localhost:3000
-      - DATABASE_URL=postgresql://postgres:123456@sgarav-postgres:5432/sgarav_db?schema=public
-      - DB_HOST=sgarav-postgres
-      - DB_PORT=5432
-      - DB_NAME=sgarav_db
-      - DB_USER=postgres
-      - DB_PASSWORD=123456
-      - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
-      - JWT_ACCESS_TOKEN_EXPIRATION_TIME=${JWT_ACCESS_TOKEN_EXPIRATION_TIME:-4h}
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USER=${MAIL_USER:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - MAIL_FROM=${MAIL_FROM:-noreply@aguaviva.com}
-      - MAIL_SECURE=${MAIL_SECURE:-true}
-      - FRONTEND_URL=http://sgarav-frontend
-      - MAX_FILE_SIZE=5242880
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    networks:
-      - sgarav-network
-
-networks:
-  sgarav-network:
-    external: true
-
-volumes:
-  postgres_data:
-
