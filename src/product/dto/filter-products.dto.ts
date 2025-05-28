@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, Min, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
-export class FilterProductsDto {
+export class FilterProductsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'ID de categoría para filtrar productos',
     example: 1
@@ -36,26 +37,4 @@ export class FilterProductsDto {
   @IsOptional()
   @IsString()
   serialNumber?: string;
-
-  @ApiPropertyOptional({
-    description: 'Número de página para paginación',
-    example: 1,
-    default: 1
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  page?: number = 1;
-
-  @ApiPropertyOptional({
-    description: 'Cantidad de resultados por página',
-    example: 10,
-    default: 10
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Type(() => Number)
-  limit?: number = 10;
 } 

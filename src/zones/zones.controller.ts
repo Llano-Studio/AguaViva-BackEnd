@@ -1,14 +1,13 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors,
+  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors, Query,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
-  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiBody,
+  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiBody, ApiQuery,
 } from '@nestjs/swagger';
 import { ZonesService } from './zones.service';
-import { CreateZoneDto } from './dto/create-zone.dto';
-import { UpdateZoneDto } from './dto/update-zone.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { CreateZoneDto, UpdateZoneDto, FilterZonesDto } from './dto';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 
 @ApiTags('Zonas')
@@ -23,7 +22,7 @@ export class ZonesController {
     summary: 'Crear una zona', 
     description: 'Crea una nueva zona geográfica en el sistema. Las zonas se utilizan para organizar clientes y planificar rutas de entrega.'
   })
-  @ApiBody({ 
+  @ApiBody({
     description: 'Datos de la zona a crear',
     type: CreateZoneDto,
     examples: {
@@ -68,28 +67,40 @@ export class ZonesController {
     summary: 'Listar todas las zonas',
     description: 'Obtiene un listado completo de todas las zonas disponibles en el sistema. Los resultados se almacenan en caché para mejorar el rendimiento.'
   })
+  @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre de zona", example: 'Zona Norte' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: name,-code", example: 'name,-code' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
   @ApiResponse({ 
     status: 200, 
     description: 'Listado de zonas obtenido exitosamente', 
     schema: {
-      type: 'array',
-      items: {
-        properties: {
-          id: { type: 'number', example: 1 },
-          name: { type: 'string', example: 'Zona Norte' },
-          code: { type: 'string', example: 'ZN-001' },
-          description: { type: 'string', example: 'Zona norte de la ciudad', nullable: true },
-          active: { type: 'boolean', example: true },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' }
-        }
+      properties: {
+        data: { 
+          type: 'array', 
+          items: { 
+            properties: {
+              id: { type: 'number' },
+              name: { type: 'string' },
+              code: { type: 'string' },
+              description: { type: 'string', nullable: true },
+              active: { type: 'boolean' },
+            }
+          }
+        },
+        total: { type: 'number' },
+        page: { type: 'number' },
+        limit: { type: 'number' },
+        totalPages: { type: 'number' }
       }
     }
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  getAllZones() {
-    return this.zonesService.getAllZones();
+  getAllZones(
+    @Query() filters: FilterZonesDto,
+  ) {
+    return this.zonesService.getAllZones(filters);
   }
 
   @Get(':id')
@@ -147,7 +158,7 @@ export class ZonesController {
     summary: 'Actualizar zona',
     description: 'Actualiza la información de una zona existente. Solo se modifican los campos proporcionados en la solicitud.'
   })
-  @ApiBody({ 
+  @ApiBody({
     description: 'Datos de la zona a actualizar',
     type: UpdateZoneDto,
     examples: {

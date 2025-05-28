@@ -55,7 +55,7 @@ export class MailService {
   async sendPasswordRecoveryEmail(email: string, token: string) {
     try {
       const template = await this.loadTemplate('password-recovery');
-      const resetUrl = `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/auth/resetear-clave?token=${token}`;
+      const resetUrl = `${this.configService.get<string>('app.app.frontendUrl') || this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/auth/resetear-clave?token=${token}`;
       const currentYear = new Date().getFullYear();
       
       const html = template({
@@ -65,7 +65,7 @@ export class MailService {
       });
 
       const info = await this.transporter.sendMail({
-        from: this.configService.get<string>('MAIL_FROM') || 'noreply@aguaviva.com',
+        from: this.configService.get<string>('app.mail.from') || this.configService.get<string>('MAIL_FROM') || 'noreply@aguaviva.com',
         to: email,
         subject: 'Recuperación de contraseña - Agua Viva',
         html,

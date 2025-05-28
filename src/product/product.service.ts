@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException, OnModuleInit, InternalServerErrorException, ConflictException, BadRequestException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { Prisma, PrismaClient, product_category } from '@prisma/client';
+import { Prisma, PrismaClient, product_category, product as ProductPrisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { ProductResponseDto, ProductCategoryResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class ProductService extends PrismaClient implements OnModuleInit {
+  private readonly entityName = 'Producto';
+
   constructor(private readonly inventoryService: InventoryService) {
     super();
   }
@@ -16,7 +20,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     await this.$connect();
   }
 
-  private async validateCategoryExists(categoryId: number) {
+  private async validateCategoryExists(categoryId: number): Promise<void> {
     const category = await this.product_category.findUnique({
       where: { category_id: categoryId },
     });
@@ -25,11 +29,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getAllProducts(filters?: FilterProductsDto) {
+  async getAllProducts(filters?: FilterProductsDto): Promise<{ data: ProductResponseDto[], meta: { total: number, page: number, limit: number, totalPages: number} }> {
     try {
       const whereClause: Prisma.productWhereInput = {};
       
-      // Aplicar filtros si se proporcionan
       if (filters) {
         if (filters.categoryId) {
           const category = await this.product_category.findUnique({ where: { category_id: filters.categoryId } });
@@ -42,7 +45,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         if (filters.description) {
           whereClause.description = {
             contains: filters.description,
-            mode: 'insensitive' // Búsqueda que no distingue entre mayúsculas y minúsculas
+            mode: 'insensitive'
           };
         }
 
@@ -58,24 +61,25 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         }
       }
 
-      // Establecer valores por defecto para paginación
       const page = filters?.page || 1;
       const limit = filters?.limit || 10;
-      const skip = (page - 1) * limit;
+      const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+      const take = Math.max(1, limit);
 
-      // Consultar total de resultados para la paginación
       const totalProducts = await this.product.count({
         where: whereClause
       });
 
-      // Obtener productos con paginación
+      const orderByClause = parseSortByString(filters?.sortBy, [{ description: 'asc' }]);
+
       const products = await this.product.findMany({
         where: whereClause,
         include: {
           product_category: true,
         },
         skip,
-        take: limit,
+        take: take, 
+        orderBy: orderByClause,
       });
 
       const productsWithStock = await Promise.all(
@@ -90,23 +94,22 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         }),
       );
 
-      // Retornar resultados con metadatos de paginación
       return {
         data: productsWithStock,
         meta: {
           total: totalProducts,
           page: page,
           limit: limit,
-          totalPages: Math.ceil(totalProducts / limit)
+          totalPages: Math.ceil(totalProducts / take)
         }
       };
 
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
-      console.error("Error en getAllProducts: ", error);
-      throw new InternalServerErrorException('Error al obtener los productos');
+      handlePrismaError(error, `${this.entityName}s`);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
@@ -116,7 +119,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       include: { product_category: true },
     });
     if (!productEntity) {
-      throw new NotFoundException(`Producto con ID: ${id} no encontrado`);
+      throw new NotFoundException(`${this.entityName} con ID: ${id} no encontrado`);
     }
 
     const stock = await this.inventoryService.getProductStock(id);
@@ -129,7 +132,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  async createProduct(dto: CreateProductDto) {
+  async createProduct(dto: CreateProductDto): Promise<ProductPrisma> {
     await this.validateCategoryExists(dto.category_id);
     const { category_id, ...productData } = dto;
     try {
@@ -141,17 +144,16 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           },
         }
       });
-    } catch (error: any) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Ya existe un producto con alguna de las propiedades únicas (ej. número de serie).');
-        }
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException(`Ya existe un ${this.entityName.toLowerCase()} con alguna de las propiedades únicas (ej. número de serie).`);
       }
-      throw new InternalServerErrorException('Error al crear un producto');
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
-  async updateProductById(id: number, dto: UpdateProductDto) {
+  async updateProductById(id: number, dto: UpdateProductDto): Promise<ProductPrisma> {
     await this.getProductById(id);
     const { category_id, ...productUpdateData } = dto;
 
@@ -172,29 +174,23 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         where: { product_id: id },
         data: dataToUpdate,
       });
-    } catch (error: any) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Error al actualizar el producto, alguna propiedad única ya está en uso (ej. número de serie).');
-        }
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictException(`Error al actualizar el ${this.entityName.toLowerCase()}, alguna propiedad única ya está en uso (ej. número de serie).`);
       }
-      throw new InternalServerErrorException(`Error al actualizar el producto con id: #${id}`);
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
-  async deleteProductById(id: number) {
+  async deleteProductById(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.getProductById(id);
     try {
       await this.product.delete({ where: { product_id: id } });
-      return { message: 'Producto eliminado correctamente', deleted: true };
-    } catch (error: any) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2003') {
-          throw new ConflictException('No se puede eliminar el producto porque está siendo referenciado en otras partes del sistema (ej. pedidos, inventario).');
-        }
-        throw new InternalServerErrorException('Error al eliminar el producto debido a una restricción de base de datos.');
-      }
-      throw new InternalServerErrorException(`Error al eliminar el producto con id: #${id}`);
+      return { message: `${this.entityName} eliminado correctamente`, deleted: true };
+    } catch (error) {
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 }

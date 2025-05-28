@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString } from 'class-validator';
 
 export class CreateOneOffPurchaseDto {
   @IsInt()
@@ -29,6 +29,10 @@ export class CreateOneOffPurchaseDto {
   @IsOptional()
   @IsInt()
   zone_id?: number;
+
+  @IsOptional()
+  @IsDateString()
+  purchase_date?: string;
 
   // total_amount y purchase_date se gestionarán en el backend.
 } 

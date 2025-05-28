@@ -1,8 +1,9 @@
 import { IsOptional, IsString, IsDateString, IsEnum, IsInt } from 'class-validator';
 import { OrderStatus, OrderType } from '../../common/constants/enums';
 import { ApiProperty } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
-export class FilterOrdersDto {
+export class FilterOrdersDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   @ApiProperty({ required: false, description: 'Término de búsqueda general (busca en múltiples campos)', example: 'juan' })
@@ -47,14 +48,4 @@ export class FilterOrdersDto {
   @IsInt()
   @ApiProperty({ required: false, description: 'Filtrar por ID de la zona', type: Number })
   zoneId?: number;
-
-  @IsOptional()
-  @IsInt()
-  @ApiProperty({ required: false, description: 'Número de página', default: 1, type: Number })
-  page?: number;
-
-  @IsOptional()
-  @IsInt()
-  @ApiProperty({ required: false, description: 'Límite de resultados por página', default: 10, type: Number })
-  limit?: number;
 } 

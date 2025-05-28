@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PriceHistoryResponseDto {
   @ApiProperty({
@@ -12,6 +12,18 @@ export class PriceHistoryResponseDto {
     example: 1
   })
   price_list_item_id: number;
+
+  @ApiPropertyOptional({
+    description: 'ID del producto relacionado al ítem',
+    example: 101
+  })
+  product_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Nombre del producto relacionado al ítem',
+    example: 'Agua Bidón 20L'
+  })
+  product_name?: string;
 
   @ApiProperty({
     description: 'Precio anterior',
@@ -31,21 +43,21 @@ export class PriceHistoryResponseDto {
   })
   change_date: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Porcentaje de cambio',
     example: '20.00',
     required: false
   })
   change_percentage?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Razón del cambio',
     example: 'Ajuste por inflación',
     required: false
   })
   change_reason?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Usuario que realizó el cambio',
     example: 'admin@example.com',
     required: false

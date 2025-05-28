@@ -2,9 +2,13 @@ import { Injectable, NotFoundException, ConflictException, InternalServerErrorEx
 import { Prisma, PrismaClient } from '@prisma/client';
 import { CreateVehicleInventoryDto } from './dto/create-vehicule-inventory.dto';
 import { UpdateVehicleInventoryDto } from './dto/update-vehicule-inventory.dto';
+import { FilterVehicleInventoryDto } from './dto/filter-vehicle-inventory.dto';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class VehicleInventoryService extends PrismaClient implements OnModuleInit {
+  private readonly entityName = 'Inventario de Vehículo';
 
   async onModuleInit() {
     await this.$connect();
@@ -48,20 +52,53 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
         },
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('Error de conflicto al crear/actualizar el inventario del vehículo.');
-      }
-      throw new InternalServerErrorException('Error al crear o actualizar el inventario del vehículo.');
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
-  async getAllVehicleInventory() {
-    return this.vehicle_inventory.findMany({
-      include: {
-        vehicle: true,
-        product: true,
-      },
-    });
+  async getAllVehicleInventory(filters: FilterVehicleInventoryDto): Promise<{ data: any[], total: number, page: number, limit: number, totalPages: number }> {
+    const { page = 1, limit = 10, sortBy, vehicle_id, product_id } = filters;
+    const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+    const take = Math.max(1, limit);
+    
+    const where: Prisma.vehicle_inventoryWhereInput = {};
+    if (vehicle_id) {
+      where.vehicle_id = vehicle_id;
+    }
+    if (product_id) {
+      where.product_id = product_id;
+    }
+
+    const defaultSort = [
+      { vehicle: { code: 'asc' } }, 
+      { product: { description: 'asc' } }
+    ];
+    const orderBy = parseSortByString(sortBy, defaultSort);
+    
+    try {
+        const items = await this.vehicle_inventory.findMany({
+            where, 
+            include: {
+                vehicle: true,
+                product: true,
+            },
+            orderBy,
+            skip,
+            take
+        });
+        const totalItems = await this.vehicle_inventory.count({ where });
+        return {
+            data: items,
+            total: totalItems,
+            page,
+            limit,
+            totalPages: Math.ceil(totalItems / limit)
+        };
+    } catch (error) {
+        handlePrismaError(error, this.entityName + 's');
+        throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+    }
   }
 
   async getVehicleInventoryById(vehicle_id: number, product_id: number) {
@@ -73,14 +110,13 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
       },
     });
     if (!inv) {
-      throw new NotFoundException(`Inventario no encontrado para vehículo ${vehicle_id} y producto ${product_id}`);
+      throw new NotFoundException(`${this.entityName} no encontrado para vehículo ${vehicle_id} y producto ${product_id}`);
     }
     return inv;
   }
 
   async updateVehicleInventoryQuantities(vehicle_id: number, product_id: number, dto: UpdateVehicleInventoryDto) {
     await this.getVehicleInventoryById(vehicle_id, product_id);
-    
     try {
       return await this.vehicle_inventory.update({
         where: { vehicle_id_product_id: { vehicle_id, product_id } },
@@ -90,7 +126,8 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
         },
       });
     } catch (error) {
-      throw new InternalServerErrorException('Error al actualizar las cantidades del inventario del vehículo.');
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
@@ -100,9 +137,10 @@ export class VehicleInventoryService extends PrismaClient implements OnModuleIni
       await this.vehicle_inventory.delete({
         where: { vehicle_id_product_id: { vehicle_id, product_id } },
       });
-      return { message: 'Inventario de vehículo eliminado correctamente.', deleted: true };
+      return { message: `${this.entityName} eliminado correctamente.`, deleted: true };
     } catch (error) {
-      throw new InternalServerErrorException('Error al eliminar el inventario del vehículo.');
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 }

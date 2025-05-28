@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { CreatePersonDto } from './create-person.dto';
+import { PaymentSemaphoreStatus } from '../../common/config/business.config';
 
 export class LoanedProductDto {
   @ApiProperty({ example: 1, description: 'ID del producto en comodato' })
@@ -41,7 +42,7 @@ export class PersonResponseDto extends CreatePersonDto {
   @ApiProperty({ 
     example: 'YELLOW', 
     description: 'Estado del semáforo de pagos del cliente (NONE, GREEN, YELLOW, RED)',
-    nullable: true 
+    enum: ['NONE', 'GREEN', 'YELLOW', 'RED']
   })
-  payment_semaphore_status?: string;
+  payment_semaphore_status: PaymentSemaphoreStatus;
 } 

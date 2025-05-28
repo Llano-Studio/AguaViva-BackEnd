@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, MinLength, MaxLength, ValidateIf, IsNumber, Min, IsPositive } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, ValidateIf, IsNumber, Min, IsPositive, IsInt, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateSubscriptionPlanDto {
@@ -27,4 +27,24 @@ export class UpdateSubscriptionPlanDto {
   @Min(0)
   @Type(() => Number)
   price?: number;
+
+  @ApiPropertyOptional({ description: 'Nueva duración del ciclo del plan en días', example: 30, type: 'integer' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  cycle_days?: number;
+
+  @ApiPropertyOptional({ description: 'Nuevo número de entregas por ciclo', example: 1, type: 'integer' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  deliveries_per_cycle?: number;
+
+  @ApiPropertyOptional({ description: 'Nuevo estado de activación del plan', example: true, type: 'boolean' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  active?: boolean;
 } 

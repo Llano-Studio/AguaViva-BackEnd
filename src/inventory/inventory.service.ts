@@ -1,10 +1,18 @@
 import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit, BadRequestException } from '@nestjs/common';
-import { PrismaClient, Prisma, stock_movement as PrismaStockMovement, movement_type as MovementTypePrisma } from '@prisma/client';
+import { PrismaClient, Prisma, stock_movement as PrismaStockMovement, movement_type as MovementTypePrisma, inventory as PrismaInventory } from '@prisma/client';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import { FilterInventoryDto, PaginatedInventoryResponseDto, InventoryDetailDto } from './dto/filter-inventory.dto';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class InventoryService extends PrismaClient implements OnModuleInit {
+    private readonly entityNameInventory = 'Inventario';
+    private readonly entityNameStockMovement = 'Movimiento de Stock';
+    private readonly entityNameMovementType = 'Tipo de Movimiento';
+    private readonly entityNameProduct = 'Producto';
+    private readonly entityNameWarehouse = 'Almacén';
 
     // Es VITAL que estos códigos coincidan con los de tu tabla `movement_type`
     private movementTypeCodes = {
@@ -12,17 +20,16 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         INGRESO_COMPRA_EXTERNA: 'INGRESO_COMPRA_EXTERNA',
         INGRESO_DEVOLUCION_COMODATO: 'INGRESO_DEVOLUCION_COMODATO',
         AJUSTE_POSITIVO: 'AJUSTE_POSITIVO',
-        TRANSFERENCIA_ENTRADA: 'TRANSFERENCIA_ENTRADA', // Entrada a un almacén específico
-
+        TRANSFERENCIA_ENTRADA: 'TRANSFERENCIA_ENTRADA',
         EGRESO_VENTA_PRODUCTO: 'EGRESO_VENTA_PRODUCTO',
         EGRESO_ENTREGA_COMODATO: 'EGRESO_ENTREGA_COMODATO',
         AJUSTE_NEGATIVO: 'AJUSTE_NEGATIVO',
-        TRANSFERENCIA_SALIDA: 'TRANSFERENCIA_SALIDA', // Salida de un almacén específico
+        TRANSFERENCIA_SALIDA: 'TRANSFERENCIA_SALIDA',
     };
 
     // DEBES AJUSTAR ESTOS CÓDIGOS A LOS VALORES REALES DE TU BASE DE DATOS
-    private entryMovementTypeCodes = ['ENTRADA_COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_CLIENTE'];
-    private exitMovementTypeCodes = ['SALIDA_VENTA', 'AJUSTE_SALIDA', 'MERMA', 'TRANSFER_SALIDA'];
+    private entryMovementTypeCodes = ['ENTRADA_COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_CLIENTE', 'INGRESO_PRODUCCION', 'INGRESO_COMPRA_EXTERNA', 'INGRESO_DEVOLUCION_COMODATO', 'AJUSTE_POSITIVO', 'TRANSFERENCIA_ENTRADA'];
+    private exitMovementTypeCodes = ['SALIDA_VENTA', 'AJUSTE_SALIDA', 'MERMA', 'TRANSFER_SALIDA', 'EGRESO_VENTA_PRODUCTO', 'EGRESO_ENTREGA_COMODATO', 'AJUSTE_NEGATIVO'];
     // No es necesario para getProductStock, pero útil para la creación de movimientos si se quiere
     private transferMovementTypeCodes = ['TRANSFERENCIA'];
 
@@ -49,13 +56,13 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                 where: { code },
             });
             if (!movementType) {
-                throw new NotFoundException(`Tipo de movimiento con código '${code}' no encontrado.`);
+                throw new NotFoundException(`${this.entityNameMovementType} con código '${code}' no encontrado.`);
             }
             return movementType.movement_type_id;
         } catch (error) {
             if (error instanceof NotFoundException) throw error;
-            console.error(`Error buscando movement_type_id para el código ${code}:`, error);
-            throw new InternalServerErrorException('Error al obtener el ID del tipo de movimiento.');
+            handlePrismaError(error, this.entityNameMovementType);
+            throw new InternalServerErrorException(`Error al obtener ID para ${this.entityNameMovementType.toLowerCase()} con código ${code}.`);
         }
     }
 
@@ -69,63 +76,35 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     async getProductStock(productId: number, warehouseId?: number, tx?: Prisma.TransactionClient): Promise<number> {
         const prisma = tx || this;
         try {
-            const product = await prisma.product.findUnique(
-                {
-                    where: { product_id: productId }
-                });
-
+            const product = await prisma.product.findUnique({ where: { product_id: productId } });
             if (!product) {
-                throw new NotFoundException(`Producto con ID ${productId} no encontrado.`);
+                throw new NotFoundException(`${this.entityNameProduct} con ID ${productId} no encontrado.`);
             }
-
-            const queryWhere: Prisma.stock_movementWhereInput = { product_id: productId };
 
             if (warehouseId) {
-                const warehouse = await prisma.warehouse.findUnique(
-                    {
-                        where: {
-                            warehouse_id: warehouseId
-                        }
-                    });
-                if (!warehouse) {
-                    throw new NotFoundException(`Almacén con ID ${warehouseId} no encontrado.`);
+                const inventoryRecord = await prisma.inventory.findUnique({
+                    where: {
+                        warehouse_id_product_id: {
+                            warehouse_id: warehouseId,
+                            product_id: productId,
+                        },
+                    },
+                });
+                return inventoryRecord ? inventoryRecord.quantity : 0;
+            } else {
+                const inventoryRecords = await prisma.inventory.findMany({
+                    where: { product_id: productId },
+                });
+                if (!inventoryRecords || inventoryRecords.length === 0) {
+                    return 0;
                 }
-                queryWhere.OR = [
-                    { destination_warehouse_id: warehouseId },
-                    { source_warehouse_id: warehouseId },
-                ];
+                const totalStock = inventoryRecords.reduce((sum, record) => sum + record.quantity, 0);
+                return totalStock;
             }
-            // Si no se especifica warehouseId, queryWhere solo tiene product_id, 
-            // por lo que se considerarán todos los movimientos de ese producto en el sistema.
-
-            const stockMovements = await prisma.stock_movement.findMany({
-                where: queryWhere,
-                include: {
-                    movement_type: true,
-                },
-            });
-
-            let totalStock = new Decimal(0);
-
-            for (const movement of stockMovements) {
-                const quantity = new Decimal(movement.quantity);
-                const movementCode = movement.movement_type.code.toUpperCase();
-
-                if (this.entryMovementTypeCodes.includes(movementCode)) {
-                    if (warehouseId === undefined || movement.destination_warehouse_id === warehouseId) {
-                        totalStock = totalStock.plus(quantity);
-                    }
-                } else if (this.exitMovementTypeCodes.includes(movementCode)) {
-                    if (warehouseId === undefined || movement.source_warehouse_id === warehouseId) {
-                        totalStock = totalStock.minus(quantity);
-                    }
-                }
-            }
-            return totalStock.toNumber();
         } catch (error) {
             if (error instanceof NotFoundException) throw error;
-            console.error(`Error calculando stock para producto ${productId} (almacén ${warehouseId || 'todos'}):`, error);
-            throw new InternalServerErrorException('Error al calcular el stock del producto.');
+            handlePrismaError(error, this.entityNameInventory);
+            throw new InternalServerErrorException(`Error calculando stock para ${this.entityNameProduct.toLowerCase()} ID ${productId}.`);
         }
     }
 
@@ -148,12 +127,12 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             // 1. Validar Product y MovementType
             const product = await prismaClient.product.findUnique({ where: { product_id } });
             if (!product) {
-                throw new NotFoundException(`Producto con ID ${product_id} no encontrado.`);
+                throw new NotFoundException(`${this.entityNameProduct} con ID ${product_id} no encontrado.`);
             }
 
             const movementType = await prismaClient.movement_type.findUnique({ where: { movement_type_id } });
             if (!movementType) {
-                throw new NotFoundException(`Tipo de movimiento con ID ${movement_type_id} no encontrado.`);
+                throw new NotFoundException(`${this.entityNameMovementType} con ID ${movement_type_id} no encontrado.`);
             }
 
             // 2. Lógica para determinar la naturaleza del movimiento y validar almacenes
@@ -183,82 +162,196 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                 }
             } else {
                 if (!source_warehouse_id && !destination_warehouse_id) {
-                    console.warn(`Tipo de movimiento '${movementType.code}' no es entrada/salida/transferencia clara y no se especificaron almacenes. El inventario de almacén no se actualizará.`);
+                    console.warn(`${this.entityNameStockMovement}: Tipo de movimiento '${movementType.code}' no es entrada/salida/transferencia clara y no se especificaron almacenes. El inventario no se actualizará.`);
                 }
             }
 
             if (effectiveSourceWarehouseId) {
                 const sourceWarehouse = await prismaClient.warehouse.findUnique({ where: { warehouse_id: effectiveSourceWarehouseId } });
-                if (!sourceWarehouse) throw new NotFoundException(`Almacén de origen con ID ${effectiveSourceWarehouseId} no encontrado.`);
+                if (!sourceWarehouse) throw new NotFoundException(`${this.entityNameWarehouse} de origen con ID ${effectiveSourceWarehouseId} no encontrado.`);
             }
             if (effectiveDestinationWarehouseId) {
                 const destWarehouse = await prismaClient.warehouse.findUnique({ where: { warehouse_id: effectiveDestinationWarehouseId } });
-                if (!destWarehouse) throw new NotFoundException(`Almacén de destino con ID ${effectiveDestinationWarehouseId} no encontrado.`);
+                if (!destWarehouse) throw new NotFoundException(`${this.entityNameWarehouse} de destino con ID ${effectiveDestinationWarehouseId} no encontrado.`);
             }
 
-            const stockMovement = await prismaClient.stock_movement.create({
-                data: {
-                    movement_date: movement_date || new Date(),
-                    movement_type_id,
-                    product_id,
-                    quantity,
-                    source_warehouse_id: effectiveSourceWarehouseId,
-                    destination_warehouse_id: effectiveDestinationWarehouseId,
-                    remarks: remarks || null,
-                },
-            });
-
-            if (effectiveSourceWarehouseId && (isExit || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
-                const currentInventorySource = await prismaClient.inventory.findUnique({
-                    where: { warehouse_id_product_id: { warehouse_id: effectiveSourceWarehouseId, product_id } },
+            let stockMovement: PrismaStockMovement;
+            try {
+                stockMovement = await prismaClient.stock_movement.create({
+                    data: {
+                        movement_date: movement_date || new Date(),
+                        movement_type_id,
+                        product_id,
+                        quantity,
+                        source_warehouse_id: effectiveSourceWarehouseId,
+                        destination_warehouse_id: effectiveDestinationWarehouseId,
+                        remarks: remarks || null,
+                    },
                 });
-                const newQuantitySourceCalc = new Decimal(currentInventorySource?.quantity || 0).minus(quantity);
-                if (currentInventorySource) {
-                    if (newQuantitySourceCalc.isNegative() && !product.is_returnable) {
-                        throw new BadRequestException(
-                            `Stock insuficiente en almacén de origen ID ${effectiveSourceWarehouseId} para producto ID ${product_id}. Cantidad actual: ${currentInventorySource.quantity}, Solicitado deducir: ${quantity}`
-                        );
-                    }
-                    await prismaClient.inventory.update({
+            } catch (error) {
+                handlePrismaError(error, this.entityNameStockMovement);
+                throw new InternalServerErrorException(`Error creando ${this.entityNameStockMovement.toLowerCase()}.`);
+            }
+
+            try {
+                if (effectiveSourceWarehouseId && (isExit || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
+                    const currentInventorySource = await prismaClient.inventory.findUnique({
                         where: { warehouse_id_product_id: { warehouse_id: effectiveSourceWarehouseId, product_id } },
-                        data: { quantity: newQuantitySourceCalc.toNumber() },
                     });
-                } else {
-                    if (newQuantitySourceCalc.isNegative() && !product.is_returnable) {
-                        throw new BadRequestException(
-                            `Intento de salida de producto ID ${product_id} de almacén ID ${effectiveSourceWarehouseId} donde no hay stock registrado (resultaría en stock negativo).`
-                        );
+                    const newQuantitySourceCalc = new Decimal(currentInventorySource?.quantity || 0).minus(quantity);
+                    if (currentInventorySource) {
+                        if (newQuantitySourceCalc.isNegative() && !product.is_returnable) {
+                            throw new BadRequestException(
+                                `Stock insuficiente en ${this.entityNameWarehouse.toLowerCase()} de origen ID ${effectiveSourceWarehouseId} para ${this.entityNameProduct.toLowerCase()} ID ${product_id}. Cantidad actual: ${currentInventorySource.quantity}, Solicitado deducir: ${quantity}`
+                            );
+                        }
+                        await prismaClient.inventory.update({
+                            where: { warehouse_id_product_id: { warehouse_id: effectiveSourceWarehouseId, product_id } },
+                            data: { quantity: newQuantitySourceCalc.toNumber() },
+                        });
+                    } else {
+                        if (newQuantitySourceCalc.isNegative() && !product.is_returnable) {
+                            throw new BadRequestException(
+                                `Intento de salida de ${this.entityNameProduct.toLowerCase()} ID ${product_id} de ${this.entityNameWarehouse.toLowerCase()} ID ${effectiveSourceWarehouseId} donde no hay stock registrado (resultaría en stock negativo).`
+                            );
+                        }
+                        await prismaClient.inventory.create({
+                            data: { product_id, warehouse_id: effectiveSourceWarehouseId, quantity: newQuantitySourceCalc.toNumber() },
+                        });
                     }
-                    await prismaClient.inventory.create({
-                        data: { product_id, warehouse_id: effectiveSourceWarehouseId, quantity: newQuantitySourceCalc.toNumber() },
-                    });
                 }
-            }
-
-            if (effectiveDestinationWarehouseId && (isEntry || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
-                const currentInventoryDest = await prismaClient.inventory.findUnique({
-                    where: { warehouse_id_product_id: { warehouse_id: effectiveDestinationWarehouseId, product_id } },
-                });
-                const newQuantityDestCalc = new Decimal(currentInventoryDest?.quantity || 0).plus(quantity);
-                if (currentInventoryDest) {
-                    await prismaClient.inventory.update({
+    
+                if (effectiveDestinationWarehouseId && (isEntry || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
+                    const currentInventoryDest = await prismaClient.inventory.findUnique({
                         where: { warehouse_id_product_id: { warehouse_id: effectiveDestinationWarehouseId, product_id } },
-                        data: { quantity: newQuantityDestCalc.toNumber() },
                     });
-                } else {
-                    await prismaClient.inventory.create({
-                        data: { product_id, warehouse_id: effectiveDestinationWarehouseId, quantity: newQuantityDestCalc.toNumber() },
-                    });
+                    const newQuantityDestCalc = new Decimal(currentInventoryDest?.quantity || 0).plus(quantity);
+                    if (currentInventoryDest) {
+                        await prismaClient.inventory.update({
+                            where: { warehouse_id_product_id: { warehouse_id: effectiveDestinationWarehouseId, product_id } },
+                            data: { quantity: newQuantityDestCalc.toNumber() },
+                        });
+                    } else {
+                        await prismaClient.inventory.create({
+                            data: { product_id, warehouse_id: effectiveDestinationWarehouseId, quantity: newQuantityDestCalc.toNumber() },
+                        });
+                    }
                 }
+            } catch (error) {
+                if (error instanceof BadRequestException) throw error; 
+                handlePrismaError(error, this.entityNameInventory); 
+                throw new InternalServerErrorException(`Error actualizando ${this.entityNameInventory.toLowerCase()}.`);
             }
             return stockMovement;
         };
 
-        if (tx) {
-            return operations(tx);
-        } else {
-            return this.$transaction(operations);
+        try {
+            return tx ? await operations(tx) : await this.$transaction(operations);
+        } catch(error) {
+            // Si el error ya fue manejado y es una de nuestras excepciones, relanzarlo.
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) throw error;
+            // Para otros errores de Prisma no capturados dentro de `operations` (ej. problemas de conexión al inicio de la tx)
+            handlePrismaError(error, this.entityNameStockMovement);
+            throw new InternalServerErrorException(`Error en la transacción al crear ${this.entityNameStockMovement.toLowerCase()}.`);
         }
     }
 
+    async getFullStockWithDetails(filters: FilterInventoryDto): Promise<PaginatedInventoryResponseDto> {
+        const { page = 1, limit = 10, sortBy, warehouse_id, product_id, product_description, category_id, min_quantity, max_quantity } = filters;
+        const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+        const take = Math.max(1, limit);
+
+        const where: Prisma.inventoryWhereInput = {};
+        if (warehouse_id) where.warehouse_id = warehouse_id;
+        if (product_id) where.product_id = product_id;
+        
+        let productWhere: Prisma.productWhereInput = {};
+        if (product_description) {
+            productWhere.description = { contains: product_description, mode: 'insensitive' };
+        }
+        if (category_id) {
+            productWhere.category_id = category_id;
+        }
+        if (Object.keys(productWhere).length > 0) {
+            where.product = productWhere;
+        }
+
+        let quantityWhere: Prisma.IntFilter = {}; 
+        if (min_quantity !== undefined) {
+            quantityWhere.gte = min_quantity;
+        }
+        if (max_quantity !== undefined) {
+            quantityWhere.lte = max_quantity;
+        }
+        if (Object.keys(quantityWhere).length > 0) {
+            where.quantity = quantityWhere;
+        } 
+
+        const orderBy = parseSortByString(sortBy, [{ product: { description: 'asc' } }]);
+
+        try {
+            const totalItems = await this.inventory.count({ where });
+            const inventoryItems = await this.inventory.findMany({
+                where,
+                include: {
+                    product: { include: { product_category: true } },
+                    warehouse: { include: { locality: true } },
+                },
+                orderBy,
+                skip,
+                take,
+            });
+
+            const data: InventoryDetailDto[] = inventoryItems.map(item => ({
+                warehouse_id: item.warehouse_id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                product_description: item.product.description,
+                product_category: item.product.product_category.name,
+                warehouse_name: item.warehouse.name,
+                warehouse_locality: item.warehouse.locality?.name || 'N/A',
+            }));
+
+            return {
+                data,
+                total: totalItems,
+                page,
+                limit: take,
+                totalPages: Math.ceil(totalItems / take),
+            };
+        } catch (error) {
+            handlePrismaError(error, this.entityNameInventory);
+            throw new InternalServerErrorException(`Error obteniendo el stock detallado del ${this.entityNameInventory.toLowerCase()}.`);
+        }
+    }
+
+    async getStockInWarehouse(productId: number, warehouseId: number): Promise<{ productId: number, warehouseId: number, quantity: number, productDescription: string, warehouseName: string }> {
+        try {
+            const inventoryItem = await this.inventory.findUnique({
+                where: { warehouse_id_product_id: { warehouse_id: warehouseId, product_id: productId } },
+                include: {
+                    product: true,
+                    warehouse: true,
+                },
+            });
+
+            if (!inventoryItem) {
+                throw new NotFoundException(`${this.entityNameInventory} no encontrado para ${this.entityNameProduct.toLowerCase()} ID ${productId} en ${this.entityNameWarehouse.toLowerCase()} ID ${warehouseId}.`);
+            }
+
+            return {
+                productId: inventoryItem.product_id,
+                warehouseId: inventoryItem.warehouse_id,
+                quantity: inventoryItem.quantity,
+                productDescription: inventoryItem.product.description,
+                warehouseName: inventoryItem.warehouse.name,
+            };
+        } catch (error) {
+            if (error instanceof NotFoundException) throw error;
+            handlePrismaError(error, this.entityNameInventory);
+            throw new InternalServerErrorException(
+                `Error obteniendo stock para ${this.entityNameProduct.toLowerCase()} ID ${productId} en ${this.entityNameWarehouse.toLowerCase()} ID ${warehouseId}.`
+            );
+        }
+    }
 } 

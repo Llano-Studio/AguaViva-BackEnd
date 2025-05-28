@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
 import { PriceListService } from './price-list.service';
-import { CreatePriceListDto, UpdatePriceListDto, ApplyPercentageDto, ApplyPercentageWithReasonDto, PriceHistoryResponseDto } from './dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody } from '@nestjs/swagger';
+import { CreatePriceListDto, UpdatePriceListDto, ApplyPercentageDto, ApplyPercentageWithReasonDto, PriceHistoryResponseDto, FilterPriceListDto } from './dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody, ApiQuery, ApiProperty } from '@nestjs/swagger';
 import { Role } from '@prisma/client'; 
 import { Auth } from '../auth/decorators/auth.decorator'; 
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('Listas de Precios')
 @ApiBearerAuth() 
@@ -26,7 +27,8 @@ export class PriceListController {
           name: 'Lista Estándar',
           description: 'Lista de precios estándar para clientes regulares',
           is_default: true,
-          active: true
+          active: true,
+          effective_date: '2024-01-01'
         }
       }
     }
@@ -41,6 +43,7 @@ export class PriceListController {
         description: { type: 'string', example: 'Lista de precios estándar para clientes regulares', nullable: true },
         is_default: { type: 'boolean', example: true },
         active: { type: 'boolean', example: true },
+        effective_date: {type: 'string', format: 'date', example: '2024-01-01'},
         created_at: { type: 'string', format: 'date-time' },
         updated_at: { type: 'string', format: 'date-time' }
       }
@@ -51,7 +54,7 @@ export class PriceListController {
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
   @ApiResponse({ status: 409, description: 'Conflicto - Ya existe una lista marcada como predeterminada.' })
   create(
-    @Body() createPriceListDto: CreatePriceListDto
+    @Body(ValidationPipe) createPriceListDto: CreatePriceListDto
 ) {
     return this.priceListService.create(createPriceListDto);
   }
@@ -60,30 +63,41 @@ export class PriceListController {
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ 
     summary: 'Obtener todas las listas de precios',
-    description: 'Devuelve un listado completo de todas las listas de precios disponibles en el sistema.'
+    description: 'Devuelve un listado completo de todas las listas de precios disponibles en el sistema, con paginación y ordenamiento.'
   })
   @ApiResponse({ 
     status: 200, 
     description: 'Listas de precios obtenidas exitosamente.',
     schema: {
-      type: 'array',
-      items: {
         properties: {
-          id: { type: 'number', example: 1 },
-          name: { type: 'string', example: 'Lista Estándar' },
-          description: { type: 'string', example: 'Lista de precios estándar para clientes regulares', nullable: true },
-          is_default: { type: 'boolean', example: true },
-          active: { type: 'boolean', example: true },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' },
-          items_count: { type: 'number', example: 25 }
+            data: {
+                type: 'array',
+                items: {
+                    properties: {
+                        price_list_id: { type: 'number', example: 1 },
+                        name: { type: 'string', example: 'Lista Estándar' },
+                        effective_date: { type: 'string', format: 'date', example: '2024-01-01'},
+                    }
+                }
+            },
+            meta: {
+                type: 'object',
+                properties: {
+                    total: { type: 'number', example: 100 },
+                    page: { type: 'number', example: 1 },
+                    limit: { type: 'number', example: 10 },
+                    totalPages: { type: 'number', example: 10 }
+                }
+            }
         }
-      }
     }
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  findAll() {
-    return this.priceListService.findAll();
+  findAll(
+    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+    filterPriceListDto: FilterPriceListDto,
+  ) {
+    return this.priceListService.findAll(filterPriceListDto);
   }
 
   @Get(':id')
@@ -103,29 +117,12 @@ export class PriceListController {
     description: 'Lista de precios encontrada exitosamente.',
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        price_list_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Lista Estándar' },
-        description: { type: 'string', example: 'Lista de precios estándar para clientes regulares', nullable: true },
-        is_default: { type: 'boolean', example: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' },
-        items: {
+        effective_date: {type: 'string', format: 'date', example: '2024-01-01'},
+        price_list_items: {
           type: 'array',
           items: {
-            properties: {
-              id: { type: 'number', example: 101 },
-              product_id: { type: 'number', example: 1 },
-              product: {
-                properties: {
-                  id: { type: 'number', example: 1 },
-                  name: { type: 'string', example: 'Bidón 20L' },
-                  code: { type: 'string', example: 'BID-20L' }
-                }
-              },
-              price: { type: 'number', example: 500 },
-              active: { type: 'boolean', example: true }
-            }
           }
         }
       }
@@ -158,9 +155,7 @@ export class PriceListController {
       example1: {
         value: {
           name: 'Lista Estándar Actualizada',
-          description: 'Lista de precios actualizada para clientes regulares',
-          is_default: true,
-          active: true
+          effective_date: '2024-02-01'
         }
       }
     }
@@ -168,17 +163,6 @@ export class PriceListController {
   @ApiResponse({ 
     status: 200, 
     description: 'Lista de precios actualizada exitosamente.',
-    schema: {
-      properties: {
-        id: { type: 'number', example: 1 },
-        name: { type: 'string', example: 'Lista Estándar Actualizada' },
-        description: { type: 'string', example: 'Lista de precios actualizada para clientes regulares', nullable: true },
-        is_default: { type: 'boolean', example: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
-      }
-    }
   })
   @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
@@ -187,7 +171,7 @@ export class PriceListController {
   @ApiResponse({ status: 409, description: 'Conflicto - Ya existe otra lista marcada como predeterminada.' })
   update(
     @Param('id', ParseIntPipe) id: number, 
-    @Body() updatePriceListDto: UpdatePriceListDto
+    @Body(ValidationPipe) updatePriceListDto: UpdatePriceListDto
 ) {
     return this.priceListService.update(id, updatePriceListDto);
   }
@@ -196,7 +180,7 @@ export class PriceListController {
   @Auth(Role.ADMIN)
   @ApiOperation({ 
     summary: 'Eliminar una lista de precios por su ID',
-    description: 'Elimina una lista de precios y opcionalmente todos sus ítems asociados. No se puede eliminar la lista predeterminada ni listas que están siendo utilizadas por contratos o clientes.'
+    description: 'Elimina una lista de precios. No se puede eliminar la lista predeterminada ni listas que están siendo utilizadas.'
   })
   @ApiParam({
     name: 'id',
@@ -217,8 +201,7 @@ export class PriceListController {
   @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 400, description: 'No se puede eliminar la lista de precios predeterminada.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - La lista de precios está en uso por contratos o clientes.' })
+  @ApiResponse({ status: 400, description: 'No se puede eliminar la lista de precios predeterminada o está en uso.' })
   remove(
     @Param('id', ParseIntPipe) id: number
 ) {
@@ -227,138 +210,80 @@ export class PriceListController {
 
   @Patch(':id/apply-percentage')
   @Auth(Role.ADMIN)
-  @ApiOperation({ 
-    summary: 'Aplicar un cambio de porcentaje a todos los precios de los ítems de una lista',
-    description: 'Permite aumentar o disminuir todos los precios de una lista por un porcentaje específico. Útil para aplicar aumentos generales de precios o descuentos.'
+  @ApiOperation({
+    summary: 'Aplicar un cambio porcentual a todos los ítems de una lista de precios',
+    description: 'Aplica un incremento o decremento porcentual a todos los ítems activos de la lista de precios especificada. Registra el cambio en el historial.'
   })
-  @ApiParam({
-    name: 'id',
-    description: 'ID de la lista de precios a modificar',
-    type: Number,
-    example: 1
-  })
-  @ApiBody({
-    description: 'Datos para el cambio porcentual',
-    type: ApplyPercentageWithReasonDto,
-    examples: {
-      increase: {
-        summary: 'Aumento del 10%',
-        value: {
-          percentage: 10,
-          reason: 'Ajuste por inflación'
-        }
-      },
-      decrease: {
-        summary: 'Descuento del 5%',
-        value: {
-          percentage: -5,
-          reason: 'Promoción temporal'
-        }
-      }
-    }
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Porcentaje aplicado exitosamente a los ítems de la lista.',
-    schema: {
-      properties: {
-        updated_count: { type: 'number', example: 25 },
-        message: { type: 'string', example: 'Se aplicó un aumento del 10% a 25 productos' }
-      }
-    }
-  })
+  @ApiParam({ name: 'id', description: 'ID de la lista de precios', type: Number })
+  @ApiBody({ type: ApplyPercentageWithReasonDto })
+  @ApiResponse({ status: 200, description: 'Cambio porcentual aplicado exitosamente.' })
   @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
-  @ApiResponse({ status: 400, description: 'Porcentaje inválido o ningún ítem afectado.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
   applyPercentageChange(
     @Param('id', ParseIntPipe) id: number,
-    @Body() applyPercentageDto: ApplyPercentageWithReasonDto,
+    @Body(ValidationPipe) applyPercentageDto: ApplyPercentageWithReasonDto,
   ) {
     return this.priceListService.applyPercentageChange(id, applyPercentageDto);
   }
 
   @Get(':id/history')
   @Auth(Role.ADMIN, Role.USER)
-  @ApiOperation({ 
-    summary: 'Obtener el historial de cambios de precio de una lista de precios',
-    description: 'Devuelve un registro histórico de todos los cambios de precios realizados en una lista específica, ordenados cronológicamente.'
+  @ApiOperation({
+    summary: 'Obtener historial de cambios de precios para una lista de precios',
+    description: 'Devuelve el historial de todos los cambios de precios aplicados a los ítems de una lista de precios específica.'
   })
-  @ApiParam({
-    name: 'id',
-    description: 'ID de la lista de precios',
-    type: Number,
-    example: 1
-  })
+  @ApiParam({ name: 'id', description: 'ID de la lista de precios' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: change_date,-new_price", example: '-change_date' })
   @ApiResponse({ 
     status: 200, 
-    description: 'Historial de cambios encontrado exitosamente.',
-    type: [PriceHistoryResponseDto],
+    description: 'Historial de precios obtenido.',
     schema: {
-      type: 'array',
-      items: {
-        properties: {
-          id: { type: 'number', example: 1 },
-          price_list_item_id: { type: 'number', example: 101 },
-          product_id: { type: 'number', example: 1 },
-          product_name: { type: 'string', example: 'Bidón 20L' },
-          old_price: { type: 'number', example: 450 },
-          new_price: { type: 'number', example: 500 },
-          change_date: { type: 'string', format: 'date-time' },
-          change_percentage: { type: 'number', example: 11.11 },
-          reason: { type: 'string', example: 'Ajuste por inflación', nullable: true },
-          changed_by: { type: 'string', example: 'admin@example.com' }
-        }
+      properties: {
+        data: { type: 'array', items: { $ref: '#/components/schemas/PriceHistoryResponseDto' } },
+        total: { type: 'number', example: 100 },
+        page: { type: 'number', example: 1 },
+        limit: { type: 'number', example: 10 },
+        totalPages: { type: 'number', example: 10 }
       }
     }
   })
-  @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
   getPriceListHistory(
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
+    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+    paginationDto: PaginationQueryDto,
   ) {
-    return this.priceListService.getPriceListHistory(id);
+    return this.priceListService.getPriceHistoryByPriceListId(id, paginationDto);
   }
 
   @Get('item/:itemId/history')
   @Auth(Role.ADMIN, Role.USER)
-  @ApiOperation({ 
-    summary: 'Obtener el historial de cambios de precio de un ítem específico',
-    description: 'Devuelve un registro histórico de todos los cambios de precio realizados en un ítem específico de una lista de precios, ordenados cronológicamente.'
+  @ApiOperation({
+    summary: 'Obtener historial de cambios de un ítem de lista de precios',
+    description: 'Devuelve el historial de cambios de precio para un ítem específico de una lista de precios.'
   })
-  @ApiParam({
-    name: 'itemId',
-    description: 'ID del ítem de lista de precios',
-    type: Number,
-    example: 101
-  })
+  @ApiParam({ name: 'itemId', description: 'ID del ítem de la lista de precios' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: change_date,-new_price", example: '-change_date' })
   @ApiResponse({ 
     status: 200, 
-    description: 'Historial de cambios encontrado exitosamente.',
-    type: [PriceHistoryResponseDto],
+    description: 'Historial de precios del ítem obtenido.',
     schema: {
-      type: 'array',
-      items: {
-        properties: {
-          id: { type: 'number', example: 1 },
-          price_list_item_id: { type: 'number', example: 101 },
-          product_id: { type: 'number', example: 1 },
-          product_name: { type: 'string', example: 'Bidón 20L' },
-          old_price: { type: 'number', example: 450 },
-          new_price: { type: 'number', example: 500 },
-          change_date: { type: 'string', format: 'date-time' },
-          change_percentage: { type: 'number', example: 11.11 },
-          reason: { type: 'string', example: 'Ajuste por inflación', nullable: true },
-          changed_by: { type: 'string', example: 'admin@example.com' }
-        }
+      properties: {
+        data: { type: 'array', items: { $ref: '#/components/schemas/PriceHistoryResponseDto' } },
+        total: { type: 'number', example: 100 },
+        page: { type: 'number', example: 1 },
+        limit: { type: 'number', example: 10 },
+        totalPages: { type: 'number', example: 10 }
       }
     }
   })
-  @ApiResponse({ status: 404, description: 'Ítem de lista de precios no encontrado.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
   getPriceItemHistory(
-    @Param('itemId', ParseIntPipe) itemId: number
+    @Param('itemId', ParseIntPipe) itemId: number,
+    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+    paginationDto: PaginationQueryDto,
   ) {
-    return this.priceListService.getPriceHistory(itemId);
+    return this.priceListService.getPriceHistoryByItemId(itemId, paginationDto);
   }
 } 

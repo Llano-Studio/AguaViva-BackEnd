@@ -7,10 +7,11 @@ import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
 import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { order_header as OrderHeader, Role } from '@prisma/client';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import { OneOffPurchaseResponseDto } from './dto/one-off-purchase-response.dto';
 
 @ApiTags('Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
@@ -27,6 +28,7 @@ export class OrdersController {
         summary: 'Crear un nuevo pedido regular',
         description: 'Crea un nuevo pedido regular con sus ítems asociados. Valida el stock disponible y actualiza el inventario.'
     })
+    @ApiBody({ type: CreateOrderDto })
     @ApiResponse({ 
         status: 201, 
         description: 'Pedido creado exitosamente.',
@@ -66,14 +68,27 @@ export class OrdersController {
     @ApiQuery({ name: 'zoneId', required: false, description: 'Filtrar por ID de zona', type: Number })
     @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
     @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
+    @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: order_date,-customer.name", type: String, example: '-order_date,customer.name' })
     @ApiResponse({ 
         status: 200, 
         description: 'Lista de pedidos obtenida exitosamente.',
-        type: [OrderResponseDto]
+        schema: {
+            type: 'object',
+            properties: {
+                data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/OrderResponseDto' }
+                },
+                total: { type: 'number', example: 100 },
+                page: { type: 'number', example: 1 },
+                limit: { type: 'number', example: 10 },
+                totalPages: { type: 'number', example: 10 }
+            }
+        }
     })
     async findAllOrders(
         @Query(ValidationPipe) filterOrdersDto: FilterOrdersDto
-    ): Promise<OrderResponseDto[]> {
+    ): Promise<{ data: OrderResponseDto[]; total: number; page: number; limit: number; totalPages: number }> {
         return this.ordersService.findAll(filterOrdersDto);
     }
 
@@ -104,6 +119,7 @@ export class OrdersController {
         description: 'Actualiza los detalles de un pedido regular existente, incluyendo sus ítems.'
     })
     @ApiParam({ name: 'id', description: 'ID del pedido' })
+    @ApiBody({ type: UpdateOrderDto })
     @ApiResponse({ 
         status: 200, 
         description: 'Pedido actualizado exitosamente.',
@@ -141,7 +157,8 @@ export class OrdersController {
         schema: { 
             type: 'object', 
             properties: { 
-                message: { type: 'string' } 
+                message: { type: 'string' },
+                deleted: { type: 'boolean' }
             } 
         }
     })
@@ -164,26 +181,66 @@ export class OrdersController {
         summary: 'Crear una nueva compra de una sola vez (one-off purchase)',
         description: 'Crea una nueva compra de una sola vez con sus ítems asociados. Este tipo de compra es para clientes ocasionales sin contrato fijo.'
     })
+    @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 
         status: 201, 
         description: 'Compra de una sola vez creada exitosamente.',
         schema: {
             properties: {
-                id: { type: 'number' },
-                customer_id: { type: 'number' },
-                date: { type: 'string', format: 'date-time' },
-                total_amount: { type: 'number' },
-                status: { type: 'string', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
-                payment_status: { type: 'string', enum: ['PENDING', 'PAID', 'PARTIAL'] },
-                items: { 
-                    type: 'array',
-                    items: {
-                        properties: {
-                            product_id: { type: 'number' },
-                            quantity: { type: 'number' },
-                            unit_price: { type: 'number' },
-                            subtotal: { type: 'number' }
-                        }
+                purchase_id: { type: 'number' },
+                person_id: { type: 'number' },
+                product_id: { type: 'number' },
+                quantity: { type: 'number' },
+                sale_channel_id: { type: 'number' },
+                locality_id: { type: 'number', nullable: true },
+                zone_id: { type: 'number', nullable: true },
+                purchase_date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'string' },
+                payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
+                delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
+                notes: { type: 'string', nullable: true },
+                payment_method_id: { type: 'number', nullable: true },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' },
+                person: {
+                    type: 'object',
+                    properties: {
+                        person_id: { type: 'number' },
+                        name: { type: 'string' },
+                        tax_id: { type: 'string', nullable: true },
+                        address: { type: 'string', nullable: true }
+                    }
+                },
+                product: {
+                    type: 'object',
+                    properties: {
+                        product_id: { type: 'number' },
+                        description: { type: 'string' },
+                        code: { type: 'string', nullable: true },
+                        price: { type: 'string' }
+                    }
+                },
+                sale_channel: {
+                    type: 'object',
+                    properties: {
+                        sale_channel_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                locality: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        locality_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                zone: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        zone_id: { type: 'number' },
+                        name: { type: 'string' }
                     }
                 }
             }
@@ -194,7 +251,7 @@ export class OrdersController {
     @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
     createOneOffPurchase(
         @Body(ValidationPipe) createOneOffPurchaseDto: CreateOneOffPurchaseDto
-    ) {
+    ): Promise<OneOffPurchaseResponseDto> {
         return this.oneOffPurchaseService.create(createOneOffPurchaseDto);
     }
 
@@ -206,11 +263,12 @@ export class OrdersController {
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
     @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde' })
     @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta' })
-    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado de la compra', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] })
+    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado de la compra (delivery_status)', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] })
     @ApiQuery({ name: 'paymentStatus', required: false, description: 'Filtrar por estado de pago', enum: ['PENDING', 'PAID', 'PARTIAL'] })
-    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente' })
+    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente (person_id)' })
     @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
     @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
+    @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: -purchase_date,person.name", type: String, example: '-purchase_date,person.name' })
     @ApiResponse({ 
         status: 200, 
         description: 'Lista de compras de una sola vez obtenida exitosamente.',
@@ -219,17 +277,42 @@ export class OrdersController {
                 data: {
                     type: 'array',
                     items: {
+                        type: 'object', 
                         properties: {
-                            id: { type: 'number' },
-                            customer_id: { type: 'number' },
-                            date: { type: 'string', format: 'date-time' },
-                            total_amount: { type: 'number' },
-                            status: { type: 'string' },
-                            payment_status: { type: 'string' }
+                           purchase_id: { type: 'number' },
+                           person_id: { type: 'number' },
+                           product_id: { type: 'number' },
+                           quantity: { type: 'number' },
+                           sale_channel_id: { type: 'number' },
+                           locality_id: { type: 'number', nullable: true },
+                           zone_id: { type: 'number', nullable: true },
+                           purchase_date: { type: 'string', format: 'date-time' },
+                           total_amount: { type: 'string' },
+                           payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
+                           delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
+                           notes: { type: 'string', nullable: true },
+                           payment_method_id: { type: 'number', nullable: true },
+                           created_at: { type: 'string', format: 'date-time' },
+                           updated_at: { type: 'string', format: 'date-time' },
+                           person: {
+                               type: 'object',
+                               properties: {
+                                   person_id: { type: 'number' },
+                                   name: { type: 'string' }
+                               }
+                           },
+                           product: {
+                               type: 'object',
+                               properties: {
+                                   product_id: { type: 'number' },
+                                   description: { type: 'string' }
+                               }
+                           }
                         }
                     }
                 },
                 meta: {
+                    type: 'object',
                     properties: {
                         total: { type: 'number' },
                         page: { type: 'number' },
@@ -239,9 +322,9 @@ export class OrdersController {
             }
         }
     })
-    findAllOneOffPurchases(
+    async findAllOneOffPurchases(
         @Query(ValidationPipe) filterOneOffPurchasesDto: FilterOneOffPurchasesDto
-    ) {
+    ): Promise<{ data: OneOffPurchaseResponseDto[]; total: number; page: number; limit: number }> {
         return this.oneOffPurchaseService.findAll(filterOneOffPurchasesDto);
     }
 
@@ -256,37 +339,60 @@ export class OrdersController {
         description: 'Compra de una sola vez encontrada exitosamente.',
         schema: {
             properties: {
-                id: { type: 'number' },
-                customer_id: { type: 'number' },
-                customer: {
+                purchase_id: { type: 'number' },
+                person_id: { type: 'number' },
+                product_id: { type: 'number' },
+                quantity: { type: 'number' },
+                sale_channel_id: { type: 'number' },
+                locality_id: { type: 'number', nullable: true },
+                zone_id: { type: 'number', nullable: true },
+                purchase_date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'string' },
+                payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
+                delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
+                notes: { type: 'string', nullable: true },
+                payment_method_id: { type: 'number', nullable: true },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' },
+                person: {
+                    type: 'object',
                     properties: {
-                        id: { type: 'number' },
+                        person_id: { type: 'number' },
                         name: { type: 'string' },
-                        tax_id: { type: 'string' },
-                        address: { type: 'string' }
+                        tax_id: { type: 'string', nullable: true },
+                        address: { type: 'string', nullable: true }
                     }
                 },
-                date: { type: 'string', format: 'date-time' },
-                total_amount: { type: 'number' },
-                status: { type: 'string' },
-                payment_status: { type: 'string' },
-                items: {
-                    type: 'array',
-                    items: {
-                        properties: {
-                            id: { type: 'number' },
-                            product_id: { type: 'number' },
-                            product: {
-                                properties: {
-                                    id: { type: 'number' },
-                                    name: { type: 'string' },
-                                    description: { type: 'string' }
-                                }
-                            },
-                            quantity: { type: 'number' },
-                            unit_price: { type: 'number' },
-                            subtotal: { type: 'number' }
-                        }
+                product: {
+                    type: 'object',
+                    properties: {
+                        product_id: { type: 'number' },
+                        description: { type: 'string' },
+                        code: { type: 'string', nullable: true},
+                        price: { type: 'string' }
+                    }
+                },
+                sale_channel: {
+                    type: 'object',
+                    properties: {
+                        sale_channel_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                locality: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        locality_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                zone: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        zone_id: { type: 'number' },
+                        name: { type: 'string' }
                     }
                 }
             }
@@ -295,7 +401,7 @@ export class OrdersController {
     @ApiResponse({ status: 404, description: 'Compra de una sola vez no encontrada.' })
     findOneOneOffPurchase(
         @Param('id', ParseIntPipe) id: number
-    ) {
+    ): Promise<OneOffPurchaseResponseDto> {
         return this.oneOffPurchaseService.findOne(id);
     }
 
@@ -305,17 +411,68 @@ export class OrdersController {
         description: 'Actualiza los detalles de una compra de una sola vez existente, incluyendo sus ítems si se proporcionan.'
     })
     @ApiParam({ name: 'id', description: 'ID de la compra de una sola vez', type: Number })
+    @ApiBody({ type: UpdateOneOffPurchaseDto })
     @ApiResponse({ 
         status: 200, 
         description: 'Compra de una sola vez actualizada exitosamente.',
         schema: {
             properties: {
-                id: { type: 'number' },
-                customer_id: { type: 'number' },
-                date: { type: 'string', format: 'date-time' },
-                total_amount: { type: 'number' },
-                status: { type: 'string' },
-                payment_status: { type: 'string' }
+                purchase_id: { type: 'number' },
+                person_id: { type: 'number' },
+                product_id: { type: 'number' },
+                quantity: { type: 'number' },
+                sale_channel_id: { type: 'number' },
+                locality_id: { type: 'number', nullable: true },
+                zone_id: { type: 'number', nullable: true },
+                purchase_date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'string' },
+                payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
+                delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
+                notes: { type: 'string', nullable: true },
+                payment_method_id: { type: 'number', nullable: true },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' },
+                person: {
+                    type: 'object',
+                    properties: {
+                        person_id: { type: 'number' },
+                        name: { type: 'string' },
+                        tax_id: { type: 'string', nullable: true },
+                        address: { type: 'string', nullable: true }
+                    }
+                },
+                product: {
+                    type: 'object',
+                    properties: {
+                        product_id: { type: 'number' },
+                        description: { type: 'string' },
+                        code: { type: 'string', nullable: true},
+                        price: { type: 'string' }
+                    }
+                },
+                sale_channel: {
+                    type: 'object',
+                    properties: {
+                        sale_channel_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                locality: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        locality_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                zone: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        zone_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                }
             }
         }
     })
@@ -325,7 +482,7 @@ export class OrdersController {
     updateOneOffPurchase(
         @Param('id', ParseIntPipe) id: number,
         @Body(ValidationPipe) updateOneOffPurchaseDto: UpdateOneOffPurchaseDto
-    ) {
+    ): Promise<OneOffPurchaseResponseDto> {
         return this.oneOffPurchaseService.update(id, updateOneOffPurchaseDto);
     }
 
@@ -340,7 +497,8 @@ export class OrdersController {
         description: 'Compra de una sola vez eliminada exitosamente.',
         schema: {
             properties: {
-                message: { type: 'string' }
+                message: { type: 'string' },
+                deleted: { type: 'boolean' }
             }
         }
     })
@@ -348,7 +506,7 @@ export class OrdersController {
     @ApiResponse({ status: 409, description: 'No se puede eliminar una compra que no está en estado PENDING.' })
     removeOneOffPurchase(
         @Param('id', ParseIntPipe) id: number
-    ) {
+    ): Promise<{ message: string; deleted: boolean }> {
         return this.oneOffPurchaseService.remove(id);
     }
 }

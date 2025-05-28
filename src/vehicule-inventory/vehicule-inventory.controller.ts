@@ -1,10 +1,9 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { VehicleInventoryService } from './vehicule-inventory.service';
-import { UpdateVehicleInventoryDto } from './dto/update-vehicule-inventory.dto';
-import { CreateVehicleInventoryDto } from './dto/create-vehicule-inventory.dto';
+import { UpdateVehicleInventoryDto, CreateVehicleInventoryDto, FilterVehicleInventoryDto } from './dto';
 import { Role } from '@prisma/client';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Inventario de vehículos')
 @ApiBearerAuth()
@@ -15,11 +14,9 @@ export class VehicleInventoryController {
   @Post()
   @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Crear o actualizar un registro de inventario de vehículo' })
-  @ApiResponse({ status: 201, description: 'Inventario de vehículo creado/actualizado.', type: CreateVehicleInventoryDto })
-  @ApiResponse({ status: 400, description: 'Entrada inválida (ej. IDs no existen).' })
-  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe un inventario para este vehículo y producto (si se usa POST para crear y ya existe).' })
+  @ApiResponse({ status: 201, description: 'Inventario de vehículo creado/actualizado.' })
   createOrUpdateVehicleInventory(
-    @Body() dto: CreateVehicleInventoryDto
+    @Body(ValidationPipe) dto: CreateVehicleInventoryDto
   ) {
     return this.service.createOrUpdateVehicleInventory(dto);
   }
@@ -27,9 +24,16 @@ export class VehicleInventoryController {
   @Get()
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Listar todos los inventarios de vehiculos' })
-  @ApiResponse({ status: 200, description: 'Lista de inventarios de vehículos.', type: [CreateVehicleInventoryDto] })
-  getAllVehicleInventory() {
-    return this.service.getAllVehicleInventory();
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Lista de inventarios de vehículos.',
+    // Schema idealmente un DTO paginado específico
+  })
+  getAllVehicleInventory(
+    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+    filterDto: FilterVehicleInventoryDto,
+  ) {
+    return this.service.getAllVehicleInventory(filterDto);
   }
 
   @Get(':vehicleId/:productId')
@@ -37,8 +41,7 @@ export class VehicleInventoryController {
   @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Obtener un inventario específico por ID de vehículo y producto' })
-  @ApiResponse({ status: 200, description: 'Inventario encontrado.', type: CreateVehicleInventoryDto })
-  @ApiResponse({ status: 404, description: 'Inventario no encontrado.' })
+  @ApiResponse({ status: 200, description: 'Inventario encontrado.' })
   getVehicleInventoryById(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
     @Param('productId', ParseIntPipe) productId: number,
@@ -51,12 +54,11 @@ export class VehicleInventoryController {
   @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Actualizar cantidades en un inventario de vehículo' })
-  @ApiResponse({ status: 200, description: 'Inventario actualizado.', type: UpdateVehicleInventoryDto })
-  @ApiResponse({ status: 404, description: 'Inventario no encontrado.' })
+  @ApiResponse({ status: 200, description: 'Inventario actualizado.' })
   updateVehicleInventoryQuantities(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
     @Param('productId', ParseIntPipe) productId: number,
-    @Body() dto: UpdateVehicleInventoryDto,
+    @Body(ValidationPipe) dto: UpdateVehicleInventoryDto,
   ) {
     return this.service.updateVehicleInventoryQuantities(vehicleId, productId, dto);
   }
@@ -67,7 +69,6 @@ export class VehicleInventoryController {
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Eliminar un registro de inventario de vehículo' })
   @ApiResponse({ status: 200, description: 'Inventario eliminado.' })
-  @ApiResponse({ status: 404, description: 'Inventario no encontrado.' })
   deleteVehicleInventoryById(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
     @Param('productId', ParseIntPipe) productId: number,

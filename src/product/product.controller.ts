@@ -24,9 +24,9 @@ export class ProductController {
   })
   @ApiQuery({ name: 'name', required: false, description: 'Filtrar por nombre de producto (búsqueda parcial)' })
   @ApiQuery({ name: 'category_id', required: false, type: Number, description: 'Filtrar por ID de categoría' })
-  @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filtrar por estado activo/inactivo' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar (separados por coma). Prefijo \'-\' para descendente. Ej: name,-createdAt', example: 'name,-createdAt' })
   @ApiResponse({ 
     status: 200, 
     description: 'Listado de productos paginado.', 
@@ -62,7 +62,7 @@ export class ProductController {
     summary: 'Obtener un producto por su id',
     description: 'Devuelve toda la información detallada de un producto específico según su ID.' 
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto' })
+  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
   @ApiResponse({ status: 200, description: 'Producto encontrado.', type: ProductResponseDto })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
@@ -87,10 +87,10 @@ export class ProductController {
     description: 'Producto creado exitosamente.',
     type: ProductResponseDto 
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El código del producto ya existe.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Restricción de unicidad violada (ej. número de serie duplicado si se requiere que sea único).' })
   createProduct(
     @Body() dto: CreateProductDto
   ) {
@@ -103,7 +103,7 @@ export class ProductController {
     summary: 'Actualizar un producto por su id',
     description: 'Actualiza la información de un producto existente. Solo disponible para administradores.' 
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a actualizar' })
+  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a actualizar', example: 1 })
   @ApiBody({ 
     description: 'Datos del producto a actualizar', 
     type: UpdateProductDto 
@@ -113,11 +113,11 @@ export class ProductController {
     description: 'Producto actualizado exitosamente.',
     type: ProductResponseDto
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El código del producto ya existe.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Restricción de unicidad violada al actualizar (ej. número de serie duplicado si se requiere que sea único).' })
   updateProductById(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateProductDto
@@ -131,7 +131,7 @@ export class ProductController {
     summary: 'Eliminar un producto por su id',
     description: 'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Solo disponible para administradores.' 
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a eliminar' })
+  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a eliminar', example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Producto eliminado exitosamente.',

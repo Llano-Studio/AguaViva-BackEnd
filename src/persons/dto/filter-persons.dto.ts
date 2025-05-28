@@ -1,9 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsEnum, Min, IsNumberString } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsEnum } from 'class-validator';
 import { PersonType } from '../../common/constants/enums';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
-export class FilterPersonsDto {
+export class FilterPersonsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Filtrar por ID de la persona',
     example: 1,
@@ -81,28 +82,4 @@ export class FilterPersonsDto {
   @IsString()
   @IsEnum(['NONE', 'GREEN', 'YELLOW', 'RED'], { message: 'El estado del semáforo debe ser NONE, GREEN, YELLOW o RED' })
   payment_semaphore_status?: string;
-
-  @ApiPropertyOptional({
-    description: 'Número de página para paginación',
-    example: 1,
-    minimum: 1,
-    default: 1,
-  })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  @Min(1)
-  page?: number = 1;
-
-  @ApiPropertyOptional({
-    description: 'Cantidad de resultados por página',
-    example: 10,
-    minimum: 1,
-    default: 10,
-  })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  @Min(1)
-  limit?: number = 10;
 } 

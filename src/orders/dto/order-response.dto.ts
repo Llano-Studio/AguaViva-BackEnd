@@ -76,6 +76,13 @@ export class OrderResponseDto {
     contract_id?: number;
 
     @ApiProperty({
+        description: 'ID de la suscripción (opcional)',
+        example: 1,
+        nullable: true
+    })
+    subscription_id?: number;
+
+    @ApiProperty({
         description: 'ID del canal de venta',
         example: 1
     })

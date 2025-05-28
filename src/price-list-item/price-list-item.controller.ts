@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
 import { PriceListItemService } from './price-list-item.service';
-import { CreatePriceListItemDto, UpdatePriceListItemDto } from './dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { CreatePriceListItemDto, UpdatePriceListItemDto, PriceListItemResponseDto, PaginatedPriceListItemResponseDto, FilterPriceListItemDto } from './dto';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 
@@ -14,71 +14,92 @@ export class PriceListItemController {
     @Post()
     @Auth(Role.ADMIN)
     @ApiOperation({ summary: 'Crear un nuevo ítem en una lista de precios' })
-    @ApiResponse({ status: 201, description: 'Ítem de lista de precios creado exitosamente.' })
+    @ApiBody({ type: CreatePriceListItemDto })
+    @ApiResponse({ status: 201, description: 'Ítem de lista de precios creado exitosamente.', type: PriceListItemResponseDto })
     @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. producto o lista no existen, o el producto ya está en la lista).' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
+    @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+    @ApiResponse({ status: 409, description: 'Conflicto - Este producto ya existe en esta lista de precios.' })
     create(
-        @Body() createPriceListItemDto: CreatePriceListItemDto
-    ) {
+        @Body(ValidationPipe) createPriceListItemDto: CreatePriceListItemDto
+    ): Promise<PriceListItemResponseDto> {
         return this.priceListItemService.create(createPriceListItemDto);
     }
 
     @Get()
     @Auth(Role.ADMIN, Role.USER)
     @ApiOperation({ summary: 'Obtener todos los ítems de todas las listas de precios' })
-    @ApiResponse({ status: 200, description: 'Ítems de listas de precios obtenidos exitosamente.' })
+    @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos de lista: price_list.name. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+    @ApiResponse({ status: 200, description: 'Ítems de listas de precios obtenidos exitosamente.', type: PaginatedPriceListItemResponseDto })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
-    findAll() {
-        return this.priceListItemService.findAll();
+    findAll(
+        @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+        filterDto: FilterPriceListItemDto,
+    ): Promise<PaginatedPriceListItemResponseDto> {
+        return this.priceListItemService.findAll(filterDto);
     }
 
     @Get('by-list/:priceListId')
     @Auth(Role.ADMIN, Role.USER)
     @ApiOperation({ summary: 'Obtener todos los ítems de una lista de precios específica' })
-    @ApiResponse({ status: 200, description: 'Ítems de la lista de precios obtenidos exitosamente.' })
+    @ApiParam({ name: 'priceListId', description: 'ID de la lista de precios', type: Number, example: 1 })
+    @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+    @ApiResponse({ status: 200, description: 'Ítems de la lista de precios obtenidos exitosamente.', type: PaginatedPriceListItemResponseDto })
     @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
     findAllByPriceList(
-        @Param('priceListId', ParseIntPipe) priceListId: number
-    ) {
-        return this.priceListItemService.findAllByPriceListId(priceListId);
+        @Param('priceListId', ParseIntPipe) priceListId: number,
+        @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+        filterDto: FilterPriceListItemDto,
+    ): Promise<PaginatedPriceListItemResponseDto> {
+        return this.priceListItemService.findAllByPriceListId(priceListId, filterDto);
     }
 
     @Get(':id')
     @Auth(Role.ADMIN, Role.USER)
     @ApiOperation({ summary: 'Obtener un ítem de lista de precios por su ID' })
-    @ApiResponse({ status: 200, description: 'Ítem de lista de precios encontrado.' })
+    @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios', type: Number, example: 101 })
+    @ApiResponse({ status: 200, description: 'Ítem de lista de precios encontrado.', type: PriceListItemResponseDto })
     @ApiResponse({ status: 404, description: 'Ítem de lista de precios no encontrado.' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
     findOne(
         @Param('id', ParseIntPipe) id: number
-    ) {
+    ): Promise<PriceListItemResponseDto> {
         return this.priceListItemService.findOne(id);
     }
 
     @Patch(':id')
     @Auth(Role.ADMIN)
-    @ApiOperation({ summary: 'Actualizar un ítem de lista de precios por su ID' })
-    @ApiResponse({ status: 200, description: 'Ítem de lista de precios actualizado exitosamente.' })
+    @ApiOperation({ summary: 'Actualizar un ítem de lista de precios por su ID (solo precio unitario)' })
+    @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios a actualizar', type: Number, example: 101 })
+    @ApiBody({ type: UpdatePriceListItemDto, description: "Solo se puede actualizar el 'unit_price'." })
+    @ApiResponse({ status: 200, description: 'Ítem de lista de precios actualizado exitosamente.', type: PriceListItemResponseDto })
     @ApiResponse({ status: 404, description: 'Ítem de lista de precios no encontrado.' })
-    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. precio negativo) o no se proporcionaron cambios.' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
+    @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
     update(
         @Param('id', ParseIntPipe) id: number,
-        @Body() updatePriceListItemDto: UpdatePriceListItemDto
-    ) {
+        @Body(ValidationPipe) updatePriceListItemDto: UpdatePriceListItemDto
+    ): Promise<PriceListItemResponseDto> {
         return this.priceListItemService.update(id, updatePriceListItemDto);
     }
 
     @Delete(':id')
     @Auth(Role.ADMIN)
     @ApiOperation({ summary: 'Eliminar un ítem de lista de precios por su ID' })
-    @ApiResponse({ status: 200, description: 'Ítem de lista de precios eliminado exitosamente.' })
+    @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios a eliminar', type: Number, example: 101 })
+    @ApiResponse({ status: 200, description: 'Ítem de lista de precios eliminado exitosamente.', schema: { properties: { message: { type: 'string', example: 'Ítem de lista de precios eliminado correctamente.'}, deleted: {type: 'boolean', example: true} } } })
     @ApiResponse({ status: 404, description: 'Ítem de lista de precios no encontrado.' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
+    @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
     remove(
         @Param('id', ParseIntPipe) id: number
-    ) {
+    ): Promise<{ message: string, deleted: boolean }> {
         return this.priceListItemService.remove(id);
     }
 } 

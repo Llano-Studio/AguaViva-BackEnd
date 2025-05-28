@@ -1,183 +1,223 @@
 import { Injectable, OnModuleInit, InternalServerErrorException, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaClient, Prisma, product, price_list, price_list_item } from '@prisma/client';
-import { CreatePriceListItemDto, UpdatePriceListItemDto } from './dto';
+import { PrismaClient, Prisma, price_list_item as PriceListItemPrisma, product as ProductPrisma, price_list as PriceListPrisma } from '@prisma/client';
+import { CreatePriceListItemDto, UpdatePriceListItemDto, PriceListItemResponseDto, PaginatedPriceListItemResponseDto, FilterPriceListItemDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+
+interface PriceListItemWithRelations extends PriceListItemPrisma {
+  product?: ProductPrisma;
+  price_list?: PriceListPrisma;
+}
 
 @Injectable()
 export class PriceListItemService extends PrismaClient implements OnModuleInit {
+    private readonly entityName = 'Ítem de Lista de Precios';
+
     async onModuleInit() {
         await this.$connect();
     }
 
-    private async validatePriceListExists(priceListId: number): Promise<price_list> {
-        const priceList = await this.price_list.findUnique({
-            where: {
-                price_list_id: priceListId
-            },
-        });
-        if (!priceList) {
-            throw new BadRequestException(`La lista de precios con ID ${priceListId} no existe.`);
-        }
-        return priceList;
+    private async validatePriceListExists(priceListId: number): Promise<void> {
+        const priceList = await this.price_list.findUnique({ where: { price_list_id: priceListId } });
+        if (!priceList) throw new BadRequestException(`La lista de precios con ID ${priceListId} no existe.`);
     }
 
-    private async validateProductExists(productId: number): Promise<product> {
-        const product = await this.product.findUnique({
-            where: {
-                product_id: productId
-            },
-        });
-        if (!product) {
-            throw new BadRequestException(`El producto con ID ${productId} no existe.`);
-        }
-        return product;
+    private async validateProductExists(productId: number): Promise<void> {
+        const product = await this.product.findUnique({ where: { product_id: productId } });
+        if (!product) throw new BadRequestException(`El producto con ID ${productId} no existe.`);
     }
 
-    async create(createPriceListItemDto: CreatePriceListItemDto): Promise<price_list_item> {
+    // Helper para transformar a DTO
+    private toPriceListItemResponseDto(item: PriceListItemWithRelations): PriceListItemResponseDto {
+        return {
+            price_list_item_id: item.price_list_item_id,
+            price_list_id: item.price_list_id,
+            price_list: item.price_list ? {
+                price_list_id: item.price_list.price_list_id,
+                name: item.price_list.name
+            } : undefined,
+            product_id: item.product_id,
+            product: item.product ? {
+                product_id: item.product.product_id,
+                description: item.product.description,
+                // Asumiendo que `code` podría no estar en `ProductPrisma` o ser opcional, como no está en `schema.prisma` `product` model.
+                // Si `code` es un campo esperado en `ProductResponseDto` para `product`, se debe asegurar que exista en `ProductPrisma`.
+                // code: item.product.code 
+            } : undefined,
+            unit_price: parseFloat(item.unit_price.toString()),
+        };
+    }
+
+    async create(createPriceListItemDto: CreatePriceListItemDto): Promise<PriceListItemResponseDto> {
         await this.validatePriceListExists(createPriceListItemDto.price_list_id);
         await this.validateProductExists(createPriceListItemDto.product_id);
 
         try {
-            return await this.price_list_item.create({
-                data: {
-                    price_list: {
-                        connect: {
-                            price_list_id: createPriceListItemDto.price_list_id
-                        }
-                    },
-                    product: {
-                        connect: {
-                            product_id: createPriceListItemDto.product_id
-                        }
-                    },
-                    unit_price: createPriceListItemDto.unit_price,
-                },
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                if (error.code === 'P2002') {
-                    throw new ConflictException('Este producto ya existe en esta lista de precios.');
-                }
-            }
-            throw new InternalServerErrorException('Error al crear el ítem de la lista de precios.');
-        }
-    }
+            const dataToCreate: Prisma.price_list_itemUncheckedCreateInput = {
+                price_list_id: createPriceListItemDto.price_list_id,
+                product_id: createPriceListItemDto.product_id,
+                unit_price: new Decimal(createPriceListItemDto.unit_price),
+            };
 
-    async findAll(): Promise<price_list_item[]> {
-        try {
-            return await this.price_list_item.findMany({
-                include: {
-                    product: true,
+            const newItem = await this.price_list_item.create({
+                data: dataToCreate,
+                include: { 
+                    product: true, 
                     price_list: true
                 }
             });
+            return this.toPriceListItemResponseDto(newItem as PriceListItemWithRelations);
         } catch (error) {
-            throw new InternalServerErrorException('Error al obtener los ítems de las listas de precios.');
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+                throw new ConflictException(`Este producto ya existe en esta ${this.entityName.toLowerCase()}.`);
+            }
+            handlePrismaError(error, this.entityName);
+            throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
         }
     }
 
-    async findAllByPriceListId(priceListId: number): Promise<price_list_item[]> {
-        await this.validatePriceListExists(priceListId);
+    async findAll(filterDto: FilterPriceListItemDto): Promise<PaginatedPriceListItemResponseDto> {
+        const { page = 1, limit = 10, sortBy, price_list_id, product_id } = filterDto;
         try {
-            return await this.price_list_item.findMany({
-                where: {
-                    price_list_id: priceListId
-                },
-                include: {
-                    product: true
-                }
-            });
+            const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+            const take = Math.max(1, limit);
+            const orderByClause = parseSortByString(sortBy, [{ product: { description: 'asc' } }]);
+            
+            const where: Prisma.price_list_itemWhereInput = {};
+            if (price_list_id) where.price_list_id = price_list_id;
+            if (product_id) where.product_id = product_id;
+
+            const [items, totalItems] = await this.$transaction([
+                this.price_list_item.findMany({
+                    where,
+                    include: { product: true, price_list: true },
+                    orderBy: orderByClause,
+                    skip,
+                    take
+                }),
+                this.price_list_item.count({ where })
+            ]);
+
+            return {
+                data: items.map(item => this.toPriceListItemResponseDto(item as PriceListItemWithRelations)),
+                total: totalItems,
+                page,
+                limit,
+                totalPages: Math.ceil(totalItems / take)
+            };
         } catch (error) {
-            throw new InternalServerErrorException(`Error al obtener los ítems para la lista de precios con ID ${priceListId}.`);
+            handlePrismaError(error, `${this.entityName}s`);
+            throw new InternalServerErrorException('Error no manejado al buscar ítems.');
         }
     }
 
-    async findOne(id: number): Promise<price_list_item> {
+    async findAllByPriceListId(paramPriceListId: number, filterDto: FilterPriceListItemDto): Promise<PaginatedPriceListItemResponseDto> {
+        const { page = 1, limit = 10, sortBy, product_id } = filterDto;
+        // price_list_id del DTO se ignora, paramPriceListId tiene precedencia.
+        await this.validatePriceListExists(paramPriceListId);
+        try {
+            const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+            const take = Math.max(1, limit);
+            const orderByClause = parseSortByString(sortBy, [{ product: { description: 'asc' } }]);
+            
+            const where: Prisma.price_list_itemWhereInput = { price_list_id: paramPriceListId };
+            if (product_id) where.product_id = product_id;
+            
+            const [items, totalItems] = await this.$transaction([
+                this.price_list_item.findMany({
+                    where,
+                    include: { product: true, price_list: true },
+                    orderBy: orderByClause,
+                    skip,
+                    take
+                }),
+                this.price_list_item.count({ where })
+            ]);
+
+            return {
+                data: items.map(item => this.toPriceListItemResponseDto(item as PriceListItemWithRelations)),
+                total: totalItems,
+                page,
+                limit,
+                totalPages: Math.ceil(totalItems / take)
+            };
+        } catch (error) {
+            handlePrismaError(error, `${this.entityName}s para la lista ID ${paramPriceListId}`);
+            throw new InternalServerErrorException('Error no manejado al buscar ítems por lista.');
+        }
+    }
+
+    async findOne(id: number): Promise<PriceListItemResponseDto> {
         const item = await this.price_list_item.findUnique({
-            where: {
-                price_list_item_id: id
-            },
-            include: {
+            where: { price_list_item_id: id },
+            include: { 
                 product: true,
                 price_list: true
             }
         });
         if (!item) {
-            throw new NotFoundException(`Ítem de lista de precios con ID ${id} no encontrado.`);
+            throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado.`);
         }
-        return item;
+        return this.toPriceListItemResponseDto(item as PriceListItemWithRelations);
     }
 
-    async update(id: number, updatePriceListItemDto: UpdatePriceListItemDto): Promise<price_list_item> {
-        const existingItem = await this.findOne(id);
+    async update(id: number, updatePriceListItemDto: UpdatePriceListItemDto): Promise<PriceListItemResponseDto> {
+        const existingItem = await this.price_list_item.findUniqueOrThrow({
+            where: { price_list_item_id: id },
+        }).catch(() => {
+            throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado para actualizar.`);
+        });
 
         const dataToUpdate: Prisma.price_list_itemUpdateInput = {};
         let changesMade = false;
 
-        if (updatePriceListItemDto.price_list_id && updatePriceListItemDto.price_list_id !== existingItem.price_list_id) {
-            await this.validatePriceListExists(updatePriceListItemDto.price_list_id);
-            dataToUpdate.price_list = {
-                connect: {
-                    price_list_id: updatePriceListItemDto.price_list_id
-                }
-            };
-            changesMade = true;
-        }
-        if (updatePriceListItemDto.product_id && updatePriceListItemDto.product_id !== existingItem.product_id) {
-            await this.validateProductExists(updatePriceListItemDto.product_id);
-            dataToUpdate.product = {
-                connect: {
-                    product_id: updatePriceListItemDto.product_id
-                }
-            };
-            changesMade = true;
-        }
-
         if (updatePriceListItemDto.unit_price !== undefined) {
             const dtoUnitPriceAsDecimal = new Decimal(updatePriceListItemDto.unit_price);
-            if (!dtoUnitPriceAsDecimal.equals(existingItem.unit_price)) {
-                if (updatePriceListItemDto.unit_price < 0) {
+            const existingUnitPriceAsDecimal = new Decimal(existingItem.unit_price.toString());
+            if (!dtoUnitPriceAsDecimal.equals(existingUnitPriceAsDecimal)) {
+                if (dtoUnitPriceAsDecimal.isNegative()) {
                     throw new BadRequestException('El precio unitario no puede ser negativo.');
                 }
-                dataToUpdate.unit_price = updatePriceListItemDto.unit_price;
+                dataToUpdate.unit_price = dtoUnitPriceAsDecimal;
                 changesMade = true;
             }
         }
 
         if (!changesMade) {
-            throw new BadRequestException("No se proporcionaron datos para actualizar o los datos son iguales a los existentes.");
+            const currentItem = await this.price_list_item.findUniqueOrThrow({
+                where: { price_list_item_id: id },
+                include: { product: true, price_list: true }, 
+            });
+            return this.toPriceListItemResponseDto(currentItem as PriceListItemWithRelations);
         }
 
         try {
-            return await this.price_list_item.update({
-                where: {
-                    price_list_item_id: id
-                },
+            const updatedItem = await this.price_list_item.update({
+                where: { price_list_item_id: id },
                 data: dataToUpdate,
-            });
-        } catch (error) {
-            if (error instanceof Prisma.PrismaClientKnownRequestError) {
-                if (error.code === 'P2002') {
-                    throw new ConflictException('Al actualizar, la combinación de producto y lista de precios ya existe.');
+                include: { 
+                    product: true,
+                    price_list: true
                 }
-            }
-            throw new InternalServerErrorException(`Error al actualizar el ítem de la lista de precios con ID ${id}.`);
+            });
+            return this.toPriceListItemResponseDto(updatedItem as PriceListItemWithRelations);
+        } catch (error) {
+            handlePrismaError(error, this.entityName);
+            throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
         }
     }
 
     async remove(id: number): Promise<{ message: string; deleted: boolean }> {
-        await this.findOne(id);
+        await this.findOne(id); 
         try {
-            await this.price_list_item.delete(
-                {
-                    where: {
-                        price_list_item_id: id
-                    }
-                }
-            );
-            return { message: 'Ítem de lista de precios eliminado correctamente.', deleted: true };
+            await this.price_list_item.delete({
+                where: { price_list_item_id: id }
+            });
+            return { message: `${this.entityName} eliminado correctamente.`, deleted: true };
         } catch (error) {
-            throw new InternalServerErrorException(`Error al eliminar el ítem de la lista de precios con ID ${id}.`);
+            handlePrismaError(error, this.entityName);
+            throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
         }
     }
 } 

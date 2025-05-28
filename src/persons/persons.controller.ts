@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, ValidationPipe,
 } from '@nestjs/common';
 import {
-  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiProperty,
+  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiProperty, ApiBody,
 } from '@nestjs/swagger';
 import { PersonsService } from './persons.service';
 import { CreatePersonDto } from './dto/create-person.dto';
@@ -28,6 +28,9 @@ class PaginatedPersonsResponseDto {
 
   @ApiProperty({ example: 10 })
   limit: number;
+
+  @ApiProperty({ example: 10 })
+  totalPages: number; 
 }
 
 @ApiTags('Clientes')
@@ -40,6 +43,8 @@ export class PersonsController {
   @Post()
   @ApiOperation({ summary: 'Crear una nueva persona' })
   @ApiResponse({ status: 201, description: 'Persona creada', type: PersonResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o error de validación' })
+  @ApiResponse({ status: 409, description: 'Conflicto, ej: CUIT/Email ya existe' })
   createPerson(
     @Body(ValidationPipe) dto: CreatePersonDto
   ): Promise<PersonResponseDto> {
@@ -65,6 +70,7 @@ export class PersonsController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Prefijo \'-\' para descendente. Ej: name,-registrationDate', example: 'name,-registrationDate' })
   @ApiResponse({ status: 200, description: 'Listado paginado de personas', type: PaginatedPersonsResponseDto })
   findAllPersons(
     @Query(
@@ -93,6 +99,9 @@ export class PersonsController {
   @ApiParam({ name: 'id', type: Number })
   @ApiOperation({ summary: 'Actualizar datos de una persona' })
   @ApiResponse({ status: 200, description: 'Persona actualizada', type: PersonResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o error de validación' })
+  @ApiResponse({ status: 404, description: 'Persona no encontrada' })
+  @ApiResponse({ status: 409, description: 'Conflicto, ej: CUIT/Email ya existe en otra persona' })
   updatePerson(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) dto: UpdatePersonDto,
@@ -103,7 +112,9 @@ export class PersonsController {
   @Delete(':id')
   @ApiParam({ name: 'id', type: Number })
   @ApiOperation({ summary: 'Eliminar una persona' })
-  @ApiResponse({ status: 200, description: 'Persona eliminada' })
+  @ApiResponse({ status: 200, description: 'Persona eliminada', schema: { properties: { message: { type: 'string'}, deleted: {type: 'boolean'} } } })
+  @ApiResponse({ status: 404, description: 'Persona no encontrada' })
+  @ApiResponse({ status: 409, description: 'Conflicto, la persona tiene datos asociados (pedidos, contratos, etc.)' })
   deletePerson(
     @Param('id', ParseIntPipe) id: number
   ) {
@@ -143,6 +154,7 @@ export class PersonsController {
   @Post(':personId/subscriptions/change-plan')
   @ApiOperation({ summary: 'Cambiar el plan de una suscripción de un cliente' })
   @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona (cliente)' })
+  @ApiBody({ type: ChangeSubscriptionPlanDto })
   @ApiResponse({ status: 200, description: 'Plan de suscripción cambiado exitosamente.' })
   @ApiResponse({ status: 403, description: 'Acceso denegado.' })
   @ApiResponse({ status: 404, description: 'Persona, Suscripción actual o Nuevo Plan no encontrado.' })
@@ -157,6 +169,7 @@ export class PersonsController {
   @Post(':personId/contracts/change-price-list')
   @ApiOperation({ summary: 'Cambiar la lista de precios de un contrato de un cliente' })
   @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona (cliente)' })
+  @ApiBody({ type: ChangeContractPriceListDto })
   @ApiResponse({ status: 200, description: 'Lista de precios del contrato cambiada exitosamente.' })
   @ApiResponse({ status: 403, description: 'Acceso denegado.' })
   @ApiResponse({ status: 404, description: 'Persona, Contrato actual o Nueva Lista de Precios no encontrada.' })

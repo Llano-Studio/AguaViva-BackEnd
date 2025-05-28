@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsInt, IsOptional, Min } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
-export class FilterRouteSheetsDto {
+export class FilterRouteSheetsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'ID del conductor',
     example: 1
@@ -36,26 +37,4 @@ export class FilterRouteSheetsDto {
   @IsDateString()
   @IsOptional()
   to_date?: string;
-
-  @ApiPropertyOptional({
-    description: 'Página (para paginación)',
-    example: 1,
-    default: 1
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  @Type(() => Number)
-  page?: number = 1;
-
-  @ApiPropertyOptional({
-    description: 'Límite por página',
-    example: 10,
-    default: 10
-  })
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  @Type(() => Number)
-  limit?: number = 10;
 } 

@@ -10,8 +10,7 @@ import {
   Query, 
   ValidationPipe,
   Put,
-  UseGuards,
-  ParseUUIDPipe
+  UseGuards
 } from '@nestjs/common';
 import { 
   ApiBearerAuth, 
@@ -19,7 +18,8 @@ import {
   ApiResponse, 
   ApiTags,
   ApiBody,
-  ApiParam
+  ApiParam,
+  ApiQuery
 } from '@nestjs/swagger';
 import { 
   CreateRouteSheetDto, 
@@ -59,6 +59,7 @@ export class RouteSheetController {
   @Post()
   @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Crear una nueva hoja de ruta' })
+  @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({ 
     status: 201, 
     description: 'Hoja de ruta creada exitosamente',
@@ -73,6 +74,13 @@ export class RouteSheetController {
   @Get()
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Obtener todas las hojas de ruta con filtros y paginación' })
+  @ApiQuery({ name: 'driver_id', required: false, type: Number, description: 'Filtrar por ID del conductor' })
+  @ApiQuery({ name: 'vehicle_id', required: false, type: Number, description: 'Filtrar por ID del vehículo' })
+  @ApiQuery({ name: 'from_date', required: false, type: String, description: 'Filtrar por fecha desde (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'to_date', required: false, type: String, description: 'Filtrar por fecha hasta (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: delivery_date,-driver.name", example: "delivery_date,-driver.name" })
   @ApiResponse({ 
     status: 200, 
     description: 'Listado de hojas de ruta',
@@ -104,6 +112,7 @@ export class RouteSheetController {
   @Get(':id')
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Obtener una hoja de ruta por su ID' })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Hoja de ruta encontrada',
@@ -117,6 +126,8 @@ export class RouteSheetController {
   @Patch(':id')
   @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Actualizar una hoja de ruta' })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a actualizar', type: Number, example: 1 })
+  @ApiBody({ type: UpdateRouteSheetDto })
   @ApiResponse({ 
     status: 200, 
     description: 'Hoja de ruta actualizada',
@@ -134,6 +145,7 @@ export class RouteSheetController {
   @Delete(':id')
   @Auth(Role.ADMIN)
   @ApiOperation({ summary: 'Eliminar una hoja de ruta' })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a eliminar', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Hoja de ruta eliminada',
@@ -155,6 +167,7 @@ export class RouteSheetController {
     summary: 'Generar e imprimir una hoja de ruta',
     description: 'Genera un documento PDF con la hoja de ruta completa y listado de entregas'
   })
+  @ApiBody({ type: PrintRouteSheetDto })
   @ApiResponse({ 
     status: 200, 
     description: 'Documento generado correctamente',
@@ -186,6 +199,7 @@ export class RouteSheetController {
     summary: 'Optimizar una hoja de ruta',
     description: 'Calcula la ruta óptima para las entregas'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a optimizar', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Ruta optimizada correctamente',
@@ -207,6 +221,7 @@ export class RouteSheetController {
     summary: 'Obtener la optimización de una hoja de ruta',
     description: 'Devuelve la última optimización calculada para una hoja de ruta'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta para obtener su optimización', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Optimización encontrada',
@@ -225,6 +240,7 @@ export class RouteSheetController {
     summary: 'Inicializar inventario para una hoja de ruta',
     description: 'Registra el inventario inicial cargado en el vehículo'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta para inicializar inventario', type: Number, example: 1 })
   @ApiResponse({ 
     status: 201, 
     description: 'Inventario inicializado correctamente',
@@ -246,6 +262,7 @@ export class RouteSheetController {
     summary: 'Obtener el inventario de una hoja de ruta',
     description: 'Muestra el estado actual del inventario en el vehículo'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta para obtener su inventario', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Inventario encontrado',
@@ -262,6 +279,7 @@ export class RouteSheetController {
     summary: 'Registrar una transacción de inventario',
     description: 'Registra entregas, devoluciones o cargas adicionales en el inventario'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta para la transacción de inventario', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Transacción registrada correctamente',
@@ -283,6 +301,7 @@ export class RouteSheetController {
     summary: 'Verificar alertas de inventario bajo',
     description: 'Chequea si hay productos con inventario insuficiente para completar todas las entregas'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta para verificar alertas', type: Number, example: 1 })
   @ApiResponse({ 
     status: 200, 
     description: 'Verificación de alertas completada',
@@ -316,6 +335,8 @@ export class RouteSheetController {
     summary: 'Registrar la rendición de una hoja de ruta por el chofer',
     description: 'Guarda la firma de conformidad del chofer para la rendición de la hoja de ruta.'
   })
+  @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a rendir', type: Number, example: 1 })
+  @ApiBody({ type: ReconcileRouteSheetDto })
   @ApiResponse({ 
     status: 200, 
     description: 'Rendición registrada exitosamente',
@@ -337,6 +358,7 @@ export class RouteSheetController {
     summary: 'Registrar un pago para una entrega específica de una hoja de ruta',
     description: 'Permite al chofer (o un admin) registrar un pago en efectivo o QR para una entrega.'
   })
+  @ApiParam({ name: 'detailId', description: 'ID del detalle de la hoja de ruta para el pago', type: Number, example: 101 })
   @ApiResponse({ status: 201, description: 'Pago registrado exitosamente.' })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. monto incorrecto, método de pago no válido).' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })

@@ -14,12 +14,16 @@ import { PriceListItemModule } from './price-list-item/price-list-item.module';
 import { OrdersModule } from './orders/orders.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
+import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
+import { CommonModule } from './common/common.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import environmentConfig from './common/config/environment.config';
 
 @Module({
   imports: [
+    CommonModule,
     PersonsModule, 
     AuthModule,
     MailModule,
@@ -33,12 +37,14 @@ import { AppService } from './app.service';
     OrdersModule,
     InventoryModule,
     RouteSheetModule,
+    SubscriptionPlansModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 60,
     }),
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [environmentConfig],
     }),
   ],
   controllers: [AppController],

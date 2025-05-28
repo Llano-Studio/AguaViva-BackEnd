@@ -1,95 +1,137 @@
 import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
-import { CreateVehicleDto } from './dto/create-vehicule.dto';
-import { UpdateVehicleDto } from './dto/update-vehicule.dto';
+import { Prisma, PrismaClient, vehicle as VehiclePrisma } from '@prisma/client';
+import { CreateVehicleDto, UpdateVehicleDto, FilterVehiclesDto, VehicleResponseDto, PaginatedVehicleResponseDto } from './dto';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class VehicleService extends PrismaClient implements OnModuleInit {
+  private readonly entityName = 'Vehículo';
 
   async onModuleInit() {
     await this.$connect();
   }
 
-  async createVehicle(dto: CreateVehicleDto) {
+  private toVehicleResponseDto(vehicle: VehiclePrisma): VehicleResponseDto {
+    return {
+      vehicle_id: vehicle.vehicle_id,
+      code: vehicle.code,
+      name: vehicle.name,
+      description: vehicle.description || undefined,
+    };
+  }
+
+  async createVehicle(dto: CreateVehicleDto): Promise<VehicleResponseDto> {
     try {
-      return await this.vehicle.create({
+      const newVehicle = await this.vehicle.create({
         data: {
           code: dto.code,
           name: dto.name,
           description: dto.description,
         },
       });
+      return this.toVehicleResponseDto(newVehicle);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(`El vehículo con el código '${dto.code}' ya existe.`);
-      }
-      // Considerar loguear el error original aquí para depuración
-      throw new InternalServerErrorException('Error al crear el vehículo');
+         throw new ConflictException(`El ${this.entityName} con el código '${dto.code}' ya existe.`);
+      } 
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
-  async getAllVehicles() {
-    return this.vehicle.findMany();
+  async getAllVehicles(filters?: FilterVehiclesDto): Promise<PaginatedVehicleResponseDto> {
+    const where: Prisma.vehicleWhereInput = {};
+    const page = filters?.page || 1;
+    const limit = filters?.limit || 10;
+    const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+    const take = Math.max(1, limit);
+
+    if (filters) {
+      if (filters.code) {
+        where.code = { contains: filters.code, mode: 'insensitive' };
+      }
+    }
+    const orderBy = parseSortByString(filters?.sortBy, [{ code: 'asc' }]);
+    
+    try {
+        const vehicles = await this.vehicle.findMany({ where, orderBy, skip, take });
+        const totalVehicles = await this.vehicle.count({ where });
+
+        return {
+            data: vehicles.map(v => this.toVehicleResponseDto(v)),
+            total: totalVehicles,
+            page,
+            limit,
+            totalPages: Math.ceil(totalVehicles / limit)
+        };
+    } catch (error) {
+        handlePrismaError(error, this.entityName + 's');
+        throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+    }
   }
 
-  async getVehicleById(id: number) {
+  async getVehicleById(id: number): Promise<VehicleResponseDto> {
     const vehicle = await this.vehicle.findUnique({
         where: { vehicle_id: id }
     });
     if (!vehicle) {
-      throw new NotFoundException(`Vehículo con ID ${id} no encontrado`);
+      throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado`);
     }
-    return vehicle;
+    return this.toVehicleResponseDto(vehicle);
   }
 
-  async getVehicleByCode(code: string) {
+  async getVehicleByCode(code: string): Promise<VehicleResponseDto> {
     const vehicle = await this.vehicle.findUnique({
         where: { code }
     });
     if (!vehicle) {
-      throw new NotFoundException(`Vehículo con código '${code}' no encontrado`);
+      throw new NotFoundException(`${this.entityName} con código '${code}' no encontrado`);
     }
-    return vehicle;
+    return this.toVehicleResponseDto(vehicle);
   }
 
-  async updateVehicleById(id: number, dto: UpdateVehicleDto) {
-    await this.getVehicleById(id); // Verifica que el vehículo exista
+  async updateVehicleById(id: number, dto: UpdateVehicleDto): Promise<VehicleResponseDto> {
+    const existingVehicle = await this.vehicle.findUnique({ where: { vehicle_id: id } });
+    if (!existingVehicle) {
+        throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado para actualizar.`);
+    }
     try {
-      return await this.vehicle.update({
+      const updatedVehicle = await this.vehicle.update({
         where: { vehicle_id: id },
-        data: dto,
+        data: {
+            code: dto.code,
+            name: dto.name,
+            description: dto.description,
+        },
       });
+      return this.toVehicleResponseDto(updatedVehicle);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        // Asumiendo que 'code' es el campo único que causa este error en la actualización
-        // y que el DTO de actualización también contiene `code` si se intenta cambiar.
-        const newCode = (dto as any).code; // Acceso seguro si code es opcional en UpdateVehicleDto
+        const newCode = dto.code;
         const message = newCode 
-          ? `El código de vehículo '${newCode}' ya está en uso por otro vehículo.`
-          : 'Conflicto de unicidad al actualizar el vehículo.';
+          ? `El código de ${this.entityName.toLowerCase()} '${newCode}' ya está en uso por otro ${this.entityName.toLowerCase()}.`
+          : `Conflicto de unicidad al actualizar el ${this.entityName.toLowerCase()}.`;
         throw new ConflictException(message);
-      }
-      // Considerar loguear el error original aquí
-      throw new InternalServerErrorException('Error al actualizar el vehículo');
+      } 
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 
-  async deleteVehicleById(id: number) {
-    await this.getVehicleById(id); // Verifica que el vehículo exista
+  async deleteVehicleById(id: number): Promise<{ message: string, deleted: boolean }> {
+    await this.getVehicleById(id); 
     try {
       await this.vehicle.delete({
           where: { vehicle_id: id }
       });
       return {
-        message: 'Vehículo eliminado correctamente',
+        message: `${this.entityName} eliminado correctamente`, 
         deleted: true,
       };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        throw new ConflictException('No se puede eliminar el vehículo porque está siendo referenciado en otras partes del sistema (ej. hojas de ruta, inventario de vehículo).');
-      }
-      // Considerar loguear el error original aquí
-      throw new InternalServerErrorException('Error al eliminar el vehículo');
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
   }
 }

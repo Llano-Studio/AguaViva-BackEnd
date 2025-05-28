@@ -141,27 +141,16 @@ export class AuthController {
   @ApiResponse({ 
     status: 200, 
     description: 'Perfil del usuario obtenido exitosamente',
-    schema: {
-      properties: {
-        id: { type: 'number' },
-        email: { type: 'string' },
-        name: { type: 'string' },
-        role: { type: 'string', enum: ['ADMIN', 'USER'] },
-        profile_image: { type: 'string', nullable: true },
-        is_active: { type: 'boolean' },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
-      }
-    }
+    type: UserResponseDto
   })
   @ApiResponse({ 
     status: 401, 
     description: 'No autorizado' 
   })
-  getProfile(
+  async getProfile(
     @GetUser() user: User
-  ) {
-    return user;
+  ): Promise<UserResponseDto> {
+    return await this.authService.getUserById(user.id);
   }
 
   @Get('users')
@@ -171,14 +160,9 @@ export class AuthController {
     description: 'Retorna un listado paginado de usuarios con opciones de filtrado. Solo accesible para administradores.'
   })
   @ApiQuery({ 
-    name: 'name', 
+    name: 'search', 
     required: false, 
-    description: 'Filtrar por nombre (parcial)' 
-  })
-  @ApiQuery({ 
-    name: 'email', 
-    required: false, 
-    description: 'Filtrar por email (parcial)' 
+    description: 'Filtrar por nombre o email (parcial)' 
   })
   @ApiQuery({ 
     name: 'role', 
@@ -187,7 +171,7 @@ export class AuthController {
     enum: Role
   })
   @ApiQuery({ 
-    name: 'is_active', 
+    name: 'isActive', 
     required: false, 
     description: 'Filtrar por estado (activo/inactivo)',
     type: Boolean
@@ -203,6 +187,13 @@ export class AuthController {
     required: false, 
     description: 'Resultados por página',
     type: Number
+  })
+  @ApiQuery({ 
+    name: 'sortBy', 
+    required: false, 
+    description: "Campos para ordenar. Prefijo '-' para descendente. Ej: name,-createdAt", 
+    example: 'name,-createdAt',
+    type: String 
   })
   @ApiResponse({
     status: 200,
@@ -240,7 +231,9 @@ export class AuthController {
           transform: true,
           transformOptions: {
             enableImplicitConversion: true
-          }
+          },
+          whitelist: true,
+          forbidNonWhitelisted: true
         }
       ))
     filterDto: FilterUsersDto
@@ -253,17 +246,13 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Obtener un usuario por ID',
-    description: 'Devuelve los datos completos de un usuario específico. Solo accesible para administradores.'
+    description: 'Devuelve los detalles de un usuario específico. Solo accesible para administradores.'
   })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'ID del usuario a consultar',
-    type: Number
-  })
+  @ApiParam({ name: 'id', description: 'ID del usuario', type: Number })
   @ApiResponse({ 
     status: 200, 
-    description: 'Usuario encontrado',
-    type: UserResponseDto
+    description: 'Usuario encontrado exitosamente', 
+    type: UserResponseDto 
   })
   @ApiResponse({ 
     status: 404, 
@@ -287,17 +276,17 @@ export class AuthController {
   @Auth(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Crear un nuevo usuario (admin)',
-    description: 'Crea un nuevo usuario desde el panel de administración. Permite especificar rol y otros datos adicionales.'
+    summary: 'Crear un nuevo usuario (Admin)',
+    description: 'Permite a un administrador crear un nuevo usuario con rol y estado específicos. Se puede incluir imagen de perfil.' 
   })
   @ApiResponse({ 
     status: 201, 
-    description: 'Usuario creado exitosamente', 
+    description: 'Usuario creado exitosamente por Admin', 
     type: UserResponseDto 
   })
   @ApiResponse({ 
     status: 400, 
-    description: 'Datos inválidos o usuario ya existe' 
+    description: 'Datos inválidos o el usuario ya existe' 
   })
   @ApiResponse({ 
     status: 401, 
@@ -307,7 +296,7 @@ export class AuthController {
     status: 403, 
     description: 'Prohibido - El usuario no tiene rol de ADMIN' 
   })
-  @UseInterceptors(FileInterceptor('profileImage', {
+  @UseInterceptors(FileInterceptor('profileImage', { 
     storage: diskStorage({
       destination: './public/uploads/profile-images',
       filename: editFileName,
@@ -316,32 +305,28 @@ export class AuthController {
   }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Datos del nuevo usuario con imagen de perfil opcional',
-    type: CreateUserDto
+    description: 'Datos para crear un nuevo usuario, incluyendo rol e imagen de perfil opcional.',
+    type: CreateUserDto,
   })
   createUser(
-    @Body() createUserDto: CreateUserDto,
+    @Body(ValidationPipe) createUserDto: CreateUserDto,
     @UploadedFile() profileImage?: any
   ) {
     return this.authService.createUser(createUserDto, profileImage);
   }
-
+  
   @Put('users/:id')
   @Auth(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Actualizar un usuario',
-    description: 'Actualiza los datos de un usuario existente. Solo accesible para administradores.'
+    summary: 'Actualizar un usuario (Admin)',
+    description: 'Permite a un administrador actualizar los datos de un usuario, incluyendo su rol y estado. Se puede incluir imagen de perfil.' 
   })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'ID del usuario a actualizar',
-    type: Number
-  })
+  @ApiParam({ name: 'id', description: 'ID del usuario a actualizar', type: Number })
   @ApiResponse({ 
     status: 200, 
-    description: 'Usuario actualizado exitosamente',
-    type: UserResponseDto
+    description: 'Usuario actualizado exitosamente por Admin', 
+    type: UserResponseDto 
   })
   @ApiResponse({ 
     status: 400, 
@@ -359,7 +344,7 @@ export class AuthController {
     status: 403, 
     description: 'Prohibido - El usuario no tiene rol de ADMIN' 
   })
-  @UseInterceptors(FileInterceptor('profileImage', {
+  @UseInterceptors(FileInterceptor('profileImage', { 
     storage: diskStorage({
       destination: './public/uploads/profile-images',
       filename: editFileName,
@@ -368,12 +353,12 @@ export class AuthController {
   }))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
-    description: 'Datos a actualizar del usuario con imagen de perfil opcional',
-    type: UpdateUserDto
+    description: 'Datos para actualizar el usuario. Todos los campos son opcionales.',
+    type: UpdateUserDto,
   })
   updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body() updateUserDto: UpdateUserDto,
+    @Body(ValidationPipe) updateUserDto: UpdateUserDto,
     @UploadedFile() profileImage?: any
   ) {
     return this.authService.updateUser(id, updateUserDto, profileImage);
@@ -383,30 +368,18 @@ export class AuthController {
   @Auth(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Eliminar un usuario',
-    description: 'Elimina un usuario del sistema. Solo accesible para administradores.'
+    summary: 'Eliminar un usuario (Admin)',
+    description: 'Permite a un administrador eliminar un usuario. Esta acción es irreversible.' 
   })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'ID del usuario a eliminar',
-    type: Number
-  })
+  @ApiParam({ name: 'id', description: 'ID del usuario a eliminar', type: Number })
   @ApiResponse({ 
     status: 200, 
-    description: 'Usuario eliminado exitosamente',
-    schema: {
-      properties: {
-        message: { type: 'string' }
-      }
-    }
+    description: 'Usuario eliminado exitosamente por Admin', 
+    schema: { properties: { message: { type: 'string' } } } 
   })
   @ApiResponse({ 
     status: 404, 
     description: 'Usuario no encontrado' 
-  })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'No se puede eliminar el usuario porque tiene datos asociados' 
   })
   @ApiResponse({ 
     status: 401, 
@@ -422,83 +395,88 @@ export class AuthController {
     return this.authService.deleteUser(id);
   }
 
-  @Put('profile/password')
-  @Auth()
+  @Post('update-password')
+  @Auth(Role.USER, Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Cambiar mi propia contraseña',
-    description: 'Permite al usuario cambiar su propia contraseña. Requiere la contraseña actual para validación.'
+    summary: 'Actualizar contraseña del usuario logueado',
+    description: 'Permite al usuario actualmente autenticado cambiar su propia contraseña.'
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Contraseña actualizada exitosamente',
-    schema: {
-      properties: {
-        message: { type: 'string' }
-      }
-    }
+    description: 'Contraseña actualizada exitosamente', 
+    schema: { properties: { message: { type: 'string' } } } 
   })
   @ApiResponse({ 
     status: 400, 
-    description: 'Datos inválidos o contraseña actual incorrecta' 
+    description: 'Contraseña actual incorrecta o nueva contraseña inválida' 
   })
   @ApiResponse({ 
     status: 401, 
     description: 'No autorizado' 
   })
-  @ApiBody({
-    description: 'Datos para cambio de contraseña',
-    type: UpdatePasswordDto
-  })
   updatePassword(
     @GetUser() user: User,
-    @Body() dto: UpdatePasswordDto
+    @Body(ValidationPipe) dto: UpdatePasswordDto
   ) {
     return this.authService.updatePassword(user.id, dto);
   }
 
   @Post('recover-password')
   @ApiOperation({ 
-    summary: 'Solicitar recuperación de contraseña',
-    description: 'Envía un correo electrónico con un enlace para restablecer la contraseña'
+    summary: 'Iniciar recuperación de contraseña',
+    description: 'Envía un correo electrónico al usuario con un enlace para restablecer su contraseña.'
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Correo de recuperación enviado exitosamente',
-    schema: {
-      properties: {
-        message: { type: 'string' }
-      }
-    }
+    description: 'Si el email existe, se enviarán instrucciones de recuperación', 
+    schema: { properties: { message: { type: 'string' } } } 
   })
   @ApiResponse({ 
     status: 404, 
-    description: 'Usuario no encontrado' 
-  })
-  @ApiBody({
-    description: 'Email del usuario que solicita recuperación',
-    type: RecoverPasswordDto
+    description: 'Email no encontrado (aunque el mensaje de éxito es genérico por seguridad)' 
   })
   recoverPassword(
-    @Body() dto: RecoverPasswordDto
+    @Body(ValidationPipe) dto: RecoverPasswordDto
   ) {
     return this.authService.recoverPassword(dto);
   }
 
-  @Get('check-status')
-  @ApiBearerAuth()
+  @Post('reset-password') 
   @ApiOperation({ 
-    summary: 'Verificar estado de autenticación',
-    description: 'Verifica si el token de acceso es válido y devuelve nuevos tokens si es necesario'
+    summary: 'Restablecer contraseña olvidada',
+    description: 'Restablece la contraseña del usuario utilizando el token de recuperación enviado por correo.'
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Estado verificado y nuevos tokens generados', 
+    description: 'Contraseña restablecida exitosamente', 
+    schema: { properties: { message: { type: 'string' } } } 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Token inválido, expirado o nueva contraseña inválida' 
+  })
+  resetPassword(
+    @Body(ValidationPipe) dto: ResetPasswordDto
+  ) {
+    return this.authService.resetPassword(dto.token, dto.password);
+  }
+
+  @Get('check')
+  @Auth(Role.ADMIN, Role.USER) 
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Verificar estado de autenticación y obtener nuevos tokens',
+    description: 'Verifica si el token de acceso actual es válido y devuelve un nuevo conjunto de tokens (acceso y refresco) junto con los datos del usuario.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Estado de autenticación verificado, tokens actualizados', 
     type: LoginResponseDto 
   })
   @ApiResponse({ 
     status: 401, 
-    description: 'No autorizado - Token inválido o expirado' 
+    description: 'No autorizado' 
   })
   checkAuthStatus(
     @GetUser() user: User
@@ -506,54 +484,18 @@ export class AuthController {
     return this.authService.checkAuthStatus(user);
   }
 
-  @Post('reset-password')
-  @ApiOperation({ 
-    summary: 'Restablecer contraseña con token',
-    description: 'Restablece la contraseña utilizando el token recibido por correo electrónico'
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Contraseña actualizada exitosamente',
-    schema: {
-      properties: {
-        message: { type: 'string' }
-      }
-    }
-  })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Token inválido o expirado' 
-  })
-  @ApiBody({
-    description: 'Token de recuperación y nueva contraseña',
-    type: ResetPasswordDto
-  })
-  resetPassword(
-    @Body() dto: ResetPasswordDto
-  ) {
-    return this.authService.resetPassword(dto.token, dto.password);
-  }
-
   @Get('roles/:role/modules')
   @Auth(Role.ADMIN)
   @ApiBearerAuth()
-  @ApiParam({ 
-    name: 'role', 
-    enum: Role, 
-    description: 'El rol a consultar' 
-  })
   @ApiOperation({ 
-    summary: 'Obtener los módulos accesibles por rol',
-    description: 'Devuelve una lista de los módulos (paths) a los que un rol específico tiene acceso. Solo para administradores.'
+    summary: 'Obtener módulos permitidos para un rol (Admin)',
+    description: 'Devuelve una lista de módulos/rutas a los que un rol específico tiene acceso. Solo para administradores.'
   })
-  @ApiResponse({
+  @ApiParam({ name: 'role', description: 'Rol a consultar', enum: Role })
+  @ApiResponse({ 
     status: 200, 
-    description: 'Lista de módulos', 
-    schema: {
-      type: 'array',
-      items: { type: 'string' },
-      example: ['auth', 'persons', 'zones']
-    }
+    description: 'Módulos para el rol obtenidos',
+    type: [String]
   })
   @ApiResponse({ 
     status: 401, 

@@ -14,13 +14,15 @@ import { RolesService } from './roles.service';
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
-      imports:[ConfigModule],
-      inject:[ConfigService],
+      imports: [ConfigModule],
+      inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-       return {
-        secret: configService.get('JWT_SECRET') || 'sgarav-secret-key',
-        signOptions: { expiresIn: '4h' },
-       }
+        return {
+          secret: configService.get('app.jwt.secret') || configService.get('JWT_SECRET') || 'sgarav-secret-key',
+          signOptions: { 
+            expiresIn: configService.get('app.jwt.expiresIn') || configService.get('JWT_EXPIRES_IN') || '4h' 
+          },
+        };
       }
     }),
     MailModule,

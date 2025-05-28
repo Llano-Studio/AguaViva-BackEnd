@@ -8,6 +8,8 @@ import {
   Body,
   ParseIntPipe,
   UseInterceptors,
+  Query,
+  ValidationPipe,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
@@ -17,12 +19,14 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ProductCategoryService } from './product-category.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
+import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
 
 @ApiTags('Categorías de productos')
 @ApiBearerAuth()
@@ -36,29 +40,38 @@ export class ProductCategoryController {
   @Auth(Role.ADMIN, Role.USER)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({ 
-    summary: 'Listar todas las categorías de productos',
-    description: 'Obtiene un listado de todas las categorías de productos disponibles en el sistema. Los resultados se almacenan en caché para mejorar el rendimiento.'
+    summary: 'Listar todas las categorías de productos con paginación y filtros',
+    description: 'Obtiene un listado de todas las categorías de productos disponibles en el sistema, permitiendo paginación, ordenamiento y filtros.'
   })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campo para ordenar (ej: name, -name)', example: 'name' })
+  @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre de categoría', example: 'Bidones' })
   @ApiResponse({
     status: 200,
     description: 'Listado de categorías de productos obtenido exitosamente.',
     schema: {
-      type: 'array',
-      items: {
         properties: {
-          id: { type: 'number', example: 1 },
-          name: { type: 'string', example: 'Bidones' },
-          description: { type: 'string', example: 'Categoría para bidones de agua', nullable: true },
-          active: { type: 'boolean', example: true },
-          created_at: { type: 'string', format: 'date-time' },
-          updated_at: { type: 'string', format: 'date-time' }
+            data: {
+                type: 'array',
+                items: {
+                    properties: {
+                        category_id: { type: 'number' },
+                        name: { type: 'string' },
+                        product: { type: 'array', items: { /* schema de producto resumido */ } }
+                    }
+                }
+            },
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' },
         }
-      }
     }
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  getAllProductsCategory() {
-    return this.service.getAllProductsCategory();
+  findAll(@Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true })) filters: FilterProductCategoriesDto) {
+    return this.service.findAll(filters);
   }
 
   @Get(':id')
@@ -78,18 +91,14 @@ export class ProductCategoryController {
     description: 'Categoría de producto encontrada exitosamente.',
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        category_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Bidones' },
-        description: { type: 'string', example: 'Categoría para bidones de agua', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' },
-        products: {
+        product: {
           type: 'array',
           items: {
             properties: {
-              id: { type: 'number' },
-              name: { type: 'string' }
+              product_id: { type: 'number' },
+              description: { type: 'string' }
             }
           }
         }
@@ -116,9 +125,7 @@ export class ProductCategoryController {
     examples: {
       example1: {
         value: {
-          name: 'Bidones',
-          description: 'Categoría para bidones de agua',
-          active: true
+          name: 'Bidones'
         }
       }
     }
@@ -128,12 +135,8 @@ export class ProductCategoryController {
     description: 'Categoría de producto creada exitosamente.',
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        category_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Bidones' },
-        description: { type: 'string', example: 'Categoría para bidones de agua', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
       }
     }
   })
@@ -170,12 +173,8 @@ export class ProductCategoryController {
     description: 'Categoría de producto actualizada exitosamente.',
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        category_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Bidones (Actualizado)' },
-        description: { type: 'string', example: 'Categoría actualizada para bidones de agua', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
       }
     }
   })
@@ -210,7 +209,8 @@ export class ProductCategoryController {
     description: 'Categoría de producto eliminada exitosamente.',
     schema: {
       properties: {
-        message: { type: 'string', example: 'Categoría eliminada correctamente' }
+        message: { type: 'string', example: 'Categoría eliminada correctamente' },
+        deleted: { type: 'boolean' }
       }
     }
   })

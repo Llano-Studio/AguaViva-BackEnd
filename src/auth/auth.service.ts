@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, InternalServerErrorException, ConflictException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -13,9 +13,12 @@ import { MailService } from '../mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FilterUsersDto } from './dto/filter-users.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { parseSortByString } from '../common/utils/query-parser.utils';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
+  private readonly entityName = 'Usuario';
 
   async onModuleInit() {
     await this.$connect();
@@ -35,16 +38,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
   private async generateAndStoreRefreshToken(userId: number): Promise<string> {
     const refreshTokenExpiresIn = this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION_TIME') || '7d';
-
-
     const refreshTokenPayload: JwtPayload = { id: userId };
     const refreshToken = this.generateJwtToken(refreshTokenPayload, refreshTokenExpiresIn);
-
 
     const now = new Date();
     let expiresAt = new Date(now);
     if (typeof refreshTokenExpiresIn === 'string') {
-
       const daysMatch = refreshTokenExpiresIn.match(/^(\d+)d$/);
       if (daysMatch) {
         expiresAt.setDate(now.getDate() + parseInt(daysMatch[1], 10));
@@ -57,157 +56,144 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       expiresAt.setDate(now.getDate() + 7);
     }
 
-    await this.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: userId,
-        expiresAt: expiresAt,
-      },
-    });
-
+    try {
+      await this.refreshToken.create({
+        data: {
+          token: refreshToken,
+          userId: userId,
+          expiresAt: expiresAt,
+        },
+      });
+    } catch (error) {
+      handlePrismaError(error, 'Token de refresco');
+      throw new InternalServerErrorException('Error al guardar el token de refresco.');
+    }
     return refreshToken;
   }
 
   async register(registerUserDto: RegisterUserDto, profileImage?: any) {
     const { email, password, name } = registerUserDto;
+    try {
+      const existingUser = await this.user.findUnique({ where: { email } });
+      if (existingUser) {
+        throw new ConflictException(`El ${this.entityName.toLowerCase()} con email '${email}' ya está registrado.`);
+      }
 
-    const existingUser = await this.user.findUnique({ where: { email } });
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userData: Prisma.UserCreateInput = {
+        email,
+        password: hashedPassword,
+        name,
+        role: Role.USER,
+      };
 
-    if (existingUser) {
-      throw new BadRequestException('El usuario ya está registrado');
+      if (profileImage?.filename) {
+        userData.profileImageUrl = profileImage.filename;
+      }
+
+      const user = await this.user.create({ data: userData });
+
+      const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
+      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+      const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
+      const refreshToken = await this.generateAndStoreRefreshToken(user.id);
+
+      return {
+        user: new UserResponseDto({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.isActive,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt?.toISOString(),
+          profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined
+        }),
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(`Error registrando ${this.entityName.toLowerCase()}.`);
     }
+  }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+  async login(loginUserDto: LoginUserDto) {
+    const { email, password } = loginUserDto;
+    try {
+      const user = await this.user.findUnique({ where: { email } });
+      if (!user) {
+        throw new UnauthorizedException('Credenciales inválidas.');
+      }
 
-    const userData: Prisma.UserCreateInput = {
-      email,
-      password: hashedPassword,
-      name,
-      role: Role.USER, 
-    };
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Credenciales inválidas.');
+      }
 
-    if (profileImage?.filename) { 
-      userData.profileImageUrl = profileImage.filename; 
+      const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
+      const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
+      const refreshToken = await this.generateAndStoreRefreshToken(user.id);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        },
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error durante el login.');
     }
+  }
 
-    const user = await this.user.create({ data: userData });
+  async checkAuthStatus(user: User) {
+    try {
+      const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
+      const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
+      const refreshToken = await this.generateAndStoreRefreshToken(user.id);
 
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
-    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
-
-    const accessToken = this.generateJwtToken(
-      { id: user.id },
-      accessTokenExpiresIn
-    );
-
-    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
-
-    return {
-      user: new UserResponseDto({
+      return {
         id: user.id,
         email: user.email,
         name: user.name,
         role: user.role,
         isActive: user.isActive,
-        createdAt: user.createdAt.toISOString(),
-        updatedAt: user.updatedAt?.toISOString(),
-        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined
-      }),
-      accessToken,
-      refreshToken,
-    };
-  }
-
-  async login(loginUserDto: LoginUserDto) {
-    const { email, password } = loginUserDto;
-
-    const user = await this.user.findUnique({ where: { email } });
-
-    if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas (usuario)');
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error al verificar el estado de autenticación.');
     }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas (contraseña)');
-    }
-
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
-    const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
-    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
-
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      },
-      accessToken,
-      refreshToken,
-    };
-  }
-
-  async checkAuthStatus(user: User) {
-
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
-    const accessToken = this.generateJwtToken(
-      { id: user.id },
-      accessTokenExpiresIn
-    );
-    const refreshToken = await this.generateAndStoreRefreshToken(user.id);
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      isActive: user.isActive,
-      accessToken,
-      refreshToken,
-    };
   }
 
   async getAllUsers(filters?: FilterUsersDto) {
     try {
       const whereClause: Prisma.UserWhereInput = {};
-
       if (filters) {
         if (filters.search) {
           whereClause.OR = [
-            {
-              name:
-              {
-                contains: filters.search,
-                mode: 'insensitive'
-              }
-            },
-            {
-              email: {
-                contains: filters.search,
-                mode: 'insensitive'
-              }
-            }
+            { name: { contains: filters.search, mode: 'insensitive' } },
+            { email: { contains: filters.search, mode: 'insensitive' } }
           ];
         }
-
-        if (filters.role) {
-          whereClause.role = filters.role;
-        }
-
-        if (filters.isActive !== undefined) {
-          whereClause.isActive = filters.isActive;
-        }
+        if (filters.role) whereClause.role = filters.role;
+        if (filters.isActive !== undefined) whereClause.isActive = filters.isActive;
       }
 
       const page = filters?.page || 1;
       const limit = filters?.limit || 10;
       const skip = (page - 1) * limit;
 
-      const totalUsers = await this.user.count({
-        where: whereClause
-      });
+      const totalUsers = await this.user.count({ where: whereClause });
+      const orderByClause = parseSortByString(filters?.sortBy, [{ name: 'asc' }]);
 
       const users = await this.user.findMany({
         where: whereClause,
@@ -219,22 +205,19 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           isActive: true,
           createdAt: true,
           updatedAt: true,
-          profileImageUrl: true, 
-          // notes: true, 
+          profileImageUrl: true,
         },
         skip,
         take: limit,
-        orderBy: { name: 'asc' }
+        orderBy: orderByClause
       });
 
-      const appUrl = this.configService.get<string>('APP_URL') || ''; 
-
+      const appUrl = this.configService.get<string>('APP_URL') || '';
       const userDtos = users.map(user => new UserResponseDto({
         ...user,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
-        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined, 
-        // notes: user.notes === null ? undefined : user.notes, 
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined,
       }));
 
       return {
@@ -247,286 +230,267 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         }
       };
     } catch (error) {
-      console.error('Error al obtener usuarios:', error);
-      throw new InternalServerErrorException('Error al obtener la lista de usuarios');
+      handlePrismaError(error, `${this.entityName}s`);
+      throw new InternalServerErrorException(`Error obteniendo ${this.entityName.toLowerCase()}s.`);
     }
   }
 
   async getUserById(id: number) {
-    const user = await this.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-        profileImageUrl: true, 
-        // notes: true, 
-      },
-    });
+    try {
+      const user = await this.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          profileImageUrl: true,
+        }
+      });
 
-    if (!user) {
-      throw new BadRequestException(`Usuario con ID ${id} no encontrado.`);
+      if (!user) {
+        throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado.`);
+      }
+      const appUrl = this.configService.get<string>('APP_URL') || '';
+      return new UserResponseDto({
+        ...user,
+        createdAt: user.createdAt.toISOString(),
+        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined,
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(`Error obteniendo ${this.entityName.toLowerCase()} con ID ${id}.`);
     }
-
-    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000'; 
-
-    return new UserResponseDto({
-      ...user,
-      createdAt: user.createdAt.toISOString(),
-      updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
-      profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined, 
-      // notes: user.notes === null ? undefined : user.notes, 
-    });
   }
 
   async updateUser(id: number, updateUserDto: UpdateUserDto, profileImage?: any) {
-    const { name, email, role, isActive } = updateUserDto;
-
-    const user = await this.user.findUnique({ where: { id } });
-    if (!user) {
-      throw new BadRequestException(`Usuario con ID ${id} no encontrado.`);
-    }
-
-    if (email && email !== user.email) {
-      const existingUserWithEmail = await this.user.findUnique({ where: { email } });
-      if (existingUserWithEmail && existingUserWithEmail.id !== id) {
-        throw new BadRequestException('El correo electrónico ya está en uso por otro usuario.');
-      }
-    }
-
-    const dataToUpdate: Prisma.UserUpdateInput = {};
-    if (name) dataToUpdate.name = name;
-    if (email) dataToUpdate.email = email;
-    if (role) dataToUpdate.role = role;
-    if (isActive !== undefined) dataToUpdate.isActive = isActive;
-
-    if (profileImage?.filename) {
-      dataToUpdate.profileImageUrl = profileImage.filename;
-    }
-
+    const { email, name, role, isActive } = updateUserDto;
     try {
+      const userToUpdate = await this.user.findUnique({ where: { id } });
+      if (!userToUpdate) {
+        throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado.`);
+      }
+
+      if (email && email !== userToUpdate.email) {
+        const existingUser = await this.user.findUnique({ where: { email } });
+        if (existingUser) {
+          throw new ConflictException(`El email '${email}' ya está en uso por otro ${this.entityName.toLowerCase()}.`);
+        }
+      }
+
+      const dataToUpdate: Prisma.UserUpdateInput = {};
+      if (email) dataToUpdate.email = email;
+      if (name) dataToUpdate.name = name;
+      if (role) dataToUpdate.role = role;
+      if (isActive !== undefined) dataToUpdate.isActive = isActive;
+      if (profileImage?.filename) {
+        dataToUpdate.profileImageUrl = profileImage.filename;
+      }
+      dataToUpdate.updatedAt = new Date();
+
       const updatedUser = await this.user.update({
         where: { id },
         data: dataToUpdate,
       });
-      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+
+      const appUrl = this.configService.get<string>('APP_URL') || '';
       return new UserResponseDto({
-        id: updatedUser.id,
-        email: updatedUser.email,
-        name: updatedUser.name,
-        role: updatedUser.role,
-        isActive: updatedUser.isActive,
+        ...updatedUser,
         createdAt: updatedUser.createdAt.toISOString(),
-        updatedAt: updatedUser.updatedAt?.toISOString(),
+        updatedAt: updatedUser.updatedAt ? updatedUser.updatedAt.toISOString() : undefined,
         profileImageUrl: updatedUser.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${updatedUser.profileImageUrl}` : undefined,
       });
     } catch (error) {
-      console.error('Error updating user:', error);
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('Error al actualizar usuario: El correo electrónico ya está en uso por otro usuario.');
-      }
-      throw new InternalServerErrorException('Error al actualizar el usuario.');
+      if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof BadRequestException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(`Error actualizando ${this.entityName.toLowerCase()} con ID ${id}.`);
     }
   }
 
   async deleteUser(id: number) {
-    const user = await this.user.findUnique({ where: { id } });
-
-    if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+    try {
+      const userToDelete = await this.user.findUnique({ where: { id } });
+      if (!userToDelete) {
+        throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado.`);
+      }
+      await this.user.delete({ where: { id } });
+      return { message: `${this.entityName} con ID ${id} eliminado.` };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(`Error eliminando ${this.entityName.toLowerCase()} con ID ${id}.`);
     }
-
-    await this.user.delete({ where: { id } });
-    return { message: 'Usuario eliminado correctamente' };
   }
 
   async updatePassword(userId: number, updatePasswordDto: UpdatePasswordDto) {
-    const user = await this.user.findUnique({ where: { id: userId } });
+    const { currentPassword, newPassword } = updatePasswordDto;
+    try {
+      const user = await this.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException(`${this.entityName} no encontrado.`);
+      }
 
-    if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+      const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isPasswordValid) {
+        throw new BadRequestException('La contraseña actual es incorrecta.');
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await this.user.update({
+        where: { id: userId },
+        data: { password: hashedNewPassword, updatedAt: new Date() },
+      });
+
+      return { message: 'Contraseña actualizada correctamente.' };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error actualizando la contraseña.');
     }
-
-    const isPasswordValid = await bcrypt.compare(updatePasswordDto.currentPassword, user.password);
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Contraseña actual incorrecta');
-    }
-
-    const hashedPassword = await bcrypt.hash(updatePasswordDto.newPassword, 10);
-
-    await this.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
-    });
-
-    return {
-      success: true, 
-      message: 'Contraseña actualizada correctamente' };
   }
 
   async recoverPassword(recoverPasswordDto: RecoverPasswordDto) {
-    const user = await this.user.findUnique({
-      where: { email: recoverPasswordDto.email },
-    });
+    const { email } = recoverPasswordDto;
+    try {
+      const user = await this.user.findUnique({ where: { email } });
+      if (!user) {
+        throw new NotFoundException(`${this.entityName} con email '${email}' no encontrado.`);
+      }
 
-    if (!user) {
-      throw new BadRequestException('Usuario no encontrado');
+      const recoveryToken = (await bcrypt.hash(Math.random().toString(36).substring(2, 15), 10)).replace(/\//g, '');
+      const recoveryTokenExpires = new Date(Date.now() + 3600000); // 1 hora
+
+      await this.user.update({
+        where: { email },
+        data: { recoveryToken, recoveryTokenExpires, updatedAt: new Date() },
+      });
+
+      await this.mailService.sendPasswordRecoveryEmail(user.email, recoveryToken);
+      return { message: 'Si el email está registrado, recibirás un correo para recuperar tu contraseña.' };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error durante la recuperación de contraseña.');
     }
-
-    // Generar token de recuperación
-    const recoveryToken = this.jwtService.sign(
-      { id: user.id },
-      { expiresIn: '1h' },
-    );
-
-    // Guardar token en la base de datos
-    await this.user.update({
-      where: { id: user.id },
-      data: { recoveryToken },
-    });
-
-    // Enviar correo
-    await this.mailService.sendPasswordRecoveryEmail(user.email, recoveryToken);
-
-    return { 
-      success: true,
-      message: 'Se ha enviado un correo con las instrucciones para recuperar la contraseña' };
   }
 
   async resetPassword(token: string, newPassword: string) {
     try {
-      const payload = this.jwtService.verify(token);
-      const user = await this.user.findUnique({
-        where: { id: payload.id, recoveryToken: token },
-      });
-
-      if (!user) {
-        throw new UnauthorizedException('Token inválido o expirado');
-      }
-
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      await this.user.update({
-        where: { id: user.id },
-        data: {
-          password: hashedPassword,
-          recoveryToken: null,
+      const user = await this.user.findFirst({
+        where: {
+          recoveryToken: token,
+          recoveryTokenExpires: { gt: new Date() },
         },
       });
 
-      return { 
-        success: true,
-        message: 'Contraseña actualizada correctamente' 
-      };
-      
+      if (!user) {
+        throw new BadRequestException('Token inválido o expirado.');
+      }
+
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+      await this.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedNewPassword,
+          recoveryToken: null,
+          recoveryTokenExpires: null,
+          updatedAt: new Date(),
+        },
+      });
+
+      return { message: 'Contraseña restablecida correctamente.' };
     } catch (error) {
-      throw new UnauthorizedException('Token inválido o expirado');
+      if (error instanceof BadRequestException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error restableciendo la contraseña.');
     }
   }
 
   async createUser(createUserDto: CreateUserDto, profileImage?: any) {
-    const { email, password, name, role, isActive, notes } = createUserDto;
-
-    const existingUser = await this.user.findUnique({ where: { email } });
-    if (existingUser) {
-      throw new BadRequestException('El correo electrónico ya está en uso.');
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userData: Prisma.UserCreateInput = {
-      email,
-      password: hashedPassword,
-      name,
-      role,
-      isActive,
-    };
-    if (createUserDto.notes) {
-    }
-
-    if (profileImage?.filename) {
-      userData.profileImageUrl = profileImage.filename;
-    }
-
+    const { email, password, name, role, isActive } = createUserDto;
     try {
-      const user = await this.user.create({ data: userData });
-      const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
-      return new UserResponseDto({ 
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isActive: user.isActive,
-        createdAt: user.createdAt.toISOString(),
-        updatedAt: user.updatedAt?.toISOString(),
-        profileImageUrl: user.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${user.profileImageUrl}` : undefined,
+      const existingUser = await this.user.findUnique({ where: { email } });
+      if (existingUser) {
+        throw new ConflictException(`El ${this.entityName.toLowerCase()} con email '${email}' ya existe.`);
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userData: Prisma.UserCreateInput = {
+        email,
+        password: hashedPassword,
+        name,
+        role: role || Role.USER,
+        isActive: isActive === undefined ? true : isActive,
+      };
+      if (profileImage?.filename) {
+        userData.profileImageUrl = profileImage.filename;
+      }
+
+      const newUser = await this.user.create({ data: userData });
+      const appUrl = this.configService.get<string>('APP_URL') || '';
+
+      return new UserResponseDto({
+        ...newUser,
+        createdAt: newUser.createdAt.toISOString(),
+        updatedAt: newUser.updatedAt ? newUser.updatedAt.toISOString() : undefined,
+        profileImageUrl: newUser.profileImageUrl ? `${appUrl}/public/uploads/profile-images/${newUser.profileImageUrl}` : undefined,
       });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') { 
-          throw new BadRequestException('Error al crear usuario: El correo electrónico ya existe.');
-        }
-      }
-      console.error('Error creating user:', error); 
-      throw new InternalServerErrorException('Error al crear el usuario.');
+      if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(`Error creando ${this.entityName.toLowerCase()}.`);
     }
   }
 
   async validateAndParseRefreshToken(token: string): Promise<JwtPayload | null> {
     try {
- 
-      const payload = this.jwtService.verify<JwtPayload>(token);
+      const payload = this.jwtService.verify(token, {
+        secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+      });
       return payload;
-    } catch (error) {
+    } catch (err) {
       return null;
     }
   }
 
   async handleRefreshToken(oldRefreshTokenString: string): Promise<{ accessToken: string; refreshToken: string }> {
+    try {
+      const storedRefreshToken = await this.refreshToken.findUnique({
+        where: { token: oldRefreshTokenString },
+        include: { user: true },
+      });
 
-    const refreshTokenPayload = await this.validateAndParseRefreshToken(oldRefreshTokenString);
-    if (!refreshTokenPayload || !refreshTokenPayload.id) {
-      throw new UnauthorizedException('Refresh token inválido o expirado.');
-    }
+      if (!storedRefreshToken || storedRefreshToken.expiresAt < new Date()) {
+        if (storedRefreshToken) {
+          await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
+        }
+        throw new UnauthorizedException('Token de refresco inválido o expirado.');
+      }
 
-    const userId = refreshTokenPayload.id;
+      const user = storedRefreshToken.user;
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException('Usuario inactivo o no encontrado.');
+      }
 
-    const storedRefreshToken = await this.refreshToken.findUnique({
-      where: { 
-        token: oldRefreshTokenString 
-      },
-    });
-
-    if (!storedRefreshToken) {
-      throw new UnauthorizedException('Refresh token no encontrado en la base de datos o ya invalidado.');
-    }
-
-    if (storedRefreshToken.userId !== userId) {
-      throw new UnauthorizedException('Refresh token no pertenece al usuario.');
-    }
-
-    if (new Date(storedRefreshToken.expiresAt) < new Date()) {
+      const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
+      const newAccessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
+      const newRefreshToken = await this.generateAndStoreRefreshToken(user.id);
       await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
-      throw new UnauthorizedException('Refresh token expirado (según base de datos).');
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      handlePrismaError(error, 'Token de refresco');
+      throw new InternalServerErrorException('Error al procesar el token de refresco.');
     }
-
-    await this.refreshToken.delete({ where: { id: storedRefreshToken.id } });
-
-    // 4. Generar un nuevo access_token
-    const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
-    const newAccessToken = this.generateJwtToken({ id: userId }, accessTokenExpiresIn);
-
-    // 5. Generar y guardar un nuevo refresh_token
-    const newRefreshToken = await this.generateAndStoreRefreshToken(userId);
-
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    };
   }
 }
 

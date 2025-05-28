@@ -11,6 +11,7 @@ import { json, urlencoded } from 'express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DatabaseErrorInterceptor } from './common/interceptors/database-error.interceptor';
 import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
+import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
 
 async function bootstrap() {
@@ -20,12 +21,15 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log'],
   });
 
+  const configService = app.get(ConfigService);
+
   app.use(helmet.default());
 
   app.use(compression());
 
-  app.use(json({ limit: '5mb' }));
-  app.use(urlencoded({ extended: true, limit: '5mb' }));
+  const maxFileSize = configService.get('app.files.maxFileSize') || 5 * 1024 * 1024;
+  app.use(json({ limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
+  app.use(urlencoded({ extended: true, limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
 
   // CORS
   app.enableCors({
@@ -34,7 +38,8 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api');
+  const apiPrefix = configService.get('app.app.apiPrefix') || 'api';
+  app.setGlobalPrefix(apiPrefix);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -50,6 +55,7 @@ async function bootstrap() {
   // Aplicar el filtro global para manejar excepciones de base de datos
   app.useGlobalFilters(new DatabaseExceptionFilter());
 
+  const uploadPath = configService.get('app.files.uploadPath') || './uploads';
   app.useStaticAssets(join(process.cwd(), 'public'), { 
     prefix: '/public/',
   });
@@ -72,11 +78,12 @@ async function bootstrap() {
     swaggerOptions: { persistAuthorization: true },
   });
 
-  const port = process.env.PORT ?? 3000;
+  const port = configService.get('app.app.port') || process.env.PORT || 3000;
   await app.listen(port);
 
-  logger.log(`🚀 Servidor escuchando en http://localhost:${port}/api (v1)`);
+  logger.log(`🚀 Servidor escuchando en http://localhost:${port}/${apiPrefix} (v1)`);
   logger.log(`📖 Documentación Swagger en http://localhost:${port}/docs`);
+  logger.log(`🌍 Entorno: ${configService.get('app.app.environment') || 'development'}`);
 }
 
 bootstrap();
