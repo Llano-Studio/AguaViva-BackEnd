@@ -53,6 +53,7 @@ export class PersonsController {
 
   @Get()
   @ApiOperation({ summary: 'Listar personas con filtros y paginación' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general por nombre, dirección, teléfono o CUIT/CUIL/DNI' })
   @ApiQuery({ name: 'personId', required: false, type: Number, description: 'Filtrar por ID de persona' })
   @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre (parcial)' })
   @ApiQuery({ name: 'address', required: false, type: String, description: 'Filtrar por dirección (parcial)' })

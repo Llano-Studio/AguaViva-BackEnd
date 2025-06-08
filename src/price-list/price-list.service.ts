@@ -60,14 +60,29 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     }
 
     async findAll(filterDto: FilterPriceListDto): Promise<PaginatedPriceListResponse> {
-        const { page = 1, limit = 10, sortBy } = filterDto;
+        const { page = 1, limit = 10, sortBy, search, name } = filterDto;
         try {
             const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
             const take = Math.max(1, limit);
             const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
 
+            const where: Prisma.price_listWhereInput = {};
+            
+            // Búsqueda general en múltiples campos
+            if (search) {
+                where.OR = [
+                    { name: { contains: search, mode: 'insensitive' } }
+                ];
+            }
+            
+            // Filtros específicos
+            if (name) {
+                where.name = { contains: name, mode: 'insensitive' };
+            }
+
             const [priceLists, totalItems] = await this.$transaction([
                 this.price_list.findMany({
+                    where,
                     include: {
                         price_list_item: {
                             include: {
@@ -79,7 +94,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
                     skip,
                     take,
                 }),
-                this.price_list.count() // TODO: Aplicar filtros si FilterPriceListDto los tuviera en el futuro
+                this.price_list.count({ where })
             ]);
 
             return {

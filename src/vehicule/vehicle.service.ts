@@ -48,6 +48,16 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     const take = Math.max(1, limit);
 
     if (filters) {
+      // Búsqueda general en múltiples campos
+      if (filters.search) {
+        where.OR = [
+          { name: { contains: filters.search, mode: 'insensitive' } },
+          { code: { contains: filters.search, mode: 'insensitive' } },
+          { description: { contains: filters.search, mode: 'insensitive' } }
+        ];
+      }
+
+      // Filtros específicos
       if (filters.code) {
         where.code = { contains: filters.code, mode: 'insensitive' };
       }

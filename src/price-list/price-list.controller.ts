@@ -65,6 +65,11 @@ export class PriceListController {
     summary: 'Obtener todas las listas de precios',
     description: 'Devuelve un listado completo de todas las listas de precios disponibles en el sistema, con paginación y ordenamiento.'
   })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general por nombre de lista de precios' })
+  @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre específico de la lista' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Ej: name,-effective_date', example: 'name' })
   @ApiResponse({ 
     status: 200, 
     description: 'Listas de precios obtenidas exitosamente.',

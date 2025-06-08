@@ -159,6 +159,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     const {
       page = 1,
       limit = 10,
+      search,
       name,
       address,
       type,
@@ -173,12 +174,23 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
     const where: Prisma.personWhereInput = {};
 
+    // Búsqueda general en múltiples campos (como en auth.service.ts)
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+        { tax_id: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Filtros específicos (se pueden combinar con search)
     if (personId) where.person_id = personId;
     if (name) where.name = { contains: name, mode: 'insensitive' };
     if (address) where.address = { contains: address, mode: 'insensitive' };
-    if (type) where.type = type as PrismaPersonType;
     if (phone) where.phone = { contains: phone, mode: 'insensitive' };
     if (taxId) where.tax_id = { contains: taxId, mode: 'insensitive' };
+    if (type) where.type = type as PrismaPersonType;
     if (localityId) where.locality_id = localityId;
     if (zoneId) where.zone_id = zoneId;
 

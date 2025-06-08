@@ -12,7 +12,7 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Zonas')
 @ApiBearerAuth()
-@Auth(Role.ADMIN)
+@Auth(Role.ADMIN, Role.USER)
 @Controller('zones')
 export class ZonesController {
   constructor(private readonly zonesService: ZonesService) { }
@@ -67,6 +67,7 @@ export class ZonesController {
     summary: 'Listar todas las zonas',
     description: 'Obtiene un listado completo de todas las zonas disponibles en el sistema. Los resultados se almacenan en caché para mejorar el rendimiento.'
   })
+  @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre o código de zona", example: 'norte' })
   @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre de zona", example: 'Zona Norte' })
   @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: name,-code", example: 'name,-code' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })

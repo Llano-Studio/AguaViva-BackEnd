@@ -4,7 +4,15 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterProductCategoriesDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Término de búsqueda para el nombre de la categoría.',
+    description: 'Búsqueda general por nombre de categoría',
+    example: 'bidones',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por nombre específico de la categoría',
     example: 'Bidones',
   })
   @IsOptional()

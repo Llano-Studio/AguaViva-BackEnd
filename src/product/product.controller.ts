@@ -22,11 +22,12 @@ export class ProductController {
     summary: 'Listar productos con filtros y paginación', 
     description: 'Obtiene un listado paginado de productos con opciones de filtrado por nombre, categoría, estado y más.' 
   })
-  @ApiQuery({ name: 'name', required: false, description: 'Filtrar por nombre de producto (búsqueda parcial)' })
-  @ApiQuery({ name: 'category_id', required: false, type: Number, description: 'Filtrar por ID de categoría' })
+  @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por descripción, número de serie o notas' })
+  @ApiQuery({ name: 'description', required: false, description: 'Filtrar por descripción del producto (búsqueda parcial)' })
+  @ApiQuery({ name: 'categoryId', required: false, type: Number, description: 'Filtrar por ID de categoría' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar (separados por coma). Prefijo \'-\' para descendente. Ej: name,-createdAt', example: 'name,-createdAt' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar (separados por coma). Prefijo \'-\' para descendente. Ej: description,-price', example: 'description,-price' })
   @ApiResponse({ 
     status: 200, 
     description: 'Listado de productos paginado.', 

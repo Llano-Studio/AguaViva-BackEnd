@@ -43,10 +43,11 @@ export class ProductCategoryController {
     summary: 'Listar todas las categorías de productos con paginación y filtros',
     description: 'Obtiene un listado de todas las categorías de productos disponibles en el sistema, permitiendo paginación, ordenamiento y filtros.'
   })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general por nombre de categoría', example: 'bidones' })
+  @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre específico de categoría', example: 'Bidones' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
   @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campo para ordenar (ej: name, -name)', example: 'name' })
-  @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre de categoría', example: 'Bidones' })
   @ApiResponse({
     status: 200,
     description: 'Listado de categorías de productos obtenido exitosamente.',

@@ -6,6 +6,14 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterPersonsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
+    description: 'Búsqueda general por nombre, dirección, teléfono o CUIT/CUIL/DNI',
+    example: 'marcos',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
     description: 'Filtrar por ID de la persona',
     example: 1,
   })

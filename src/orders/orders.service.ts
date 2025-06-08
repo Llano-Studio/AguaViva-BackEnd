@@ -250,7 +250,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     async findAll(filterDto: FilterOrdersDto): Promise<{ data: OrderResponseDto[]; total: number; page: number; limit: number, totalPages: number }> {
         const {
-            searchTerm,
+            search,
             customerName,
             orderDateFrom,
             orderDateTo,
@@ -285,12 +285,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             where.customer = { OR: customerConditions.length > 1 ? customerConditions : undefined, AND: customerConditions.length === 1 ? customerConditions[0] : undefined };
         }
         
-        if (searchTerm) {
-            const searchAsNumber = !isNaN(parseInt(searchTerm)) ? parseInt(searchTerm) : undefined;
+        if (search) {
+            const searchAsNumber = !isNaN(parseInt(search)) ? parseInt(search) : undefined;
             const orConditions: Prisma.order_headerWhereInput[] = [];
             orConditions.push({
                 customer: {
-                    name: { contains: searchTerm, mode: 'insensitive' }
+                    name: { contains: search, mode: 'insensitive' }
                 }
             });
             if (searchAsNumber) {

@@ -57,7 +57,7 @@ export class OrdersController {
         summary: 'Obtener todos los pedidos regulares',
         description: 'Retorna una lista paginada de pedidos regulares con opciones de filtrado.'
     })
-    @ApiQuery({ name: 'searchTerm', required: false, description: 'Término de búsqueda general (busca en cliente, número de pedido)' })
+    @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por cliente, número de pedido, etc.' })
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
     @ApiQuery({ name: 'orderDateFrom', required: false, description: 'Filtrar por fecha de pedido desde' })
     @ApiQuery({ name: 'orderDateTo', required: false, description: 'Filtrar por fecha de pedido hasta' })

@@ -148,7 +148,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
     }
 
     async findAll(filters: FilterOneOffPurchasesDto): Promise<{ data: OneOffPurchaseResponseDto[]; total: number; page: number; limit: number; totalPages: number; }> {
-        const { searchTerm, customerName, productName, page = 1, limit = 10, sortBy, purchaseDateFrom, purchaseDateTo, person_id, product_id, sale_channel_id, locality_id, zone_id } = filters;
+        const { search, customerName, productName, page = 1, limit = 10, sortBy, purchaseDateFrom, purchaseDateTo, person_id, product_id, sale_channel_id, locality_id, zone_id } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
         const where: Prisma.one_off_purchaseWhereInput = {};
@@ -177,11 +177,11 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             where.product = productFilter;
         }
 
-        if (searchTerm) {
-            const searchNum = parseInt(searchTerm);
+        if (search) {
+            const searchNum = parseInt(search);
             const orConditions: Prisma.one_off_purchaseWhereInput[] = [
-                { person: { name: { contains: searchTerm, mode: 'insensitive' } } },
-                { product: { description: { contains: searchTerm, mode: 'insensitive' } } },
+                { person: { name: { contains: search, mode: 'insensitive' } } },
+                { product: { description: { contains: search, mode: 'insensitive' } } },
             ];
             if (!isNaN(searchNum)) {
                 orConditions.push({ purchase_id: searchNum });

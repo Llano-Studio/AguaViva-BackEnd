@@ -5,6 +5,14 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterProductsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
+    description: 'Búsqueda general por descripción, número de serie o notas',
+    example: 'botella',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
     description: 'ID de categoría para filtrar productos',
     example: 1
   })

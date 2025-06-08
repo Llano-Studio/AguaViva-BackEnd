@@ -34,6 +34,7 @@ export class VehicleController {
   @Auth(Role.ADMIN, Role.USER)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({ summary: 'Listar todos los vehículos o filtrar por código' })
+  @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por nombre, código o descripción' })
   @ApiQuery({ name: 'code', required: false, description: 'Filtrar por código de vehículo' })
   @ApiQuery({ name: 'sortBy', required: false, description: 'Campos para ordenar. Ej: code,-name' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })

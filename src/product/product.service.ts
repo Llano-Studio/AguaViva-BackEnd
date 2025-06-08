@@ -34,6 +34,16 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       const whereClause: Prisma.productWhereInput = {};
       
       if (filters) {
+        // Búsqueda general en múltiples campos
+        if (filters.search) {
+          whereClause.OR = [
+            { description: { contains: filters.search, mode: 'insensitive' } },
+            { serial_number: { contains: filters.search, mode: 'insensitive' } },
+            { notes: { contains: filters.search, mode: 'insensitive' } }
+          ];
+        }
+
+        // Filtros específicos
         if (filters.categoryId) {
           const category = await this.product_category.findUnique({ where: { category_id: filters.categoryId } });
           if (!category) {

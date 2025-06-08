@@ -74,10 +74,24 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async findAll(filters: FilterSubscriptionPlansDto): Promise<PaginatedSubscriptionPlanResponseDto> {
-    const { sortBy, page = 1, limit = 10 } = filters;
+    const { sortBy, search, name, page = 1, limit = 10 } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
-    const where: Prisma.subscription_planWhereInput = {}; // Para futuros filtros
+    
+    const where: Prisma.subscription_planWhereInput = {};
+    
+    // Búsqueda general en múltiples campos
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    // Filtros específicos
+    if (name) {
+      where.name = { contains: name, mode: 'insensitive' };
+    }
 
     const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
 

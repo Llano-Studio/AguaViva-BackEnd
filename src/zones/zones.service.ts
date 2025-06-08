@@ -29,11 +29,21 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
   }
 
   async getAllZones(filters: FilterZonesDto): Promise<{ data: zone[], total: number, page: number, limit: number, totalPages: number }> {
-    const { page = 1, limit = 10, sortBy, name } = filters;
+    const { page = 1, limit = 10, sortBy, search, name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     
     const where: Prisma.zoneWhereInput = {};
+    
+    // Búsqueda general en múltiples campos
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { code: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+    
+    // Filtros específicos
     if (name) {
       where.name = {
         contains: name,

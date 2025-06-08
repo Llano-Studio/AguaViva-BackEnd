@@ -36,7 +36,7 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
 
   @IsOptional()
   @IsString()
-  searchTerm?: string; // Añadido
+  search?: string; // Búsqueda general
 
   @IsOptional()
   @IsString()

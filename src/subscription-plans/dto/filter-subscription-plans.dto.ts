@@ -4,7 +4,15 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterSubscriptionPlansDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Filtrar por nombre del plan de suscripción (búsqueda parcial)',
+    description: 'Búsqueda general por nombre o descripción del plan',
+    example: 'premium',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por nombre específico del plan de suscripción',
     example: 'Plan Premium',
   })
   @IsOptional()

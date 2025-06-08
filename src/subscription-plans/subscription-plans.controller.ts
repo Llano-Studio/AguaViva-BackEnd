@@ -32,6 +32,8 @@ export class SubscriptionPlansController {
   @Get()
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ summary: 'Obtener todos los planes de suscripción' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre o descripción del plan", example: "premium" })
+  @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre específico del plan", example: "Plan Premium" })
   @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: name,-price", example: "name,-price" })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })

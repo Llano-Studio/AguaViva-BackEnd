@@ -6,8 +6,8 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 export class FilterOrdersDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
-  @ApiProperty({ required: false, description: 'Término de búsqueda general (busca en múltiples campos)', example: 'juan' })
-  searchTerm?: string;
+  @ApiProperty({ required: false, description: 'Búsqueda general por cliente, número de pedido, etc.', example: 'juan' })
+  search?: string;
 
   @IsOptional()
   @IsString()
