@@ -29,9 +29,7 @@ export class ZonesController {
       example1: {
         value: {
           name: 'Zona Norte',
-          code: 'ZN-001',
-          description: 'Zona norte de la ciudad',
-          active: true
+          code: 'ZN-001'
         }
       }
     }
@@ -41,13 +39,9 @@ export class ZonesController {
     description: 'Zona creada exitosamente', 
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        zone_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Zona Norte' },
-        code: { type: 'string', example: 'ZN-001' },
-        description: { type: 'string', example: 'Zona norte de la ciudad', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
+        code: { type: 'string', example: 'ZN-001' }
       }
     }
   })
@@ -81,11 +75,33 @@ export class ZonesController {
           type: 'array', 
           items: { 
             properties: {
-              id: { type: 'number' },
+              zone_id: { type: 'number' },
               name: { type: 'string' },
               code: { type: 'string' },
-              description: { type: 'string', nullable: true },
-              active: { type: 'boolean' },
+              locality: {
+                type: 'array',
+                items: {
+                  properties: {
+                    locality_id: { type: 'number' },
+                    code: { type: 'string' },
+                    name: { type: 'string' },
+                    province: {
+                      properties: {
+                        province_id: { type: 'number' },
+                        code: { type: 'string' },
+                        name: { type: 'string' },
+                        country: {
+                          properties: {
+                            country_id: { type: 'number' },
+                            code: { type: 'string' },
+                            name: { type: 'string' }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         },
@@ -120,19 +136,30 @@ export class ZonesController {
     description: 'Datos de la zona encontrados exitosamente', 
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        zone_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Zona Norte' },
         code: { type: 'string', example: 'ZN-001' },
-        description: { type: 'string', example: 'Zona norte de la ciudad', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' },
         localities: {
           type: 'array',
           items: {
             properties: {
-              id: { type: 'number' },
-              name: { type: 'string' }
+              locality_id: { type: 'number' },
+              code: { type: 'string' },
+              name: { type: 'string' },
+              province: {
+                properties: {
+                  province_id: { type: 'number' },
+                  code: { type: 'string' },
+                  name: { type: 'string' },
+                  country: {
+                    properties: {
+                      country_id: { type: 'number' },
+                      code: { type: 'string' },
+                      name: { type: 'string' }
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -165,9 +192,7 @@ export class ZonesController {
     examples: {
       example1: {
         value: {
-          name: 'Zona Norte Actualizada',
-          description: 'Nueva descripción para la zona norte',
-          active: true
+          name: 'Zona Norte Actualizada'
         }
       }
     }
@@ -177,13 +202,9 @@ export class ZonesController {
     description: 'Zona actualizada exitosamente', 
     schema: {
       properties: {
-        id: { type: 'number', example: 1 },
+        zone_id: { type: 'number', example: 1 },
         name: { type: 'string', example: 'Zona Norte Actualizada' },
-        code: { type: 'string', example: 'ZN-001' },
-        description: { type: 'string', example: 'Nueva descripción para la zona norte', nullable: true },
-        active: { type: 'boolean', example: true },
-        created_at: { type: 'string', format: 'date-time' },
-        updated_at: { type: 'string', format: 'date-time' }
+        code: { type: 'string', example: 'ZN-001' }
       }
     }
   })

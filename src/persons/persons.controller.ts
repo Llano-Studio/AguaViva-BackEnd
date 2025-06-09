@@ -71,7 +71,7 @@ export class PersonsController {
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Prefijo \'-\' para descendente. Ej: name,-registrationDate', example: 'name,-registrationDate' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Prefijo \'-\' para descendente. Incluye payment_semaphore_status. Ej: name,-payment_semaphore_status,registrationDate', example: 'name,-payment_semaphore_status' })
   @ApiResponse({ status: 200, description: 'Listado paginado de personas', type: PaginatedPersonsResponseDto })
   findAllPersons(
     @Query(

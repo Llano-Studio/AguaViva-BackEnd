@@ -24,6 +24,14 @@ export class ProductResponseDto extends OmitType(CreateProductDto, ['category_id
   @ApiProperty({ example: 100, description: 'Stock total disponible del producto en todos los almacenes' })
   total_stock: number;
 
+  @ApiProperty({ 
+    example: 'https://example.com/uploads/products/product_123.jpg', 
+    description: 'URL de la imagen del producto',
+    required: false,
+    nullable: true 
+  })
+  image_url?: string | null;
+
   // Constructor opcional para facilitar el mapeo desde la entidad Prisma + stock
   constructor(partial: Partial<ProductResponseDto> & { product_category: any, total_stock: number }) {
     super();
@@ -49,5 +57,7 @@ export class ProductResponseDto extends OmitType(CreateProductDto, ['category_id
     if (partial.volume_liters === null) {
         this.volume_liters = undefined;
     }
+    // Convertir null a undefined para image_url
+    this.image_url = partial.image_url === null ? undefined : partial.image_url;
   }
 } 

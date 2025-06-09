@@ -35,4 +35,13 @@ export class CreateProductDto {
   @IsString()
   @ValidateIf((o, v) => v !== null)
   notes?: string | null;
+
+  @ApiProperty({
+    description: 'Archivo de imagen del producto (opcional)',
+    type: 'string',
+    format: 'binary',
+    required: false
+  })
+  @IsOptional()
+  productImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
 }

@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit, InternalServerErrorException, ConflictException, BadRequestException } from '@nestjs/common';
+import * as fs from 'fs-extra';
+import * as path from 'path';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Prisma, PrismaClient, product_category, product as ProductPrisma } from '@prisma/client';
@@ -100,6 +102,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             price: product.price as any,
             volume_liters: product.volume_liters as any,
             total_stock: stock,
+            image_url: product.image_url ? `/public/uploads/products/${product.image_url}` : null,
           });
         }),
       );
@@ -139,20 +142,42 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: productEntity.price as any,
         volume_liters: productEntity.volume_liters as any,
         total_stock: stock,
+        image_url: productEntity.image_url ? `/public/uploads/products/${productEntity.image_url}` : null,
     });
   }
 
-  async createProduct(dto: CreateProductDto): Promise<ProductPrisma> {
+  async createProduct(dto: CreateProductDto, productImage?: any): Promise<ProductResponseDto> {
     await this.validateCategoryExists(dto.category_id);
-    const { category_id, ...productData } = dto;
+    const { category_id, productImage: _, ...productData } = dto;
+    
     try {
-      return await this.product.create({
-        data: {
-          ...productData,
-          product_category: {
-            connect: { category_id: category_id },
-          },
-        }
+      const dataToCreate: any = {
+        ...productData,
+        product_category: {
+          connect: { category_id: category_id },
+        },
+      };
+
+      // Si se subió una imagen, guardar la URL
+      if (productImage?.filename) {
+        dataToCreate.image_url = productImage.filename;
+      }
+
+      const product = await this.product.create({
+        data: dataToCreate,
+        include: {
+          product_category: true,
+        },
+      });
+
+      const stock = await this.inventoryService.getProductStock(product.product_id);
+      
+      return new ProductResponseDto({
+        ...product,
+        price: product.price as any,
+        volume_liters: product.volume_liters as any,
+        total_stock: stock,
+        image_url: product.image_url ? `/public/uploads/products/${product.image_url}` : null,
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -163,15 +188,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async updateProductById(id: number, dto: UpdateProductDto): Promise<ProductPrisma> {
+  async updateProductById(id: number, dto: UpdateProductDto, productImage?: any): Promise<ProductResponseDto> {
     await this.getProductById(id);
-    const { category_id, ...productUpdateData } = dto;
+    const { category_id, productImage: _, ...productUpdateData } = dto;
 
     if (category_id) {
       await this.validateCategoryExists(category_id);
     }
 
-    const dataToUpdate: Prisma.productUpdateInput = { ...productUpdateData };
+    const dataToUpdate: any = { ...productUpdateData };
     
     if (category_id) {
       dataToUpdate.product_category = {
@@ -179,10 +204,28 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       };
     }
 
+    // Si se subió una nueva imagen, actualizar la URL
+    if (productImage?.filename) {
+      dataToUpdate.image_url = productImage.filename;
+    }
+
     try {
-      return await this.product.update({
+      const updatedProduct = await this.product.update({
         where: { product_id: id },
         data: dataToUpdate,
+        include: {
+          product_category: true,
+        },
+      });
+
+      const stock = await this.inventoryService.getProductStock(id);
+      
+      return new ProductResponseDto({
+        ...updatedProduct,
+        price: updatedProduct.price as any,
+        volume_liters: updatedProduct.volume_liters as any,
+        total_stock: stock,
+        image_url: updatedProduct.image_url ? `/public/uploads/products/${updatedProduct.image_url}` : null,
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -202,5 +245,57 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
+  }
+
+  async deleteProductImage(id: number): Promise<ProductResponseDto> {
+    const product = await this.getProductById(id);
+    
+    if (!product.image_url) {
+      throw new NotFoundException('El producto no tiene una imagen asociada.');
+    }
+
+    try {
+      // Extraer el nombre del archivo de la URL
+      const fileName = product.image_url.split('/').pop();
+      if (fileName) {
+        const filePath = path.join(process.cwd(), 'public', 'uploads', 'products', fileName);
+        
+        // Eliminar el archivo físico si existe
+        if (await fs.pathExists(filePath)) {
+          await fs.remove(filePath);
+        }
+      }
+
+      // Actualizar el producto eliminando la referencia a la imagen
+      const updatedProduct = await this.product.update({
+        where: { product_id: id },
+        data: { image_url: null },
+        include: {
+          product_category: true,
+        },
+      });
+
+      const stock = await this.inventoryService.getProductStock(id);
+      
+      return new ProductResponseDto({
+        ...updatedProduct,
+        price: updatedProduct.price as any,
+        volume_liters: updatedProduct.volume_liters as any,
+        total_stock: stock,
+        image_url: null,
+      });
+    } catch (error) {
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+    }
+  }
+
+  async getProductImage(id: number): Promise<{ product_id: number; image_url: string | null }> {
+    const product = await this.getProductById(id);
+    
+    return {
+      product_id: id,
+      image_url: product.image_url || null
+    };
   }
 }

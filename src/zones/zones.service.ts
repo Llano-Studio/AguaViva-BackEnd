@@ -57,7 +57,15 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
         const zones = await this.zone.findMany({
             where,
             include: {
-                locality: true,
+                locality: {
+                    include: {
+                        province: {
+                            include: {
+                                country: true
+                            }
+                        }
+                    }
+                },
                 person: true
             },
             orderBy: orderByClause,
@@ -81,7 +89,18 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
   async getZoneById(id: number): Promise<zone> {
     const record = await this.zone.findUnique({
       where: { zone_id: id },
-      include: { locality: true, person: true }
+      include: { 
+        locality: {
+          include: {
+            province: {
+              include: {
+                country: true
+              }
+            }
+          }
+        }, 
+        person: true 
+      }
     });
     if (!record) throw new NotFoundException(`${this.entityName} no encontrada.`);
     return record;

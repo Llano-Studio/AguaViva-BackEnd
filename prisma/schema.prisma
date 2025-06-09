@@ -284,6 +284,7 @@ model product {
   is_returnable             Boolean
   serial_number             String?                     @db.VarChar(50)
   notes                     String?
+  image_url                 String?                     @db.VarChar(255)
   inventory                 inventory[]
   one_off_purchase          one_off_purchase[]
   order_item                order_item[]

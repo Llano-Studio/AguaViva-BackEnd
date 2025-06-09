@@ -1,7 +1,5 @@
 import { Controller, Post, Body, Get, Put, Delete, Param, ParseEnumPipe, ParseIntPipe, Query, ValidationPipe, UseGuards, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { Role, User } from '@prisma/client';
 import { AuthService } from './auth.service';
@@ -21,25 +19,7 @@ import { GetUser } from './decorators/get-user.decorator';
 import { Auth } from './decorators/auth.decorator';
 import { RolesService } from './roles.service';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
-
-// Función auxiliar para generar nombres de archivo
-const editFileName = (req, file, callback) => {
-  const name = file.originalname.split('.')[0];
-  const fileExtName = extname(file.originalname);
-  const randomName = Array(4)
-    .fill(null)
-    .map(() => Math.round(Math.random() * 16).toString(16))
-    .join('');
-  callback(null, `${name}-${randomName}${fileExtName}`);
-};
-
-// Función auxiliar para filtrar tipos de archivo (opcional pero recomendado)
-const imageFileFilter = (req, file, callback) => {
-  if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-    return callback(new Error('¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif)!'), false);
-  }
-  callback(null, true);
-};
+import { fileUploadConfigs } from '../common/utils/file-upload.util';
 
 @ApiTags('Autenticación/Usuarios')
 @Controller('auth')
@@ -67,13 +47,7 @@ export class AuthController {
     status: 500, 
     description: 'Error en el servidor durante el registro' 
   })
-  @UseInterceptors(FileInterceptor('profileImage', { 
-    storage: diskStorage({
-      destination: './public/uploads/profile-images',
-      filename: editFileName,
-    }),
-    fileFilter: imageFileFilter, 
-  }))
+  @UseInterceptors(FileInterceptor('profileImage', fileUploadConfigs.profileImages))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     description: 'Datos de registro del usuario con imagen de perfil opcional',
@@ -296,13 +270,7 @@ export class AuthController {
     status: 403, 
     description: 'Prohibido - El usuario no tiene rol de ADMIN' 
   })
-  @UseInterceptors(FileInterceptor('profileImage', { 
-    storage: diskStorage({
-      destination: './public/uploads/profile-images',
-      filename: editFileName,
-    }),
-    fileFilter: imageFileFilter,
-  }))
+  @UseInterceptors(FileInterceptor('profileImage', fileUploadConfigs.profileImages))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     description: 'Datos para crear un nuevo usuario, incluyendo rol e imagen de perfil opcional.',
@@ -344,13 +312,7 @@ export class AuthController {
     status: 403, 
     description: 'Prohibido - El usuario no tiene rol de ADMIN' 
   })
-  @UseInterceptors(FileInterceptor('profileImage', { 
-    storage: diskStorage({
-      destination: './public/uploads/profile-images',
-      filename: editFileName,
-    }),
-    fileFilter: imageFileFilter,
-  }))
+  @UseInterceptors(FileInterceptor('profileImage', fileUploadConfigs.profileImages))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     description: 'Datos para actualizar el usuario. Todos los campos son opcionales.',

@@ -5,6 +5,9 @@ import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
 import { ZonesModule } from './zones/zones.module';
+import { CountriesModule } from './countries/countries.module';
+import { ProvincesModule } from './provinces/provinces.module';
+import { LocalitiesModule } from './localities/localities.module';
 import { VehicleModule } from './vehicule/vehicle.module';
 import { VehiculeInventoryModule } from './vehicule-inventory/vehicule-inventory.module';
 import { ProductModule } from './product/product.module';
@@ -28,6 +31,9 @@ import environmentConfig from './common/config/environment.config';
     AuthModule,
     MailModule,
     ZonesModule,
+    CountriesModule,
+    ProvincesModule,
+    LocalitiesModule,
     VehicleModule,
     VehiculeInventoryModule,
     ProductModule,

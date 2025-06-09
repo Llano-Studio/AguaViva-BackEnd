@@ -60,6 +60,18 @@ async function bootstrap() {
     prefix: '/public/',
   });
 
+  // Asegurar que los directorios de upload existan
+  const uploadsDirectories = [
+    './public/uploads/profile-images',
+    './public/uploads/products',
+    './public/uploads/evidence'
+  ];
+  
+  uploadsDirectories.forEach(dir => {
+    const fs = require('fs-extra');
+    fs.ensureDirSync(dir);
+  });
+
   app.enableShutdownHooks();  
 
   // Swagger

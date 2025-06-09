@@ -94,7 +94,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zoneId: personEntity.zone_id === null ? 0 : personEntity.zone_id,
       taxId: personEntity.tax_id || '',
       type: personEntity.type as any,
-      registrationDate: personEntity.registration_date.toISOString(),
       registration_date: personEntity.registration_date,
       locality: personEntity.locality as any,
       zone: personEntity.zone as any,
@@ -194,11 +193,33 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (localityId) where.locality_id = localityId;
     if (zoneId) where.zone_id = zoneId;
 
-    const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
+    // Verificar si se debe ordenar por semáforo
+    const shouldSortBySemaphore = sortBy && sortBy.includes('payment_semaphore_status');
+    
+    // Separar campos de ordenamiento del semáforo y otros campos
+    let semaphoreSortDirection: 'asc' | 'desc' = 'asc';
+    let otherSortFields = sortBy;
+    
+    if (shouldSortBySemaphore && sortBy) {
+      const sortFields = sortBy.split(',').map(field => field.trim());
+      const nonSemaphoreFields: string[] = [];
+      
+      for (const field of sortFields) {
+        if (field === 'payment_semaphore_status' || field === '-payment_semaphore_status') {
+          semaphoreSortDirection = field.startsWith('-') ? 'desc' : 'asc';
+        } else {
+          nonSemaphoreFields.push(field);
+        }
+      }
+      
+      otherSortFields = nonSemaphoreFields.length > 0 ? nonSemaphoreFields.join(',') : undefined;
+    }
+
+    const orderByClause = parseSortByString(otherSortFields, [{ name: 'asc' }]);
 
     try {
-      // Si se filtra por semáforo, necesitamos obtener todas las personas para calcular el semáforo
-      if (payment_semaphore_status) {
+      // Si se filtra por semáforo O se ordena por semáforo, necesitamos obtener todas las personas para calcular el semáforo
+      if (payment_semaphore_status || shouldSortBySemaphore) {
         const allPersonsFromDb = await this.person.findMany({
           where,
           include: {
@@ -212,22 +233,42 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const personIds = allPersonsFromDb.map(p => p.person_id);
         const semaphoreMap = await this.paymentSemaphoreService.preCalculateForPersons(personIds);
 
-        // Filtrar por estado de semáforo y procesar
-        let processedAndFilteredPersons: PersonResponseDto[] = [];
+        // Procesar todas las personas con semáforos
+        let processedPersons: PersonResponseDto[] = [];
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
-          if (semaphoreStatus === payment_semaphore_status) {
-            const loanedProducts = await this.getLoanedProducts(person.person_id);
-            processedAndFilteredPersons.push(
-              this.mapToPersonResponseDto(person, loanedProducts, semaphoreStatus)
-            );
+          
+          // Si hay filtro por semáforo, aplicar filtro
+          if (payment_semaphore_status && semaphoreStatus !== payment_semaphore_status) {
+            continue;
           }
+          
+          const loanedProducts = await this.getLoanedProducts(person.person_id);
+          processedPersons.push(
+            this.mapToPersonResponseDto(person, loanedProducts, semaphoreStatus)
+          );
         }
 
-        const totalFiltered = processedAndFilteredPersons.length;
+        // Ordenar por semáforo si es necesario
+        if (shouldSortBySemaphore) {
+          const semaphoreOrder = ['NONE', 'GREEN', 'YELLOW', 'RED'];
+          processedPersons.sort((a, b) => {
+            const aIndex = semaphoreOrder.indexOf(a.payment_semaphore_status);
+            const bIndex = semaphoreOrder.indexOf(b.payment_semaphore_status);
+            
+            const result = semaphoreSortDirection === 'asc' 
+              ? aIndex - bIndex 
+              : bIndex - aIndex;
+            
+            // Si los semáforos son iguales, mantener el orden existente (por nombre u otros campos)
+            return result !== 0 ? result : 0;
+          });
+        }
+
+        const totalFiltered = processedPersons.length;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
-        const paginatedData = processedAndFilteredPersons.slice(skip, skip + take);
+        const paginatedData = processedPersons.slice(skip, skip + take);
 
         return { 
           data: paginatedData, 
@@ -237,7 +278,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           totalPages: Math.ceil(totalFiltered / take) 
         };
       } else {
-        // Sin filtro de semáforo, podemos aplicar paginación directamente en la BD
+        // Sin filtro de semáforo ni ordenamiento por semáforo, podemos aplicar paginación directamente en la BD
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
 
