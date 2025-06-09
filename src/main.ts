@@ -60,11 +60,12 @@ async function bootstrap() {
     prefix: '/public/',
   });
 
-  // Asegurar que los directorios de upload existan
   const uploadsDirectories = [
     './public/uploads/profile-images',
     './public/uploads/products',
-    './public/uploads/evidence'
+    './public/uploads/evidence',
+    './public/uploads/delivery-evidence',
+    './public/uploads/reconciliations',
   ];
   
   uploadsDirectories.forEach(dir => {

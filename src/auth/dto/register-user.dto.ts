@@ -1,5 +1,6 @@
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength, IsOptional, IsBoolean, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
 
 export class RegisterUserDto {
   @IsEmail()
@@ -26,4 +27,12 @@ export class RegisterUserDto {
   })
   @IsOptional()
   profileImage?: any; 
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+
+  @IsEnum(Role)
+  @IsOptional()
+  role?: Role;
 } 
