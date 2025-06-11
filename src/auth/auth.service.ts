@@ -13,6 +13,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FilterUsersDto } from './dto/filter-users.dto';
 import { UserResponseDto } from './dto/user-response.dto';
+import { AssignVehiclesToUserDto, UserVehicleResponseDto } from './dto/assign-vehicles.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
@@ -494,6 +495,189 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, 'Token de refresco');
       throw new InternalServerErrorException('Error al procesar el token de refresco.');
     }
+  }
+
+  // Métodos para manejo de vehículos
+
+  async assignVehiclesToUser(userId: number, dto: AssignVehiclesToUserDto): Promise<UserVehicleResponseDto[]> {
+    // Verificar que el usuario existe
+    await this.getUserById(userId);
+
+    // Verificar que todos los vehículos existen
+    const vehicles = await this.vehicle.findMany({
+      where: { vehicle_id: { in: dto.vehicleIds } }
+    });
+
+    if (vehicles.length !== dto.vehicleIds.length) {
+      const foundIds = vehicles.map(v => v.vehicle_id);
+      const missingIds = dto.vehicleIds.filter(id => !foundIds.includes(id));
+      throw new BadRequestException(`Los siguientes vehículos no existen: ${missingIds.join(', ')}`);
+    }
+
+    try {
+      return await this.$transaction(async (prisma) => {
+        // Desactivar asignaciones previas si se especifica
+        if (dto.isActive !== false) {
+          await prisma.user_vehicle.updateMany({
+            where: { user_id: userId },
+            data: { is_active: false }
+          });
+        }
+
+        // Crear nuevas asignaciones
+        const assignments = await Promise.all(
+          dto.vehicleIds.map(async (vehicleId) => {
+            // Verificar si ya existe la relación
+            const existingAssignment = await prisma.user_vehicle.findFirst({
+              where: { user_id: userId, vehicle_id: vehicleId }
+            });
+
+            if (existingAssignment) {
+              // Actualizar la existente
+              return await prisma.user_vehicle.update({
+                where: { user_vehicle_id: existingAssignment.user_vehicle_id },
+                data: {
+                  is_active: dto.isActive ?? true,
+                  notes: dto.notes,
+                  assigned_at: new Date()
+                },
+                include: {
+                  vehicle: true,
+                  user: true
+                }
+              });
+            } else {
+              // Crear nueva
+              return await prisma.user_vehicle.create({
+                data: {
+                  user_id: userId,
+                  vehicle_id: vehicleId,
+                  is_active: dto.isActive ?? true,
+                  notes: dto.notes
+                },
+                include: {
+                  vehicle: true,
+                  user: true
+                }
+              });
+            }
+          })
+        );
+
+        return assignments.map(this.mapToUserVehicleResponseDto);
+      });
+    } catch (error) {
+      handlePrismaError(error, 'Asignación de vehículos');
+      throw new InternalServerErrorException('Error no manejado al asignar vehículos al usuario');
+    }
+  }
+
+  async getUserVehicles(userId: number, activeOnly: boolean = true): Promise<UserVehicleResponseDto[]> {
+    await this.getUserById(userId);
+
+    try {
+      const userVehicles = await this.user_vehicle.findMany({
+        where: { 
+          user_id: userId,
+          ...(activeOnly && { is_active: true })
+        },
+        include: {
+          vehicle: true,
+          user: true
+        },
+        orderBy: { assigned_at: 'desc' }
+      });
+
+      return userVehicles.map(this.mapToUserVehicleResponseDto);
+    } catch (error) {
+      handlePrismaError(error, 'Vehículos del usuario');
+      throw new InternalServerErrorException('Error no manejado al obtener vehículos del usuario');
+    }
+  }
+
+  async removeVehicleFromUser(userId: number, vehicleId: number): Promise<{ message: string, removed: boolean }> {
+    await this.getUserById(userId);
+
+    const existingAssignment = await this.user_vehicle.findFirst({
+      where: { user_id: userId, vehicle_id: vehicleId, is_active: true }
+    });
+
+    if (!existingAssignment) {
+      throw new NotFoundException(`No existe una asignación activa entre el usuario ${userId} y el vehículo ${vehicleId}`);
+    }
+
+    try {
+      await this.user_vehicle.update({
+        where: { user_vehicle_id: existingAssignment.user_vehicle_id },
+        data: { is_active: false }
+      });
+
+      return { 
+        message: 'Vehículo removido del usuario correctamente', 
+        removed: true 
+      };
+    } catch (error) {
+      handlePrismaError(error, 'Remoción de vehículo');
+      throw new InternalServerErrorException('Error no manejado al remover vehículo del usuario');
+    }
+  }
+
+  async getVehicleUsers(vehicleId: number, activeOnly: boolean = true): Promise<UserResponseDto[]> {
+    // Verificar que el vehículo existe
+    const vehicle = await this.vehicle.findUnique({ where: { vehicle_id: vehicleId } });
+    if (!vehicle) {
+      throw new NotFoundException(`Vehículo con ID ${vehicleId} no encontrado`);
+    }
+
+    try {
+      const userVehicles = await this.user_vehicle.findMany({
+        where: { 
+          vehicle_id: vehicleId,
+          ...(activeOnly && { is_active: true })
+        },
+        include: {
+          user: true
+        },
+        orderBy: { assigned_at: 'desc' }
+      });
+
+      return userVehicles.map(uv => new UserResponseDto({
+        id: uv.user.id,
+        email: uv.user.email,
+        name: uv.user.name,
+        role: uv.user.role,
+        isActive: uv.user.isActive,
+        createdAt: uv.user.createdAt.toISOString(),
+        updatedAt: uv.user.updatedAt?.toISOString(),
+        profileImageUrl: this.buildProfileImageUrl(uv.user.profileImageUrl)
+      }));
+    } catch (error) {
+      handlePrismaError(error, 'Usuarios del vehículo');
+      throw new InternalServerErrorException('Error no manejado al obtener usuarios del vehículo');
+    }
+  }
+
+  private mapToUserVehicleResponseDto(userVehicle: any): UserVehicleResponseDto {
+    return {
+      user_vehicle_id: userVehicle.user_vehicle_id,
+      user_id: userVehicle.user_id,
+      vehicle_id: userVehicle.vehicle_id,
+      assigned_at: userVehicle.assigned_at.toISOString(),
+      is_active: userVehicle.is_active,
+      notes: userVehicle.notes || undefined,
+      vehicle: {
+        vehicle_id: userVehicle.vehicle.vehicle_id,
+        code: userVehicle.vehicle.code,
+        name: userVehicle.vehicle.name,
+        description: userVehicle.vehicle.description || undefined
+      },
+      user: {
+        id: userVehicle.user.id,
+        name: userVehicle.user.name,
+        email: userVehicle.user.email,
+        role: userVehicle.user.role
+      }
+    };
   }
 }
 

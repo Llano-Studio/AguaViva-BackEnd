@@ -13,7 +13,9 @@ import {
   ResetPasswordDto,
   CreateUserDto,
   FilterUsersDto,
-  UserResponseDto
+  UserResponseDto,
+  AssignVehiclesToUserDto,
+  UserVehicleResponseDto
 } from './dto/';
 import { GetUser } from './decorators/get-user.decorator';
 import { Auth } from './decorators/auth.decorator';
@@ -471,5 +473,89 @@ export class AuthController {
     @Param('role', new ParseEnumPipe(Role)) role: Role,
   ): string[] {
     return this.rolesService.getModulesForRole(role);
+  }
+
+  // Endpoints de gestión de vehículos
+
+  @Post('users/:id/vehicles')
+  @Auth(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Asignar vehículos a un usuario',
+    description: 'Asigna uno o más vehículos a un usuario para que pueda manejarlos. Se pueden desactivar asignaciones previas.'
+  })
+  @ApiParam({ name: 'id', description: 'ID del usuario', type: Number })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Vehículos asignados correctamente.', 
+    type: [UserVehicleResponseDto] 
+  })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o vehículos no encontrados.' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  assignVehiclesToUser(
+    @Param('id', ParseIntPipe) userId: number,
+    @Body(ValidationPipe) dto: AssignVehiclesToUserDto
+  ): Promise<UserVehicleResponseDto[]> {
+    return this.authService.assignVehiclesToUser(userId, dto);
+  }
+
+  @Get('users/:id/vehicles')
+  @Auth(Role.ADMIN, Role.USER)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Obtener vehículos asignados a un usuario',
+    description: 'Lista todos los vehículos que puede manejar un usuario específico.'
+  })
+  @ApiParam({ name: 'id', description: 'ID del usuario', type: Number })
+  @ApiQuery({ 
+    name: 'activeOnly', 
+    required: false, 
+    type: Boolean, 
+    description: 'Solo mostrar asignaciones activas', 
+    example: true 
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Lista de vehículos del usuario.', 
+    type: [UserVehicleResponseDto] 
+  })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  getUserVehicles(
+    @Param('id', ParseIntPipe) userId: number,
+    @Query('activeOnly') activeOnly?: boolean
+  ): Promise<UserVehicleResponseDto[]> {
+    return this.authService.getUserVehicles(userId, activeOnly ?? true);
+  }
+
+  @Delete('users/:userId/vehicles/:vehicleId')
+  @Auth(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Remover vehículo de un usuario',
+    description: 'Desactiva la asignación de un vehículo específico a un usuario.'
+  })
+  @ApiParam({ name: 'userId', description: 'ID del usuario', type: Number })
+  @ApiParam({ name: 'vehicleId', description: 'ID del vehículo', type: Number })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Vehículo removido correctamente.', 
+    schema: { 
+      properties: { 
+        message: { type: 'string' }, 
+        removed: { type: 'boolean' } 
+      } 
+    } 
+  })
+  @ApiResponse({ status: 404, description: 'Usuario o asignación no encontrada.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  removeVehicleFromUser(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('vehicleId', ParseIntPipe) vehicleId: number
+  ): Promise<{ message: string, removed: boolean }> {
+    return this.authService.removeVehicleFromUser(userId, vehicleId);
   }
 }

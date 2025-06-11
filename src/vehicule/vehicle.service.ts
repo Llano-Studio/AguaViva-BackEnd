@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { Prisma, PrismaClient, vehicle as VehiclePrisma } from '@prisma/client';
-import { CreateVehicleDto, UpdateVehicleDto, FilterVehiclesDto, VehicleResponseDto, PaginatedVehicleResponseDto } from './dto';
+import { CreateVehicleDto, UpdateVehicleDto, FilterVehiclesDto, VehicleResponseDto, PaginatedVehicleResponseDto, AssignZonesToVehicleDto, VehicleZoneResponseDto } from './dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
@@ -143,5 +143,252 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
     }
+  }
+
+  // Métodos para manejo de zonas
+
+  async assignZonesToVehicle(vehicleId: number, dto: AssignZonesToVehicleDto): Promise<VehicleZoneResponseDto[]> {
+    // Verificar que el vehículo existe
+    await this.getVehicleById(vehicleId);
+
+    // Verificar que todas las zonas existen
+    const zones = await this.zone.findMany({
+      where: { zone_id: { in: dto.zoneIds } }
+    });
+
+    if (zones.length !== dto.zoneIds.length) {
+      const foundIds = zones.map(z => z.zone_id);
+      const missingIds = dto.zoneIds.filter(id => !foundIds.includes(id));
+      throw new BadRequestException(`Las siguientes zonas no existen: ${missingIds.join(', ')}`);
+    }
+
+    try {
+      return await this.$transaction(async (prisma) => {
+        // Desactivar asignaciones previas si se especifica
+        if (dto.isActive !== false) {
+          await prisma.vehicle_zone.updateMany({
+            where: { vehicle_id: vehicleId },
+            data: { is_active: false }
+          });
+        }
+
+        // Crear nuevas asignaciones
+        const assignments = await Promise.all(
+          dto.zoneIds.map(async (zoneId) => {
+            // Verificar si ya existe la relación
+            const existingAssignment = await prisma.vehicle_zone.findFirst({
+              where: { vehicle_id: vehicleId, zone_id: zoneId }
+            });
+
+            if (existingAssignment) {
+              // Actualizar la existente
+              return await prisma.vehicle_zone.update({
+                where: { vehicle_zone_id: existingAssignment.vehicle_zone_id },
+                data: {
+                  is_active: dto.isActive ?? true,
+                  notes: dto.notes,
+                  assigned_at: new Date()
+                },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+            } else {
+              // Crear nueva
+              return await prisma.vehicle_zone.create({
+                data: {
+                  vehicle_id: vehicleId,
+                  zone_id: zoneId,
+                  is_active: dto.isActive ?? true,
+                  notes: dto.notes
+                },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              });
+            }
+          })
+        );
+
+        return assignments.map(this.mapToVehicleZoneResponseDto);
+      });
+    } catch (error) {
+      handlePrismaError(error, 'Asignación de zonas');
+      throw new InternalServerErrorException('Error no manejado al asignar zonas al vehículo');
+    }
+  }
+
+  async getVehicleZones(vehicleId: number, activeOnly: boolean = true): Promise<VehicleZoneResponseDto[]> {
+    await this.getVehicleById(vehicleId);
+
+    try {
+      const vehicleZones = await this.vehicle_zone.findMany({
+        where: { 
+          vehicle_id: vehicleId,
+          ...(activeOnly && { is_active: true })
+        },
+        include: {
+          zone: {
+            include: {
+              locality: {
+                include: {
+                  province: {
+                    include: {
+                      country: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        orderBy: { assigned_at: 'desc' }
+      });
+
+      return vehicleZones.map(this.mapToVehicleZoneResponseDto);
+    } catch (error) {
+      handlePrismaError(error, 'Zonas del vehículo');
+      throw new InternalServerErrorException('Error no manejado al obtener zonas del vehículo');
+    }
+  }
+
+  async removeZoneFromVehicle(vehicleId: number, zoneId: number): Promise<{ message: string, removed: boolean }> {
+    await this.getVehicleById(vehicleId);
+
+    const existingAssignment = await this.vehicle_zone.findFirst({
+      where: { vehicle_id: vehicleId, zone_id: zoneId, is_active: true }
+    });
+
+    if (!existingAssignment) {
+      throw new NotFoundException(`No existe una asignación activa entre el vehículo ${vehicleId} y la zona ${zoneId}`);
+    }
+
+    try {
+      await this.vehicle_zone.update({
+        where: { vehicle_zone_id: existingAssignment.vehicle_zone_id },
+        data: { is_active: false }
+      });
+
+      return { 
+        message: 'Zona removida del vehículo correctamente', 
+        removed: true 
+      };
+    } catch (error) {
+      handlePrismaError(error, 'Remoción de zona');
+      throw new InternalServerErrorException('Error no manejado al remover zona del vehículo');
+    }
+  }
+
+  async getZoneVehicles(zoneId: number, activeOnly: boolean = true): Promise<VehicleResponseDto[]> {
+    // Verificar que la zona existe
+    const zone = await this.zone.findUnique({ where: { zone_id: zoneId } });
+    if (!zone) {
+      throw new NotFoundException(`Zona con ID ${zoneId} no encontrada`);
+    }
+
+    try {
+      const vehicleZones = await this.vehicle_zone.findMany({
+        where: { 
+          zone_id: zoneId,
+          ...(activeOnly && { is_active: true })
+        },
+        include: {
+          vehicle: true
+        },
+        orderBy: { assigned_at: 'desc' }
+      });
+
+      return vehicleZones.map(vz => this.toVehicleResponseDto(vz.vehicle));
+    } catch (error) {
+      handlePrismaError(error, 'Vehículos de la zona');
+      throw new InternalServerErrorException('Error no manejado al obtener vehículos de la zona');
+    }
+  }
+
+  async getVehicleUsers(vehicleId: number, activeOnly: boolean = true) {
+    // Verificar que el vehículo existe
+    await this.getVehicleById(vehicleId);
+
+    try {
+      const userVehicles = await this.user_vehicle.findMany({
+        where: { 
+          vehicle_id: vehicleId,
+          ...(activeOnly && { is_active: true })
+        },
+        include: {
+          user: true
+        },
+        orderBy: { assigned_at: 'desc' }
+      });
+
+      return userVehicles.map(uv => ({
+        id: uv.user.id,
+        name: uv.user.name,
+        email: uv.user.email,
+        role: uv.user.role,
+        isActive: uv.user.isActive,
+        createdAt: uv.user.createdAt.toISOString(),
+        updatedAt: uv.user.updatedAt?.toISOString(),
+        profileImageUrl: undefined // No tenemos acceso al buildProfileImageUrl aquí
+      }));
+    } catch (error) {
+      handlePrismaError(error, 'Usuarios del vehículo');
+      throw new InternalServerErrorException('Error no manejado al obtener usuarios del vehículo');
+    }
+  }
+
+  private mapToVehicleZoneResponseDto(vehicleZone: any): VehicleZoneResponseDto {
+    return {
+      vehicle_zone_id: vehicleZone.vehicle_zone_id,
+      vehicle_id: vehicleZone.vehicle_id,
+      zone_id: vehicleZone.zone_id,
+      assigned_at: vehicleZone.assigned_at.toISOString(),
+      is_active: vehicleZone.is_active,
+      notes: vehicleZone.notes || undefined,
+      zone: {
+        zone_id: vehicleZone.zone.zone_id,
+        code: vehicleZone.zone.code,
+        name: vehicleZone.zone.name,
+        locality: {
+          locality_id: vehicleZone.zone.locality.locality_id,
+          code: vehicleZone.zone.locality.code,
+          name: vehicleZone.zone.locality.name,
+          province: {
+            province_id: vehicleZone.zone.locality.province.province_id,
+            code: vehicleZone.zone.locality.province.code,
+            name: vehicleZone.zone.locality.province.name,
+            country: {
+              country_id: vehicleZone.zone.locality.province.country.country_id,
+              code: vehicleZone.zone.locality.province.country.code,
+              name: vehicleZone.zone.locality.province.country.name
+            }
+          }
+        }
+      }
+    };
   }
 }

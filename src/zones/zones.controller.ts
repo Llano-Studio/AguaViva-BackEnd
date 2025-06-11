@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors, Query,
+  Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseInterceptors, Query, Inject,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
@@ -9,18 +9,22 @@ import { ZonesService } from './zones.service';
 import { CreateZoneDto, UpdateZoneDto, FilterZonesDto } from './dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
+import { VehicleService } from '../vehicule/vehicle.service';
 
 @ApiTags('Zonas')
 @ApiBearerAuth()
 @Auth(Role.ADMIN, Role.USER)
 @Controller('zones')
 export class ZonesController {
-  constructor(private readonly zonesService: ZonesService) { }
+  constructor(
+    private readonly zonesService: ZonesService,
+    private readonly vehicleService: VehicleService
+  ) { }
 
   @Post()
   @ApiOperation({ 
     summary: 'Crear una zona', 
-    description: 'Crea una nueva zona geográfica en el sistema. Las zonas se utilizan para organizar clientes y planificar rutas de entrega.'
+    description: 'Crea una nueva zona geográfica en el sistema. Las zonas pertenecen a una localidad específica y se utilizan para organizar clientes y planificar rutas de entrega. Pueden existir múltiples zonas con el mismo nombre en diferentes localidades.'
   })
   @ApiBody({
     description: 'Datos de la zona a crear',
@@ -28,8 +32,9 @@ export class ZonesController {
     examples: {
       example1: {
         value: {
-          name: 'Zona Norte',
-          code: 'ZN-001'
+          name: 'Zona Centro',
+          code: 'ZC-001',
+          localityId: 1
         }
       }
     }
@@ -40,15 +45,37 @@ export class ZonesController {
     schema: {
       properties: {
         zone_id: { type: 'number', example: 1 },
-        name: { type: 'string', example: 'Zona Norte' },
-        code: { type: 'string', example: 'ZN-001' }
+        name: { type: 'string', example: 'Zona Centro' },
+        code: { type: 'string', example: 'ZC-001' },
+        locality_id: { type: 'number', example: 1 },
+        locality: {
+          properties: {
+            locality_id: { type: 'number' },
+            code: { type: 'string' },
+            name: { type: 'string' },
+            province: {
+              properties: {
+                province_id: { type: 'number' },
+                code: { type: 'string' },
+                name: { type: 'string' },
+                country: {
+                  properties: {
+                    country_id: { type: 'number' },
+                    code: { type: 'string' },
+                    name: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o localidad no encontrada.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El código de la zona ya existe.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe una zona con el mismo código en esta localidad.' })
   createZone(
     @Body() dto: CreateZoneDto
   ) {
@@ -184,7 +211,7 @@ export class ZonesController {
   })
   @ApiOperation({ 
     summary: 'Actualizar zona',
-    description: 'Actualiza la información de una zona existente. Solo se modifican los campos proporcionados en la solicitud.'
+    description: 'Actualiza la información de una zona existente. Solo se modifican los campos proporcionados en la solicitud. La zona puede cambiarse de localidad si se especifica un nuevo localityId.'
   })
   @ApiBody({
     description: 'Datos de la zona a actualizar',
@@ -192,7 +219,8 @@ export class ZonesController {
     examples: {
       example1: {
         value: {
-          name: 'Zona Norte Actualizada'
+          name: 'Zona Centro Actualizada',
+          localityId: 2
         }
       }
     }
@@ -203,16 +231,38 @@ export class ZonesController {
     schema: {
       properties: {
         zone_id: { type: 'number', example: 1 },
-        name: { type: 'string', example: 'Zona Norte Actualizada' },
-        code: { type: 'string', example: 'ZN-001' }
+        name: { type: 'string', example: 'Zona Centro Actualizada' },
+        code: { type: 'string', example: 'ZC-001' },
+        locality_id: { type: 'number', example: 2 },
+        locality: {
+          properties: {
+            locality_id: { type: 'number' },
+            code: { type: 'string' },
+            name: { type: 'string' },
+            province: {
+              properties: {
+                province_id: { type: 'number' },
+                code: { type: 'string' },
+                name: { type: 'string' },
+                country: {
+                  properties: {
+                    country_id: { type: 'number' },
+                    code: { type: 'string' },
+                    name: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   })
   @ApiResponse({ status: 404, description: 'Zona no encontrada.' })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o localidad no encontrada.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El código de la zona ya está en uso.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe una zona con el mismo código en la localidad destino.' })
   updateZoneById(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateZoneDto,
@@ -247,5 +297,48 @@ export class ZonesController {
   @ApiResponse({ status: 409, description: 'Conflicto - La zona está en uso y no puede ser eliminada.' })
   deleteZoneById(@Param('id', ParseIntPipe) id: number) {
     return this.zonesService.deleteZoneById(id);
+  }
+
+  @Get(':id/vehicles')
+  @ApiParam({ 
+    name: 'id', 
+    type: Number, 
+    description: 'ID de la zona',
+    example: 1
+  })
+  @ApiQuery({ 
+    name: 'activeOnly', 
+    required: false, 
+    type: Boolean, 
+    description: 'Solo mostrar vehículos con asignaciones activas', 
+    example: true 
+  })
+  @ApiOperation({ 
+    summary: 'Obtener vehículos que circulan en una zona',
+    description: 'Lista todos los vehículos que están asignados para circular en una zona específica.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Lista de vehículos de la zona obtenida exitosamente',
+    schema: {
+      type: 'array',
+      items: {
+        properties: {
+          vehicle_id: { type: 'number' },
+          code: { type: 'string' },
+          name: { type: 'string' },
+          description: { type: 'string' }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 404, description: 'Zona no encontrada.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  getZoneVehicles(
+    @Param('id', ParseIntPipe) zoneId: number,
+    @Query('activeOnly') activeOnly?: boolean
+  ) {
+    return this.vehicleService.getZoneVehicles(zoneId, activeOnly ?? true);
   }
 }

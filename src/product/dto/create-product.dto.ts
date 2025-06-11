@@ -43,5 +43,5 @@ export class CreateProductDto {
     required: false
   })
   @IsOptional()
-  productImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
+  productImage?: any; 
 }

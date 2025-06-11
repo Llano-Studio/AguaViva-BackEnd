@@ -19,7 +19,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
               country: true
             }
           },
-          zone: true
+          zones: true
         },
         orderBy: {
           name: 'asc'
@@ -41,7 +41,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
               country: true
             }
           },
-          zone: true
+          zones: true
         }
       });
       

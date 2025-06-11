@@ -19,12 +19,13 @@ model User {
   recoveryToken        String?               @unique
   recoveryTokenExpires DateTime?
   profileImageUrl      String?
-  route_sheet          route_sheet[]
+  refresh_tokens       RefreshToken[]
   incidents_created    delivery_incident[]   @relation("incidentCreator")
   incidents_resolved   delivery_incident[]   @relation("incidentResolver")
   delivery_stats       delivery_stats[]
-  refresh_tokens       RefreshToken[]
   payment_transactions payment_transaction[]
+  route_sheet          route_sheet[]
+  user_vehicle         user_vehicle[]
 }
 
 model client_contract {
@@ -65,8 +66,8 @@ model customer_subscription {
   status               SubscriptionStatus
   notes                String?
   subscription_plan    subscription_plan    @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
-  subscription_cycle   subscription_cycle[]
   order_header         order_header[]
+  subscription_cycle   subscription_cycle[]
 
   @@index([status])
 }
@@ -75,10 +76,10 @@ model installment_order_link {
   link_id                 Int                 @id @default(autoincrement())
   installment_id          Int
   order_id                Int
+  order_itemOrder_item_id Int?
   payment_installment     payment_installment @relation(fields: [installment_id], references: [installment_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_installment_order_installment")
   order_header            order_header        @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_installment_order_order")
   order_item              order_item?         @relation(fields: [order_itemOrder_item_id], references: [order_item_id])
-  order_itemOrder_item_id Int?
 }
 
 model inventory {
@@ -96,9 +97,8 @@ model locality {
   province_id      Int                @db.SmallInt
   code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
-  zone_id          Int?               @db.SmallInt
   province         province           @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
-  zone             zone?              @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_zone")
+  zones            zone[]
   one_off_purchase one_off_purchase[]
   person           person[]
   warehouse        warehouse[]
@@ -132,9 +132,7 @@ model one_off_purchase {
 model order_header {
   order_id                Int                      @id @default(autoincrement())
   customer_id             Int
-  customer                person                   @relation("OrderHeaderToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   contract_id             Int?
-  subscription_id         Int?
   sale_channel_id         Int                      @default(1) @db.SmallInt
   order_date              DateTime                 @db.Timestamp(6)
   scheduled_delivery_date DateTime?                @db.Timestamp(6)
@@ -144,10 +142,12 @@ model order_header {
   order_type              OrderType
   status                  OrderStatus
   notes                   String?
+  subscription_id         Int?
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
-  customer_subscription   customer_subscription?   @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction)
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
+  customer                person                   @relation("OrderHeaderToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  customer_subscription   customer_subscription?   @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction)
   order_item              order_item[]
   payment_transaction     payment_transaction[]
   route_sheet_detail      route_sheet_detail[]
@@ -164,22 +164,22 @@ model order_item {
   subtotal               Decimal                  @db.Decimal(10, 2)
   delivered_quantity     Int?                     @default(0)
   returned_quantity      Int?                     @default(0)
-  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_order")
-  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_product")
   amount_paid            Decimal                  @db.Decimal(10, 2)
   total_amount           Decimal                  @db.Decimal(10, 2)
   installment_order_link installment_order_link[]
+  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_order")
+  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_product")
 }
 
 model payment_installment {
   installment_id         Int                      @id @default(autoincrement())
   customer_id            Int
-  customer               person                   @relation("PaymentInstallmentToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   due_date               DateTime                 @db.Timestamp(6)
   delivered_quantity     Int
   amount_paid            Decimal                  @db.Decimal(10, 2)
   total_amount           Decimal                  @db.Decimal(10, 2)
   installment_order_link installment_order_link[]
+  customer               person                   @relation("PaymentInstallmentToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model payment_line {
@@ -214,11 +214,11 @@ model payment_transaction {
   total              Decimal        @db.Decimal(10, 2)
   payment_method_id  Int            @default(1) @db.SmallInt
   notes              String?
+  user_id            Int?
   payment_line       payment_line[]
   order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
   payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
-  user_id            Int?
-  user               User?          @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  user               User?          @relation(fields: [user_id], references: [id])
 }
 
 model person {
@@ -255,9 +255,9 @@ model price_list_item {
   price_list_id      Int
   product_id         Int
   unit_price         Decimal              @db.Decimal(10, 2)
+  price_history      price_list_history[]
   price_list         price_list           @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pricelistitem_pricelist")
   product            product              @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_pricelistitem_product")
-  price_history      price_list_history[]
 }
 
 model price_list_history {
@@ -286,6 +286,7 @@ model product {
   notes                     String?
   image_url                 String?                     @db.VarChar(255)
   inventory                 inventory[]
+  inventory_transaction     inventory_transaction[]
   one_off_purchase          one_off_purchase[]
   order_item                order_item[]
   payment_line              payment_line[]
@@ -296,7 +297,6 @@ model product {
   subscription_plan_product subscription_plan_product[]
   vehicle_inventory         vehicle_inventory[]
   vehicle_route_inventory   vehicle_route_inventory[]
-  inventory_transaction     inventory_transaction[]
 }
 
 model product_category {
@@ -320,15 +320,15 @@ model route_sheet {
   vehicle_id                           Int                       @db.SmallInt
   delivery_date                        DateTime                  @db.Date
   route_notes                          String?
-  driver_reconciliation_signature_path String? // Ruta al archivo de firma de rendición del chofer
-  reconciliation_at                    DateTime? // Fecha y hora de la rendición
+  driver_reconciliation_signature_path String?
+  reconciliation_at                    DateTime?
+  delivery_stats                       delivery_stats[]
+  inventory_transaction                inventory_transaction[]
+  route_optimization                   route_optimization[]
   driver                               User                      @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_driver")
   vehicle                              vehicle                   @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_vehicle")
   route_sheet_detail                   route_sheet_detail[]
-  route_optimization                   route_optimization[]
   vehicle_route_inventory              vehicle_route_inventory[]
-  inventory_transaction                inventory_transaction[]
-  delivery_stats                       delivery_stats[]
 }
 
 model route_sheet_detail {
@@ -339,30 +339,30 @@ model route_sheet_detail {
   delivery_time          DateTime?               @db.Timestamp(6)
   comments               String?
   digital_signature_id   String?                 @db.VarChar(100)
+  actual_arrival_time    DateTime?
+  delivery_notes         String?
+  estimated_arrival_time DateTime?
   lat                    Decimal?                @db.Decimal(10, 8)
   lng                    Decimal?                @db.Decimal(10, 8)
-  estimated_arrival_time DateTime?
-  actual_arrival_time    DateTime?
-  sequence_number        Int? // Posición en la ruta optimizada
+  recipient_name         String?
   rejection_reason       String?
   reschedule_date        DateTime?
-  recipient_name         String?
-  delivery_notes         String?
-  order_header           order_header            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
-  route_sheet            route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+  sequence_number        Int?
   delivery_evidence      delivery_evidence[]
   delivery_incident      delivery_incident[]
   inventory_transaction  inventory_transaction[]
+  order_header           order_header            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
+  route_sheet            route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
 }
 
 model route_optimization {
   optimization_id     Int         @id @default(autoincrement())
   route_sheet_id      Int
   created_at          DateTime    @default(now())
-  estimated_duration  Int // Duración total estimada en minutos
-  estimated_distance  Decimal     @db.Decimal(10, 2) // Distancia total en km
-  optimization_status String // PENDING, PROCESSING, COMPLETED, FAILED
-  waypoints           Json? // Array de coordenadas ordenadas
+  estimated_duration  Int
+  estimated_distance  Decimal     @db.Decimal(10, 2)
+  optimization_status String
+  waypoints           Json?
   route_sheet         route_sheet @relation(fields: [route_sheet_id], references: [route_sheet_id])
 }
 
@@ -370,11 +370,11 @@ model vehicle_route_inventory {
   inventory_id      Int         @id @default(autoincrement())
   route_sheet_id    Int
   product_id        Int
-  initial_quantity  Int // Cantidad cargada al inicio
-  current_quantity  Int // Cantidad actual
-  returned_quantity Int // Cantidad de envases devueltos
-  route_sheet       route_sheet @relation(fields: [route_sheet_id], references: [route_sheet_id])
+  initial_quantity  Int
+  current_quantity  Int
+  returned_quantity Int
   product           product     @relation(fields: [product_id], references: [product_id])
+  route_sheet       route_sheet @relation(fields: [route_sheet_id], references: [route_sheet_id])
 }
 
 model inventory_transaction {
@@ -382,38 +382,38 @@ model inventory_transaction {
   route_sheet_id   Int
   detail_id        Int?
   product_id       Int
-  quantity         Int // Puede ser positivo (carga) o negativo (entrega)
-  transaction_type String // LOAD, DELIVERY, RETURN
+  quantity         Int
+  transaction_type String
   created_at       DateTime            @default(now())
-  route_sheet      route_sheet         @relation(fields: [route_sheet_id], references: [route_sheet_id])
   detail           route_sheet_detail? @relation(fields: [detail_id], references: [route_sheet_detail_id])
   product          product             @relation(fields: [product_id], references: [product_id])
+  route_sheet      route_sheet         @relation(fields: [route_sheet_id], references: [route_sheet_id])
 }
 
 model delivery_evidence {
   evidence_id           Int                @id @default(autoincrement())
   route_sheet_detail_id Int
-  evidence_type         String // SIGNATURE, PHOTO
+  evidence_type         String
   file_path             String
   created_at            DateTime           @default(now())
-  created_by            Int // ID del conductor
+  created_by            Int
   route_sheet_detail    route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id])
 }
 
 model delivery_incident {
   incident_id           Int                @id @default(autoincrement())
   route_sheet_detail_id Int
-  incident_type         String // CLIENT_ABSENT, WRONG_ADDRESS, ACCESS_ISSUE, etc.
+  incident_type         String
   description           String
   created_at            DateTime           @default(now())
-  created_by            Int // ID del conductor
-  status                String // PENDING, IN_PROGRESS, RESOLVED
+  created_by            Int
+  status                String
   resolution            String?
   resolved_at           DateTime?
   resolved_by           Int?
-  route_sheet_detail    route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id])
   creator               User               @relation("incidentCreator", fields: [created_by], references: [id])
   resolver              User?              @relation("incidentResolver", fields: [resolved_by], references: [id])
+  route_sheet_detail    route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id])
 }
 
 model delivery_stats {
@@ -427,12 +427,12 @@ model delivery_stats {
   completed_deliveries   Int
   rejected_deliveries    Int
   rescheduled_deliveries Int
-  avg_delivery_time      Int? // Tiempo promedio en minutos
-  avg_delay_time         Int? // Retraso promedio en minutos
+  avg_delivery_time      Int?
+  avg_delay_time         Int?
   driver                 User?        @relation(fields: [driver_id], references: [id])
+  route_sheet            route_sheet? @relation(fields: [route_sheet_id], references: [route_sheet_id])
   vehicle                vehicle?     @relation(fields: [vehicle_id], references: [vehicle_id])
   zone                   zone?        @relation(fields: [zone_id], references: [zone_id])
-  route_sheet            route_sheet? @relation(fields: [route_sheet_id], references: [route_sheet_id])
 }
 
 model sale_channel {
@@ -502,9 +502,11 @@ model vehicle {
   code              String              @unique @db.VarChar(20)
   name              String              @db.VarChar(50)
   description       String?
+  delivery_stats    delivery_stats[]
   route_sheet       route_sheet[]
   vehicle_inventory vehicle_inventory[]
-  delivery_stats    delivery_stats[]
+  vehicle_zone      vehicle_zone[]
+  user_vehicle      user_vehicle[]
 }
 
 model vehicle_inventory {
@@ -516,6 +518,38 @@ model vehicle_inventory {
   vehicle         vehicle @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vehicleinventory_vehicle")
 
   @@id([vehicle_id, product_id])
+}
+
+model vehicle_zone {
+  vehicle_zone_id Int     @id @default(autoincrement())
+  vehicle_id      Int     @db.SmallInt
+  zone_id         Int     @db.SmallInt
+  assigned_at     DateTime @default(now())
+  is_active       Boolean  @default(true)
+  notes           String?
+  vehicle         vehicle  @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vehicle_zone_vehicle")
+  zone            zone     @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_vehicle_zone_zone")
+
+  @@unique([vehicle_id, zone_id], name: "unique_vehicle_zone")
+  @@index([vehicle_id])
+  @@index([zone_id])
+  @@index([is_active])
+}
+
+model user_vehicle {
+  user_vehicle_id Int      @id @default(autoincrement())
+  user_id         Int
+  vehicle_id      Int      @db.SmallInt
+  assigned_at     DateTime @default(now())
+  is_active       Boolean  @default(true)
+  notes           String?
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_vehicle_user")
+  vehicle         vehicle  @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_vehicle_vehicle")
+
+  @@unique([user_id, vehicle_id], name: "unique_user_vehicle")
+  @@index([user_id])
+  @@index([vehicle_id])
+  @@index([is_active])
 }
 
 model warehouse {
@@ -530,21 +564,26 @@ model warehouse {
 
 model zone {
   zone_id          Int                @id @default(autoincrement()) @db.SmallInt
-  code             String             @unique @db.VarChar(10)
+  locality_id      Int                @db.SmallInt
+  code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
-  locality         locality[]
+  locality         locality           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
+  delivery_stats   delivery_stats[]
   one_off_purchase one_off_purchase[]
   person           person[]
-  delivery_stats   delivery_stats[]
+  vehicle_zone     vehicle_zone[]
+
+  @@unique([locality_id, code], name: "unique_zone_code_per_locality")
+  @@unique([locality_id, name], name: "unique_zone_name_per_locality")
 }
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
-  token     String   @unique // El token o su hash. Si es el token, debe ser lo suficientemente largo y único.
+  token     String   @unique
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum Role {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, InternalServerErrorException, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { PrismaClient, zone, Prisma } from '@prisma/client';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
@@ -12,20 +12,6 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
 
   async onModuleInit() {
     await this.$connect();
-  }
-
-  async createZone(createZoneDto: CreateZoneDto): Promise<zone> {
-    try {
-      return await this.zone.create({
-        data: createZoneDto,
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-         throw new ConflictException(`La ${this.entityName} con el código '${createZoneDto.code}' ya existe.`);
-      } 
-      handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
-    }
   }
 
   async getAllZones(filters: FilterZonesDto): Promise<{ data: zone[], total: number, page: number, limit: number, totalPages: number }> {
@@ -106,19 +92,91 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
     return record;
   }
 
-  async updateZoneById(id: number, updateZoneDto: UpdateZoneDto): Promise<zone> {
+  async createZone(createZoneDto: CreateZoneDto): Promise<any> {
+    const { localityId, ...zoneData } = createZoneDto;
+
+    // Validar que la localidad exista
+    const locality = await this.locality.findUnique({
+      where: { locality_id: localityId }
+    });
+
+    if (!locality) {
+      throw new BadRequestException(`La localidad con ID ${localityId} no existe.`);
+    }
+
+    try {
+      return await this.zone.create({
+        data: {
+          ...zoneData,
+          locality: {
+            connect: { locality_id: localityId }
+          }
+        },
+        include: {
+          locality: {
+            include: {
+              province: {
+                include: {
+                  country: true
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+         throw new ConflictException(`Ya existe una ${this.entityName.toLowerCase()} con el código '${createZoneDto.code}' en esta localidad.`);
+      } 
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+    }
+  }
+
+  async updateZoneById(id: number, updateZoneDto: UpdateZoneDto): Promise<any> {
     await this.getZoneById(id);
+    const { localityId, ...zoneData } = updateZoneDto as any;
+
+    // Validar que la localidad exista si se proporciona
+    if (localityId) {
+      const locality = await this.locality.findUnique({
+        where: { locality_id: localityId }
+      });
+
+      if (!locality) {
+        throw new BadRequestException(`La localidad con ID ${localityId} no existe.`);
+      }
+    }
+
+    const updateData: any = { ...zoneData };
+    if (localityId) {
+      updateData.locality = {
+        connect: { locality_id: localityId }
+      };
+    }
+
     try {
       return await this.zone.update({
         where: { zone_id: id },
-        data: updateZoneDto,
+        data: updateData,
+        include: {
+          locality: {
+            include: {
+              province: {
+                include: {
+                  country: true
+                }
+              }
+            }
+          }
+        }
       });
     } catch (error) {
        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const newCode = (updateZoneDto as any).code;
         const message = newCode 
-          ? `El código de ${this.entityName.toLowerCase()} '${newCode}' ya está en uso por otra ${this.entityName.toLowerCase()}.`
-          : `Conflicto de unicidad al actualizar la ${this.entityName.toLowerCase()} (ej. código duplicado).`;
+          ? `El código de ${this.entityName.toLowerCase()} '${newCode}' ya está en uso en esta localidad.`
+          : `Conflicto de unicidad al actualizar la ${this.entityName.toLowerCase()} (código duplicado en la localidad).`;
         throw new ConflictException(message);
       } 
       handlePrismaError(error, this.entityName);
@@ -126,11 +184,12 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async deleteZoneById(id: number): Promise<{ message: string, deleted: boolean }> {
+  async deleteZoneById(id: number): Promise<void> {
     await this.getZoneById(id);
     try {
-      await this.zone.delete({ where: { zone_id: id } });
-      return { message: `${this.entityName} eliminada correctamente.`, deleted: true };
+      await this.zone.delete({
+        where: { zone_id: id },
+      });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
