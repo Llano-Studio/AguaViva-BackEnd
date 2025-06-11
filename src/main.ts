@@ -23,7 +23,18 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  app.use(helmet.default());
+  app.use(helmet.default({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "blob:", "*"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'"],
+      },
+    },
+  }));
 
   app.use(compression());
 
@@ -31,15 +42,28 @@ async function bootstrap() {
   app.use(json({ limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
   app.use(urlencoded({ extended: true, limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
 
-  // CORS
+
+  app.useStaticAssets(join(process.cwd(), 'public'), { 
+    prefix: '/public/',
+    setHeaders: (res, path) => {
+      if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); 
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    },
+  });
+
   app.enableCors({
     origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    exposedHeaders: ['Content-Range', 'Content-Length', 'Accept-Ranges'],
   });
 
   const apiPrefix = configService.get('app.app.apiPrefix') || 'api';
-  app.setGlobalPrefix(apiPrefix);
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: ['/', '/health'] 
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -56,10 +80,6 @@ async function bootstrap() {
   app.useGlobalFilters(new DatabaseExceptionFilter());
 
   const uploadPath = configService.get('app.files.uploadPath') || './uploads';
-  app.useStaticAssets(join(process.cwd(), 'public'), { 
-    prefix: '/public/',
-  });
-
   const uploadsDirectories = [
     './public/uploads/profile-images',
     './public/uploads/products',

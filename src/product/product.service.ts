@@ -9,6 +9,7 @@ import { ProductResponseDto, ProductCategoryResponseDto } from './dto/product-re
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { buildImageUrl } from '../common/utils/file-upload.util';
 
 @Injectable()
 export class ProductService extends PrismaClient implements OnModuleInit {
@@ -102,7 +103,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             price: product.price as any,
             volume_liters: product.volume_liters as any,
             total_stock: stock,
-            image_url: product.image_url ? `/public/uploads/products/${product.image_url}` : null,
+            image_url: buildImageUrl(product.image_url, 'products'),
           });
         }),
       );
@@ -142,7 +143,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: productEntity.price as any,
         volume_liters: productEntity.volume_liters as any,
         total_stock: stock,
-        image_url: productEntity.image_url ? `/public/uploads/products/${productEntity.image_url}` : null,
+        image_url: buildImageUrl(productEntity.image_url, 'products'),
     });
   }
 
@@ -177,7 +178,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: product.price as any,
         volume_liters: product.volume_liters as any,
         total_stock: stock,
-        image_url: product.image_url ? `/public/uploads/products/${product.image_url}` : null,
+        image_url: buildImageUrl(product.image_url, 'products'),
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -225,7 +226,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: updatedProduct.price as any,
         volume_liters: updatedProduct.volume_liters as any,
         total_stock: stock,
-        image_url: updatedProduct.image_url ? `/public/uploads/products/${updatedProduct.image_url}` : null,
+        image_url: buildImageUrl(updatedProduct.image_url, 'products'),
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

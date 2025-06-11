@@ -15,6 +15,7 @@ import { FilterUsersDto } from './dto/filter-users.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { buildImageUrl } from '../common/utils/file-upload.util';
 
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
@@ -33,11 +34,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   }
 
   private buildProfileImageUrl(profileImageUrl: string | null): string | undefined {
-    if (!profileImageUrl) {
-      return undefined;
-    }
-    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
-    return `${appUrl}/public/uploads/profile-images/${profileImageUrl}`;
+    return buildImageUrl(profileImageUrl, 'profile-images') || undefined;
   }
 
   private generateJwtToken(payload: JwtPayload, expiresIn: string | number): string {

@@ -69,4 +69,11 @@ export const fileUploadConfigs = {
       fileSize: 10 * 1024 * 1024, // 10MB para evidencias
     }
   }
+};
+
+export const buildImageUrl = (fileName: string | null, folder: 'profile-images' | 'products' | 'evidence' | 'delivery-evidence' | 'reconciliations'): string | null => {
+  if (!fileName) {
+    return null;
+  }
+  return `/public/uploads/${folder}/${fileName}`;
 }; 
