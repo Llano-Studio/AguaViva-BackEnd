@@ -75,5 +75,5 @@ export const buildImageUrl = (fileName: string | null, folder: 'profile-images' 
   if (!fileName) {
     return null;
   }
-  return `/public/uploads/${folder}/${fileName}`;
+  return `http://localhost:3000/public/uploads/${folder}/${fileName}`;
 }; 
