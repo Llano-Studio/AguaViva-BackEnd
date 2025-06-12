@@ -20,6 +20,10 @@ export class FilterProductsDto extends PaginationQueryDto {
   @IsInt()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
+      // Verificar que es solo dígitos (y opcional signo negativo)
+      if (!/^-?\d+$/.test(value.trim())) {
+        return value; // Devolver valor original para que falle la validación
+      }
       const num = parseInt(value, 10);
       return isNaN(num) ? value : num;
     }

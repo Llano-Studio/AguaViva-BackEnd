@@ -7,6 +7,9 @@ export class CreateProductDto {
   @IsInt()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
+      if (!/^-?\d+$/.test(value.trim())) {
+        return value;
+      }
       const num = parseInt(value, 10);
       return isNaN(num) ? value : num;
     }
@@ -27,7 +30,11 @@ export class CreateProductDto {
       return null;
     }
     if (typeof value === 'string') {
-      const num = parseFloat(value);
+      const trimmed = value.trim();
+      if (!/^-?\d*\.?\d+$/.test(trimmed)) {
+        return value;
+      }
+      const num = parseFloat(trimmed);
       return isNaN(num) ? value : num;
     }
     return value;
@@ -38,7 +45,11 @@ export class CreateProductDto {
   @IsNumber()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      const num = parseFloat(value);
+      const trimmed = value.trim();
+      if (!/^-?\d*\.?\d+$/.test(trimmed)) {
+        return value;
+      }
+      const num = parseFloat(trimmed);
       return isNaN(num) ? value : num;
     }
     return value;

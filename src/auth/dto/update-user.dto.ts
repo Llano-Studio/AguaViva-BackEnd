@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEmail, IsBoolean, IsEnum } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { Role } from '../../common/constants/enums';
+import { Role } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateUserDto {

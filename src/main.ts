@@ -74,8 +74,9 @@ async function bootstrap() {
       // Permitir requests sin origin (como Postman, aplicaciones móviles, etc.)
       if (!origin) return callback(null, true);
       
-      // En desarrollo, permitir cualquier localhost
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      // En desarrollo, permitir localhost/127.0.0.1 con regex estricto
+      const localhostPattern = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/;
+      if (localhostPattern.test(origin)) {
         return callback(null, true);
       }
       
@@ -90,7 +91,7 @@ async function bootstrap() {
         return callback(null, true);
       }
       
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Not allowed by CORS'), false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -118,17 +119,35 @@ async function bootstrap() {
     if (req.method === 'OPTIONS') {
       const origin = req.headers.origin;
       
-      res.header('Access-Control-Allow-Origin', origin || '*');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Max-Age', '86400'); // 24 hours
-      
-      if (isDevelopment) {
-        logger.log(`OPTIONS preflight handled for origin: ${origin}`);
+      // Validar origen con el mismo criterio estricto que CORS
+      let allowOrigin = false;
+      if (!origin) {
+        allowOrigin = true; // Sin origin permitido
+      } else {
+        const localhostPattern = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/;
+        if (localhostPattern.test(origin) || allowedOrigins.includes(origin) || isDevelopment) {
+          allowOrigin = true;
+        }
       }
       
-      return res.sendStatus(200);
+      if (allowOrigin) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+        res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Max-Age', '86400'); // 24 hours
+        
+        if (isDevelopment) {
+          logger.log(`OPTIONS preflight handled for origin: ${origin}`);
+        }
+        
+        return res.sendStatus(200);
+      } else {
+        if (isDevelopment) {
+          logger.warn(`OPTIONS preflight rejected for origin: ${origin}`);
+        }
+        return res.sendStatus(403);
+      }
     }
     next();
   });
