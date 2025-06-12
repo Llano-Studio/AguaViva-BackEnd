@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, IsNotEmpty, IsEnum, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
@@ -35,6 +36,12 @@ export class CreateUserDto {
   })
   @IsEnum(Role)
   @IsNotEmpty()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.toUpperCase() as Role;
+    }
+    return value;
+  })
   role: Role;
 
   @ApiProperty({
@@ -45,6 +52,12 @@ export class CreateUserDto {
   })
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return value;
+  })
   isActive?: boolean = true;
 
   @ApiProperty({

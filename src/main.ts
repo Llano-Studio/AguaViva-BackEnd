@@ -31,9 +31,14 @@ async function bootstrap() {
         imgSrc: ["'self'", "data:", "blob:", "*"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         scriptSrc: ["'self'"],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", "http://localhost:*", "http://127.0.0.1:*"],
       },
     },
+    // En desarrollo, ser menos restrictivo
+    ...(configService.get('app.app.environment') === 'development' && {
+      crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+    })
   }));
 
   app.use(compression());
@@ -53,11 +58,79 @@ async function bootstrap() {
     },
   });
 
+  // Configuración de CORS más específica para desarrollo
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173', // Vite dev server
+    'http://localhost:5174', // Vite dev server alternate port
+    'http://localhost:4173', // Vite preview
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:4173',
+  ];
+
   app.enableCors({
-    origin: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (como Postman, aplicaciones móviles, etc.)
+      if (!origin) return callback(null, true);
+      
+      // En desarrollo, permitir cualquier localhost
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+      
+      // Permitir orígenes específicos
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // En desarrollo, ser más permisivo
+      const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
+      if (isDevelopment) {
+        return callback(null, true);
+      }
+      
+      callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control',
+      'Pragma'
+    ],
     credentials: true,
+    optionsSuccessStatus: 200, // Para navegadores legacy
     exposedHeaders: ['Content-Range', 'Content-Length', 'Accept-Ranges'],
+  });
+
+  // Middleware adicional para manejar OPTIONS preflight
+  app.use((req, res, next) => {
+    const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
+    
+    if (isDevelopment) {
+      logger.log(`${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+    }
+    
+    if (req.method === 'OPTIONS') {
+      const origin = req.headers.origin;
+      
+      res.header('Access-Control-Allow-Origin', origin || '*');
+      res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Max-Age', '86400'); // 24 hours
+      
+      if (isDevelopment) {
+        logger.log(`OPTIONS preflight handled for origin: ${origin}`);
+      }
+      
+      return res.sendStatus(200);
+    }
+    next();
   });
 
   const apiPrefix = configService.get('app.app.apiPrefix') || 'api';

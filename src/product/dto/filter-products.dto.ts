@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsInt, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterProductsDto extends PaginationQueryDto {
@@ -18,7 +18,13 @@ export class FilterProductsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsInt()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const num = parseInt(value, 10);
+      return isNaN(num) ? value : num;
+    }
+    return value;
+  })
   categoryId?: number;
 
   @ApiPropertyOptional({
@@ -35,7 +41,12 @@ export class FilterProductsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return value;
+  })
   isReturnable?: boolean;
 
   @ApiPropertyOptional({
