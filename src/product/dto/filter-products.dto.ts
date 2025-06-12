@@ -1,7 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsInt, IsBoolean } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { parseInteger } from '../../common/utils/parse-number';
 
 export class FilterProductsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -18,17 +19,7 @@ export class FilterProductsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsInt()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      // Verificar que es solo dígitos (y opcional signo negativo)
-      if (!/^-?\d+$/.test(value.trim())) {
-        return value; // Devolver valor original para que falle la validación
-      }
-      const num = parseInt(value, 10);
-      return isNaN(num) ? value : num;
-    }
-    return value;
-  })
+  @Transform(({ value }) => parseInteger(value))
   categoryId?: number;
 
   @ApiPropertyOptional({

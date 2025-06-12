@@ -13,6 +13,7 @@ import { DatabaseErrorInterceptor } from './common/interceptors/database-error.i
 import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
+import { isOriginAllowed } from './common/utils/cors.utils';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -69,29 +70,16 @@ async function bootstrap() {
     'http://127.0.0.1:4173',
   ];
 
+  const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Permitir requests sin origin (como Postman, aplicaciones móviles, etc.)
-      if (!origin) return callback(null, true);
-      
-      // En desarrollo, permitir localhost/127.0.0.1 con regex estricto
-      const localhostPattern = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/;
-      if (localhostPattern.test(origin)) {
-        return callback(null, true);
+      const allowed = isOriginAllowed(origin, allowedOrigins, isDevelopment);
+      if (allowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'), false);
       }
-      
-      // Permitir orígenes específicos
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      
-      // En desarrollo, ser más permisivo
-      const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
-      if (isDevelopment) {
-        return callback(null, true);
-      }
-      
-      callback(new Error('Not allowed by CORS'), false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
@@ -110,27 +98,15 @@ async function bootstrap() {
 
   // Middleware adicional para manejar OPTIONS preflight
   app.use((req, res, next) => {
-    const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
-    
     if (isDevelopment) {
       logger.log(`${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
     }
     
     if (req.method === 'OPTIONS') {
       const origin = req.headers.origin;
+      const allowed = isOriginAllowed(origin, allowedOrigins, isDevelopment);
       
-      // Validar origen con el mismo criterio estricto que CORS
-      let allowOrigin = false;
-      if (!origin) {
-        allowOrigin = true; // Sin origin permitido
-      } else {
-        const localhostPattern = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d{1,5})?$/;
-        if (localhostPattern.test(origin) || allowedOrigins.includes(origin) || isDevelopment) {
-          allowOrigin = true;
-        }
-      }
-      
-      if (allowOrigin) {
+      if (allowed) {
         res.header('Access-Control-Allow-Origin', origin || '*');
         res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
         res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');

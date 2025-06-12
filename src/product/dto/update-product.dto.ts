@@ -1,21 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsString, IsBoolean, IsOptional, IsNumber, ValidateIf } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { parseInteger, parseDecimal } from '../../common/utils/parse-number';
 
 export class UpdateProductDto {
   @ApiPropertyOptional({ example: 1, description: 'ID de la categoría' })
   @IsOptional()
   @IsInt()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      if (!/^-?\d+$/.test(value.trim())) {
-        return value;
-      }
-      const num = parseInt(value, 10);
-      return isNaN(num) ? value : num;
-    }
-    return value;
-  })
+  @Transform(({ value }) => parseInteger(value))
   category_id?: number;
 
   @ApiPropertyOptional({ example: 'Agua mineral', description: 'Descripción del producto' })
@@ -31,32 +23,14 @@ export class UpdateProductDto {
     if (value === null || value === undefined || value === '') {
       return null;
     }
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!/^-?\d*\.?\d+$/.test(trimmed)) {
-        return value;
-      }
-      const num = parseFloat(trimmed);
-      return isNaN(num) ? value : num;
-    }
-    return value;
+    return parseDecimal(value);
   })
   volume_liters?: number | null;
 
   @ApiPropertyOptional({ example: 50.0, description: 'Precio unitario' })
   @IsOptional()
   @IsNumber()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (!/^-?\d*\.?\d+$/.test(trimmed)) {
-        return value;
-      }
-      const num = parseFloat(trimmed);
-      return isNaN(num) ? value : num;
-    }
-    return value;
-  })
+  @Transform(({ value }) => parseDecimal(value))
   price?: number;
 
   @ApiPropertyOptional({ example: true, description: 'Si es retornable o no' })
