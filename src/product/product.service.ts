@@ -85,10 +85,23 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
       const orderByClause = parseSortByString(filters?.sortBy, [{ description: 'asc' }]);
 
+      const includeInventory = filters?.includeInventory ?? false;
+      
       const products = await this.product.findMany({
         where: whereClause,
         include: {
           product_category: true,
+          ...(includeInventory && {
+            inventory: {
+              include: {
+                warehouse: {
+                  include: {
+                    locality: true
+                  }
+                }
+              }
+            }
+          })
         },
         skip,
         take: take, 
@@ -103,6 +116,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             price: product.price as any,
             volume_liters: product.volume_liters as any,
             total_stock: stock,
+            inventory: includeInventory ? (product as any).inventory as any : undefined,
             image_url: buildImageUrl(product.image_url, 'products'),
           });
         }),
@@ -127,10 +141,23 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getProductById(id: number): Promise<ProductResponseDto> {
+  async getProductById(id: number, includeInventory: boolean = true): Promise<ProductResponseDto> {
     const productEntity = await this.product.findUnique({
       where: { product_id: id },
-      include: { product_category: true },
+      include: { 
+        product_category: true,
+        ...(includeInventory && {
+          inventory: {
+            include: {
+              warehouse: {
+                include: {
+                  locality: true
+                }
+              }
+            }
+          }
+        })
+      },
     });
     if (!productEntity) {
       throw new NotFoundException(`${this.entityName} con ID: ${id} no encontrado`);
@@ -143,6 +170,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: productEntity.price as any,
         volume_liters: productEntity.volume_liters as any,
         total_stock: stock,
+        inventory: includeInventory ? (productEntity as any).inventory as any : undefined,
         image_url: buildImageUrl(productEntity.image_url, 'products'),
     });
   }
@@ -168,6 +196,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         data: dataToCreate,
         include: {
           product_category: true,
+          inventory: {
+            include: {
+              warehouse: {
+                include: {
+                  locality: true
+                }
+              }
+            }
+          }
         },
       });
 
@@ -178,6 +215,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: product.price as any,
         volume_liters: product.volume_liters as any,
         total_stock: stock,
+        inventory: product.inventory as any,
         image_url: buildImageUrl(product.image_url, 'products'),
       });
     } catch (error) {
@@ -190,7 +228,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   }
 
   async updateProductById(id: number, dto: UpdateProductDto, productImage?: any): Promise<ProductResponseDto> {
-    await this.getProductById(id);
+    await this.getProductById(id, false);
     const { category_id, productImage: _, ...productUpdateData } = dto;
 
     if (category_id) {
@@ -216,6 +254,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         data: dataToUpdate,
         include: {
           product_category: true,
+          inventory: {
+            include: {
+              warehouse: {
+                include: {
+                  locality: true
+                }
+              }
+            }
+          }
         },
       });
 
@@ -226,6 +273,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: updatedProduct.price as any,
         volume_liters: updatedProduct.volume_liters as any,
         total_stock: stock,
+        inventory: updatedProduct.inventory as any,
         image_url: buildImageUrl(updatedProduct.image_url, 'products'),
       });
     } catch (error) {
@@ -238,7 +286,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   }
 
   async deleteProductById(id: number): Promise<{ message: string; deleted: boolean }> {
-    await this.getProductById(id);
+    await this.getProductById(id, false);
     try {
       await this.product.delete({ where: { product_id: id } });
       return { message: `${this.entityName} eliminado correctamente`, deleted: true };
@@ -249,7 +297,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   }
 
   async deleteProductImage(id: number): Promise<ProductResponseDto> {
-    const product = await this.getProductById(id);
+    const product = await this.getProductById(id, false);
     
     if (!product.image_url) {
       throw new NotFoundException('El producto no tiene una imagen asociada.');
@@ -273,6 +321,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         data: { image_url: null },
         include: {
           product_category: true,
+          inventory: {
+            include: {
+              warehouse: {
+                include: {
+                  locality: true
+                }
+              }
+            }
+          }
         },
       });
 
@@ -283,6 +340,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         price: updatedProduct.price as any,
         volume_liters: updatedProduct.volume_liters as any,
         total_stock: stock,
+        inventory: updatedProduct.inventory as any,
         image_url: null,
       });
     } catch (error) {
@@ -292,7 +350,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   }
 
   async getProductImage(id: number): Promise<{ product_id: number; image_url: string | null }> {
-    const product = await this.getProductById(id);
+    const product = await this.getProductById(id, false);
     
     return {
       product_id: id,

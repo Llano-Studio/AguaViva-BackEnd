@@ -30,9 +30,10 @@ export class ProductController {
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
   @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar (separados por coma). Prefijo \'-\' para descendente. Ej: description,-price', example: 'description,-price' })
+  @ApiQuery({ name: 'includeInventory', required: false, type: Boolean, description: 'Incluir información detallada del inventario por almacén', example: true })
   @ApiResponse({ 
     status: 200, 
-    description: 'Listado de productos paginado.', 
+    description: 'Listado de productos paginado con información de inventario por almacén.', 
     schema: {
       properties: {
         data: {
@@ -63,16 +64,18 @@ export class ProductController {
   @Auth(Role.ADMIN, Role.USER)
   @ApiOperation({ 
     summary: 'Obtener un producto por su id',
-    description: 'Devuelve toda la información detallada de un producto específico según su ID.' 
+    description: 'Devuelve toda la información detallada de un producto específico según su ID, con opción de incluir inventario por almacén.' 
   })
   @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
+  @ApiQuery({ name: 'includeInventory', required: false, type: Boolean, description: 'Incluir información detallada del inventario por almacén', example: true })
   @ApiResponse({ status: 200, description: 'Producto encontrado.', type: ProductResponseDto })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   getProductById(
-    @Param('id', ParseIntPipe) id: number
+    @Param('id', ParseIntPipe) id: number,
+    @Query('includeInventory') includeInventory?: boolean
   ): Promise<ProductResponseDto> {
-    return this.service.getProductById(id);
+    return this.service.getProductById(id, includeInventory);
   }
 
   @Post()

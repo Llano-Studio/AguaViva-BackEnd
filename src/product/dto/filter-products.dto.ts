@@ -51,4 +51,18 @@ export class FilterProductsDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   serialNumber?: string;
+
+  @ApiPropertyOptional({
+    description: 'Incluir información detallada del inventario por almacén',
+    example: true
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true';
+    }
+    return value;
+  })
+  includeInventory?: boolean;
 } 

@@ -2,6 +2,8 @@ import { Controller, Get, Param, ParseIntPipe, Post, Body, HttpCode, HttpStatus,
 import { InventoryService } from './inventory.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
+import { CreateInventoryDto } from './dto/create-inventory.dto';
+import { InventoryResponseDto } from './dto/inventory-response.dto';
 import { stock_movement as StockMovementPrisma } from '@prisma/client';
 import { StockMovementResponseDto } from './dto/stock-movement-response.dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
@@ -43,6 +45,25 @@ export class InventoryController {
     @Query('warehouseId', new ParseIntPipe({ optional: true })) warehouseId?: number,
   ): Promise<number> {
     return this.inventoryService.getProductStock(productId, warehouseId);
+  }
+
+  @Post('create-inventory')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Crear inventario inicial', 
+    description: 'Crea un registro de inventario inicial para un producto en un almacén específico. Este endpoint debe usarse únicamente para establecer stock inicial cuando no existe registro previo.'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Inventario inicial creado exitosamente.', 
+    type: InventoryResponseDto
+  })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o ya existe inventario para este producto/almacén.' })
+  @ApiResponse({ status: 404, description: 'Producto o almacén no encontrado.' })
+  async createInitialInventory(
+    @Body(ValidationPipe) createInventoryDto: CreateInventoryDto,
+  ): Promise<InventoryResponseDto> {
+    return this.inventoryService.createInitialInventory(createInventoryDto);
   }
 
   @Post('movements')

@@ -1,6 +1,8 @@
 import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma, stock_movement as PrismaStockMovement, movement_type as MovementTypePrisma, inventory as PrismaInventory } from '@prisma/client';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
+import { CreateInventoryDto } from './dto/create-inventory.dto';
+import { InventoryResponseDto } from './dto/inventory-response.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { FilterInventoryDto, PaginatedInventoryResponseDto, InventoryDetailDto } from './dto/filter-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
@@ -352,6 +354,119 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             throw new InternalServerErrorException(
                 `Error obteniendo stock para ${this.entityNameProduct.toLowerCase()} ID ${productId} en ${this.entityNameWarehouse.toLowerCase()} ID ${warehouseId}.`
             );
+        }
+    }
+
+    /**
+     * Crea un registro de inventario inicial para un producto en un almacén específico.
+     * @param createInventoryDto Datos para crear el inventario inicial
+     * @param tx (Opcional) Cliente de transacción Prisma
+     * @returns Información del inventario creado
+     */
+    async createInitialInventory(createInventoryDto: CreateInventoryDto, tx?: Prisma.TransactionClient): Promise<InventoryResponseDto> {
+        const operations = async (prismaClient: Prisma.TransactionClient | PrismaClient) => {
+            const { product_id, warehouse_id, quantity, remarks } = createInventoryDto;
+
+            // 1. Validar que el producto existe
+            const product = await prismaClient.product.findUnique({ 
+                where: { product_id },
+                include: { product_category: true }
+            });
+            if (!product) {
+                throw new NotFoundException(`${this.entityNameProduct} con ID ${product_id} no encontrado.`);
+            }
+
+            // 2. Validar que el almacén existe
+            const warehouse = await prismaClient.warehouse.findUnique({ 
+                where: { warehouse_id: warehouse_id },
+                include: { locality: true }
+            });
+            if (!warehouse) {
+                throw new NotFoundException(`${this.entityNameWarehouse} con ID ${warehouse_id} no encontrado.`);
+            }
+
+            // 3. Verificar que no existe inventario previo para este producto en este almacén
+            const existingInventory = await prismaClient.inventory.findUnique({
+                where: { 
+                    warehouse_id_product_id: { 
+                        warehouse_id: warehouse_id, 
+                        product_id: product_id 
+                    } 
+                }
+            });
+
+            if (existingInventory) {
+                throw new BadRequestException(
+                    `Ya existe inventario para el ${this.entityNameProduct.toLowerCase()} '${product.description}' en el ${this.entityNameWarehouse.toLowerCase()} '${warehouse.name}'. Use el endpoint de movimientos de stock para ajustar cantidades.`
+                );
+            }
+
+            // 4. Crear el registro de inventario inicial
+            let inventoryRecord: PrismaInventory;
+            try {
+                inventoryRecord = await prismaClient.inventory.create({
+                    data: {
+                        product_id,
+                        warehouse_id,
+                        quantity,
+                    },
+                });
+            } catch (error) {
+                handlePrismaError(error, this.entityNameInventory);
+                throw new InternalServerErrorException(`Error creando ${this.entityNameInventory.toLowerCase()} inicial.`);
+            }
+
+            // 5. Crear un movimiento de stock asociado para trazabilidad (opcional)
+            if (quantity > 0) {
+                try {
+                    // Buscar el tipo de movimiento para inventario inicial
+                    const movementType = await prismaClient.movement_type.findFirst({
+                        where: { 
+                            OR: [
+                                { code: 'INVENTARIO_INICIAL' },
+                                { code: 'AJUSTE_POSITIVO' },
+                                { code: 'INGRESO_PRODUCCION' }
+                            ]
+                        }
+                    });
+
+                    if (movementType) {
+                        await prismaClient.stock_movement.create({
+                            data: {
+                                movement_date: new Date(),
+                                movement_type_id: movementType.movement_type_id,
+                                product_id,
+                                destination_warehouse_id: warehouse_id,
+                                quantity,
+                                remarks: remarks || `Inventario inicial - ${product.description}`,
+                            },
+                        });
+                    }
+                } catch (error) {
+                    // No fallar si no se puede crear el movimiento, solo logear
+                    console.warn(`No se pudo crear movimiento de stock para inventario inicial: ${error.message}`);
+                }
+            }
+
+            // 6. Preparar respuesta
+            return {
+                product_id: inventoryRecord.product_id,
+                warehouse_id: inventoryRecord.warehouse_id,
+                quantity: inventoryRecord.quantity,
+                product_description: product.description,
+                warehouse_name: warehouse.name,
+                created_at: new Date().toISOString(),
+            };
+        };
+
+        try {
+            return tx ? await operations(tx) : await this.$transaction(operations);
+        } catch (error) {
+            if (error instanceof NotFoundException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+                throw error;
+            }
+            handlePrismaError(error, this.entityNameInventory);
+            throw new InternalServerErrorException(`Error en la transacción al crear ${this.entityNameInventory.toLowerCase()} inicial.`);
         }
     }
 } 
