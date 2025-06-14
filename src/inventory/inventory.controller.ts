@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, Post, Body, HttpCode, HttpStatus, Query, ValidationPipe } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryResponseDto } from './dto/inventory-response.dto';
@@ -138,5 +138,79 @@ export class InventoryController {
     @Param('warehouseId', ParseIntPipe) warehouseId: number,
   ): Promise<{ productId: number, warehouseId: number, quantity: number, productDescription: string, warehouseName: string }> {
     return this.inventoryService.getStockInWarehouse(productId, warehouseId);
+  }
+
+  /**
+   * Configurar stock inicial para un producto nuevo
+   */
+  @Post('setup-initial-stock')
+  @ApiOperation({ summary: 'Configurar stock inicial para un producto en múltiples almacenes' })
+  @ApiBody({
+      schema: {
+          type: 'object',
+          properties: {
+              productId: { type: 'number', example: 1 },
+              stockByWarehouse: {
+                  type: 'array',
+                  items: {
+                      type: 'object',
+                      properties: {
+                          warehouseId: { type: 'number', example: 1 },
+                          quantity: { type: 'number', example: 100 },
+                          remarks: { type: 'string', example: 'Stock inicial - Producto nuevo' }
+                      },
+                      required: ['warehouseId', 'quantity']
+                  }
+              }
+          },
+          required: ['productId', 'stockByWarehouse']
+      }
+  })
+  @ApiResponse({ 
+      status: 201, 
+      description: 'Stock inicial configurado exitosamente',
+      schema: {
+          type: 'object',
+          properties: {
+              message: { type: 'string' },
+              inventoriesCreated: { type: 'number' },
+              movementsCreated: { type: 'number' },
+              totalQuantity: { type: 'number' }
+          }
+      }
+  })
+  async setupInitialStock(
+      @Body() body: {
+          productId: number;
+          stockByWarehouse: Array<{
+              warehouseId: number;
+              quantity: number;
+              remarks?: string;
+          }>;
+      }
+  ) {
+              const results: any[] = [];
+        let totalQuantity = 0;
+        
+        for (const stock of body.stockByWarehouse) {
+            const inventoryData: CreateInventoryDto = {
+                warehouse_id: stock.warehouseId,
+                product_id: body.productId,
+                quantity: stock.quantity,
+                remarks: stock.remarks || `Stock inicial - Producto ${body.productId}`
+            };
+            
+            const result = await this.inventoryService.createInitialInventory(inventoryData);
+            results.push(result);
+            totalQuantity += stock.quantity;
+        }
+      
+      return {
+          message: 'Stock inicial configurado exitosamente',
+          inventoriesCreated: results.length,
+          movementsCreated: results.length, // Un movimiento por inventario
+          totalQuantity,
+          details: results
+      };
   }
 } 

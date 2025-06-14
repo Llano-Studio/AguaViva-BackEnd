@@ -6,9 +6,9 @@ export enum PersonType {
 }
 
 export enum OrderType {
-  REGULAR = 'REGULAR',
   SUBSCRIPTION = 'SUBSCRIPTION',
-  ONE_OFF = 'ONE_OFF'
+  ONE_OFF = 'ONE_OFF',
+  CONTRACT_DELIVERY = 'CONTRACT_DELIVERY'
 }
 
 export enum OrderStatus {

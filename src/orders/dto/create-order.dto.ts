@@ -11,6 +11,7 @@ import {
   Min,
   ValidateNested,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { OrderStatus, OrderType } from '../../common/constants/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -77,12 +78,16 @@ export class CreateOrderDto {
   scheduled_delivery_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Horario de entrega preferido',
-    example: '14:00-16:00'
+    description: 'Horario de entrega preferido en formato HH:MM-HH:MM o HH:MM',
+    example: '14:00-16:00',
+    pattern: '^([0-9]{2}:[0-9]{2}(-[0-9]{2}:[0-9]{2})?|[0-9]{2}:[0-9]{2})$'
   })
   @IsOptional()
   @IsString()
   @MaxLength(50)
+  @Matches(/^([0-9]{2}:[0-9]{2}(-[0-9]{2}:[0-9]{2})?|[0-9]{2}:[0-9]{2})$/, {
+    message: 'delivery_time debe estar en formato HH:MM o HH:MM-HH:MM'
+  })
   delivery_time?: string;
 
   @ApiProperty({
@@ -104,7 +109,7 @@ export class CreateOrderDto {
   @ApiProperty({
     description: 'Tipo de pedido',
     enum: OrderType,
-    example: OrderType.REGULAR
+    example: OrderType.CONTRACT_DELIVERY
   })
   @IsEnum(OrderType)
   @IsNotEmpty()

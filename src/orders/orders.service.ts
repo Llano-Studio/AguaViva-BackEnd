@@ -4,6 +4,7 @@ import { CreateOrderDto, CreateOrderItemDto } from './dto/create-order.dto';
 import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { InventoryService } from '../inventory/inventory.service';
+import { ScheduleService } from '../common/services/schedule.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { OrderResponseDto, OrderItemResponseDto } from './dto/order-response.dto';
 import { OrderStatus as AppOrderStatus, OrderType as AppOrderType } from '../common/constants/enums';
@@ -27,7 +28,7 @@ type SaleChannelPayload = Prisma.sale_channelGetPayload<{}> | null | undefined;
 export class OrdersService extends PrismaClient implements OnModuleInit {
     private readonly entityName = 'Pedido';
 
-    constructor(private readonly inventoryService: InventoryService) { 
+    constructor(private readonly inventoryService: InventoryService, private readonly scheduleService: ScheduleService) { 
         super(); 
     }
 
@@ -137,6 +138,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const orderDate = new Date(createOrderDto.order_date);
             const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
             if (deliveryDate <= orderDate) throw new BadRequestException('La fecha de entrega programada debe ser posterior a la fecha del pedido.');
+        }
+
+        // Validar horario
+        if (createOrderDto.scheduled_delivery_date) {
+            const orderDate = new Date(createOrderDto.order_date);
+            const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
+            
+            const scheduleResult = this.scheduleService.validateOrderSchedule(
+                orderDate, 
+                deliveryDate, 
+                createOrderDto.delivery_time
+            );
+            
+            if (!scheduleResult.isValid) {
+                throw new BadRequestException(scheduleResult.message);
+            }
         }
     }
 

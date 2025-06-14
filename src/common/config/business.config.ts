@@ -4,6 +4,23 @@ export const BUSINESS_CONFIG = {
     DEFAULT_WAREHOUSE_ID: 1, // ID del almacén principal
   },
 
+  // Configuración de horarios de entrega
+  DELIVERY_SCHEDULE: {
+    // Horarios disponibles de entrega
+    AVAILABLE_TIME_SLOTS: [
+      '08:00-10:00',
+      '10:00-12:00',  
+      '14:00-16:00',
+      '16:00-18:00'
+    ],
+    // Días de la semana (0=Domingo, 6=Sábado)
+    WORKING_DAYS: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
+    // Tiempo mínimo de anticipación para pedidos (horas)
+    MINIMUM_ADVANCE_HOURS: 24,
+    // Tiempo máximo de anticipación para pedidos (días)
+    MAXIMUM_ADVANCE_DAYS: 30,
+  },
+
   // Códigos de tipos de movimiento de stock
   MOVEMENT_TYPES: {
     // Ingresos

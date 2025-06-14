@@ -123,7 +123,7 @@ export class OrderResponseDto {
     @ApiProperty({
         description: 'Tipo de pedido',
         enum: OrderType,
-        example: OrderType.REGULAR
+        example: OrderType.CONTRACT_DELIVERY
     })
     order_type: OrderType;
 

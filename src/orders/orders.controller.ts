@@ -12,6 +12,8 @@ import { OrderResponseDto } from './dto/order-response.dto';
 import { order_header as OrderHeader, Role } from '@prisma/client';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 import { OneOffPurchaseResponseDto } from './dto/one-off-purchase-response.dto';
+import { ScheduleService } from '../common/services/schedule.service';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
@@ -21,6 +23,7 @@ export class OrdersController {
     constructor(
         private readonly ordersService: OrdersService,
         private readonly oneOffPurchaseService: OneOffPurchaseService,
+        private readonly scheduleService: ScheduleService
     ) { }
 
     @Post()
@@ -508,5 +511,85 @@ export class OrdersController {
         @Param('id', ParseIntPipe) id: number
     ): Promise<{ message: string; deleted: boolean }> {
         return this.oneOffPurchaseService.remove(id);
+    }
+
+    /**
+     * Obtener horarios disponibles para entrega
+     */
+    @Get('available-time-slots')
+    @ApiOperation({ summary: 'Obtener horarios disponibles para entrega' })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Lista de horarios disponibles',
+        schema: {
+            type: 'object',
+            properties: {
+                timeSlots: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            start: { type: 'string', example: '08:00' },
+                            end: { type: 'string', example: '10:00' },
+                            label: { type: 'string', example: '08:00-10:00' }
+                        }
+                    }
+                },
+                workingDays: {
+                    type: 'array',
+                    items: { type: 'number' },
+                    example: [1, 2, 3, 4, 5, 6]
+                }
+            }
+        }
+    })
+    getAvailableTimeSlots() {
+        return {
+            timeSlots: this.scheduleService.getAvailableTimeSlots(),
+            workingDays: BUSINESS_CONFIG.DELIVERY_SCHEDULE.WORKING_DAYS
+        };
+    }
+
+    /**
+     * Validar horario de entrega
+     */
+    @Post('validate-schedule')
+    @ApiOperation({ summary: 'Validar horario de entrega' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                orderDate: { type: 'string', format: 'date-time', example: '2024-01-15T10:00:00.000Z' },
+                scheduledDeliveryDate: { type: 'string', format: 'date-time', example: '2024-01-16T14:00:00.000Z' },
+                deliveryTime: { type: 'string', example: '14:00-16:00' }
+            },
+            required: ['orderDate', 'scheduledDeliveryDate']
+        }
+    })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Resultado de validación',
+        schema: {
+            type: 'object',
+            properties: {
+                isValid: { type: 'boolean' },
+                message: { type: 'string' },
+                suggestedDate: { type: 'string', format: 'date-time' },
+                suggestedTimeSlot: { type: 'string' }
+            }
+        }
+    })
+    validateSchedule(
+        @Body() body: {
+            orderDate: string;
+            scheduledDeliveryDate: string;
+            deliveryTime?: string;
+        }
+    ) {
+        return this.scheduleService.validateOrderSchedule(
+            new Date(body.orderDate),
+            new Date(body.scheduledDeliveryDate),
+            body.deliveryTime
+        );
     }
 }
