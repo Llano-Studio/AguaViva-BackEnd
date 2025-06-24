@@ -1,4 +1,4 @@
-import { PartialType } from '@nestjs/mapped-types';
+import { PartialType } from '@nestjs/swagger';
 import { CreateOneOffPurchaseDto } from './create-one-off-purchase.dto';
 import { IsOptional, IsDateString } from 'class-validator';
 

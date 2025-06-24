@@ -4,6 +4,12 @@ export const BUSINESS_CONFIG = {
     DEFAULT_WAREHOUSE_ID: 1, // ID del almacén principal
   },
 
+  // Configuración de precios
+  PRICING: {
+    DEFAULT_PRICE_LIST_ID: 1, // ID de la lista de precios estándar/general
+    STANDARD_PRICE_LIST_NAME: 'Lista General/Estándar',
+  },
+
   // Configuración de horarios de entrega
   DELIVERY_SCHEDULE: {
     // Horarios disponibles de entrega

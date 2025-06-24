@@ -29,14 +29,14 @@ export class SubscriptionPlanResponseDto {
   @ApiProperty({ description: 'Precio del plan', example: 1200.50, type: 'number', format: 'float' })
   price: number; // Prisma Decimal se convertirá a number
 
-  @ApiProperty({ description: 'Duración del ciclo del plan en días', example: 30, type: 'integer' })
-  cycle_days: number;
+  @ApiProperty({ description: 'Duración por defecto del ciclo del plan en días (valor por defecto para nuevas suscripciones)', example: 30, type: 'integer' })
+  default_cycle_days: number;
 
-  @ApiProperty({ description: 'Número de entregas por ciclo', example: 1, type: 'integer' })
-  deliveries_per_cycle: number;
+  @ApiProperty({ description: 'Número por defecto de entregas por ciclo (valor por defecto para nuevas suscripciones)', example: 1, type: 'integer' })
+  default_deliveries_per_cycle: number;
 
   @ApiProperty({ description: 'Indica si el plan está activo y disponible para nuevas suscripciones', example: true })
-  active: boolean;
+  is_active: boolean;
   
   @ApiProperty({ description: 'Fecha de creación del plan', type: Date })
   created_at: Date;
@@ -57,15 +57,19 @@ export class PaginatedSubscriptionPlanResponseDto {
   @ApiProperty({ type: [SubscriptionPlanResponseDto] })
   data: SubscriptionPlanResponseDto[];
 
-  @ApiProperty({ example: 50, description: 'Total de planes de suscripción disponibles' })
-  total: number;
-
-  @ApiProperty({ example: 1, description: 'Número de la página actual' })
-  page: number;
-
-  @ApiProperty({ example: 10, description: 'Número de planes de suscripción por página' })
-  limit: number;
-
-  @ApiProperty({ example: 5, description: 'Total de páginas disponibles', required: false })
-  totalPages?: number;
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      total: { type: 'number', example: 50, description: 'Total de planes de suscripción disponibles' },
+      page: { type: 'number', example: 1, description: 'Número de la página actual' },
+      limit: { type: 'number', example: 10, description: 'Número de planes de suscripción por página' },
+      totalPages: { type: 'number', example: 5, description: 'Total de páginas disponibles' }
+    }
+  })
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 } 

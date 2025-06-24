@@ -20,17 +20,21 @@ class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
   data: PersonResponseDto[];
 
-  @ApiProperty({ example: 100 })
-  total: number;
-
-  @ApiProperty({ example: 1 })
-  page: number;
-
-  @ApiProperty({ example: 10 })
-  limit: number;
-
-  @ApiProperty({ example: 10 })
-  totalPages: number; 
+  @ApiProperty({
+    type: 'object',
+    properties: {
+      total: { type: 'number', example: 100, description: 'Total de personas disponibles' },
+      page: { type: 'number', example: 1, description: 'Número de la página actual' },
+      limit: { type: 'number', example: 10, description: 'Número de personas por página' },
+      totalPages: { type: 'number', example: 10, description: 'Total de páginas disponibles' }
+    }
+  })
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
 @ApiTags('Clientes')
@@ -168,10 +172,66 @@ export class PersonsController {
   }
 
   @Post(':personId/contracts/change-price-list')
-  @ApiOperation({ summary: 'Cambiar la lista de precios de un contrato de un cliente' })
+  @ApiOperation({ 
+    summary: 'Cambiar la lista de precios de un contrato de un cliente',
+    description: `Cambia la lista de precios asignada a un contrato específico de un cliente. Esto afecta los precios que se aplicarán en futuros pedidos del contrato.
+
+## Sistema de Precios Diferenciados - CONTRATOS
+
+**Funcionalidad:**
+- Permite cambiar la \`price_list_id\` de un contrato existente
+- Los nuevos pedidos del contrato usarán la nueva lista de precios
+- Los pedidos anteriores mantienen sus precios originales
+
+**Flujo de Precios en Contratos:**
+1. Contrato tiene \`price_list_id\` asignada
+2. Al crear pedidos: \`contract.price_list_id → price_list_item.unit_price\`
+3. Si no hay precio en lista: fallback a \`product.price\`
+
+**Casos de Uso:**
+- Renegociación de precios contractuales
+- Cambio de categoría de cliente (ej: de lista general a corporativa)
+- Aplicación de descuentos especiales
+- Migración a nuevas estructuras de precios`
+  })
   @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona (cliente)' })
-  @ApiBody({ type: ChangeContractPriceListDto })
-  @ApiResponse({ status: 200, description: 'Lista de precios del contrato cambiada exitosamente.' })
+  @ApiBody({ 
+    type: ChangeContractPriceListDto,
+    examples: {
+      cambioACorporativa: {
+        summary: 'Cambio a Lista Corporativa',
+        description: 'Migrar contrato a lista de precios corporativa',
+        value: {
+          contract_id: 15,
+          new_price_list_id: 3,
+          reason: 'Cliente califica para descuentos corporativos por volumen de compras'
+        }
+      },
+      renegociacionPrecio: {
+        summary: 'Renegociación de Precios',
+        description: 'Aplicar nueva lista tras renegociación',
+        value: {
+          contract_id: 8,
+          new_price_list_id: 5,
+          reason: 'Renegociación de contrato anual con descuentos especiales'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Lista de precios del contrato cambiada exitosamente.',
+    schema: {
+      properties: {
+        message: { type: 'string', example: 'Lista de precios del contrato actualizada correctamente' },
+        contract_id: { type: 'number', example: 15 },
+        old_price_list_id: { type: 'number', example: 1 },
+        new_price_list_id: { type: 'number', example: 3 },
+        effective_date: { type: 'string', format: 'date-time' },
+        reason: { type: 'string', example: 'Cliente califica para descuentos corporativos por volumen de compras' }
+      }
+    }
+  })
   @ApiResponse({ status: 403, description: 'Acceso denegado.' })
   @ApiResponse({ status: 404, description: 'Persona, Contrato actual o Nueva Lista de Precios no encontrada.' })
   @ApiResponse({ status: 400, description: 'Solicitud incorrecta (ej. contrato no activo, misma lista, etc.).' })

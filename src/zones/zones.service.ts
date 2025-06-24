@@ -14,8 +14,8 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
     await this.$connect();
   }
 
-  async getAllZones(filters: FilterZonesDto): Promise<{ data: zone[], total: number, page: number, limit: number, totalPages: number }> {
-    const { page = 1, limit = 10, sortBy, search, name } = filters;
+  async getAllZones(filters: FilterZonesDto): Promise<{ data: zone[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
+    const { page = 1, limit = 10, sortBy, search, name, locality_id, locality_name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     
@@ -25,7 +25,8 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } }
+        { code: { contains: search, mode: 'insensitive' } },
+        { locality: { name: { contains: search, mode: 'insensitive' } } }
       ];
     }
     
@@ -34,6 +35,20 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
       where.name = {
         contains: name,
         mode: 'insensitive',
+      };
+    }
+
+    // Filtros de localidad
+    if (locality_id) {
+      where.locality_id = locality_id;
+    }
+
+    if (locality_name) {
+      where.locality = {
+        name: {
+          contains: locality_name,
+          mode: 'insensitive',
+        },
       };
     }
 
@@ -61,10 +76,12 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
         const totalZones = await this.zone.count({ where });
         return {
             data: zones,
-            total: totalZones,
-            page,
-            limit,
-            totalPages: Math.ceil(totalZones / limit)
+            meta: {
+                total: totalZones,
+                page,
+                limit,
+                totalPages: Math.ceil(totalZones / limit)
+            }
         };
     } catch (error) {
         handlePrismaError(error, this.entityName + 's');

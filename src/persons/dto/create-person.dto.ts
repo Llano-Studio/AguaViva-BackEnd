@@ -14,6 +14,11 @@ export class CreatePersonDto {
   @IsString() @IsNotEmpty()
   name: string;
 
+  @ApiPropertyOptional({ example: 'Juancho', description: 'Apodo o alias del cliente' })
+  @IsString()
+  @IsOptional()
+  alias?: string;
+
   @ApiProperty({ example: '3412345678' })
   @IsString() @IsNotEmpty()
   phone: string;

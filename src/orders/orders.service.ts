@@ -167,12 +167,107 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 let calculatedTotalFromDB = new Decimal(0);
                 const orderItemsDataForCreation: Prisma.order_itemUncheckedCreateWithoutOrder_headerInput[] = [];
 
+                // Si hay contrato, obtener la lista de precios del contrato
+                let contractPriceList: { price_list_item: { product_id: number; price_list_item_id: number; unit_price: any }[] } | null = null;
+                if (contract_id) {
+                    const contract = await prismaTx.client_contract.findUnique({
+                        where: { contract_id },
+                        include: {
+                            price_list: {
+                                include: {
+                                    price_list_item: true
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (!contract) {
+                        throw new NotFoundException(`Contrato con ID ${contract_id} no encontrado.`);
+                    }
+                    
+                    contractPriceList = contract.price_list;
+                }
+
+                // Si hay suscripción, obtener el plan con sus productos
+                let subscriptionPlan: { subscription_plan_product: { product_id: number; product_quantity: number }[]; price?: any } | null = null;
+                if (subscription_id) {
+                    const subscription = await prismaTx.customer_subscription.findUnique({
+                        where: { subscription_id },
+                        include: {
+                            subscription_plan: {
+                                include: {
+                                    subscription_plan_product: true
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (!subscription) {
+                        throw new NotFoundException(`Suscripción con ID ${subscription_id} no encontrada.`);
+                    }
+                    
+                    subscriptionPlan = subscription.subscription_plan;
+                }
+
                 for (const itemDto of items) {
                     const productDetails = await prismaTx.product.findUniqueOrThrow({
                         where: { product_id: itemDto.product_id },
                     }).catch(() => { throw new NotFoundException(`Producto con ID ${itemDto.product_id} no encontrado.`); });
                     
-                    const itemSubtotal = new Decimal(productDetails.price).mul(itemDto.quantity);
+                    let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
+
+                    // Lógica de precios por prioridad: Contrato > Suscripción específica > Precio base
+                    if (contractPriceList) {
+                        // Cliente con contrato → usar lista de precios del contrato
+                        const priceListItem = contractPriceList.price_list_item.find(
+                            item => item.product_id === itemDto.product_id
+                        );
+                        
+                        if (priceListItem) {
+                            itemPrice = new Decimal(priceListItem.unit_price);
+                        } else {
+                            // Producto no está en la lista de precios del contrato
+                            throw new BadRequestException(
+                                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios del contrato. Verifique la lista de precios asociada al contrato.`
+                            );
+                        }
+                    } else if (subscriptionPlan) {
+                        // Cliente con suscripción → usar precio del plan (paquete cerrado)
+                        const planProduct = subscriptionPlan.subscription_plan_product.find(
+                            spp => spp.product_id === itemDto.product_id
+                        );
+                        
+                        if (!planProduct) {
+                            throw new BadRequestException(
+                                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
+                            );
+                        }
+                        
+                        // Para suscripciones, usar precio proporcional del plan si está definido
+                        if (subscriptionPlan.price) {
+                            const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
+                            const productProportion = planProduct.product_quantity / totalProductsInPlan;
+                            itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
+                        } else {
+                            // Si el plan no tiene precio definido, usar precio base del producto
+                            itemPrice = new Decimal(productDetails.price);
+                        }
+                    } else {
+                        // Si no hay contrato ni suscripción → usar lista de precios estándar
+                        const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                            where: { 
+                                price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                product_id: itemDto.product_id 
+                            }
+                        });
+                        
+                        if (standardPriceItem) {
+                            itemPrice = new Decimal(standardPriceItem.unit_price);
+                        }
+                                                 // Si no está en lista estándar, mantener precio base como fallback
+                    }
+                    
+                    const itemSubtotal = itemPrice.mul(itemDto.quantity);
                     calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
                     orderItemsDataForCreation.push({
                         product_id: itemDto.product_id,
@@ -265,7 +360,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         }
     }
 
-    async findAll(filterDto: FilterOrdersDto): Promise<{ data: OrderResponseDto[]; total: number; page: number; limit: number, totalPages: number }> {
+    async findAll(filterDto: FilterOrdersDto): Promise<{ data: OrderResponseDto[]; meta: { total: number; page: number; limit: number, totalPages: number } }> {
         const {
             search,
             customerName,
@@ -356,10 +451,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             
             return {
                 data: orders.map(order => this.mapToOrderResponseDto(order)),
-                total: totalOrders,
-                page,
-                limit: take,
-                totalPages: Math.ceil(totalOrders / take)
+                meta: {
+                    total: totalOrders,
+                    page,
+                    limit: take,
+                    totalPages: Math.ceil(totalOrders / take)
+                }
             }
         } catch (error) {
             handlePrismaError(error, `${this.entityName}s`);

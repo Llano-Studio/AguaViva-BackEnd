@@ -16,17 +16,41 @@ export class PriceListController {
   @Auth(Role.ADMIN)
   @ApiOperation({ 
     summary: 'Crear una nueva lista de precios',
-    description: 'Crea una nueva lista de precios con su información básica. Las listas de precios se utilizan para definir diferentes tarifas para los productos ofrecidos a los clientes.'
+    description: `Crea una nueva lista de precios con su información básica. Las listas de precios se utilizan para definir diferentes tarifas para los productos ofrecidos a los clientes.
+
+## Sistema de Precios Diferenciados
+
+**Tipos de Listas de Precios:**
+- **Lista General/Estándar (ID: 1)**: Utilizada para compras únicas (one-off purchases)
+- **Listas Específicas**: Asignadas a contratos para precios personalizados
+
+**Flujo de Precios:**
+1. **Contratos**: Usan \`client_contract.price_list_id\` → \`price_list_item.unit_price\`
+2. **Compras Únicas**: Usan Lista General (ID: 1) → \`price_list_item.unit_price\`
+3. **Fallback**: Si no hay precio en lista → \`product.price\` (precio base)`
   })
   @ApiBody({
     description: 'Datos de la lista de precios a crear',
     type: CreatePriceListDto,
     examples: {
-      example1: {
+      listaGeneral: {
+        summary: 'Lista General/Estándar',
+        description: 'Lista principal para compras públicas',
         value: {
-          name: 'Lista Estándar',
-          description: 'Lista de precios estándar para clientes regulares',
+          name: 'Lista General/Estándar',
+          description: 'Lista de precios estándar para compras únicas y público general',
           is_default: true,
+          active: true,
+          effective_date: '2024-01-01'
+        }
+      },
+      listaCorporativa: {
+        summary: 'Lista Corporativa',
+        description: 'Lista con descuentos para clientes corporativos',
+        value: {
+          name: 'Lista Corporativa Premium',
+          description: 'Lista de precios con descuentos para clientes corporativos',
+          is_default: false,
           active: true,
           effective_date: '2024-01-01'
         }
@@ -65,11 +89,13 @@ export class PriceListController {
     summary: 'Obtener todas las listas de precios',
     description: 'Devuelve un listado completo de todas las listas de precios disponibles en el sistema, con paginación y ordenamiento.'
   })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general por nombre de lista de precios' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general por nombre o descripción de lista de precios' })
   @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre específico de la lista' })
+  @ApiQuery({ name: 'active', required: false, type: Boolean, description: 'Filtrar por estado activo. true = solo activas, false = solo inactivas' })
+  @ApiQuery({ name: 'is_default', required: false, type: Boolean, description: 'Filtrar por lista por defecto. true = solo la lista por defecto' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Ej: name,-effective_date', example: 'name' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar. Ej: name,-effective_date,is_default', example: 'name' })
   @ApiResponse({ 
     status: 200, 
     description: 'Listas de precios obtenidas exitosamente.',
@@ -213,16 +239,73 @@ export class PriceListController {
     return this.priceListService.remove(id);
   }
 
-  @Patch(':id/apply-percentage')
+  @Post(':id/apply-percentage')
   @Auth(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Aplicar un cambio porcentual a todos los ítems de una lista de precios',
-    description: 'Aplica un incremento o decremento porcentual a todos los ítems activos de la lista de precios especificada. Registra el cambio en el historial.'
+  @ApiOperation({ 
+    summary: 'Aplicar cambio porcentual a todos los precios de una lista',
+    description: `Aplica un cambio porcentual a todos los ítems de una lista de precios específica, registrando el historial del cambio.
+
+## Actualización Masiva de Precios
+
+**Funcionalidad:**
+- Aplica un porcentaje de aumento o descuento a todos los productos de la lista
+- Registra el cambio en el historial con motivo/razón
+- Mantiene trazabilidad de todos los cambios de precios
+
+**Ejemplos:**
+- \`+10\`: Aumenta precios en 10%
+- \`-5\`: Reduce precios en 5%
+- \`+25\`: Aumenta precios en 25%
+
+**Casos de Uso:**
+- Ajustes por inflación
+- Promociones estacionales
+- Actualizaciones de costos por proveedores`
   })
-  @ApiParam({ name: 'id', description: 'ID de la lista de precios', type: Number })
-  @ApiBody({ type: ApplyPercentageWithReasonDto })
-  @ApiResponse({ status: 200, description: 'Cambio porcentual aplicado exitosamente.' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la lista de precios a actualizar',
+    type: Number,
+    example: 1
+  })
+  @ApiBody({
+    description: 'Datos del cambio porcentual a aplicar',
+    type: ApplyPercentageWithReasonDto,
+    examples: {
+      ajusteInflacion: {
+        summary: 'Ajuste por Inflación',
+        description: 'Aumento de precios debido a inflación',
+        value: {
+          percentage: 12,
+          reason: 'Ajuste por inflación trimestral - Q1 2024'
+        }
+      },
+      promocionDescuento: {
+        summary: 'Promoción de Descuento',
+        description: 'Descuento promocional para temporada',
+        value: {
+          percentage: -15,
+          reason: 'Promoción especial temporada de verano'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Cambio porcentual aplicado exitosamente.',
+    schema: {
+      properties: {
+        message: { type: 'string', example: 'Cambio porcentual aplicado correctamente' },
+        updated_items: { type: 'number', example: 25 },
+        percentage_applied: { type: 'number', example: 10 },
+        reason: { type: 'string', example: 'Ajuste por inflación trimestral - Q1 2024' }
+      }
+    }
+  })
   @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
+  @ApiResponse({ status: 400, description: 'Porcentaje inválido o datos incorrectos.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
   applyPercentageChange(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) applyPercentageDto: ApplyPercentageWithReasonDto,
@@ -246,10 +329,15 @@ export class PriceListController {
     schema: {
       properties: {
         data: { type: 'array', items: { $ref: '#/components/schemas/PriceHistoryResponseDto' } },
-        total: { type: 'number', example: 100 },
-        page: { type: 'number', example: 1 },
-        limit: { type: 'number', example: 10 },
-        totalPages: { type: 'number', example: 10 }
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 100 },
+            page: { type: 'number', example: 1 },
+            limit: { type: 'number', example: 10 },
+            totalPages: { type: 'number', example: 10 }
+          }
+        }
       }
     }
   })
@@ -277,10 +365,15 @@ export class PriceListController {
     schema: {
       properties: {
         data: { type: 'array', items: { $ref: '#/components/schemas/PriceHistoryResponseDto' } },
-        total: { type: 'number', example: 100 },
-        page: { type: 'number', example: 1 },
-        limit: { type: 'number', example: 10 },
-        totalPages: { type: 'number', example: 10 }
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 100 },
+            page: { type: 'number', example: 1 },
+            limit: { type: 'number', example: 10 },
+            totalPages: { type: 'number', example: 10 }
+          }
+        }
       }
     }
   })

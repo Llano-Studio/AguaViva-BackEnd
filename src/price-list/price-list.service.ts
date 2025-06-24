@@ -18,18 +18,22 @@ type PriceListWithRelations = Prisma.price_listGetPayload<{
 
 export interface PaginatedPriceListResponse {
     data: PriceListWithRelations[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    };
 }
 
 export interface PaginatedPriceHistoryResponse {
     data: PriceHistoryResponseDto[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+    };
 }
 
 interface PriceListHistoryWithProduct extends PriceListHistoryPrisma {
@@ -46,9 +50,20 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
     async create(createPriceListDto: CreatePriceListDto): Promise<PrismaPriceList> {
         try {
+            // Si se marca como default, desactivar otras listas default
+            if (createPriceListDto.is_default) {
+                await this.price_list.updateMany({
+                    where: { is_default: true },
+                    data: { is_default: false }
+                });
+            }
+
             const data: Prisma.price_listCreateInput = {
                 name: createPriceListDto.name,
-                effective_date: new Date(createPriceListDto.effective_date), 
+                description: createPriceListDto.description,
+                effective_date: new Date(createPriceListDto.effective_date),
+                is_default: createPriceListDto.is_default ?? false,
+                active: createPriceListDto.active ?? true,
             };
             return await this.price_list.create({
                 data
@@ -60,7 +75,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     }
 
     async findAll(filterDto: FilterPriceListDto): Promise<PaginatedPriceListResponse> {
-        const { page = 1, limit = 10, sortBy, search, name } = filterDto;
+        const { page = 1, limit = 10, sortBy, search, name, active, is_default } = filterDto;
         try {
             const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
             const take = Math.max(1, limit);
@@ -71,13 +86,23 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             // Búsqueda general en múltiples campos
             if (search) {
                 where.OR = [
-                    { name: { contains: search, mode: 'insensitive' } }
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { description: { contains: search, mode: 'insensitive' } }
                 ];
             }
             
             // Filtros específicos
             if (name) {
                 where.name = { contains: name, mode: 'insensitive' };
+            }
+
+            // Filtros para nuevos campos
+            if (active !== undefined) {
+                where.active = active;
+            }
+
+            if (is_default !== undefined) {
+                where.is_default = is_default;
             }
 
             const [priceLists, totalItems] = await this.$transaction([
@@ -99,10 +124,12 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
             return {
                 data: priceLists,
-                total: totalItems,
-                page,
-                limit,
-                totalPages: Math.ceil(totalItems / take)
+                meta: {
+                    total: totalItems,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalItems / take)
+                }
             };
         } catch (error) {
             handlePrismaError(error, `${this.entityName}s`);
@@ -129,9 +156,24 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
     async update(id: number, updatePriceListDto: UpdatePriceListDto): Promise<PrismaPriceList> {
         await this.findOne(id); // Verifica existencia
+        
+        // Si se marca como default, desactivar otras listas default
+        if (updatePriceListDto.is_default) {
+            await this.price_list.updateMany({
+                where: { 
+                    is_default: true,
+                    price_list_id: { not: id } // Excluir la actual
+                },
+                data: { is_default: false }
+            });
+        }
+
         const data: Prisma.price_listUpdateInput = {};
         if (updatePriceListDto.name) data.name = updatePriceListDto.name;
+        if (updatePriceListDto.description !== undefined) data.description = updatePriceListDto.description;
         if (updatePriceListDto.effective_date) data.effective_date = new Date(updatePriceListDto.effective_date);
+        if (updatePriceListDto.is_default !== undefined) data.is_default = updatePriceListDto.is_default;
+        if (updatePriceListDto.active !== undefined) data.active = updatePriceListDto.active;
 
         if (Object.keys(data).length === 0) {
            return this.price_list.findUniqueOrThrow({ where: {price_list_id: id}});
@@ -230,7 +272,12 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             ]);
             return {
                 data: historyItems.map(h => this.toPriceHistoryResponseDto(h as PriceListHistoryWithProduct)),
-                total: totalItems, page, limit, totalPages: Math.ceil(totalItems / take)
+                meta: {
+                    total: totalItems,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalItems / take)
+                }
             };
         } catch (error) {
             if (error instanceof NotFoundException) throw error;
@@ -247,7 +294,15 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
         try {
             await this.findOne(priceListId); // Verifica existencia
             const itemsInList = await this.price_list_item.findMany({ where: { price_list_id: priceListId }, select: { price_list_item_id: true } });
-            if (itemsInList.length === 0) return { data: [], total: 0, page, limit, totalPages: 0 };
+            if (itemsInList.length === 0) return { 
+                data: [], 
+                meta: { 
+                    total: 0, 
+                    page, 
+                    limit, 
+                    totalPages: 0 
+                } 
+            };
             const itemIds = itemsInList.map(item => item.price_list_item_id);
 
             const whereCondition = { price_list_item_id: { in: itemIds } };
@@ -263,7 +318,12 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             ]);
             return {
                 data: historyItems.map(h => this.toPriceHistoryResponseDto(h as PriceListHistoryWithProduct)),
-                total: totalItems, page, limit, totalPages: Math.ceil(totalItems / take)
+                meta: {
+                    total: totalItems,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalItems / take)
+                }
             };
         } catch (error) {
             if (error instanceof NotFoundException) throw error;

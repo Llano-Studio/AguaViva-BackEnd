@@ -77,7 +77,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         }
     }
 
-    async findAll(filterDto: FilterPriceListItemDto): Promise<PaginatedPriceListItemResponseDto> {
+    async findAll(filterDto: FilterPriceListItemDto): Promise<{ data: PriceListItemResponseDto[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
         const { page = 1, limit = 10, sortBy, price_list_id, product_id } = filterDto;
         try {
             const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -101,10 +101,12 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
             return {
                 data: items.map(item => this.toPriceListItemResponseDto(item as PriceListItemWithRelations)),
-                total: totalItems,
-                page,
-                limit,
-                totalPages: Math.ceil(totalItems / take)
+                meta: {
+                    total: totalItems,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalItems / take)
+                }
             };
         } catch (error) {
             handlePrismaError(error, `${this.entityName}s`);
@@ -112,7 +114,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         }
     }
 
-    async findAllByPriceListId(paramPriceListId: number, filterDto: FilterPriceListItemDto): Promise<PaginatedPriceListItemResponseDto> {
+    async findAllByPriceListId(paramPriceListId: number, filterDto: FilterPriceListItemDto): Promise<{ data: PriceListItemResponseDto[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
         const { page = 1, limit = 10, sortBy, product_id } = filterDto;
         // price_list_id del DTO se ignora, paramPriceListId tiene precedencia.
         await this.validatePriceListExists(paramPriceListId);
@@ -137,10 +139,12 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
             return {
                 data: items.map(item => this.toPriceListItemResponseDto(item as PriceListItemWithRelations)),
-                total: totalItems,
-                page,
-                limit,
-                totalPages: Math.ceil(totalItems / take)
+                meta: {
+                    total: totalItems,
+                    page,
+                    limit,
+                    totalPages: Math.ceil(totalItems / take)
+                }
             };
         } catch (error) {
             handlePrismaError(error, `${this.entityName}s para la lista ID ${paramPriceListId}`);

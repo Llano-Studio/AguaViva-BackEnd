@@ -6,7 +6,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterPersonsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Búsqueda general por nombre, dirección, teléfono o CUIT/CUIL/DNI',
+    description: 'Búsqueda general por nombre, alias, dirección, teléfono o CUIT/CUIL/DNI',
     example: 'marcos',
   })
   @IsOptional()
@@ -29,6 +29,14 @@ export class FilterPersonsDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por alias de la persona (búsqueda parcial)',
+    example: 'Juancho',
+  })
+  @IsOptional()
+  @IsString()
+  alias?: string;
 
   @ApiPropertyOptional({
     description: 'Filtrar por dirección de la persona (búsqueda parcial)',

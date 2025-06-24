@@ -27,9 +27,9 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
       name: plan.name,
       description: plan.description || undefined,
       price: plan.price ? parseFloat(plan.price.toString()) : 0,
-      cycle_days: (plan as any).cycle_days || 30,
-      deliveries_per_cycle: (plan as any).deliveries_per_cycle || 1,
-      active: (plan as any).active === undefined ? true : (plan as any).active,
+      default_cycle_days: (plan as any).default_cycle_days || 30,
+      default_deliveries_per_cycle: (plan as any).default_deliveries_per_cycle || 1,
+      is_active: (plan as any).is_active !== undefined ? (plan as any).is_active : true,
       created_at: (plan as any).created_at || new Date(),
       updated_at: (plan as any).updated_at || new Date(),
       products: plan.subscription_plan_product?.map(p => this.toSubscriptionPlanProductResponseDto(p)) || [],
@@ -43,6 +43,9 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
           name: createSubscriptionPlanDto.name,
           description: createSubscriptionPlanDto.description,
           price: createSubscriptionPlanDto.price,
+          default_cycle_days: createSubscriptionPlanDto.default_cycle_days,
+          default_deliveries_per_cycle: createSubscriptionPlanDto.default_deliveries_per_cycle,
+          is_active: createSubscriptionPlanDto.is_active,
         },
         include: {
           subscription_plan_product: { 
@@ -52,14 +55,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
           },
         }
       });
-      const planForDto = { ...newPlan, 
-        cycle_days: createSubscriptionPlanDto.cycle_days, 
-        deliveries_per_cycle: createSubscriptionPlanDto.deliveries_per_cycle, 
-        active: createSubscriptionPlanDto.active === undefined ? true : createSubscriptionPlanDto.active, 
-        created_at: new Date(), 
-        updated_at: new Date() 
-      };
-      return this.toSubscriptionPlanResponseDto(planForDto as any);
+      return this.toSubscriptionPlanResponseDto(newPlan);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') { 
@@ -74,7 +70,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
   }
 
   async findAll(filters: FilterSubscriptionPlansDto): Promise<PaginatedSubscriptionPlanResponseDto> {
-    const { sortBy, search, name, page = 1, limit = 10 } = filters;
+    const { sortBy, search, name, is_active, page = 1, limit = 10 } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     
@@ -91,6 +87,11 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
     // Filtros específicos
     if (name) {
       where.name = { contains: name, mode: 'insensitive' };
+    }
+
+    // Filtro por estado de activación
+    if (is_active !== undefined) {
+      where.is_active = is_active;
     }
 
     const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
@@ -114,10 +115,12 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
 
         return {
           data: plans.map(plan => this.toSubscriptionPlanResponseDto(plan)),
-          total: totalPlans,
-          page,
-          limit,
-          totalPages: Math.ceil(totalPlans / take),
+          meta: {
+            total: totalPlans,
+            page,
+            limit,
+            totalPages: Math.ceil(totalPlans / take)
+          }
         };
     } catch (error) {
         handlePrismaError(error, `${this.entityName}s`);
@@ -151,6 +154,9 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
             name: updateSubscriptionPlanDto.name,
             description: updateSubscriptionPlanDto.description,
             price: updateSubscriptionPlanDto.price,
+            default_cycle_days: updateSubscriptionPlanDto.default_cycle_days,
+            default_deliveries_per_cycle: updateSubscriptionPlanDto.default_deliveries_per_cycle,
+            is_active: updateSubscriptionPlanDto.is_active,
         },
         include: {
             subscription_plan_product: {
@@ -158,13 +164,7 @@ export class SubscriptionPlansService extends PrismaClient implements OnModuleIn
             }
         }
       });
-      const planForDto = { ...updatedPlan, 
-        cycle_days: updateSubscriptionPlanDto.cycle_days, 
-        deliveries_per_cycle: updateSubscriptionPlanDto.deliveries_per_cycle, 
-        active: updateSubscriptionPlanDto.active, 
-        updated_at: new Date() 
-      };
-      return this.toSubscriptionPlanResponseDto(planForDto as any);
+      return this.toSubscriptionPlanResponseDto(updatedPlan);
     } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
              throw new ConflictException(`Error de conflicto al actualizar el ${this.entityName.toLowerCase()}. Verifique los datos.`);

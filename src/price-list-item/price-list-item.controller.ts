@@ -32,12 +32,39 @@ export class PriceListItemController {
     @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos de lista: price_list.name. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-    @ApiResponse({ status: 200, description: 'Ítems de listas de precios obtenidos exitosamente.', type: PaginatedPriceListItemResponseDto })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Ítems de listas de precios obtenidos exitosamente.',
+        schema: {
+            properties: {
+                data: {
+                    type: 'array',
+                    items: {
+                        properties: {
+                            price_list_item_id: { type: 'number', example: 1 },
+                            price_list_id: { type: 'number', example: 1 },
+                            product_id: { type: 'number', example: 1 },
+                            unit_price: { type: 'number', format: 'float', example: 15.50 }
+                        }
+                    }
+                },
+                meta: {
+                    type: 'object',
+                    properties: {
+                        total: { type: 'number', example: 100 },
+                        page: { type: 'number', example: 1 },
+                        limit: { type: 'number', example: 10 },
+                        totalPages: { type: 'number', example: 10 }
+                    }
+                }
+            }
+        }
+    })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
     findAll(
         @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
         filterDto: FilterPriceListItemDto,
-    ): Promise<PaginatedPriceListItemResponseDto> {
+    ) {
         return this.priceListItemService.findAll(filterDto);
     }
 
@@ -48,14 +75,41 @@ export class PriceListItemController {
     @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-    @ApiResponse({ status: 200, description: 'Ítems de la lista de precios obtenidos exitosamente.', type: PaginatedPriceListItemResponseDto })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Ítems de la lista de precios obtenidos exitosamente.',
+        schema: {
+            properties: {
+                data: {
+                    type: 'array',
+                    items: {
+                        properties: {
+                            price_list_item_id: { type: 'number', example: 1 },
+                            price_list_id: { type: 'number', example: 1 },
+                            product_id: { type: 'number', example: 1 },
+                            unit_price: { type: 'number', format: 'float', example: 15.50 }
+                        }
+                    }
+                },
+                meta: {
+                    type: 'object',
+                    properties: {
+                        total: { type: 'number', example: 100 },
+                        page: { type: 'number', example: 1 },
+                        limit: { type: 'number', example: 10 },
+                        totalPages: { type: 'number', example: 10 }
+                    }
+                }
+            }
+        }
+    })
     @ApiResponse({ status: 404, description: 'Lista de precios no encontrada.' })
     @ApiResponse({ status: 401, description: 'No autorizado.' })
     findAllByPriceList(
         @Param('priceListId', ParseIntPipe) priceListId: number,
         @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
         filterDto: FilterPriceListItemDto,
-    ): Promise<PaginatedPriceListItemResponseDto> {
+    ) {
         return this.priceListItemService.findAllByPriceListId(priceListId, filterDto);
     }
 

@@ -230,3 +230,59 @@ Para soporte técnico o consultas sobre el proyecto, contactar al equipo de desa
 ---
 
 **Desarrollado con ❤️ para la gestión eficiente de agua embotellada**
+
+## Mejoras Recientes en la API
+
+### Planes de Suscripción (v2.0)
+
+Se han agregado nuevos campos a los planes de suscripción para mejorar el control y configuración:
+
+#### Nuevos Campos Disponibles:
+
+- **`default_cycle_days`** (Integer): Duración por defecto del ciclo en días (ej: 30 para mensual, 15 para quincenal)
+- **`default_deliveries_per_cycle`** (Integer): Número de entregas por defecto por ciclo
+- **`is_active`** (Boolean): Indica si el plan está disponible para nuevas suscripciones
+- **`created_at`** (DateTime): Fecha de creación del plan
+- **`updated_at`** (DateTime): Fecha de última actualización
+
+#### Endpoints Actualizados:
+
+**POST /api/subscription-plans**
+```json
+{
+  "name": "Plan Premium Quincenal",
+  "description": "Plan premium con entregas cada 15 días",
+  "price": 25000.00,
+  "default_cycle_days": 15,
+  "default_deliveries_per_cycle": 2,
+  "is_active": true
+}
+```
+
+**PATCH /api/subscription-plans/1**
+```json
+{
+  "default_cycle_days": 30,
+  "default_deliveries_per_cycle": 1,
+  "is_active": false
+}
+```
+
+**GET /api/subscription-plans?is_active=true**
+- Nuevo filtro por estado de activación
+- Filtros disponibles: `search`, `name`, `is_active`
+- Ordenamiento disponible: `name`, `price`, `default_cycle_days`, `default_deliveries_per_cycle`, `is_active`, `created_at`, `updated_at`
+
+#### Compatibilidad:
+
+✅ **Retrocompatible**: Los endpoints existentes siguen funcionando
+✅ **Campos opcionales**: Los nuevos campos tienen valores por defecto
+✅ **Base de datos**: Migración automática aplicada
+
+#### Documentación Swagger:
+
+Accede a `/api/docs` para ver la documentación completa con:
+- Ejemplos de requests/responses
+- Casos de uso detallados  
+- Códigos de error explicados
+- Filtros y ordenamiento disponibles

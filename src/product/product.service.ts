@@ -10,6 +10,8 @@ import { FilterProductsDto } from './dto/filter-products.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
+import { Decimal } from '@prisma/client/runtime/library';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()
 export class ProductService extends PrismaClient implements OnModuleInit {
@@ -29,6 +31,38 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     });
     if (!category) {
       throw new BadRequestException(`La categoría con ID ${categoryId} no existe.`);
+    }
+  }
+
+  private async validateDefaultPriceListExists(): Promise<void> {
+    // Verificar si existe una lista marcada como por defecto
+    const defaultPriceList = await this.price_list.findFirst({
+      where: { is_default: true },
+    });
+    
+    if (!defaultPriceList) {
+      throw new BadRequestException(
+        'No se puede crear el producto. No existe ninguna lista de precios marcada como por defecto. ' +
+        'Debe existir y activar una lista de precios como por defecto para poder crear productos.'
+      );
+    }
+    
+    if (!defaultPriceList.active) {
+      throw new BadRequestException(
+        `No se puede crear el producto. La lista de precios por defecto "${defaultPriceList.name}" está inactiva. ` +
+        'La lista de precios por defecto debe estar activa para poder crear productos.'
+      );
+    }
+
+    // También verificar que la lista configurada existe (para retrocompatibilidad)
+    const configuredPriceList = await this.price_list.findUnique({
+      where: { price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID },
+    });
+    if (!configuredPriceList) {
+      throw new BadRequestException(
+        `No se puede crear el producto. La lista de precios configurada (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID}) no existe. ` +
+        'Verifique la configuración del sistema.'
+      );
     }
   }
 
@@ -177,7 +211,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
   async createProduct(dto: CreateProductDto, productImage?: any): Promise<ProductResponseDto> {
     await this.validateCategoryExists(dto.category_id);
-    const { category_id, productImage: _, ...productData } = dto;
+    await this.validateDefaultPriceListExists();
+    const { category_id, total_stock, productImage: _, ...productData } = dto;
     
     try {
       const dataToCreate: any = {
@@ -192,31 +227,52 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         dataToCreate.image_url = productImage.filename;
       }
 
-      const product = await this.product.create({
-        data: dataToCreate,
-        include: {
-          product_category: true,
-          inventory: {
-            include: {
-              warehouse: {
-                include: {
-                  locality: true
+      return await this.$transaction(async (prismaTx) => {
+        const product = await prismaTx.product.create({
+          data: dataToCreate,
+          include: {
+            product_category: true,
+            inventory: {
+              include: {
+                warehouse: {
+                  include: {
+                    locality: true
+                  }
                 }
               }
             }
-          }
-        },
-      });
+          },
+        });
 
-      const stock = await this.inventoryService.getProductStock(product.product_id);
-      
-      return new ProductResponseDto({
-        ...product,
-        price: product.price as any,
-        volume_liters: product.volume_liters as any,
-        total_stock: stock,
-        inventory: product.inventory as any,
-        image_url: buildImageUrl(product.image_url, 'products'),
+        // Automáticamente agregar el producto a la lista de precios estándar
+        await prismaTx.price_list_item.create({
+          data: {
+            price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+            product_id: product.product_id,
+            unit_price: product.price
+          }
+        });
+
+        // Crear inventario inicial si se especifica total_stock
+        if (total_stock !== undefined && total_stock > 0) {
+          await this.inventoryService.createInitialInventory({
+            product_id: product.product_id,
+            warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+            quantity: total_stock,
+            remarks: `Stock inicial - ${product.description}`
+          }, prismaTx);
+        }
+
+        const stock = await this.inventoryService.getProductStock(product.product_id, undefined, prismaTx);
+        
+        return new ProductResponseDto({
+          ...product,
+          price: product.price as any,
+          volume_liters: product.volume_liters as any,
+          total_stock: stock,
+          inventory: product.inventory as any,
+          image_url: buildImageUrl(product.image_url, 'products'),
+        });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -229,7 +285,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
   async updateProductById(id: number, dto: UpdateProductDto, productImage?: any): Promise<ProductResponseDto> {
     await this.getProductById(id, false);
-    const { category_id, productImage: _, ...productUpdateData } = dto;
+    const { category_id, total_stock, productImage: _, ...productUpdateData } = dto;
 
     if (category_id) {
       await this.validateCategoryExists(category_id);
@@ -249,32 +305,39 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     }
 
     try {
-      const updatedProduct = await this.product.update({
-        where: { product_id: id },
-        data: dataToUpdate,
-        include: {
-          product_category: true,
-          inventory: {
-            include: {
-              warehouse: {
-                include: {
-                  locality: true
+      return await this.$transaction(async (prismaTx) => {
+        const updatedProduct = await prismaTx.product.update({
+          where: { product_id: id },
+          data: dataToUpdate,
+          include: {
+            product_category: true,
+            inventory: {
+              include: {
+                warehouse: {
+                  include: {
+                    locality: true
+                  }
                 }
               }
             }
-          }
-        },
-      });
+          },
+        });
 
-      const stock = await this.inventoryService.getProductStock(id);
-      
-      return new ProductResponseDto({
-        ...updatedProduct,
-        price: updatedProduct.price as any,
-        volume_liters: updatedProduct.volume_liters as any,
-        total_stock: stock,
-        inventory: updatedProduct.inventory as any,
-        image_url: buildImageUrl(updatedProduct.image_url, 'products'),
+        // Manejar ajuste de stock si se proporciona total_stock
+        if (total_stock !== undefined) {
+          await this.handleStockAdjustment(id, total_stock, updatedProduct.description, prismaTx);
+        }
+
+        const stock = await this.inventoryService.getProductStock(id, undefined, prismaTx);
+        
+        return new ProductResponseDto({
+          ...updatedProduct,
+          price: updatedProduct.price as any,
+          volume_liters: updatedProduct.volume_liters as any,
+          total_stock: stock,
+          inventory: updatedProduct.inventory as any,
+          image_url: buildImageUrl(updatedProduct.image_url, 'products'),
+        });
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -357,4 +420,64 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       image_url: product.image_url || null
     };
   }
+
+  /**
+   * Maneja los ajustes de stock cuando se actualiza el total_stock de un producto
+   */
+  private async handleStockAdjustment(
+    productId: number, 
+    newTotalStock: number, 
+    productDescription: string,
+    tx: Prisma.TransactionClient
+  ): Promise<void> {
+    // Obtener el stock actual del producto en el almacén por defecto
+    const currentStock = await this.inventoryService.getProductStock(
+      productId, 
+      BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
+      tx
+    );
+
+    const stockDifference = newTotalStock - currentStock;
+
+    if (stockDifference === 0) {
+      return; // No hay cambios en el stock
+    }
+
+    // Verificar si existe inventario en el almacén por defecto
+    const existingInventory = await tx.inventory.findUnique({
+      where: {
+        warehouse_id_product_id: {
+          warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+          product_id: productId,
+        },
+      },
+    });
+
+    if (!existingInventory && newTotalStock > 0) {
+      // No existe inventario, crear uno nuevo con stock inicial
+      await this.inventoryService.createInitialInventory({
+        product_id: productId,
+        warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+        quantity: newTotalStock,
+        remarks: `Stock inicial - ${productDescription}`
+      }, tx);
+    } else if (stockDifference !== 0) {
+      // Existe inventario, crear movimiento de ajuste
+      const isPositiveAdjustment = stockDifference > 0;
+      const movementTypeCode = isPositiveAdjustment ? 'AJUSTE_POSITIVO' : 'AJUSTE_NEGATIVO';
+      
+      const movementTypeId = await this.inventoryService.getMovementTypeIdByCode(movementTypeCode, tx);
+      
+      await this.inventoryService.createStockMovement({
+        movement_type_id: movementTypeId,
+        product_id: productId,
+        quantity: Math.abs(stockDifference),
+        source_warehouse_id: isPositiveAdjustment ? null : BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+        destination_warehouse_id: isPositiveAdjustment ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID : null,
+        movement_date: new Date(),
+        remarks: `Ajuste de stock - ${productDescription}. Stock anterior: ${currentStock}, Stock nuevo: ${newTotalStock}`
+      }, tx);
+    }
+  }
+
 }

@@ -97,7 +97,23 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 await this.validatePurchaseData(createDto, prismaTx);
 
                 const product = await prismaTx.product.findUniqueOrThrow({ where: { product_id: createDto.product_id } });
-                const totalAmount = new Decimal(product.price).mul(createDto.quantity);
+                
+                // Buscar precio en lista estándar, si no existe usar precio base
+                let itemPrice = new Decimal(product.price); // Precio base como fallback
+                
+                // Intentar obtener precio de la lista estándar
+                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                    where: { 
+                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                        product_id: createDto.product_id 
+                    }
+                });
+                
+                if (standardPriceItem) {
+                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                }
+                
+                const totalAmount = itemPrice.mul(createDto.quantity);
 
                 if (!product.is_returnable) {
                     const stockDisponible = await this.inventoryService.getProductStock(createDto.product_id, BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, prismaTx);
@@ -147,7 +163,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         }
     }
 
-    async findAll(filters: FilterOneOffPurchasesDto): Promise<{ data: OneOffPurchaseResponseDto[]; total: number; page: number; limit: number; totalPages: number; }> {
+    async findAll(filters: FilterOneOffPurchasesDto): Promise<{ data: OneOffPurchaseResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
         const { search, customerName, productName, page = 1, limit = 10, sortBy, purchaseDateFrom, purchaseDateTo, person_id, product_id, sale_channel_id, locality_id, zone_id } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
@@ -216,10 +232,12 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             });
             return {
                 data: purchases.map(p => this.mapToOneOffPurchaseResponseDto(p)),
-                total,
-                page,
-                limit: take,
-                totalPages: Math.ceil(total / take),
+                meta: {
+                    total,
+                    page,
+                    limit: take,
+                    totalPages: Math.ceil(total / take)
+                }
             };
         } catch (error) {
             handlePrismaError(error, `${this.entityName}s`); // Usar plural para listados
@@ -261,7 +279,23 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     existingPurchase.product;
                 
                 const newQuantity = updateDto.quantity ?? existingPurchase.quantity;
-                const newTotalAmount = new Decimal(productForUpdate.price).mul(newQuantity);
+                
+                // Buscar precio en lista estándar, si no existe usar precio base
+                let itemPrice = new Decimal(productForUpdate.price); // Precio base como fallback
+                
+                // Intentar obtener precio de la lista estándar
+                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                    where: { 
+                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                        product_id: productForUpdate.product_id 
+                    }
+                });
+                
+                if (standardPriceItem) {
+                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                }
+                
+                const newTotalAmount = itemPrice.mul(newQuantity);
                 const quantityChange = newQuantity - existingPurchase.quantity;
 
                 if (!productForUpdate.is_returnable && quantityChange !== 0) {

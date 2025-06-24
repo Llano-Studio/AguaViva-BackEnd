@@ -88,6 +88,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     return {
       person_id: personEntity.person_id,
       name: personEntity.name || '',
+      alias: personEntity.alias || '',
       phone: personEntity.phone,
       address: personEntity.address || '',
       localityId: personEntity.locality_id === null ? 0 : personEntity.locality_id,
@@ -124,6 +125,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
     const data: Prisma.personCreateInput = {
       name: dto.name,
+      alias: dto.alias,
       phone: dto.phone,
       address: dto.address,
       tax_id: dto.taxId,
@@ -154,12 +156,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findAllPersons(filters: FilterPersonsDto): Promise<{ data: PersonResponseDto[], total: number, page: number, limit: number, totalPages: number }> {
+  async findAllPersons(filters: FilterPersonsDto): Promise<{ data: PersonResponseDto[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
     const {
       page = 1,
       limit = 10,
       search,
       name,
+      alias,
       address,
       type,
       personId,
@@ -177,6 +180,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
+        { alias: { contains: search, mode: 'insensitive' } },
         { address: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
         { tax_id: { contains: search, mode: 'insensitive' } }
@@ -186,6 +190,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     // Filtros específicos (se pueden combinar con search)
     if (personId) where.person_id = personId;
     if (name) where.name = { contains: name, mode: 'insensitive' };
+    if (alias) where.alias = { contains: alias, mode: 'insensitive' };
     if (address) where.address = { contains: address, mode: 'insensitive' };
     if (phone) where.phone = { contains: phone, mode: 'insensitive' };
     if (taxId) where.tax_id = { contains: taxId, mode: 'insensitive' };
@@ -272,10 +277,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
         return { 
           data: paginatedData, 
-          total: totalFiltered, 
-          page, 
-          limit: take, 
-          totalPages: Math.ceil(totalFiltered / take) 
+          meta: {
+            total: totalFiltered, 
+            page, 
+            limit: take, 
+            totalPages: Math.ceil(totalFiltered / take)
+          }
         };
       } else {
         // Sin filtro de semáforo ni ordenamiento por semáforo, podemos aplicar paginación directamente en la BD
@@ -312,10 +319,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
         return { 
           data: processedPersons, 
-          total: totalCount, 
-          page, 
-          limit: take, 
-          totalPages: Math.ceil(totalCount / take) 
+          meta: {
+            total: totalCount, 
+            page, 
+            limit: take, 
+            totalPages: Math.ceil(totalCount / take)
+          }
         };
       }
     } catch (error) {
@@ -364,6 +373,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     const dataToUpdate: Prisma.personUpdateInput = {};
 
     if (dto.name !== undefined) dataToUpdate.name = dto.name;
+    if (dto.alias !== undefined) dataToUpdate.alias = dto.alias;
     if (dto.phone !== undefined) dataToUpdate.phone = dto.phone;
     if (dto.address !== undefined) dataToUpdate.address = dto.address;
     if (dto.taxId !== undefined) dataToUpdate.tax_id = dto.taxId;

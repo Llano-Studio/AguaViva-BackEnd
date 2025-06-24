@@ -29,7 +29,20 @@ export class OrdersController {
     @Post()
     @ApiOperation({ 
         summary: 'Crear un nuevo pedido regular',
-        description: 'Crea un nuevo pedido regular con sus ítems asociados. Valida el stock disponible y actualiza el inventario.'
+        description: `Crea un nuevo pedido regular con sus ítems asociados. Valida el stock disponible y actualiza el inventario.
+
+## Sistema de Precios Diferenciados - CONTRATOS
+
+**Precios para Contratos:**
+- Los pedidos con \`contract_id\` usan la lista de precios específica del contrato
+- Cada contrato tiene una \`price_list_id\` asignada que define precios personalizados
+- Si no se encuentra precio en la lista del contrato, se usa el precio base del producto como fallback
+- Flujo: \`contract.price_list_id → price_list_item.unit_price → product.price\` (fallback)
+
+**Casos de Uso:**
+- Clientes corporativos con descuentos especiales
+- Contratos de largo plazo con precios negociados
+- Diferentes tarifas por volumen o tipo de cliente`
     })
     @ApiBody({ type: CreateOrderDto })
     @ApiResponse({ 
@@ -43,7 +56,7 @@ export class OrdersController {
     })
     @ApiResponse({ 
         status: 404, 
-        description: 'Cliente, producto o entidad relacionada no encontrada.' 
+        description: 'Cliente, producto, contrato o entidad relacionada no encontrada.' 
     })
     @ApiResponse({ 
         status: 409, 
@@ -82,16 +95,21 @@ export class OrdersController {
                     type: 'array',
                     items: { $ref: '#/components/schemas/OrderResponseDto' }
                 },
-                total: { type: 'number', example: 100 },
-                page: { type: 'number', example: 1 },
-                limit: { type: 'number', example: 10 },
-                totalPages: { type: 'number', example: 10 }
+                meta: {
+                    type: 'object',
+                    properties: {
+                        total: { type: 'number', example: 100 },
+                        page: { type: 'number', example: 1 },
+                        limit: { type: 'number', example: 10 },
+                        totalPages: { type: 'number', example: 10 }
+                    }
+                }
             }
         }
     })
     async findAllOrders(
         @Query(ValidationPipe) filterOrdersDto: FilterOrdersDto
-    ): Promise<{ data: OrderResponseDto[]; total: number; page: number; limit: number; totalPages: number }> {
+    ): Promise<{ data: OrderResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
         return this.ordersService.findAll(filterOrdersDto);
     }
 
@@ -182,7 +200,19 @@ export class OrdersController {
     @Post('one-off')
     @ApiOperation({ 
         summary: 'Crear una nueva compra de una sola vez (one-off purchase)',
-        description: 'Crea una nueva compra de una sola vez con sus ítems asociados. Este tipo de compra es para clientes ocasionales sin contrato fijo.'
+        description: `Crea una nueva compra de una sola vez con sus ítems asociados. Este tipo de compra es para clientes ocasionales sin contrato fijo.
+
+## Sistema de Precios Diferenciados - COMPRAS ÚNICAS
+
+**Precios para Compras Únicas:**
+- Las compras únicas (one-off) usan la Lista de Precios GENERAL/ESTÁNDAR (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+- Flujo: \`Lista General (ID: 1) → price_list_item.unit_price → product.price\` (fallback)
+- Esta lista permite tener precios diferentes del precio base del producto
+
+**Casos de Uso:**
+- Clientes ocasionales sin contrato
+- Compras esporádicas
+- Precio al público general (puede ser diferente al precio base)`
     })
     @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 
@@ -327,7 +357,7 @@ export class OrdersController {
     })
     async findAllOneOffPurchases(
         @Query(ValidationPipe) filterOneOffPurchasesDto: FilterOneOffPurchasesDto
-    ): Promise<{ data: OneOffPurchaseResponseDto[]; total: number; page: number; limit: number }> {
+    ): Promise<{ data: OneOffPurchaseResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
         return this.oneOffPurchaseService.findAll(filterOneOffPurchasesDto);
     }
 

@@ -14,7 +14,7 @@ export class ProductCategoryService extends PrismaClient implements OnModuleInit
     await this.$connect();
   }
 
-  async findAll(filters: FilterProductCategoriesDto): Promise<{ data: ProductCategoryPrisma[], total: number, page: number, limit: number, totalPages: number }> {
+  async findAll(filters: FilterProductCategoriesDto): Promise<{ data: ProductCategoryPrisma[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
     const { page = 1, limit = 10, sortBy, search, name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
@@ -50,10 +50,12 @@ export class ProductCategoryService extends PrismaClient implements OnModuleInit
 
       return {
         data: categories,
-        total: totalCategories,
-        page,
-        limit,
-        totalPages: Math.ceil(totalCategories / take),
+        meta: {
+          total: totalCategories,
+          page,
+          limit,
+          totalPages: Math.ceil(totalCategories / take)
+        }
       };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);

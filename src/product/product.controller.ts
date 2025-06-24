@@ -68,7 +68,57 @@ export class ProductController {
   })
   @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
   @ApiQuery({ name: 'includeInventory', required: false, type: Boolean, description: 'Incluir información detallada del inventario por almacén', example: true })
-  @ApiResponse({ status: 200, description: 'Producto encontrado.', type: ProductResponseDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: `Producto encontrado con información de stock actualizada.
+
+**📊 Información de Stock Incluida:**
+
+La respuesta incluye stock actual calculado en tiempo real:
+- \`total_stock\`: Stock total calculado en todos los almacenes
+- \`inventory\`: Array detallado por almacén (si \`includeInventory=true\`)
+
+**Ejemplo de Respuesta:**
+\`\`\`json
+{
+  "product_id": 15,
+  "category_id": 1,
+  "description": "Agua Mineral 500ml",
+  "volume_liters": 0.5,
+  "price": 25.50,
+  "is_returnable": true,
+  "total_stock": 100,
+  "serial_number": "AM-500-001",
+  "notes": "Producto premium",
+  "image_url": "/uploads/products/imagen123.jpg",
+  "product_category": {
+    "category_id": 1,
+    "name": "Bebidas"
+  },
+  "inventory": [
+    {
+      "warehouse_id": 1,
+      "product_id": 15,
+      "quantity": 100,
+      "warehouse": {
+        "warehouse_id": 1,
+        "name": "Almacén Principal",
+        "locality": {
+          "locality_id": 1,
+          "name": "Centro"
+        }
+      }
+    }
+  ]
+}
+\`\`\`
+
+**Para Frontend:**
+- Usar \`total_stock\` para mostrar stock disponible
+- Usar \`inventory\` para desglose por almacén
+- Útil para formularios de actualización de stock`,
+    type: ProductResponseDto 
+  })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   getProductById(
@@ -84,15 +134,116 @@ export class ProductController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ 
     summary: 'Crear un nuevo producto',
-    description: 'Crea un nuevo producto en el sistema con imagen opcional. Solo disponible para administradores.' 
+    description: `Crea un nuevo producto en el sistema con imagen opcional y stock inicial. Solo disponible para administradores.
+
+## Sistema de Precios Diferenciados - PRODUCTOS
+
+**Integración Automática con Listas de Precios:**
+- Al crear un producto, se agrega automáticamente a la Lista General/Estándar (ID: 1)
+- El precio inicial en la lista será igual al \`product.price\` (precio base)
+- Posteriormente se pueden ajustar precios en listas específicas
+
+**Gestión de Stock Inicial:**
+- Si se especifica \`total_stock\`, se crea automáticamente inventario en el almacén por defecto
+- Se registra un movimiento de stock inicial para trazabilidad
+- Si \`total_stock\` es 0 o no se especifica, el producto se crea sin inventario inicial
+
+**Flujo de Creación:**
+1. Se crea el producto con \`price\` (precio base/referencia)
+2. Se crea automáticamente \`price_list_item\` en Lista General
+3. Si \`total_stock > 0\`, se crea inventario inicial en almacén por defecto
+4. El producto queda disponible para compras únicas con precio de lista
+
+**Casos de Uso:**
+- El \`product.price\` sirve como precio de referencia/fallback
+- La Lista General define el precio público real
+- Las listas específicas pueden tener precios diferentes para contratos`
   })
   @ApiBody({ 
-    description: 'Datos del producto a crear incluyendo imagen opcional', 
+    description: `Datos del producto a crear incluyendo imagen opcional y stock inicial.
+
+**📦 NUEVO: Gestión de Stock Inicial**
+
+El campo \`total_stock\` permite definir inventario inicial automáticamente.
+
+**Ejemplos de Payload:**
+
+**1. Producto con stock inicial:**
+\`\`\`json
+{
+  "category_id": 1,
+  "description": "Agua Mineral 500ml",
+  "volume_liters": 0.5,
+  "price": 25.50,
+  "is_returnable": true,
+  "total_stock": 100,
+  "serial_number": "AM-500-001",
+  "notes": "Producto premium"
+}
+\`\`\`
+
+**2. Producto sin stock inicial:**
+\`\`\`json
+{
+  "category_id": 1,
+  "description": "Agua Mineral 1L",
+  "volume_liters": 1.0,
+  "price": 45.00,
+  "is_returnable": true,
+  "total_stock": 0
+}
+\`\`\`
+
+**3. Producto con imagen (FormData):**
+- Campo: \`productImage\` (file)
+- Resto de campos como JSON
+`, 
     type: CreateProductDto 
   })
   @ApiResponse({ 
     status: 201, 
-    description: 'Producto creado exitosamente.',
+    description: `Producto creado exitosamente con inventario inicial (si se especificó).
+
+**Respuesta incluye:**
+- Producto creado con todos sus datos
+- \`total_stock\`: Stock actual calculado del producto
+- \`inventory\`: Array con inventario detallado por almacén
+- Producto agregado automáticamente a Lista General de precios
+
+**Ejemplo de Respuesta:**
+\`\`\`json
+{
+  "product_id": 15,
+  "category_id": 1,
+  "description": "Agua Mineral 500ml",
+  "volume_liters": 0.5,
+  "price": 25.50,
+  "is_returnable": true,
+  "total_stock": 100,
+  "serial_number": "AM-500-001",
+  "notes": "Producto premium",
+  "image_url": "/uploads/products/imagen123.jpg",
+  "product_category": {
+    "category_id": 1,
+    "name": "Bebidas"
+  },
+  "inventory": [
+    {
+      "warehouse_id": 1,
+      "product_id": 15,
+      "quantity": 100,
+      "warehouse": {
+        "warehouse_id": 1,
+        "name": "Almacén Principal",
+        "locality": {
+          "locality_id": 1,
+          "name": "Centro"
+        }
+      }
+    }
+  ]
+}
+\`\`\``,
     type: ProductResponseDto 
   })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })
@@ -112,16 +263,115 @@ export class ProductController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ 
     summary: 'Actualizar un producto por su id',
-    description: 'Actualiza la información de un producto existente incluyendo imagen opcional. Solo disponible para administradores.' 
+    description: `Actualiza la información de un producto existente incluyendo imagen opcional y ajustes de stock. Solo disponible para administradores.
+
+**Gestión de Stock en Actualización:**
+- Si se especifica \`total_stock\`, se calculará la diferencia con el stock actual
+- Se creará automáticamente un movimiento de ajuste (positivo o negativo)
+- Si no existe inventario previo y \`total_stock > 0\`, se crea inventario inicial
+- Todos los ajustes se registran en el almacén por defecto para trazabilidad` 
   })
   @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a actualizar', example: 1 })
   @ApiBody({ 
-    description: 'Datos del producto a actualizar incluyendo imagen opcional', 
+    description: `Datos del producto a actualizar incluyendo imagen opcional y ajustes de stock.
+
+**📦 NUEVO: Gestión Automática de Stock**
+
+El campo \`total_stock\` permite ajustar el inventario automáticamente.
+
+**⚠️ IMPORTANTE:** El sistema calcula la diferencia y genera movimientos automáticamente.
+
+**Ejemplos de Payload:**
+
+**1. Actualizar solo información básica (sin tocar stock):**
+\`\`\`json
+{
+  "description": "Agua Mineral Premium 500ml",
+  "price": 28.00,
+  "notes": "Actualización de precio"
+}
+\`\`\`
+
+**2. Ajustar stock (aumentar de 100 a 150):**
+\`\`\`json
+{
+  "total_stock": 150
+}
+\`\`\`
+
+**3. Ajustar stock (reducir de 100 a 80):**
+\`\`\`json
+{
+  "total_stock": 80
+}
+\`\`\`
+
+**4. Actualización completa:**
+\`\`\`json
+{
+  "description": "Agua Mineral Premium 500ml",
+  "price": 28.00,
+  "total_stock": 120,
+  "notes": "Actualización de precio y stock"
+}
+\`\`\`
+
+**Para Frontend:**
+- Obtener stock actual con GET /products/:id
+- Mostrar stock actual vs nuevo stock en confirmación
+- El backend calculará y aplicará la diferencia automáticamente
+`, 
     type: UpdateProductDto 
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Producto actualizado exitosamente.',
+    description: `Producto actualizado exitosamente con ajustes de stock aplicados (si se especificaron).
+
+**Respuesta incluye:**
+- Producto actualizado con todos sus datos
+- \`total_stock\`: Stock final después de ajustes
+- \`inventory\`: Inventario actualizado por almacén
+- Movimientos de stock registrados automáticamente (visibles en /inventory/movements)
+
+**Ejemplo de Respuesta (después de ajustar stock de 100 a 150):**
+\`\`\`json
+{
+  "product_id": 15,
+  "category_id": 1,
+  "description": "Agua Mineral Premium 500ml",
+  "volume_liters": 0.5,
+  "price": 28.00,
+  "is_returnable": true,
+  "total_stock": 150,
+  "serial_number": "AM-500-001",
+  "notes": "Actualización de precio y stock",
+  "image_url": "/uploads/products/imagen123.jpg",
+  "product_category": {
+    "category_id": 1,
+    "name": "Bebidas"
+  },
+  "inventory": [
+    {
+      "warehouse_id": 1,
+      "product_id": 15,
+      "quantity": 150,
+      "warehouse": {
+        "warehouse_id": 1,
+        "name": "Almacén Principal",
+        "locality": {
+          "locality_id": 1,
+          "name": "Centro"
+        }
+      }
+    }
+  ]
+}
+\`\`\`
+
+**Movimiento generado automáticamente:**
+- Tipo: "AJUSTE_POSITIVO"
+- Cantidad: 50 (diferencia entre 150 y 100)
+- Observaciones: "Ajuste de stock - Agua Mineral Premium 500ml. Stock anterior: 100, Stock nuevo: 150"`,
     type: ProductResponseDto
   })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })

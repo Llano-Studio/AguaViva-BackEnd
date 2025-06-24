@@ -63,10 +63,15 @@ export class ProductCategoryController {
                     }
                 }
             },
-            total: { type: 'number' },
-            page: { type: 'number' },
-            limit: { type: 'number' },
-            totalPages: { type: 'number' },
+            meta: {
+                type: 'object',
+                properties: {
+                    total: { type: 'number' },
+                    page: { type: 'number' },
+                    limit: { type: 'number' },
+                    totalPages: { type: 'number' }
+                }
+            }
         }
     }
   })

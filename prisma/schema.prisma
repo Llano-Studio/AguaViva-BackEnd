@@ -180,7 +180,12 @@ model product {
 model price_list {
   price_list_id   Int               @id @default(autoincrement())
   name            String            @db.VarChar(50)
+  description     String?           @db.VarChar(255)
   effective_date  DateTime          @db.Date
+  is_default      Boolean           @default(false)
+  active          Boolean           @default(true)
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
   client_contract client_contract[]
   price_list_item price_list_item[]
 }
@@ -270,6 +275,7 @@ model person {
   person_id           Int                   @id @default(autoincrement())
   phone               String                @unique @db.VarChar(20)
   name                String?               @db.VarChar(100)
+  alias               String?               @db.VarChar(100)
   tax_id              String?               @db.VarChar(20)
   address             String?               @db.VarChar(200)
   locality_id         Int?                  @db.SmallInt
@@ -277,6 +283,7 @@ model person {
   registration_date   DateTime              @default(dbgenerated("CURRENT_DATE")) @db.Date
   type                PersonType
   client_contract     client_contract[]
+  customer_subscription customer_subscription[]
   one_off_purchase    one_off_purchase[]
   orders              order_header[]        @relation("OrderHeaderToPerson")
   paymentInstallments payment_installment[] @relation("PaymentInstallmentToPerson")
@@ -284,6 +291,7 @@ model person {
   zone                zone?                 @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([name])
+  @@index([alias])
   @@index([tax_id])
 }
 
@@ -318,6 +326,11 @@ model subscription_plan {
   name                      String                      @db.VarChar(50)
   description               String?
   price                     Decimal?                    @db.Decimal(10, 2)
+  default_cycle_days        Int                         @default(30) // Valor por defecto para nuevas suscripciones
+  default_deliveries_per_cycle Int                      @default(1)  // Valor por defecto para nuevas suscripciones
+  is_active                 Boolean                     @default(true) // Si el plan está disponible para nuevas suscripciones
+  created_at                DateTime                    @default(now())
+  updated_at                DateTime                    @updatedAt
   customer_subscription     customer_subscription[]
   subscription_plan_product subscription_plan_product[]
 }
@@ -332,16 +345,18 @@ model subscription_plan_product {
 }
 
 model customer_subscription {
-  subscription_id      Int                  @id @default(autoincrement())
+  subscription_id      Int                             @id @default(autoincrement())
   customer_id          Int
-  subscription_plan_id Int                  @db.SmallInt
-  start_date           DateTime             @db.Date
-  end_date             DateTime?            @db.Date
+  subscription_plan_id Int                             @db.SmallInt
+  start_date           DateTime                        @db.Date
+  end_date             DateTime?                       @db.Date
   status               SubscriptionStatus
   notes                String?
-  subscription_plan    subscription_plan    @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
+  subscription_plan    subscription_plan               @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
+  person               person                          @relation(fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_subscription_person")
   order_header         order_header[]
   subscription_cycle   subscription_cycle[]
+  subscription_delivery_schedule subscription_delivery_schedule[]
 
   @@index([status])
 }
@@ -365,6 +380,14 @@ model subscription_cycle_detail {
   remaining_balance  Int
   subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_detail_cycle")
   product            product            @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_detail_product")
+}
+
+model subscription_delivery_schedule {
+  schedule_id     Int                   @id @default(autoincrement())
+  subscription_id Int
+  day_of_week     Int                   @db.SmallInt
+  scheduled_time  String                @db.VarChar(20)
+  customer_subscription customer_subscription @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sub_schedule_subscription")
 }
 
 // =============================================================================

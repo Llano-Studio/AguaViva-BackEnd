@@ -1,4 +1,4 @@
-import { PartialType, OmitType } from '@nestjs/mapped-types';
+import { PartialType, OmitType } from '@nestjs/swagger';
 import { CreateOrderDto, CreateOrderItemDto } from './create-order.dto';
 import { IsOptional, IsInt, IsArray, ValidateNested, IsNotEmpty, Min, IsDecimal } from 'class-validator';
 import { Type } from 'class-transformer';

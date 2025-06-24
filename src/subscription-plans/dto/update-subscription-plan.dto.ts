@@ -28,23 +28,23 @@ export class UpdateSubscriptionPlanDto {
   @Type(() => Number)
   price?: number;
 
-  @ApiPropertyOptional({ description: 'Nueva duración del ciclo del plan en días', example: 30, type: 'integer' })
+  @ApiPropertyOptional({ description: 'Nueva duración por defecto del ciclo del plan en días (valor por defecto para nuevas suscripciones)', example: 30, type: 'integer' })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  cycle_days?: number;
+  default_cycle_days?: number;
 
-  @ApiPropertyOptional({ description: 'Nuevo número de entregas por ciclo', example: 1, type: 'integer' })
+  @ApiPropertyOptional({ description: 'Nuevo número por defecto de entregas por ciclo (valor por defecto para nuevas suscripciones)', example: 1, type: 'integer' })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  deliveries_per_cycle?: number;
+  default_deliveries_per_cycle?: number;
 
   @ApiPropertyOptional({ description: 'Nuevo estado de activación del plan', example: true, type: 'boolean' })
   @IsOptional()
   @IsBoolean()
   @Type(() => Boolean)
-  active?: boolean;
+  is_active?: boolean;
 } 

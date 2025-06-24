@@ -14,6 +14,11 @@ export class UpdatePersonDto {
   @IsOptional()
   name?: string;
 
+  @ApiPropertyOptional({ example: 'Juancho', description: 'Apodo o alias del cliente' })
+  @IsString()
+  @IsOptional()
+  alias?: string;
+
   @ApiPropertyOptional({ example: '3412345678' })
   @IsString() 
   @IsOptional()

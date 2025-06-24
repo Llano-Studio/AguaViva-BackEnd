@@ -88,8 +88,10 @@ export class ZonesController {
     summary: 'Listar todas las zonas',
     description: 'Obtiene un listado completo de todas las zonas disponibles en el sistema. Los resultados se almacenan en caché para mejorar el rendimiento.'
   })
-  @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre o código de zona", example: 'norte' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre, código de zona o nombre de localidad", example: 'norte' })
   @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre de zona", example: 'Zona Norte' })
+  @ApiQuery({ name: 'locality_id', required: false, type: Number, description: "Filtrar por ID de localidad", example: 1 })
+  @ApiQuery({ name: 'locality_name', required: false, type: String, description: "Filtrar por nombre de localidad", example: 'Buenos Aires' })
   @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: name,-code", example: 'name,-code' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
@@ -132,10 +134,15 @@ export class ZonesController {
             }
           }
         },
-        total: { type: 'number' },
-        page: { type: 'number' },
-        limit: { type: 'number' },
-        totalPages: { type: 'number' }
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
       }
     }
   })

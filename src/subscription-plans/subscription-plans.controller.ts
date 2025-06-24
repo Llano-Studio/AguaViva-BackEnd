@@ -19,25 +19,110 @@ export class SubscriptionPlansController {
 
   @Post()
   @Auth(Role.ADMIN)
-  @ApiOperation({ summary: 'Crear un nuevo plan de suscripción' })
-  @ApiBody({ type: CreateSubscriptionPlanDto })
-  @ApiResponse({ status: 201, description: 'Plan de suscripción creado exitosamente.', type: SubscriptionPlanResponseDto })
+  @ApiOperation({ 
+    summary: 'Crear un nuevo plan de suscripción',
+    description: `Crea un nuevo plan de suscripción con configuraciones por defecto que se aplicarán a nuevas suscripciones de clientes.
+    
+**Nuevos campos disponibles:**
+- \`default_cycle_days\`: Duración por defecto del ciclo en días (ej: 30 para mensual)
+- \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo (ej: 1 entrega por mes)
+- \`is_active\`: Si el plan está disponible para nuevas suscripciones` 
+  })
+  @ApiBody({ 
+    type: CreateSubscriptionPlanDto,
+    examples: {
+      planBasico: {
+        summary: 'Plan Básico',
+        description: 'Ejemplo de un plan básico mensual',
+        value: {
+          name: 'Plan Básico Mensual',
+          description: 'Plan básico con entrega mensual de productos esenciales',
+          price: 15000.00,
+          default_cycle_days: 30,
+          default_deliveries_per_cycle: 1,
+          is_active: true
+        }
+      },
+      planPremium: {
+        summary: 'Plan Premium',
+        description: 'Ejemplo de un plan premium con entregas quincenales',
+        value: {
+          name: 'Plan Premium Quincenal',
+          description: 'Plan premium con entregas cada 15 días',
+          price: 25000.00,
+          default_cycle_days: 15,
+          default_deliveries_per_cycle: 2,
+          is_active: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Plan de suscripción creado exitosamente.',
+    type: SubscriptionPlanResponseDto,
+    example: {
+      subscription_plan_id: 1,
+      name: 'Plan Básico Mensual',
+      description: 'Plan básico con entrega mensual de productos esenciales',
+      price: 15000.00,
+      default_cycle_days: 30,
+      default_deliveries_per_cycle: 1,
+      is_active: true,
+      created_at: '2024-01-15T10:30:00Z',
+      updated_at: '2024-01-15T10:30:00Z',
+      products: []
+    }
+  })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe un plan con el mismo nombre.' })
   create(@Body(ValidationPipe) createSubscriptionPlanDto: CreateSubscriptionPlanDto): Promise<SubscriptionPlanResponseDto> {
     return this.subscriptionPlansService.create(createSubscriptionPlanDto);
   }
 
   @Get()
   @Auth(Role.ADMIN, Role.USER)
-  @ApiOperation({ summary: 'Obtener todos los planes de suscripción' })
+  @ApiOperation({ 
+    summary: 'Obtener todos los planes de suscripción',
+    description: `Obtiene una lista paginada de todos los planes de suscripción con opções de filtrado y ordenamiento.
+    
+**Campos disponibles para ordenar:** \`name\`, \`price\`, \`default_cycle_days\`, \`default_deliveries_per_cycle\`, \`is_active\`, \`created_at\`, \`updated_at\`
+
+**Ejemplo de sortBy:** \`name,-price,default_cycle_days\` (ordena por nombre ascendente, precio descendente, y ciclo ascendente)`
+  })
   @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre o descripción del plan", example: "premium" })
   @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre específico del plan", example: "Plan Premium" })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: name,-price", example: "name,-price" })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-  @ApiResponse({ status: 200, description: 'Planes de suscripción obtenidos exitosamente.', type: PaginatedSubscriptionPlanResponseDto })
+  @ApiQuery({ name: 'is_active', required: false, type: Boolean, description: "Filtrar por estado de activación. true = solo activos, false = solo inactivos", example: true })
+  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: name,-price,default_cycle_days", example: "name,-price" })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (mínimo 1)', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página (mínimo 1, máximo 100)', example: 10 })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Planes de suscripción obtenidos exitosamente.', 
+    type: PaginatedSubscriptionPlanResponseDto,
+    example: {
+      data: [
+        {
+          subscription_plan_id: 1,
+          name: 'Plan Básico',
+          description: 'Plan básico mensual',
+          price: 15000.00,
+          default_cycle_days: 30,
+          default_deliveries_per_cycle: 1,
+          is_active: true,
+          created_at: '2024-01-15T10:30:00Z',
+          updated_at: '2024-01-15T10:30:00Z',
+          products: []
+        }
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+      totalPages: 1
+    }
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   findAll(
     @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) 
@@ -48,9 +133,35 @@ export class SubscriptionPlansController {
 
   @Get(':id')
   @Auth(Role.ADMIN, Role.USER)
-  @ApiOperation({ summary: 'Obtener un plan de suscripción por su ID' })
+  @ApiOperation({ 
+    summary: 'Obtener un plan de suscripción por su ID',
+    description: `Obtiene los detalles completos de un plan de suscripción específico, incluyendo todos los productos asociados y la configuración de ciclos.`
+  })
   @ApiParam({ name: 'id', description: 'ID del plan de suscripción', type: Number, example: 1 })
-  @ApiResponse({ status: 200, description: 'Plan de suscripción encontrado.', type: SubscriptionPlanResponseDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Plan de suscripción encontrado.',
+    type: SubscriptionPlanResponseDto,
+    example: {
+      subscription_plan_id: 1,
+      name: 'Plan Básico Mensual',
+      description: 'Plan básico con entrega mensual de productos esenciales',
+      price: 15000.00,
+      default_cycle_days: 30,
+      default_deliveries_per_cycle: 1,
+      is_active: true,
+      created_at: '2024-01-15T10:30:00Z',
+      updated_at: '2024-01-15T10:30:00Z',
+      products: [
+        {
+          product_id: 101,
+          product_description: 'Agua Purificada 20L',
+          product_code: 'AGP20L',
+          quantity: 4
+        }
+      ]
+    }
+  })
   @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   findOne(@Param('id', ParseIntPipe) id: number): Promise<SubscriptionPlanResponseDto> {
@@ -59,14 +170,82 @@ export class SubscriptionPlansController {
 
   @Patch(':id')
   @Auth(Role.ADMIN)
-  @ApiOperation({ summary: 'Actualizar un plan de suscripción por su ID' })
+  @ApiOperation({ 
+    summary: 'Actualizar un plan de suscripción por su ID',
+    description: `Actualiza los campos de un plan de suscripción existente. Todos los campos son opcionales.
+    
+**Campos actualizables:**
+- \`name\`: Nombre del plan
+- \`description\`: Descripción del plan  
+- \`price\`: Precio del plan
+- \`default_cycle_days\`: Duración por defecto del ciclo en días
+- \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo
+- \`is_active\`: Si el plan está disponible para nuevas suscripciones
+
+**Nota:** Los cambios no afectan suscripciones existentes, solo se aplican a nuevas suscripciones.`
+  })
   @ApiParam({ name: 'id', description: 'ID del plan de suscripción a actualizar', type: Number, example: 1 })
-  @ApiBody({ type: UpdateSubscriptionPlanDto })
-  @ApiResponse({ status: 200, description: 'Plan de suscripción actualizado exitosamente.', type: SubscriptionPlanResponseDto })
+  @ApiBody({ 
+    type: UpdateSubscriptionPlanDto,
+    examples: {
+      actualizarPrecio: {
+        summary: 'Actualizar solo precio',
+        description: 'Ejemplo de actualización solo del precio',
+        value: {
+          price: 18000.00
+        }
+      },
+      actualizarCiclo: {
+        summary: 'Actualizar configuración de ciclo',
+        description: 'Ejemplo de actualización de configuración de ciclos',
+        value: {
+          default_cycle_days: 15,
+          default_deliveries_per_cycle: 2
+        }
+      },
+      desactivarPlan: {
+        summary: 'Desactivar plan',
+        description: 'Ejemplo de desactivación de plan',
+        value: {
+          is_active: false
+        }
+      },
+      actualizacionCompleta: {
+        summary: 'Actualización completa',
+        description: 'Ejemplo de actualización de múltiples campos',
+        value: {
+          name: 'Plan Premium Actualizado',
+          description: 'Plan premium con nuevas características',
+          price: 22000.00,
+          default_cycle_days: 30,
+          default_deliveries_per_cycle: 1,
+          is_active: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Plan de suscripción actualizado exitosamente.', 
+    type: SubscriptionPlanResponseDto,
+    example: {
+      subscription_plan_id: 1,
+      name: 'Plan Premium Actualizado',
+      description: 'Plan premium con nuevas características',
+      price: 22000.00,
+      default_cycle_days: 30,
+      default_deliveries_per_cycle: 1,
+      is_active: true,
+      created_at: '2024-01-15T10:30:00Z',
+      updated_at: '2024-01-15T14:45:00Z',
+      products: []
+    }
+  })
   @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe otro plan con el mismo nombre.' })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) updateSubscriptionPlanDto: UpdateSubscriptionPlanDto,
@@ -76,13 +255,39 @@ export class SubscriptionPlansController {
 
   @Delete(':id')
   @Auth(Role.ADMIN)
-  @ApiOperation({ summary: 'Eliminar un plan de suscripción por su ID' })
+  @ApiOperation({ 
+    summary: 'Eliminar un plan de suscripción por su ID',
+    description: `Elimina un plan de suscripción y todos sus productos asociados.
+    
+**Restricciones de seguridad:**
+- No se puede eliminar un plan que tiene suscripciones de clientes activas o pausadas
+- Primero debe cancelar todas las suscripciones asociadas al plan
+
+**Efecto:** Elimina el plan y todas las relaciones producto-plan automáticamente.`
+  })
   @ApiParam({ name: 'id', description: 'ID del plan de suscripción a eliminar', type: Number, example: 1 })
-  @ApiResponse({ status: 200, description: 'Plan de suscripción eliminado exitosamente.', schema: { properties: { message: { type: 'string' }, deleted: { type: 'boolean' } } } })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Plan de suscripción eliminado exitosamente.',
+    schema: { 
+      properties: { 
+        message: { type: 'string', example: 'Plan de Suscripción con ID 1 y sus productos asociados eliminados correctamente.' }, 
+        deleted: { type: 'boolean', example: true } 
+      } 
+    }
+  })
   @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El plan está en uso por suscripciones activas.' })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Conflicto - El plan está en uso por suscripciones activas o pausadas. Debe cancelar las suscripciones primero.',
+    example: {
+      statusCode: 409,
+      message: 'El plan de suscripción con ID 1 no puede ser eliminado porque tiene 3 suscripciones de clientes asociadas activas o pausadas. Considere cancelarlas primero.',
+      error: 'Conflict'
+    }
+  })
   remove(@Param('id', ParseIntPipe) id: number): Promise<{ message: string, deleted: boolean }>{
     return this.subscriptionPlansService.remove(id);
   }
