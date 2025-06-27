@@ -210,6 +210,28 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   }
 
   async createProduct(dto: CreateProductDto, productImage?: any): Promise<ProductResponseDto> {
+    // Asegurar existencia de lista de precios estándar (ID 1) y almacén principal (ID 1)
+    const defaultPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+    await this.price_list.upsert({
+      where: { price_list_id: defaultPriceListId },
+      update: { is_default: true, active: true },
+      create: {
+        price_list_id: defaultPriceListId,
+        name: BUSINESS_CONFIG.PRICING.STANDARD_PRICE_LIST_NAME,
+        effective_date: new Date(),
+        is_default: true,
+        active: true,
+      },
+    });
+    const defaultWarehouseId = BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID;
+    await this.warehouse.upsert({
+      where: { warehouse_id: defaultWarehouseId },
+      update: {},
+      create: {
+        warehouse_id: defaultWarehouseId,
+        name: 'Almacén Principal',
+      },
+    });
     await this.validateCategoryExists(dto.category_id);
     await this.validateDefaultPriceListExists();
     const { category_id, total_stock, productImage: _, ...productData } = dto;
@@ -323,6 +345,17 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           },
         });
 
+        // Actualizar precio unitario en la lista general si se modificó el precio del producto
+        if (dto.price !== undefined) {
+          await prismaTx.price_list_item.updateMany({
+            where: {
+              product_id: id,
+              price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+            },
+            data: { unit_price: updatedProduct.price },
+          });
+        }
+
         // Manejar ajuste de stock si se proporciona total_stock
         if (total_stock !== undefined) {
           await this.handleStockAdjustment(id, total_stock, updatedProduct.description, prismaTx);
@@ -351,7 +384,18 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   async deleteProductById(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.getProductById(id, false);
     try {
-      await this.product.delete({ where: { product_id: id } });
+      // Eliminar referencias en tablas dependientes antes de borrar el producto
+      await this.$transaction(async (prismaTx) => {
+        await prismaTx.price_list_item.deleteMany({ where: { product_id: id } });
+        await prismaTx.subscription_plan_product.deleteMany({ where: { product_id: id } });
+        await prismaTx.inventory.deleteMany({ where: { product_id: id } });
+        await prismaTx.inventory_transaction.deleteMany({ where: { product_id: id } });
+        await prismaTx.payment_line.deleteMany({ where: { product_id: id } });
+        await prismaTx.order_item.deleteMany({ where: { product_id: id } });
+        await prismaTx.one_off_purchase.deleteMany({ where: { product_id: id } });
+        // Finalmente eliminar el producto
+        await prismaTx.product.delete({ where: { product_id: id } });
+      });
       return { message: `${this.entityName} eliminado correctamente`, deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);

@@ -108,6 +108,26 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
         },
       });
 
+      // Crear horarios de entrega según delivery_preferences
+      if (createDto.delivery_preferences?.preferred_days && createDto.delivery_preferences.preferred_time_range) {
+        const dayNameToNumber: Record<string, number> = {
+          MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4,
+          FRIDAY: 5, SATURDAY: 6, SUNDAY: 7,
+        };
+        for (const dayName of createDto.delivery_preferences.preferred_days) {
+          const dayOfWeek = dayNameToNumber[dayName.toUpperCase()];
+          if (dayOfWeek) {
+            await this.subscription_delivery_schedule.create({
+              data: {
+                subscription_id: subscription.subscription_id,
+                day_of_week: dayOfWeek,
+                scheduled_time: createDto.delivery_preferences.preferred_time_range,
+              },
+            });
+          }
+        }
+      }
+
       const response = new CustomerSubscriptionResponseDto(subscription);
       response.delivery_preferences = this.parseDeliveryPreferences(subscription.notes);
       
@@ -282,7 +302,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
 
   private getIncludeClause() {
     return {
-      customer: {
+      person: {
         include: {
           zone: {
             include: {
@@ -388,16 +408,16 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       status: subscription.status,
       notes: subscription.notes,
       customer: {
-        person_id: subscription.customer?.person_id || subscription.customer_id,
-        name: subscription.customer?.name || 'Cliente',
-        phone: subscription.customer?.phone || '',
-        address: subscription.customer?.address || '',
-        zone: subscription.customer?.zone ? {
-          zone_id: subscription.customer.zone.zone_id,
-          name: subscription.customer.zone.name,
+        person_id: subscription.person?.person_id || subscription.customer_id,
+        name: subscription.person?.name || 'Cliente',
+        phone: subscription.person?.phone || '',
+        address: subscription.person?.address || '',
+        zone: subscription.person?.zone ? {
+          zone_id: subscription.person.zone.zone_id,
+          name: subscription.person.zone.name,
           locality: {
-            locality_id: subscription.customer.zone.locality.locality_id,
-            name: subscription.customer.zone.locality.name,
+            locality_id: subscription.person.zone.locality.locality_id,
+            name: subscription.person.zone.locality.name,
           },
         } : undefined,
       },

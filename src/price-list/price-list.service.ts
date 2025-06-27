@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { buildImageUrl } from '../common/utils/file-upload.util';
 
 type PriceListWithRelations = Prisma.price_listGetPayload<{
     include: {
@@ -151,7 +152,18 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
         if (!priceList) {
             throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`);
         }
-        return priceList;
+        // Construir URL completa de la imagen de cada producto
+        const transformedPriceList = {
+            ...priceList,
+            price_list_item: priceList.price_list_item.map(item => ({
+                ...item,
+                product: {
+                    ...item.product,
+                    image_url: buildImageUrl(item.product.image_url, 'products'),
+                },
+            })),
+        };
+        return transformedPriceList;
     }
 
     async update(id: number, updatePriceListDto: UpdatePriceListDto): Promise<PrismaPriceList> {
