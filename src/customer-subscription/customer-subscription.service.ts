@@ -24,30 +24,57 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
     
     try {
       const parsed = JSON.parse(notes);
+      // Solo retornar delivery_preferences si existe en la estructura
       return parsed.delivery_preferences || undefined;
     } catch {
+      // Si no es JSON válido, asumimos que son solo notas de texto
       return undefined;
     }
   }
 
-  private buildNotesWithPreferences(currentNotes?: string | null, newPreferences?: any): string | undefined {
-    if (!newPreferences && !currentNotes) return undefined;
+  private parseClientNotes(notes?: string | null): string | null {
+    if (!notes) return null;
     
-    let notesObject: any = {};
-    
-    // Parse existing notes if they exist
-    if (currentNotes) {
-      try {
-        notesObject = JSON.parse(currentNotes);
-      } catch {
-        // If parsing fails, treat as plain text
-        notesObject = { original_notes: currentNotes };
+    try {
+      const parsed = JSON.parse(notes);
+      
+      // Si hay notas del cliente, las retornamos
+      if (parsed.client_notes && typeof parsed.client_notes === 'string') {
+        return parsed.client_notes.trim() || null;
       }
+      
+      // Si hay notas originales del formato anterior
+      if (parsed.original_notes && typeof parsed.original_notes === 'string') {
+        return parsed.original_notes.trim() || null;
+      }
+      
+      // Si es un JSON pero no tiene notas del cliente, retornar null (campo vacío)
+      return null;
+    } catch {
+      // Si no es JSON válido, es una nota de texto simple del cliente
+      return notes.trim() || null;
+    }
+  }
+
+  private buildNotesWithPreferences(clientNotes?: string | null, newPreferences?: any): string | null {
+    // Si no hay notas del cliente ni preferencias, retornar null
+    if ((!clientNotes || clientNotes.trim() === '') && !newPreferences) return null;
+    
+    const notesObject: any = {};
+    
+    // Agregar notas del cliente si existen y no están vacías
+    if (clientNotes && clientNotes.trim() !== '') {
+      notesObject.client_notes = clientNotes.trim();
     }
     
-    // Update delivery preferences
+    // Agregar delivery preferences si existen
     if (newPreferences) {
       notesObject.delivery_preferences = newPreferences;
+    }
+    
+    // Si el objeto está vacío, retornar null
+    if (Object.keys(notesObject).length === 0) {
+      return null;
     }
     
     return JSON.stringify(notesObject);
@@ -87,7 +114,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       throw new BadRequestException('El cliente ya tiene una suscripción activa para este plan');
     }
 
-    // Build notes with delivery preferences
+    // Build notes with delivery preferences separados
     const notes = this.buildNotesWithPreferences(
       createDto.notes, 
       createDto.delivery_preferences
@@ -226,9 +253,11 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       }
     }
 
-    // Build notes with delivery preferences
+    // Build notes with delivery preferences, manteniendo notas del cliente existentes si no se proveen nuevas
+    const currentClientNotes = this.parseClientNotes(existingSubscription.notes);
+    const finalClientNotes = updateDto.notes !== undefined ? updateDto.notes : currentClientNotes;
     const notes = this.buildNotesWithPreferences(
-      updateDto.notes || existingSubscription.notes, 
+      finalClientNotes, 
       updateDto.delivery_preferences
     );
 
@@ -278,25 +307,73 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
   }
 
   async remove(id: number): Promise<void> {
+    this.logger.log(`Removing subscription: ${id}`);
+    
     const subscription = await this.customer_subscription.findUnique({
       where: { subscription_id: id },
+      include: {
+        order_header: true,
+        subscription_cycle: true,
+        subscription_delivery_schedule: true,
+      },
     });
 
     if (!subscription) {
       throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
     }
 
+    // Verificar si hay órdenes asociadas - no permitir eliminar si existen
+    if (subscription.order_header && subscription.order_header.length > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar la suscripción porque tiene ${subscription.order_header.length} orden(es) asociada(s). Debe cancelar primero las órdenes relacionadas.`
+      );
+    }
+
     try {
-      await this.customer_subscription.delete({
-        where: { subscription_id: id },
+      // Usar transacción para asegurar consistencia
+      await this.$transaction(async (prisma) => {
+        // 1. Eliminar los horarios de entrega
+        if (subscription.subscription_delivery_schedule && subscription.subscription_delivery_schedule.length > 0) {
+          await prisma.subscription_delivery_schedule.deleteMany({
+            where: { subscription_id: id },
+          });
+          this.logger.log(`Deleted ${subscription.subscription_delivery_schedule.length} delivery schedule(s) for subscription ${id}`);
+        }
+
+        // 2. Eliminar los detalles de ciclos primero
+        for (const cycle of subscription.subscription_cycle || []) {
+          await prisma.subscription_cycle_detail.deleteMany({
+            where: { cycle_id: cycle.cycle_id },
+          });
+        }
+
+        // 3. Eliminar los ciclos de suscripción
+        if (subscription.subscription_cycle && subscription.subscription_cycle.length > 0) {
+          await prisma.subscription_cycle.deleteMany({
+            where: { subscription_id: id },
+          });
+          this.logger.log(`Deleted ${subscription.subscription_cycle.length} subscription cycle(s) for subscription ${id}`);
+        }
+
+        // 4. Finalmente eliminar la suscripción
+        await prisma.customer_subscription.delete({
+          where: { subscription_id: id },
+        });
+        
+        this.logger.log(`Successfully deleted subscription ${id}`);
       });
     } catch (error) {
+      this.logger.error(`Error deleting subscription ${id}:`, error);
+      
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2003') {
-          throw new BadRequestException('No se puede eliminar la suscripción porque tiene registros relacionados');
+          throw new BadRequestException('No se puede eliminar la suscripción debido a restricciones de integridad de datos. Verifique que no existan registros relacionados.');
+        }
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
         }
       }
-      throw error;
+      throw new BadRequestException(`Error al eliminar la suscripción: ${error.message}`);
     }
   }
 
@@ -406,7 +483,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       start_date: subscription.start_date.toISOString().split('T')[0],
       end_date: subscription.end_date ? subscription.end_date.toISOString().split('T')[0] : null,
       status: subscription.status,
-      notes: subscription.notes,
+      notes: this.parseClientNotes(subscription.notes),
       customer: {
         person_id: subscription.person?.person_id || subscription.customer_id,
         name: subscription.person?.name || 'Cliente',
