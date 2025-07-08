@@ -39,14 +39,14 @@ model RefreshToken {
 }
 
 model country {
-  country_id Int        @id @db.SmallInt
+  country_id Int        @id @default(autoincrement())
   code       String     @unique @db.VarChar(10)
   name       String     @db.VarChar(100)
   province   province[]
 }
 
 model province {
-  province_id Int        @id @db.SmallInt
+  province_id Int        @id @default(autoincrement())
   country_id  Int        @db.SmallInt
   code        String     @unique @db.VarChar(10)
   name        String     @db.VarChar(100)
@@ -55,7 +55,7 @@ model province {
 }
 
 model locality {
-  locality_id      Int                @id @db.SmallInt
+  locality_id      Int                @id @default(autoincrement())
   province_id      Int                @db.SmallInt
   code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
@@ -150,7 +150,7 @@ model price_list_history {
 }
 
 model warehouse {
-  warehouse_id                                                      Int              @id @db.SmallInt
+  warehouse_id                                                      Int              @id @default(autoincrement())
   name                                                              String           @db.VarChar(100)
   locality_id                                                       Int?             @db.SmallInt
   inventory                                                         inventory[]
@@ -170,7 +170,7 @@ model inventory {
 }
 
 model movement_type {
-  movement_type_id Int              @id @db.SmallInt
+  movement_type_id Int              @id @default(autoincrement())
   code             String           @unique @db.VarChar(10)
   description      String           @db.VarChar(100)
   stock_movement   stock_movement[]
@@ -312,7 +312,7 @@ model subscription_delivery_schedule {
 }
 
 model sale_channel {
-  sale_channel_id  Int                @id @db.SmallInt
+  sale_channel_id  Int                @id @default(autoincrement())
   code             String             @unique @db.VarChar(20)
   description      String             @db.VarChar(100)
   one_off_purchase one_off_purchase[]
@@ -381,7 +381,7 @@ model one_off_purchase {
 }
 
 model payment_method {
-  payment_method_id   Int                   @id @db.SmallInt
+  payment_method_id   Int                   @id @default(autoincrement())
   code                String                @unique @db.VarChar(20)
   description         String                @db.VarChar(100)
   payment_transaction payment_transaction[]
