@@ -86,7 +86,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             sale_channel_id: order.sale_channel_id,
             order_date: order.order_date.toISOString(),
             scheduled_delivery_date: order.scheduled_delivery_date ? order.scheduled_delivery_date.toISOString() : undefined,
-            delivery_time: order.delivery_time instanceof Date ? order.delivery_time.toTimeString().slice(0,8) : (typeof order.delivery_time === 'string' ? order.delivery_time : undefined),
+            delivery_time: order.delivery_time ?? undefined,
             total_amount: order.total_amount.toString(),
             paid_amount: order.paid_amount.toString(),
             order_type: order.order_type as unknown as AppOrderType,
