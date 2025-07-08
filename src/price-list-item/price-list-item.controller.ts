@@ -13,7 +13,14 @@ export class PriceListItemController {
 
     @Post()
     @Auth(Role.ADMIN)
-    @ApiOperation({ summary: 'Crear un nuevo ítem en una lista de precios' })
+    @ApiOperation({ 
+        summary: 'Crear un nuevo ítem en una lista de precios',
+        description: `Crea un nuevo ítem en una lista de precios específica.
+
+**🔄 NUEVO - Sincronización con Lista General (ID=1):**
+- Si se crea un ítem en la Lista General (ID=1), el precio del producto individual se actualiza automáticamente
+- Mantiene sincronización entre \`price_list_item.unit_price\` y \`product.price\` para la lista general`
+    })
     @ApiBody({ type: CreatePriceListItemDto })
     @ApiResponse({ status: 201, description: 'Ítem de lista de precios creado exitosamente.', type: PriceListItemResponseDto })
     @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. producto o lista no existen, o el producto ya está en la lista).' })
@@ -128,7 +135,14 @@ export class PriceListItemController {
 
     @Patch(':id')
     @Auth(Role.ADMIN)
-    @ApiOperation({ summary: 'Actualizar un ítem de lista de precios por su ID (solo precio unitario)' })
+    @ApiOperation({ 
+        summary: 'Actualizar un ítem de lista de precios por su ID (solo precio unitario)',
+        description: `Actualiza el precio unitario de un ítem específico en una lista de precios.
+
+**🔄 NUEVO - Sincronización con Lista General (ID=1):**
+- Si se actualiza un ítem de la Lista General (ID=1), el precio del producto individual se actualiza automáticamente
+- Mantiene sincronización entre \`price_list_item.unit_price\` y \`product.price\` para la lista general`
+    })
     @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios a actualizar', type: Number, example: 101 })
     @ApiBody({ type: UpdatePriceListItemDto, description: "Solo se puede actualizar el 'unit_price'." })
     @ApiResponse({ status: 200, description: 'Ítem de lista de precios actualizado exitosamente.', type: PriceListItemResponseDto })

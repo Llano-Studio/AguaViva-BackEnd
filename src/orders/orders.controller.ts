@@ -29,14 +29,32 @@ export class OrdersController {
     @Post()
     @ApiOperation({
         summary: 'Crear un nuevo pedido regular',
-        description: 'Crea un nuevo pedido regular con sus ítems asociados. Valida stock y precios según contrato o lista general.'
+        description: `Crea un nuevo pedido regular con sus ítems asociados. 
+
+## Sistema de Precios Diferenciados
+
+El sistema calcula automáticamente el precio de cada producto basado en la siguiente prioridad:
+
+1. **Clientes con Contrato**: Se usa la lista de precios específica del contrato
+2. **Clientes con Suscripción**: Se usa el precio proporcional del plan de suscripción
+3. **Clientes Generales**: Se usa la lista de precios estándar (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+
+## Validación de Precios
+
+- El \`total_amount\` enviado debe coincidir exactamente con la suma de los precios calculados
+- Los precios se obtienen de las listas de precios, NO del precio base del producto
+- Si hay discrepancia, se devuelve un error 400 con detalles del cálculo
+
+## Formato de Horario
+
+- \`delivery_time\` acepta rangos: "14:00-16:00" o horarios específicos: "14:00"`
     })
     @ApiBody({
-        description: 'Datos necesarios para crear un pedido regular. `delivery_time` puede ser `HH:MM` o `HH:MM-HH:MM`.',
+        description: 'Datos necesarios para crear un pedido regular. Los precios se calculan automáticamente según el tipo de cliente.',
         type: CreateOrderDto,
         examples: {
           pedidoContratado: {
-            summary: 'Pedido con contrato',
+            summary: 'Pedido con contrato (usa precios del contrato)',
             value: {
               customer_id: 1,
               contract_id: 2,
@@ -54,7 +72,7 @@ export class OrdersController {
             }
           },
           pedidoSimple: {
-            summary: 'Pedido sin contrato',
+            summary: 'Pedido sin contrato (usa precios estándar)',
             value: {
               customer_id: 1,
               sale_channel_id: 1,

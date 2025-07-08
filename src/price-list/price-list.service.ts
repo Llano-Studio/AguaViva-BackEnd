@@ -6,6 +6,7 @@ import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { buildImageUrl } from '../common/utils/file-upload.util';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 type PriceListWithRelations = Prisma.price_listGetPayload<{
     include: {
@@ -225,6 +226,8 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             throw new BadRequestException('El porcentaje debe ser un número entre -100 y 1000.');
         }
         let updatedCount = 0;
+        const isGeneralPriceList = priceListId === BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+        
         try {
             await this.$transaction(async (prisma) => {
                 for (const item of priceList.price_list_item) {
@@ -234,6 +237,8 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
                     if (newPrice.isNegative()) {
                         throw new BadRequestException(`Aplicar un ${percentage}% al ítem ${item.product.description} resulta en un precio negativo.`);
                     }
+                    
+                    // Crear historial de cambio
                     await prisma.price_list_history.create({
                         data: {
                             price_list_item_id: item.price_list_item_id,
@@ -244,16 +249,32 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
                             created_by: createdBy
                         }
                     });
+                    
+                    // Actualizar precio en la lista
                     await prisma.price_list_item.update({
                         where: { price_list_item_id: item.price_list_item_id },
                         data: { unit_price: newPrice }
                     });
+                    
+                    // Si es la lista general, actualizar también el precio del producto individual
+                    if (isGeneralPriceList) {
+                        await prisma.product.update({
+                            where: { product_id: item.product_id },
+                            data: { price: newPrice }
+                        });
+                    }
+                    
                     updatedCount++;
                 }
             });
+            
+            const message = isGeneralPriceList 
+                ? `Se aplicó un cambio de ${percentage}% a ${updatedCount} ítems y se actualizaron los precios de los productos individuales.`
+                : `Se aplicó un cambio de ${percentage}% a ${updatedCount} ítems.`;
+                
             return {
                 updated_count: updatedCount,
-                message: `Se aplicó un cambio de ${percentage}% a ${updatedCount} ítems.`
+                message: message
             };
         } catch (error) {
             if (error instanceof BadRequestException) throw error;

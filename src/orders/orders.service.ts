@@ -86,7 +86,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             sale_channel_id: order.sale_channel_id,
             order_date: order.order_date.toISOString(),
             scheduled_delivery_date: order.scheduled_delivery_date ? order.scheduled_delivery_date.toISOString() : undefined,
-            delivery_time: order.delivery_time instanceof Date ? order.delivery_time.toTimeString().slice(0,8) : (typeof order.delivery_time === 'string' ? order.delivery_time : undefined),
+            delivery_time: typeof order.delivery_time === 'string' ? order.delivery_time : (order.delivery_time instanceof Date ? order.delivery_time.toTimeString().slice(0, 8) : undefined),
             total_amount: order.total_amount.toString(),
             paid_amount: order.paid_amount.toString(),
             order_type: order.order_type as unknown as AppOrderType,
@@ -512,8 +512,89 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
                 if (items_to_update_or_create && items_to_update_or_create.length > 0) {
                     const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO, tx);
+                    
+                    // Obtener información del pedido para determinar el sistema de precios
+                    const existingOrderWithRelations = await tx.order_header.findUniqueOrThrow({
+                        where: { order_id: id },
+                        include: {
+                            client_contract: {
+                                include: {
+                                    price_list: {
+                                        include: {
+                                            price_list_item: true
+                                        }
+                                    }
+                                }
+                            },
+                            customer_subscription: {
+                                include: {
+                                    subscription_plan: {
+                                        include: {
+                                            subscription_plan_product: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
                     for (const itemDto of items_to_update_or_create) {
                         const productDetails = await tx.product.findUniqueOrThrow({ where: { product_id: itemDto.product_id }});
+                        
+                        // Calcular precio usando el mismo sistema que en create()
+                        let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
+
+                        // Lógica de precios por prioridad: Contrato > Suscripción específica > Precio base
+                        if (existingOrderWithRelations.client_contract?.price_list) {
+                            const contractPriceList = existingOrderWithRelations.client_contract.price_list;
+                            const priceListItem = contractPriceList.price_list_item.find(
+                                item => item.product_id === itemDto.product_id
+                            );
+                            
+                            if (priceListItem) {
+                                itemPrice = new Decimal(priceListItem.unit_price);
+                            } else {
+                                throw new BadRequestException(
+                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios del contrato.`
+                                );
+                            }
+                        } else if (existingOrderWithRelations.customer_subscription?.subscription_plan) {
+                            const subscriptionPlan = existingOrderWithRelations.customer_subscription.subscription_plan;
+                            const planProduct = subscriptionPlan.subscription_plan_product.find(
+                                spp => spp.product_id === itemDto.product_id
+                            );
+                            
+                            if (!planProduct) {
+                                throw new BadRequestException(
+                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
+                                );
+                            }
+                            
+                            if (subscriptionPlan.price) {
+                                const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
+                                const productProportion = planProduct.product_quantity / totalProductsInPlan;
+                                itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
+                            } else {
+                                itemPrice = new Decimal(productDetails.price);
+                            }
+                        } else {
+                            // Si no hay contrato ni suscripción → usar lista de precios estándar
+                            const standardPriceItem = await tx.price_list_item.findFirst({
+                                where: { 
+                                    price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                    product_id: itemDto.product_id 
+                                }
+                            });
+                            
+                            if (standardPriceItem) {
+                                itemPrice = new Decimal(standardPriceItem.unit_price);
+                            }
+                        }
+
+                        const quantityDecimal = new Decimal(itemDto.quantity);
+                        const subtotal = itemPrice.mul(quantityDecimal);
+                        const totalAmountItem = subtotal;
+                        
                         let quantityChange = 0;
                         const existingItem = existingOrder.order_item.find(oi => oi.order_item_id === itemDto.order_item_id);
 
@@ -530,6 +611,46 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                     `${this.entityName}: Stock insuficiente para ${productDetails.description}. Se necesita ${quantityChange} adicional, disponible: ${stockDisponible}.`
                                 );
                             }
+                        }
+
+                        const existingItemForUpdate = existingOrder.order_item.find(i => i.order_item_id === itemDto.order_item_id);
+
+                        if (existingItemForUpdate) { 
+                            quantityChange = itemDto.quantity - existingItemForUpdate.quantity;
+                            await tx.order_item.update({ 
+                                where: { order_item_id: itemDto.order_item_id }, 
+                                data: { 
+                                    product_id: itemDto.product_id, 
+                                    quantity: itemDto.quantity, 
+                                    subtotal: subtotal.toString(), 
+                                    total_amount: totalAmountItem.toString(), 
+                                }
+                            });
+                        } else { 
+                            quantityChange = itemDto.quantity;
+                            await tx.order_item.create({ 
+                                data: { 
+                                    order_id: id, 
+                                    product_id: itemDto.product_id, 
+                                    quantity: itemDto.quantity, 
+                                    subtotal: subtotal.toString(), 
+                                    total_amount: totalAmountItem.toString(), 
+                                    amount_paid: '0.00'
+                                }
+                            });
+                        }
+
+                        if (quantityChange !== 0 && !productDetails.is_returnable) { 
+                            const movementTypeForUpdate = quantityChange > 0 ? saleMovementTypeId : await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_CLIENTE', tx);
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: movementTypeForUpdate,
+                                product_id: itemDto.product_id,
+                                quantity: Math.abs(quantityChange),
+                                source_warehouse_id: quantityChange < 0 ? null : BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                destination_warehouse_id: quantityChange < 0 ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID : null,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} - Ajuste producto ${itemDto.product_id} (${productDetails.description}), cantidad: ${quantityChange}`
+                            }, tx);
                         }
                     }
                 }
@@ -556,58 +677,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         }
                     }
                     await tx.order_item.deleteMany({ where: { order_item_id: { in: item_ids_to_delete }, order_id: id } });
-                }
-
-                if (items_to_update_or_create && items_to_update_or_create.length > 0) {
-                    const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO, tx);
-                    for (const itemDto of items_to_update_or_create) {
-                        const product = await tx.product.findUniqueOrThrow({ where: { product_id: itemDto.product_id } });
-                        const productPrice = new Decimal(product.price);
-                        const quantityDecimal = new Decimal(itemDto.quantity);
-                        const subtotal = productPrice.mul(quantityDecimal);
-                        const totalAmountItem = subtotal;
-                        
-                        const existingItem = existingOrder.order_item.find(i => i.order_item_id === itemDto.order_item_id);
-                        let quantityChange = 0;
-
-                        if (existingItem) { 
-                            quantityChange = itemDto.quantity - existingItem.quantity;
-                            await tx.order_item.update({ 
-                                where: { order_item_id: itemDto.order_item_id }, 
-                                data: { 
-                                    product_id: itemDto.product_id, 
-                                    quantity: itemDto.quantity, 
-                                    subtotal: subtotal.toString(), 
-                                    total_amount: totalAmountItem.toString(), 
-                                }
-                            });
-                        } else { 
-                            quantityChange = itemDto.quantity;
-                            await tx.order_item.create({ 
-                                data: { 
-                                    order_id: id, 
-                                    product_id: itemDto.product_id, 
-                                    quantity: itemDto.quantity, 
-                                    subtotal: subtotal.toString(), 
-                                    total_amount: totalAmountItem.toString(), 
-                                    amount_paid: '0.00'
-                                }
-                            });
-                        }
-
-                        if (quantityChange !== 0 && !product.is_returnable) { 
-                            const movementTypeForUpdate = quantityChange > 0 ? saleMovementTypeId : await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_CLIENTE', tx);
-                            await this.inventoryService.createStockMovement({
-                                movement_type_id: movementTypeForUpdate,
-                                product_id: itemDto.product_id,
-                                quantity: Math.abs(quantityChange),
-                                source_warehouse_id: quantityChange < 0 ? null : BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                                destination_warehouse_id: quantityChange < 0 ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID : null,
-                                movement_date: new Date(),
-                                remarks: `${this.entityName} #${id} - Ajuste producto ${itemDto.product_id} (${product.description}), cantidad: ${quantityChange}`
-                            }, tx);
-                        }
-                    }
                 }
 
                 const updatedOrderItems = await tx.order_item.findMany({ where: { order_id: id } });

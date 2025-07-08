@@ -251,6 +251,7 @@ export class PriceListController {
 - Aplica un porcentaje de aumento o descuento a todos los productos de la lista
 - Registra el cambio en el historial con motivo/razón
 - Mantiene trazabilidad de todos los cambios de precios
+- **🔄 NUEVO**: Si es la Lista General (ID=1), también actualiza los precios de los productos individuales
 
 **Ejemplos:**
 - \`+10\`: Aumenta precios en 10%
@@ -260,7 +261,11 @@ export class PriceListController {
 **Casos de Uso:**
 - Ajustes por inflación
 - Promociones estacionales
-- Actualizaciones de costos por proveedores`
+- Actualizaciones de costos por proveedores
+
+**⚠️ IMPORTANTE para Lista General (ID=1):**
+- Los precios de los productos individuales (\`product.price\`) se actualizan automáticamente
+- Esto mantiene la sincronización entre lista general y precios base de productos`
   })
   @ApiParam({
     name: 'id',

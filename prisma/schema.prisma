@@ -1,7 +1,3 @@
-// =============================================================================
-// CONFIGURACIÓN DE PRISMA
-// =============================================================================
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,56 +6,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// =============================================================================
-// ENUMS
-// =============================================================================
-
-enum Role {
-  USER
-  ADMIN
-}
-
-enum OrderType {
-  SUBSCRIPTION
-  ONE_OFF
-  CONTRACT_DELIVERY
-}
-
-enum OrderStatus {
-  PENDING
-  PROCESSING
-  SHIPPED
-  DELIVERED
-  CANCELLED
-  PAID
-  PARTIALLY_PAID
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  PAUSED
-  CANCELLED
-  EXPIRED
-}
-
-enum PersonType {
-  INDIVIDUAL
-  PLAN
-  PROSPECT
-}
-
-enum ContractStatus {
-  ACTIVE
-  CANCELLED
-  EXPIRED
-  PENDING_ACTIVATION
-  ON_HOLD
-}
-
-// =============================================================================
-// AUTENTICACIÓN Y USUARIOS
-// =============================================================================
 
 model User {
   id                   Int                   @id @default(autoincrement())
@@ -79,8 +25,8 @@ model User {
   delivery_stats       delivery_stats[]
   payment_transactions payment_transaction[]
   route_sheet          route_sheet[]
-  user_vehicle         user_vehicle[]
   stock_movements      stock_movement[]
+  user_vehicle         user_vehicle[]
 }
 
 model RefreshToken {
@@ -91,10 +37,6 @@ model RefreshToken {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
-
-// =============================================================================
-// GEOGRAFÍA Y UBICACIONES
-// =============================================================================
 
 model country {
   country_id Int        @id @db.SmallInt
@@ -118,30 +60,26 @@ model locality {
   code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
   province         province           @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
-  zones            zone[]
   one_off_purchase one_off_purchase[]
   person           person[]
   warehouse        warehouse[]
+  zones            zone[]
 }
 
 model zone {
   zone_id          Int                @id @default(autoincrement()) @db.SmallInt
-  locality_id      Int                @db.SmallInt
   code             String             @db.VarChar(10)
   name             String             @db.VarChar(100)
-  locality         locality           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
+  locality_id      Int                @db.SmallInt
   delivery_stats   delivery_stats[]
   one_off_purchase one_off_purchase[]
   person           person[]
   vehicle_zone     vehicle_zone[]
+  locality         locality           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
 
   @@unique([locality_id, code], name: "unique_zone_code_per_locality")
   @@unique([locality_id, name], name: "unique_zone_name_per_locality")
 }
-
-// =============================================================================
-// PRODUCTOS Y CATEGORÍAS
-// =============================================================================
 
 model product_category {
   category_id Int       @id @default(autoincrement()) @db.SmallInt
@@ -173,18 +111,14 @@ model product {
   vehicle_route_inventory   vehicle_route_inventory[]
 }
 
-// =============================================================================
-// PRECIOS Y LISTAS DE PRECIOS
-// =============================================================================
-
 model price_list {
   price_list_id   Int               @id @default(autoincrement())
   name            String            @db.VarChar(50)
-  description     String?           @db.VarChar(255)
   effective_date  DateTime          @db.Date
-  is_default      Boolean           @default(false)
   active          Boolean           @default(true)
   created_at      DateTime          @default(now())
+  description     String?           @db.VarChar(255)
+  is_default      Boolean           @default(false)
   updated_at      DateTime          @updatedAt
   client_contract client_contract[]
   price_list_item price_list_item[]
@@ -215,12 +149,8 @@ model price_list_history {
   @@index([change_date])
 }
 
-// =============================================================================
-// ALMACENES E INVENTARIO
-// =============================================================================
-
 model warehouse {
-  warehouse_id                                                      Int              @id @default(autoincrement())
+  warehouse_id                                                      Int              @id @db.SmallInt
   name                                                              String           @db.VarChar(100)
   locality_id                                                       Int?             @db.SmallInt
   inventory                                                         inventory[]
@@ -240,25 +170,24 @@ model inventory {
 }
 
 model movement_type {
-  movement_type_id Int              @id @default(autoincrement())
-  code             String           @unique @db.VarChar(100)
+  movement_type_id Int              @id @db.SmallInt
+  code             String           @unique @db.VarChar(10)
   description      String           @db.VarChar(100)
   stock_movement   stock_movement[]
 }
 
 model stock_movement {
-  stock_movement_id        Int      @id @default(autoincrement())
-  movement_date            DateTime @db.Timestamp(6)
-  movement_type_id         Int      @db.SmallInt
-  product_id               Int
-  source_warehouse_id      Int?     @db.SmallInt
-  destination_warehouse_id Int?     @db.SmallInt
-  quantity                 Int
-  remarks                  String?
-  order_id                 Int? // Referencia a la orden/venta
-  user_id                  Int? // Usuario que registró el movimiento
-  reference_document       String?  @db.VarChar(50) // Número de factura, recibo, etc.
-
+  stock_movement_id                                            Int           @id @default(autoincrement())
+  movement_date                                                DateTime      @db.Timestamp(6)
+  movement_type_id                                             Int           @db.SmallInt
+  product_id                                                   Int
+  source_warehouse_id                                          Int?          @db.SmallInt
+  destination_warehouse_id                                     Int?          @db.SmallInt
+  quantity                                                     Int
+  remarks                                                      String?
+  order_id                                                     Int?
+  reference_document                                           String?       @db.VarChar(50)
+  user_id                                                      Int?
   warehouse_stock_movement_destination_warehouse_idTowarehouse warehouse?    @relation("stock_movement_destination_warehouse_idTowarehouse", fields: [destination_warehouse_id], references: [warehouse_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_dest_warehouse")
   movement_type                                                movement_type @relation(fields: [movement_type_id], references: [movement_type_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_movement_type")
   product                                                      product       @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stockmovement_product")
@@ -267,21 +196,17 @@ model stock_movement {
   user                                                         User?         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-// =============================================================================
-// CLIENTES Y PERSONAS
-// =============================================================================
-
 model person {
   person_id             Int                     @id @default(autoincrement())
   phone                 String                  @unique @db.VarChar(20)
   name                  String?                 @db.VarChar(100)
-  alias                 String?                 @db.VarChar(100)
   tax_id                String?                 @db.VarChar(20)
   address               String?                 @db.VarChar(200)
   locality_id           Int?                    @db.SmallInt
   zone_id               Int?                    @db.SmallInt
   registration_date     DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
   type                  PersonType
+  alias                 String?                 @db.VarChar(100)
   client_contract       client_contract[]
   customer_subscription customer_subscription[]
   one_off_purchase      one_off_purchase[]
@@ -317,19 +242,15 @@ model contract_delivery_schedule {
   client_contract client_contract @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_schedule_contract")
 }
 
-// =============================================================================
-// SUSCRIPCIONES
-// =============================================================================
-
 model subscription_plan {
   subscription_plan_id         Int                         @id @default(autoincrement()) @db.SmallInt
   name                         String                      @db.VarChar(50)
   description                  String?
   price                        Decimal?                    @db.Decimal(10, 2)
-  default_cycle_days           Int                         @default(30) // Valor por defecto para nuevas suscripciones
-  default_deliveries_per_cycle Int                         @default(1) // Valor por defecto para nuevas suscripciones
-  is_active                    Boolean                     @default(true) // Si el plan está disponible para nuevas suscripciones
   created_at                   DateTime                    @default(now())
+  default_cycle_days           Int                         @default(30)
+  default_deliveries_per_cycle Int                         @default(1)
+  is_active                    Boolean                     @default(true)
   updated_at                   DateTime                    @updatedAt
   customer_subscription        customer_subscription[]
   subscription_plan_product    subscription_plan_product[]
@@ -390,21 +311,13 @@ model subscription_delivery_schedule {
   customer_subscription customer_subscription @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sub_schedule_subscription")
 }
 
-// =============================================================================
-// CANALES DE VENTA
-// =============================================================================
-
 model sale_channel {
-  sale_channel_id  Int                @id @default(autoincrement())
+  sale_channel_id  Int                @id @db.SmallInt
   code             String             @unique @db.VarChar(20)
   description      String             @db.VarChar(100)
   one_off_purchase one_off_purchase[]
   order_header     order_header[]
 }
-
-// =============================================================================
-// ÓRDENES Y VENTAS
-// =============================================================================
 
 model order_header {
   order_id                Int                      @id @default(autoincrement())
@@ -413,7 +326,7 @@ model order_header {
   sale_channel_id         Int                      @default(1) @db.SmallInt
   order_date              DateTime                 @db.Timestamp(6)
   scheduled_delivery_date DateTime?                @db.Timestamp(6)
-  delivery_time           DateTime?                @db.Time(6)
+  delivery_time           String?                  @db.VarChar(20)
   total_amount            Decimal                  @db.Decimal(10, 2)
   paid_amount             Decimal                  @db.Decimal(10, 2)
   order_type              OrderType
@@ -467,12 +380,8 @@ model one_off_purchase {
   zone             zone?        @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-// =============================================================================
-// PAGOS Y TRANSACCIONES
-// =============================================================================
-
 model payment_method {
-  payment_method_id   Int                   @id @default(autoincrement())
+  payment_method_id   Int                   @id @db.SmallInt
   code                String                @unique @db.VarChar(20)
   description         String                @db.VarChar(100)
   payment_transaction payment_transaction[]
@@ -531,10 +440,6 @@ model installment_order_link {
   order_item              order_item?         @relation(fields: [order_itemOrder_item_id], references: [order_item_id])
 }
 
-// =============================================================================
-// VEHÍCULOS Y LOGÍSTICA
-// =============================================================================
-
 model vehicle {
   vehicle_id        Int                 @id @default(autoincrement()) @db.SmallInt
   code              String              @unique @db.VarChar(20)
@@ -542,9 +447,9 @@ model vehicle {
   description       String?
   delivery_stats    delivery_stats[]
   route_sheet       route_sheet[]
+  user_vehicle      user_vehicle[]
   vehicle_inventory vehicle_inventory[]
   vehicle_zone      vehicle_zone[]
-  user_vehicle      user_vehicle[]
 }
 
 model vehicle_inventory {
@@ -589,10 +494,6 @@ model user_vehicle {
   @@index([vehicle_id])
   @@index([is_active])
 }
-
-// =============================================================================
-// ENTREGAS Y RUTAS
-// =============================================================================
 
 model route_sheet {
   route_sheet_id                       Int                       @id @default(autoincrement())
@@ -696,10 +597,6 @@ model delivery_incident {
   route_sheet_detail    route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id])
 }
 
-// =============================================================================
-// ESTADÍSTICAS Y REPORTES
-// =============================================================================
-
 model delivery_stats {
   stat_id                Int          @id @default(autoincrement())
   date                   DateTime     @db.Date
@@ -717,4 +614,46 @@ model delivery_stats {
   route_sheet            route_sheet? @relation(fields: [route_sheet_id], references: [route_sheet_id])
   vehicle                vehicle?     @relation(fields: [vehicle_id], references: [vehicle_id])
   zone                   zone?        @relation(fields: [zone_id], references: [zone_id])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderType {
+  SUBSCRIPTION
+  ONE_OFF
+  CONTRACT_DELIVERY
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  PAID
+  PARTIALLY_PAID
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum PersonType {
+  INDIVIDUAL
+  PLAN
+  PROSPECT
+}
+
+enum ContractStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING_ACTIVATION
+  ON_HOLD
 }
