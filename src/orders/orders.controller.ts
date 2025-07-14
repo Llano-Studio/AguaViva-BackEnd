@@ -27,24 +27,65 @@ export class OrdersController {
     ) { }
 
     @Post()
-    @ApiOperation({ 
+    @ApiOperation({
         summary: 'Crear un nuevo pedido regular',
-        description: `Crea un nuevo pedido regular con sus ítems asociados. Valida el stock disponible y actualiza el inventario.
+        description: `Crea un nuevo pedido regular con sus ítems asociados. 
 
-## Sistema de Precios Diferenciados - CONTRATOS
+## Sistema de Precios Diferenciados
 
-**Precios para Contratos:**
-- Los pedidos con \`contract_id\` usan la lista de precios específica del contrato
-- Cada contrato tiene una \`price_list_id\` asignada que define precios personalizados
-- Si no se encuentra precio en la lista del contrato, se usa el precio base del producto como fallback
-- Flujo: \`contract.price_list_id → price_list_item.unit_price → product.price\` (fallback)
+El sistema calcula automáticamente el precio de cada producto basado en la siguiente prioridad:
 
-**Casos de Uso:**
-- Clientes corporativos con descuentos especiales
-- Contratos de largo plazo con precios negociados
-- Diferentes tarifas por volumen o tipo de cliente`
+1. **Clientes con Contrato**: Se usa la lista de precios específica del contrato
+2. **Clientes con Suscripción**: Se usa el precio proporcional del plan de suscripción
+3. **Clientes Generales**: Se usa la lista de precios estándar (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+
+## Validación de Precios
+
+- El \`total_amount\` enviado debe coincidir exactamente con la suma de los precios calculados
+- Los precios se obtienen de las listas de precios, NO del precio base del producto
+- Si hay discrepancia, se devuelve un error 400 con detalles del cálculo
+
+## Formato de Horario
+
+- \`delivery_time\` acepta rangos: "14:00-16:00" o horarios específicos: "14:00"`
     })
-    @ApiBody({ type: CreateOrderDto })
+    @ApiBody({
+        description: 'Datos necesarios para crear un pedido regular. Los precios se calculan automáticamente según el tipo de cliente.',
+        type: CreateOrderDto,
+        examples: {
+          pedidoContratado: {
+            summary: 'Pedido con contrato (usa precios del contrato)',
+            value: {
+              customer_id: 1,
+              contract_id: 2,
+              sale_channel_id: 1,
+              order_date: '2024-03-20T10:00:00Z',
+              scheduled_delivery_date: '2024-03-21T14:00:00Z',
+              delivery_time: '14:00-16:00',
+              total_amount: '150.00',
+              paid_amount: '150.00',
+              order_type: 'CONTRACT_DELIVERY',
+              status: 'PENDING',
+              notes: 'Entregar en puerta trasera',
+              items: [{ product_id: 5, quantity: 2 }],
+              subscription_id: 7
+            }
+          },
+          pedidoSimple: {
+            summary: 'Pedido sin contrato (usa precios estándar)',
+            value: {
+              customer_id: 1,
+              sale_channel_id: 1,
+              order_date: '2024-03-20T11:00:00Z',
+              total_amount: '75.00',
+              paid_amount: '75.00',
+              order_type: 'ONE_OFF',
+              status: 'PENDING',
+              items: [{ product_id: 3, quantity: 1 }]
+            }
+          }
+        }
+    })
     @ApiResponse({ 
         status: 201, 
         description: 'Pedido creado exitosamente.',

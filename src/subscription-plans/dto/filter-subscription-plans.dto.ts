@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterSubscriptionPlansDto extends PaginationQueryDto {
@@ -27,7 +27,11 @@ export class FilterSubscriptionPlansDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
   is_active?: boolean;
 
   // sortBy, page, limit se heredan de PaginationQueryDto

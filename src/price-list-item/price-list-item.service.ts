@@ -4,6 +4,7 @@ import { CreatePriceListItemDto, UpdatePriceListItemDto, PriceListItemResponseDt
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 interface PriceListItemWithRelations extends PriceListItemPrisma {
   product?: ProductPrisma;
@@ -26,6 +27,20 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     private async validateProductExists(productId: number): Promise<void> {
         const product = await this.product.findUnique({ where: { product_id: productId } });
         if (!product) throw new BadRequestException(`El producto con ID ${productId} no existe.`);
+    }
+
+    /**
+     * Actualiza el precio del producto individual cuando se trata de la lista general (ID=1)
+     */
+    private async updateProductPriceIfGeneralList(priceListId: number, productId: number, newPrice: Decimal, tx?: Prisma.TransactionClient): Promise<void> {
+        // Solo actualizar el precio del producto si es la lista general
+        if (priceListId === BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID) {
+            const prismaClient = tx || this;
+            await prismaClient.product.update({
+                where: { product_id: productId },
+                data: { price: newPrice }
+            });
+        }
     }
 
     // Helper para transformar a DTO
@@ -54,20 +69,33 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         await this.validateProductExists(createPriceListItemDto.product_id);
 
         try {
-            const dataToCreate: Prisma.price_list_itemUncheckedCreateInput = {
-                price_list_id: createPriceListItemDto.price_list_id,
-                product_id: createPriceListItemDto.product_id,
-                unit_price: new Decimal(createPriceListItemDto.unit_price),
-            };
+            const unitPriceDecimal = new Decimal(createPriceListItemDto.unit_price);
+            
+            return await this.$transaction(async (tx) => {
+                const dataToCreate: Prisma.price_list_itemUncheckedCreateInput = {
+                    price_list_id: createPriceListItemDto.price_list_id,
+                    product_id: createPriceListItemDto.product_id,
+                    unit_price: unitPriceDecimal,
+                };
 
-            const newItem = await this.price_list_item.create({
-                data: dataToCreate,
-                include: { 
-                    product: true, 
-                    price_list: true
-                }
+                const newItem = await tx.price_list_item.create({
+                    data: dataToCreate,
+                    include: { 
+                        product: true, 
+                        price_list: true
+                    }
+                });
+
+                // Actualizar el precio del producto individual si es la lista general
+                await this.updateProductPriceIfGeneralList(
+                    createPriceListItemDto.price_list_id,
+                    createPriceListItemDto.product_id,
+                    unitPriceDecimal,
+                    tx
+                );
+
+                return this.toPriceListItemResponseDto(newItem as PriceListItemWithRelations);
             });
-            return this.toPriceListItemResponseDto(newItem as PriceListItemWithRelations);
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
                 throw new ConflictException(`Este producto ya existe en esta ${this.entityName.toLowerCase()}.`);
@@ -175,6 +203,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
         const dataToUpdate: Prisma.price_list_itemUpdateInput = {};
         let changesMade = false;
+        let newUnitPrice: Decimal | undefined;
 
         if (updatePriceListItemDto.unit_price !== undefined) {
             const dtoUnitPriceAsDecimal = new Decimal(updatePriceListItemDto.unit_price);
@@ -184,6 +213,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
                     throw new BadRequestException('El precio unitario no puede ser negativo.');
                 }
                 dataToUpdate.unit_price = dtoUnitPriceAsDecimal;
+                newUnitPrice = dtoUnitPriceAsDecimal;
                 changesMade = true;
             }
         }
@@ -197,15 +227,28 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         }
 
         try {
-            const updatedItem = await this.price_list_item.update({
-                where: { price_list_item_id: id },
-                data: dataToUpdate,
-                include: { 
-                    product: true,
-                    price_list: true
+            return await this.$transaction(async (tx) => {
+                const updatedItem = await tx.price_list_item.update({
+                    where: { price_list_item_id: id },
+                    data: dataToUpdate,
+                    include: { 
+                        product: true,
+                        price_list: true
+                    }
+                });
+
+                // Actualizar el precio del producto individual si es la lista general y el precio cambió
+                if (newUnitPrice) {
+                    await this.updateProductPriceIfGeneralList(
+                        existingItem.price_list_id,
+                        existingItem.product_id,
+                        newUnitPrice,
+                        tx
+                    );
                 }
+
+                return this.toPriceListItemResponseDto(updatedItem as PriceListItemWithRelations);
             });
-            return this.toPriceListItemResponseDto(updatedItem as PriceListItemWithRelations);
         } catch (error) {
             handlePrismaError(error, this.entityName);
             throw new InternalServerErrorException('Error no manejado después de handlePrismaError');

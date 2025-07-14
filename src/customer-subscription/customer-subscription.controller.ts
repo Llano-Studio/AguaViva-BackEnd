@@ -278,7 +278,21 @@ export class CustomerSubscriptionController {
   @Roles(Role.ADMIN, Role.USER)
   @ApiOperation({ 
     summary: 'Crear horario de entrega para suscripción',
-    description: 'Crea un nuevo horario de entrega para una suscripción específica'
+    description: 'Crea un nuevo horario de entrega para una suscripción específica. El campo `scheduled_time` acepta formato puntual `HH:MM` o rango `HH:MM-HH:MM`.'
+  })
+  @ApiBody({
+    description: 'Datos para crear un horario de entrega: día de la semana (1=Lunes...7=Domingo) y horario puntual o rango.',
+    type: CreateSubscriptionDeliveryScheduleDto,
+    examples: {
+      puntual: {
+        summary: 'Horario puntual',
+        value: { day_of_week: 1, scheduled_time: '09:30' }
+      },
+      rango: {
+        summary: 'Rango horario',
+        value: { day_of_week: 5, scheduled_time: '14:00-16:00' }
+      }
+    }
   })
   @ApiParam({ name: 'id', description: 'ID de la suscripción' })
   @ApiResponse({

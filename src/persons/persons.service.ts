@@ -7,7 +7,7 @@ import {
   InternalServerErrorException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, ContractStatus, person, locality, zone, province, PersonType as PrismaPersonType } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, ContractStatus, person, locality, zone, province, country, PersonType as PrismaPersonType } from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -79,7 +79,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
   private mapToPersonResponseDto(
     personEntity: person & {
-      locality?: (locality & { province?: province }) | null;
+      locality?: (locality & { province?: (province & { country?: country }) }) | null;
       zone?: zone | null;
     },
     loanedProducts: LoanedProductDto[],
@@ -139,7 +139,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const newPerson = await this.person.create({
         data,
         include: {
-          locality: { include: { province: true } },
+          locality: { 
+            include: { 
+              province: { 
+                include: { 
+                  country: true 
+                } 
+              } 
+            } 
+          },
           zone: true
         }
       });
@@ -228,7 +236,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const allPersonsFromDb = await this.person.findMany({
           where,
           include: {
-            locality: { include: { province: true } },
+            locality: { 
+              include: { 
+                province: { 
+                  include: { 
+                    country: true 
+                  } 
+                } 
+              } 
+            },
             zone: true
           },
           orderBy: orderByClause 
@@ -294,7 +310,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           this.person.findMany({
             where,
             include: {
-              locality: { include: { province: true } },
+              locality: { 
+                include: { 
+                  province: { 
+                    include: { 
+                      country: true 
+                    } 
+                  } 
+                } 
+              },
               zone: true
             },
             orderBy: orderByClause,
@@ -337,7 +361,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     const person = await this.person.findUnique({
       where: { person_id: id },
       include: {
-        locality: { include: { province: true } },
+        locality: { 
+          include: { 
+            province: { 
+              include: { 
+                country: true 
+              } 
+            } 
+          } 
+        },
         zone: true
       }
     });
@@ -396,7 +428,18 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const updatedPerson = await this.person.update({
         where: { person_id: id },
         data: dataToUpdate,
-        include: { locality: { include: { province: true } }, zone: true }
+        include: { 
+          locality: { 
+            include: { 
+              province: { 
+                include: { 
+                  country: true 
+                } 
+              } 
+            } 
+          }, 
+          zone: true 
+        }
       });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(updatedPerson.person_id);
       const loanedProducts = await this.getLoanedProducts(updatedPerson.person_id);
