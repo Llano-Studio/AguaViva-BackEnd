@@ -4,11 +4,11 @@ import { IsOptional, IsDateString } from 'class-validator';
 
 export class UpdateOneOffPurchaseDto extends PartialType(CreateOneOffPurchaseDto) {
     // Hereda todas las propiedades de CreateOneOffPurchaseDto como opcionales.
-    // No es necesario redefinir product_id, person_id, quantity, sale_channel_id, locality_id, zone_id
+    // Incluye: person_id, items[], sale_channel_id, price_list_id, locality_id, zone_id, delivery_address
     // ya que PartialType los hace opcionales.
 
-    // Si queremos que purchase_date también sea actualizable y opcional:
+    // purchase_date también es actualizable y opcional:
     @IsOptional()
     @IsDateString()
-    purchase_date?: string; // Añadido
+    purchase_date?: string;
 } 

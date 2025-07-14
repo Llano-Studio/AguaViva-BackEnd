@@ -215,25 +215,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     }).catch(() => { throw new NotFoundException(`Producto con ID ${itemDto.product_id} no encontrado.`); });
                     
                     let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
+                    let itemSubtotal = new Decimal(0);
 
-                    // Lógica de precios por prioridad: Contrato > Suscripción específica > Precio base
-                    if (contractPriceList) {
-                        // Cliente con contrato → usar lista de precios del contrato
-                        const priceListItem = contractPriceList.price_list_item.find(
-                            item => item.product_id === itemDto.product_id
-                        );
+                    // Lógica especial para órdenes de suscripción: sin precio si ya están pagadas
+                    if (createOrderDto.order_type === 'SUBSCRIPTION' && subscription_id) {
+                        // Las órdenes de suscripción no tienen precio porque ya están pagadas en el plan
+                        itemPrice = new Decimal(0);
+                        itemSubtotal = new Decimal(0);
                         
-                        if (priceListItem) {
-                            itemPrice = new Decimal(priceListItem.unit_price);
-                        } else {
-                            // Producto no está en la lista de precios del contrato
-                            throw new BadRequestException(
-                                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios del contrato. Verifique la lista de precios asociada al contrato.`
-                            );
-                        }
-                    } else if (subscriptionPlan) {
-                        // Cliente con suscripción → usar precio del plan (paquete cerrado)
-                        const planProduct = subscriptionPlan.subscription_plan_product.find(
+                        // Validar que el producto esté en el plan de suscripción
+                        const planProduct = subscriptionPlan?.subscription_plan_product.find(
                             spp => spp.product_id === itemDto.product_id
                         );
                         
@@ -242,32 +233,86 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
                             );
                         }
-                        
-                        // Para suscripciones, usar precio proporcional del plan si está definido
-                        if (subscriptionPlan.price) {
-                            const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
-                            const productProportion = planProduct.product_quantity / totalProductsInPlan;
-                            itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
-                        } else {
-                            // Si el plan no tiene precio definido, usar precio base del producto
-                            itemPrice = new Decimal(productDetails.price);
-                        }
                     } else {
-                        // Si no hay contrato ni suscripción → usar lista de precios estándar
-                        const standardPriceItem = await prismaTx.price_list_item.findFirst({
-                            where: { 
-                                price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                                product_id: itemDto.product_id 
-                            }
-                        });
+                        // Lógica de precios normal para otros tipos de orden
                         
-                        if (standardPriceItem) {
-                            itemPrice = new Decimal(standardPriceItem.unit_price);
+                        // Si se especifica una lista de precios personalizada
+                        if (createOrderDto.price_list_id) {
+                            const customPriceItem = await prismaTx.price_list_item.findFirst({
+                                where: { 
+                                    price_list_id: createOrderDto.price_list_id,
+                                    product_id: itemDto.product_id 
+                                }
+                            });
+                            
+                            if (customPriceItem) {
+                                itemPrice = new Decimal(customPriceItem.unit_price);
+                            } else {
+                                throw new BadRequestException(
+                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${createOrderDto.price_list_id}).`
+                                );
+                            }
+                        } 
+                        // Lógica de precios por prioridad: Contrato > Suscripción específica > Lista estándar > Precio base
+                        else if (contractPriceList) {
+                            // Cliente con contrato → usar lista de precios del contrato
+                            const priceListItem = contractPriceList.price_list_item.find(
+                                item => item.product_id === itemDto.product_id
+                            );
+                            
+                            if (priceListItem) {
+                                itemPrice = new Decimal(priceListItem.unit_price);
+                            } else {
+                                // Producto no está en la lista de precios del contrato
+                                throw new BadRequestException(
+                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios del contrato. Verifique la lista de precios asociada al contrato.`
+                                );
+                            }
+                        } else if (subscriptionPlan && createOrderDto.order_type === 'HYBRID') {
+                            // Para órdenes híbridas, productos de suscripción usan precio del plan
+                            const planProduct = subscriptionPlan.subscription_plan_product.find(
+                                spp => spp.product_id === itemDto.product_id
+                            );
+                            
+                            if (planProduct) {
+                                // Producto está en el plan, usar precio proporcional si está definido
+                                if (subscriptionPlan.price) {
+                                    const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
+                                    const productProportion = planProduct.product_quantity / totalProductsInPlan;
+                                    itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
+                                } else {
+                                    itemPrice = new Decimal(productDetails.price);
+                                }
+                            } else {
+                                // Producto no está en el plan, usar lista estándar
+                                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                                    where: { 
+                                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                        product_id: itemDto.product_id 
+                                    }
+                                });
+                                
+                                if (standardPriceItem) {
+                                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                                }
+                            }
+                        } else {
+                            // Si no hay contrato ni suscripción → usar lista de precios estándar
+                            const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                                where: { 
+                                    price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                    product_id: itemDto.product_id 
+                                }
+                            });
+                            
+                            if (standardPriceItem) {
+                                itemPrice = new Decimal(standardPriceItem.unit_price);
+                            }
                         }
-                                                 // Si no está en lista estándar, mantener precio base como fallback
+                        
+                        itemSubtotal = itemPrice.mul(itemDto.quantity);
                     }
                     
-                    const itemSubtotal = itemPrice.mul(itemDto.quantity);
                     calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
                     orderItemsDataForCreation.push({
                         product_id: itemDto.product_id,
@@ -282,10 +327,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 if (finalPaidAmount.greaterThan(calculatedTotalFromDB)) {
                     throw new BadRequestException('El monto pagado no puede ser mayor al monto total del pedido calculado.');
                 }
-                if (dtoTotalAmountStr && !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)) {
-                    throw new BadRequestException(
-                        `El total_amount enviado (${dtoTotalAmountStr}) no coincide con el calculado desde la base de datos (${calculatedTotalFromDB.toString()}). Verifique los precios y cantidades.`
-                    );
+                
+                // Para órdenes de suscripción, permitir total_amount = 0 porque ya están pagadas
+                if (createOrderDto.order_type === 'SUBSCRIPTION' && subscription_id) {
+                    if (calculatedTotalFromDB.greaterThan(0)) {
+                        throw new BadRequestException('Las órdenes de suscripción deben tener total_amount = 0 porque ya están pagadas en el plan.');
+                    }
+                } else {
+                    // Para otros tipos de orden, validar que el total coincida
+                    if (dtoTotalAmountStr && !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)) {
+                        throw new BadRequestException(
+                            `El total_amount enviado (${dtoTotalAmountStr}) no coincide con el calculado desde la base de datos (${calculatedTotalFromDB.toString()}). Verifique los precios y cantidades.`
+                        );
+                    }
                 }
 
                 const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(

@@ -31,28 +31,79 @@ export class OrdersController {
         summary: 'Crear un nuevo pedido regular',
         description: `Crea un nuevo pedido regular con sus ítems asociados. 
 
+## 🆕 NUEVOS TIPOS DE ORDEN
+
+**SUBSCRIPTION** (Órdenes de Suscripción):
+- \`total_amount\` debe ser "0.00" porque ya están pagadas en el plan
+- Solo se pueden incluir productos que estén en el plan de suscripción del cliente
+- Se valida automáticamente contra el plan activo
+
+**HYBRID** (Órdenes Híbridas) - ¡NUEVO!:
+- Permite combinar productos de suscripción y productos sueltos
+- Productos del plan de suscripción: usan precio proporcional del plan
+- Productos adicionales: usan lista de precios estándar o especificada
+- El \`total_amount\` solo incluye el costo de productos adicionales
+
 ## Sistema de Precios Diferenciados
 
-El sistema calcula automáticamente el precio de cada producto basado en la siguiente prioridad:
-
-1. **Clientes con Contrato**: Se usa la lista de precios específica del contrato
-2. **Clientes con Suscripción**: Se usa el precio proporcional del plan de suscripción
-3. **Clientes Generales**: Se usa la lista de precios estándar (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+**Prioridad de Precios:**
+1. **Lista de precios personalizada**: Si se especifica \`price_list_id\`
+2. **Clientes con Contrato**: Lista de precios específica del contrato
+3. **Órdenes Híbridas**: Precio del plan para productos incluidos, lista estándar para adicionales
+4. **Clientes Generales**: Lista de precios estándar (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+5. **Fallback**: Precio base del producto
 
 ## Validación de Precios
 
-- El \`total_amount\` enviado debe coincidir exactamente con la suma de los precios calculados
+- **SUBSCRIPTION**: \`total_amount\` debe ser "0.00"
+- **Otros tipos**: El \`total_amount\` debe coincidir exactamente con la suma calculada
 - Los precios se obtienen de las listas de precios, NO del precio base del producto
-- Si hay discrepancia, se devuelve un error 400 con detalles del cálculo
 
 ## Formato de Horario
 
 - \`delivery_time\` acepta rangos: "14:00-16:00" o horarios específicos: "14:00"`
     })
     @ApiBody({
-        description: 'Datos necesarios para crear un pedido regular. Los precios se calculan automáticamente según el tipo de cliente.',
+        description: 'Datos necesarios para crear un pedido regular. Los precios se calculan automáticamente según el tipo de cliente y orden.',
         type: CreateOrderDto,
         examples: {
+          pedidoSuscripcion: {
+            summary: '🆕 Orden de Suscripción (total_amount = 0)',
+            value: {
+              customer_id: 1,
+              subscription_id: 7,
+              sale_channel_id: 1,
+              order_date: '2024-03-20T10:00:00Z',
+              scheduled_delivery_date: '2024-03-21T14:00:00Z',
+              delivery_time: '14:00-16:00',
+              total_amount: '0.00',
+              paid_amount: '0.00',
+              order_type: 'SUBSCRIPTION',
+              status: 'PENDING',
+              notes: 'Entrega mensual de suscripción',
+              items: [{ product_id: 1, quantity: 2 }]
+            }
+          },
+          pedidoHibrido: {
+            summary: '🆕 Orden Híbrida (suscripción + productos adicionales)',
+            value: {
+              customer_id: 1,
+              subscription_id: 7,
+              sale_channel_id: 1,
+              order_date: '2024-03-20T10:00:00Z',
+              scheduled_delivery_date: '2024-03-21T14:00:00Z',
+              delivery_time: '14:00-16:00',
+              total_amount: '25.00',
+              paid_amount: '25.00',
+              order_type: 'HYBRID',
+              status: 'PENDING',
+              notes: 'Productos del plan + adicionales',
+              items: [
+                { product_id: 1, quantity: 2 }, 
+                { product_id: 4, quantity: 1 }
+              ]
+            }
+          },
           pedidoContratado: {
             summary: 'Pedido con contrato (usa precios del contrato)',
             value: {
@@ -67,18 +118,18 @@ El sistema calcula automáticamente el precio de cada producto basado en la sigu
               order_type: 'CONTRACT_DELIVERY',
               status: 'PENDING',
               notes: 'Entregar en puerta trasera',
-              items: [{ product_id: 5, quantity: 2 }],
-              subscription_id: 7
+              items: [{ product_id: 5, quantity: 2 }]
             }
           },
-          pedidoSimple: {
-            summary: 'Pedido sin contrato (usa precios estándar)',
+          pedidoListaPersonalizada: {
+            summary: '🆕 Pedido con lista de precios personalizada',
             value: {
               customer_id: 1,
+              price_list_id: 3,
               sale_channel_id: 1,
               order_date: '2024-03-20T11:00:00Z',
-              total_amount: '75.00',
-              paid_amount: '75.00',
+              total_amount: '85.00',
+              paid_amount: '85.00',
               order_type: 'ONE_OFF',
               status: 'PENDING',
               items: [{ product_id: 3, quantity: 1 }]
@@ -241,19 +292,29 @@ El sistema calcula automáticamente el precio de cada producto basado en la sigu
     @Post('one-off')
     @ApiOperation({ 
         summary: 'Crear una nueva compra de una sola vez (one-off purchase)',
-        description: `Crea una nueva compra de una sola vez con sus ítems asociados. Este tipo de compra es para clientes ocasionales sin contrato fijo.
+        description: `Crea una nueva compra de una sola vez con múltiples productos. Este tipo de compra es para clientes ocasionales sin contrato fijo.
 
-## Sistema de Precios Diferenciados - COMPRAS ÚNICAS
+## 🆕 NUEVAS CARACTERÍSTICAS
 
-**Precios para Compras Únicas:**
-- Las compras únicas (one-off) usan la Lista de Precios GENERAL/ESTÁNDAR (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
-- Flujo: \`Lista General (ID: 1) → price_list_item.unit_price → product.price\` (fallback)
-- Esta lista permite tener precios diferentes del precio base del producto
+**Múltiples Productos:**
+- Ahora se pueden agregar múltiples productos en una sola compra única
+- Se envía un array de \`items\` con \`product_id\` y \`quantity\` para cada producto
+
+**Lista de Precios Personalizable:**
+- Se puede especificar qué lista de precios usar con el campo \`price_list_id\` (opcional)
+- Si no se especifica, usa la Lista de Precios GENERAL/ESTÁNDAR (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+
+## Sistema de Precios
+
+**Flujo de Precios:**
+1. Si se especifica \`price_list_id\` → usar esa lista de precios
+2. Si no se especifica → usar Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+3. Si el producto no está en la lista → usar precio base del producto
 
 **Casos de Uso:**
 - Clientes ocasionales sin contrato
-- Compras esporádicas
-- Precio al público general (puede ser diferente al precio base)`
+- Compras esporádicas con múltiples productos
+- Precios diferenciados según promociones o listas específicas`
     })
     @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 

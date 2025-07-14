@@ -152,4 +152,13 @@ export class CreateOrderDto {
   @IsOptional()
   @IsInt()
   subscription_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la lista de precios a usar (opcional, si no se especifica usa la lógica estándar según tipo de cliente)',
+    example: 1,
+    type: Number
+  })
+  @IsOptional()
+  @IsInt()
+  price_list_id?: number;
 } 
