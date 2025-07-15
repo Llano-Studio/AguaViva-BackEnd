@@ -13,7 +13,7 @@ export class PriceListController {
   constructor(private readonly priceListService: PriceListService) {}
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Crear una nueva lista de precios',
     description: `Crea una nueva lista de precios con su información básica. Las listas de precios se utilizan para definir diferentes tarifas para los productos ofrecidos a los clientes.
@@ -84,7 +84,7 @@ export class PriceListController {
   }
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener todas las listas de precios',
     description: 'Devuelve un listado completo de todas las listas de precios disponibles en el sistema, con paginación y ordenamiento.'
@@ -132,7 +132,7 @@ export class PriceListController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener una lista de precios por su ID',
     description: 'Devuelve la información detallada de una lista de precios específica según su ID, incluyendo sus ítems asociados.'
@@ -168,7 +168,7 @@ export class PriceListController {
   }
 
   @Patch(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Actualizar una lista de precios por su ID',
     description: 'Actualiza la información básica de una lista de precios existente. No modifica los precios de los ítems asociados.'
@@ -208,7 +208,7 @@ export class PriceListController {
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Eliminar una lista de precios por su ID',
     description: 'Elimina una lista de precios. No se puede eliminar la lista predeterminada ni listas que están siendo utilizadas.'
@@ -240,7 +240,7 @@ export class PriceListController {
   }
 
   @Post(':id/apply-percentage')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Aplicar cambio porcentual a todos los precios de una lista',
     description: `Aplica un cambio porcentual a todos los ítems de una lista de precios específica, registrando el historial del cambio.
@@ -319,7 +319,7 @@ export class PriceListController {
   }
 
   @Get(':id/history')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Obtener historial de cambios de precios para una lista de precios',
     description: 'Devuelve el historial de todos los cambios de precios aplicados a los ítems de una lista de precios específica.'
@@ -355,7 +355,7 @@ export class PriceListController {
   }
 
   @Get('item/:itemId/history')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Obtener historial de cambios de un ítem de lista de precios',
     description: 'Devuelve el historial de cambios de precio para un ítem específico de una lista de precios.'

@@ -19,7 +19,7 @@ export class VehicleController {
   ) { }
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Crear un nuevo vehículo' })
   @ApiResponse({ status: 201, description: 'Vehículo creado.', type: VehicleResponseDto })
   @ApiResponse({ status: 400, description: 'Entrada inválida.' })
@@ -31,7 +31,7 @@ export class VehicleController {
   }
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({ summary: 'Listar todos los vehículos o filtrar por código' })
   @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por nombre, código o descripción' })
@@ -47,7 +47,7 @@ export class VehicleController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Obtener un vehículo por su ID' })
   @ApiParam({ name: 'id', description: 'ID del vehículo', type: Number })
   @ApiResponse({ status: 200, description: 'Vehículo encontrado.', type: VehicleResponseDto })
@@ -59,7 +59,7 @@ export class VehicleController {
   }
 
   @Patch(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Actualizar un vehículo por su ID' })
   @ApiParam({ name: 'id', description: 'ID del vehículo', type: Number })
   @ApiResponse({ status: 200, description: 'Vehículo actualizado.', type: VehicleResponseDto })
@@ -73,7 +73,7 @@ export class VehicleController {
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Eliminar un vehículo por su ID' })
   @ApiParam({ name: 'id', description: 'ID del vehículo', type: Number })
   @ApiResponse({ status: 200, description: 'Vehículo eliminado.', schema: { properties: { message: {type: 'string'}, deleted: {type: 'boolean'}} } })
@@ -88,7 +88,7 @@ export class VehicleController {
   // Endpoints de gestión de zonas
 
   @Post(':id/zones')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Asignar zonas a un vehículo',
     description: 'Asigna una o más zonas a un vehículo para su circulación. Se pueden desactivar asignaciones previas.'
@@ -109,7 +109,7 @@ export class VehicleController {
   }
 
   @Get(':id/zones')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener zonas asignadas a un vehículo',
     description: 'Lista todas las zonas donde puede circular un vehículo específico.'
@@ -136,7 +136,7 @@ export class VehicleController {
   }
 
   @Delete(':vehicleId/zones/:zoneId')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Remover zona de un vehículo',
     description: 'Desactiva la asignación de una zona específica a un vehículo.'
@@ -162,7 +162,7 @@ export class VehicleController {
   }
 
   @Get(':id/users')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener usuarios que pueden manejar un vehículo',
     description: 'Lista todos los usuarios que están asignados para manejar un vehículo específico.'

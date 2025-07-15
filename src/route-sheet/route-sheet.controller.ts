@@ -57,7 +57,7 @@ export class RouteSheetController {
   ) {}
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Crear una nueva hoja de ruta' })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({ 
@@ -72,7 +72,7 @@ export class RouteSheetController {
   }
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Obtener todas las hojas de ruta con filtros y paginación' })
   @ApiQuery({ name: 'driver_id', required: false, type: Number, description: 'Filtrar por ID del conductor' })
   @ApiQuery({ name: 'vehicle_id', required: false, type: Number, description: 'Filtrar por ID del vehículo' })
@@ -110,7 +110,7 @@ export class RouteSheetController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Obtener una hoja de ruta por su ID' })
   @ApiParam({ name: 'id', description: 'ID de la hoja de ruta', type: Number, example: 1 })
   @ApiResponse({ 
@@ -124,7 +124,7 @@ export class RouteSheetController {
   }
 
   @Patch(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Actualizar una hoja de ruta' })
   @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a actualizar', type: Number, example: 1 })
   @ApiBody({ type: UpdateRouteSheetDto })
@@ -143,7 +143,7 @@ export class RouteSheetController {
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Eliminar una hoja de ruta' })
   @ApiParam({ name: 'id', description: 'ID de la hoja de ruta a eliminar', type: Number, example: 1 })
   @ApiResponse({ 
@@ -162,7 +162,7 @@ export class RouteSheetController {
   }
 
   @Post('print')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Generar e imprimir una hoja de ruta',
     description: 'Genera un documento PDF con la hoja de ruta completa y listado de entregas'
@@ -194,7 +194,7 @@ export class RouteSheetController {
   // Endpoints de optimización de rutas
 
   @Post(':id/optimize')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Optimizar una hoja de ruta',
     description: 'Calcula la ruta óptima para las entregas'
@@ -216,7 +216,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/optimization')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener la optimización de una hoja de ruta',
     description: 'Devuelve la última optimización calculada para una hoja de ruta'
@@ -235,7 +235,7 @@ export class RouteSheetController {
   // Endpoints de inventario móvil
 
   @Post(':id/inventory')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Inicializar inventario para una hoja de ruta',
     description: 'Registra el inventario inicial cargado en el vehículo'
@@ -257,7 +257,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/inventory')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener el inventario de una hoja de ruta',
     description: 'Muestra el estado actual del inventario en el vehículo'
@@ -266,7 +266,7 @@ export class RouteSheetController {
   @ApiResponse({ 
     status: 200, 
     description: 'Inventario encontrado',
-    type: VehicleRouteInventoryResponseDto
+    type: VehicleRouteInventoryResponseDto  
   })
   @ApiResponse({ status: 404, description: 'No se encontró inventario para la hoja de ruta' })
   getInventory(@Param('id', ParseIntPipe) id: number) {
@@ -274,7 +274,7 @@ export class RouteSheetController {
   }
 
   @Post(':id/inventory/transaction')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Registrar una transacción de inventario',
     description: 'Registra entregas, devoluciones o cargas adicionales en el inventario'
@@ -296,7 +296,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/inventory/alerts')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Verificar alertas de inventario bajo',
     description: 'Chequea si hay productos con inventario insuficiente para completar todas las entregas'
@@ -330,7 +330,7 @@ export class RouteSheetController {
   }
 
   @Post(':id/reconcile-driver')
-  @Auth(Role.USER, Role.ADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Registrar la rendición de una hoja de ruta por el chofer',
     description: 'Guarda la firma de conformidad del chofer para la rendición de la hoja de ruta.'
@@ -353,7 +353,7 @@ export class RouteSheetController {
   }
 
   @Post('details/:detailId/payments')
-  @Auth(Role.USER, Role.ADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Registrar un pago para una entrega específica de una hoja de ruta',
     description: 'Permite al chofer (o un admin) registrar un pago en efectivo o QR para una entrega.'

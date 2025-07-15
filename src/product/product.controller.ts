@@ -18,7 +18,7 @@ export class ProductController {
   constructor(private readonly service: ProductService) {}
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({ 
     summary: 'Listar productos con filtros y paginación', 
@@ -61,7 +61,7 @@ export class ProductController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener un producto por su id',
     description: 'Devuelve toda la información detallada de un producto específico según su ID, con opción de incluir inventario por almacén.' 
@@ -129,7 +129,7 @@ La respuesta incluye stock actual calculado en tiempo real:
   }
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @UseInterceptors(FileInterceptor('productImage', fileUploadConfigs.productImages))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ 
@@ -258,7 +258,7 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   }
 
   @Put(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @UseInterceptors(FileInterceptor('productImage', fileUploadConfigs.productImages))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ 
@@ -388,7 +388,7 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Eliminar un producto por su id',
     description: 'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Solo disponible para administradores.' 
@@ -414,7 +414,7 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   }
 
   @Delete(':id/image')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Eliminar imagen de un producto',
     description: 'Elimina la imagen asociada a un producto específico. Solo disponible para administradores.' 

@@ -12,7 +12,7 @@ export class VehicleInventoryController {
   constructor(private readonly service: VehicleInventoryService) {}
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Crear o actualizar un registro de inventario de vehículo' })
   @ApiResponse({ status: 201, description: 'Inventario de vehículo creado/actualizado.' })
   createOrUpdateVehicleInventory(
@@ -22,7 +22,7 @@ export class VehicleInventoryController {
   }
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Listar todos los inventarios de vehiculos' })
   @ApiResponse({ 
     status: 200, 
@@ -37,7 +37,7 @@ export class VehicleInventoryController {
   }
 
   @Get(':vehicleId/:productId')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Obtener un inventario específico por ID de vehículo y producto' })
@@ -50,7 +50,7 @@ export class VehicleInventoryController {
   }
 
   @Patch(':vehicleId/:productId')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Actualizar cantidades en un inventario de vehículo' })
@@ -64,7 +64,7 @@ export class VehicleInventoryController {
   }
 
   @Delete(':vehicleId/:productId')
-  @Auth(Role.ADMIN)
+@Auth(Role.SUPERADMIN)
   @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
   @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
   @ApiOperation({ summary: 'Eliminar un registro de inventario de vehículo' })

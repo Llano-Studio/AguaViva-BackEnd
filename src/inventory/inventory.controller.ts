@@ -12,7 +12,7 @@ import { FilterInventoryDto, PaginatedInventoryResponseDto, InventoryDetailDto }
 
 @ApiTags('Inventario')
 @ApiBearerAuth()
-@Auth(Role.ADMIN, Role.USER)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}

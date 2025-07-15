@@ -108,7 +108,7 @@ export class AuthController {
   }
 
   @Get('profile')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Obtener perfil del usuario logueado',
@@ -130,10 +130,10 @@ export class AuthController {
   }
 
   @Get('users')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener listado de usuarios',
-    description: 'Retorna un listado paginado de usuarios con opciones de filtrado. Solo accesible para administradores.'
+    description: 'Retorna un listado paginado de usuarios con opciones de filtrado. Solo accesible para SUPERADMINistradores.'
   })
   @ApiQuery({ 
     name: 'search', 
@@ -198,7 +198,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   getAllUsers(
     @Query(
@@ -218,11 +218,11 @@ export class AuthController {
   }
 
   @Get('users/:id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Obtener un usuario por ID',
-    description: 'Devuelve los detalles de un usuario específico. Solo accesible para administradores.'
+    description: 'Devuelve los detalles de un usuario específico. Solo accesible para SUPERADMINistradores.'
   })
   @ApiParam({ name: 'id', description: 'ID del usuario', type: Number })
   @ApiResponse({ 
@@ -240,7 +240,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   getUserById(
     @Param('id', ParseIntPipe) id: number
@@ -249,15 +249,15 @@ export class AuthController {
   }
 
   @Post('users')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Crear un nuevo usuario (Admin)',
-    description: 'Permite a un administrador crear un nuevo usuario con rol y estado específicos. Se puede incluir imagen de perfil.' 
+    summary: 'Crear un nuevo usuario (SUPERADMIN)',
+    description: 'Permite a un SUPERADMINistrador crear un nuevo usuario con rol y estado específicos. Se puede incluir imagen de perfil.' 
   })
   @ApiResponse({ 
     status: 201, 
-    description: 'Usuario creado exitosamente por Admin', 
+    description: 'Usuario creado exitosamente por SUPERADMIN', 
     type: UserResponseDto 
   })
   @ApiResponse({ 
@@ -270,7 +270,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   @UseInterceptors(FileInterceptor('profileImage', fileUploadConfigs.profileImages))
   @ApiConsumes('multipart/form-data')
@@ -286,16 +286,16 @@ export class AuthController {
   }
   
   @Put('users/:id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Actualizar un usuario (Admin)',
-    description: 'Permite a un administrador actualizar los datos de un usuario, incluyendo su rol y estado. Se puede incluir imagen de perfil.' 
+    summary: 'Actualizar un usuario (SUPERADMIN)',
+    description: 'Permite a un SUPERADMINistrador actualizar los datos de un usuario, incluyendo su rol y estado. Se puede incluir imagen de perfil.' 
   })
   @ApiParam({ name: 'id', description: 'ID del usuario a actualizar', type: Number })
   @ApiResponse({ 
     status: 200, 
-    description: 'Usuario actualizado exitosamente por Admin', 
+    description: 'Usuario actualizado exitosamente por SUPERADMIN', 
     type: UserResponseDto 
   })
   @ApiResponse({ 
@@ -312,7 +312,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   @UseInterceptors(FileInterceptor('profileImage', fileUploadConfigs.profileImages))
   @ApiConsumes('multipart/form-data')
@@ -329,16 +329,16 @@ export class AuthController {
   }
 
   @Delete('users/:id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Eliminar un usuario (Admin)',
-    description: 'Permite a un administrador eliminar un usuario. Esta acción es irreversible.' 
+    summary: 'Eliminar un usuario (SUPERADMIN)',
+    description: 'Permite a un SUPERADMINistrador eliminar un usuario. Esta acción es irreversible.' 
   })
   @ApiParam({ name: 'id', description: 'ID del usuario a eliminar', type: Number })
   @ApiResponse({ 
     status: 200, 
-    description: 'Usuario eliminado exitosamente por Admin', 
+    description: 'Usuario eliminado exitosamente por SUPERADMIN', 
     schema: { properties: { message: { type: 'string' } } } 
   })
   @ApiResponse({ 
@@ -351,7 +351,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   deleteUser(
     @Param('id', ParseIntPipe) id: number
@@ -360,7 +360,7 @@ export class AuthController {
   }
 
   @Post('update-password')
-  @Auth(Role.USER, Role.ADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Actualizar contraseña del usuario logueado',
@@ -427,7 +427,7 @@ export class AuthController {
   }
 
   @Get('check')
-  @Auth(Role.ADMIN, Role.USER) 
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE) 
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Verificar estado de autenticación y obtener nuevos tokens',
@@ -449,11 +449,11 @@ export class AuthController {
   }
 
   @Get('roles/:role/modules')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
-    summary: 'Obtener módulos permitidos para un rol (Admin)',
-    description: 'Devuelve una lista de módulos/rutas a los que un rol específico tiene acceso. Solo para administradores.'
+    summary: 'Obtener módulos permitidos para un rol (SUPERADMIN)',
+    description: 'Devuelve una lista de módulos/rutas a los que un rol específico tiene acceso. Solo para SUPERADMINistradores.'
   })
   @ApiParam({ name: 'role', description: 'Rol a consultar', enum: Role })
   @ApiResponse({ 
@@ -467,7 +467,7 @@ export class AuthController {
   })
   @ApiResponse({ 
     status: 403, 
-    description: 'Prohibido - El usuario no tiene rol de ADMIN' 
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN' 
   })
   getModulesForRole(
     @Param('role', new ParseEnumPipe(Role)) role: Role,
@@ -478,22 +478,43 @@ export class AuthController {
   // Endpoints de gestión de vehículos
 
   @Post('users/:id/vehicles')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Asignar vehículos a un usuario',
-    description: 'Asigna uno o más vehículos a un usuario para que pueda manejarlos. Se pueden desactivar asignaciones previas.'
+    description: `🆕 LÓGICA ADITIVA: Asigna uno o más vehículos a un usuario SIN eliminar asignaciones previas.
+
+## Comportamiento Mejorado:
+
+**Asignaciones Aditivas:**
+- Si el usuario ya tiene vehículos asignados, los nuevos se AGREGAN a la lista existente
+- NO se eliminan ni desactivan las asignaciones previas
+- Los vehículos se acumulan progresivamente
+
+**Prevención de Duplicados:**
+- Si el vehículo ya está asignado al usuario y activo, NO se duplica
+- Se mantiene la fecha de asignación original (\`assigned_at\`)
+- Solo se actualizan las notas si son diferentes
+
+**Reactivación Inteligente:**
+- Si existe una asignación inactiva, se reactiva en lugar de crear una nueva
+- Al reactivar, SÍ se actualiza la fecha de asignación
+
+## Ejemplo:
+- Usuario tiene vehículo #1 asignado
+- Se envía POST con vehículo #2
+- Resultado: Usuario tiene vehículos #1 y #2 asignados`
   })
   @ApiParam({ name: 'id', description: 'ID del usuario', type: Number })
   @ApiResponse({ 
     status: 201, 
-    description: 'Vehículos asignados correctamente.', 
+    description: 'Vehículos asignados correctamente de forma aditiva.', 
     type: [UserVehicleResponseDto] 
   })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o vehículos no encontrados.' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene permisos suficientes.' })
   assignVehiclesToUser(
     @Param('id', ParseIntPipe) userId: number,
     @Body(ValidationPipe) dto: AssignVehiclesToUserDto
@@ -502,7 +523,7 @@ export class AuthController {
   }
 
   @Get('users/:id/vehicles')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Obtener vehículos asignados a un usuario',
@@ -531,7 +552,7 @@ export class AuthController {
   }
 
   @Delete('users/:userId/vehicles/:vehicleId')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Remover vehículo de un usuario',
@@ -551,7 +572,7 @@ export class AuthController {
   })
   @ApiResponse({ status: 404, description: 'Usuario o asignación no encontrada.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
   removeVehicleFromUser(
     @Param('userId', ParseIntPipe) userId: number,
     @Param('vehicleId', ParseIntPipe) vehicleId: number

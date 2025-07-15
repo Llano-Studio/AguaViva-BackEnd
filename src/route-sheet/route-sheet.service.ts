@@ -768,7 +768,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
         let newOrderStatus = order.status;
         if (newPaidAmount.greaterThanOrEqualTo(orderTotalAmount)) {
-            newOrderStatus = "PAID"; 
+            newOrderStatus = "DELIVERED"; 
         }
 
         await tx.order_header.update({

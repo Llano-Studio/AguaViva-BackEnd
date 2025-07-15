@@ -11,7 +11,7 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Países')
 @ApiBearerAuth()
-@Auth(Role.ADMIN, Role.USER)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('countries')
 export class CountriesController {
   constructor(private readonly countriesService: CountriesService) { }

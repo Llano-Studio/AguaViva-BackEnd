@@ -48,7 +48,7 @@ export class CustomerSubscriptionController {
   constructor(private readonly customerSubscriptionService: CustomerSubscriptionService) {}
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Crear nueva suscripción de cliente',
     description: 'Crea una nueva suscripción asociando un cliente con un plan de suscripción'
@@ -68,13 +68,13 @@ export class CustomerSubscriptionController {
     description: 'Cliente o plan de suscripción no encontrado'
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
   async create(@Body(ValidationPipe) createDto: CreateCustomerSubscriptionDto): Promise<CustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.create(createDto);
   }
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Listar suscripciones de clientes',
     description: 'Obtiene una lista paginada de suscripciones con filtros opcionales'
@@ -104,7 +104,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener suscripción por ID',
     description: 'Obtiene los detalles completos de una suscripción específica'
@@ -125,7 +125,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Actualizar suscripción',
     description: 'Actualiza los datos de una suscripción existente'
@@ -146,7 +146,7 @@ export class CustomerSubscriptionController {
     description: 'Suscripción no encontrada'
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) updateDto: UpdateCustomerSubscriptionDto
@@ -155,7 +155,7 @@ export class CustomerSubscriptionController {
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ 
     summary: 'Eliminar suscripción',
@@ -175,13 +175,13 @@ export class CustomerSubscriptionController {
     description: 'Suscripción no encontrada'
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.customerSubscriptionService.remove(id);
   }
 
   @Get('customer/:customerId')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener suscripciones por cliente',
     description: 'Obtiene todas las suscripciones de un cliente específico'
@@ -203,7 +203,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get('plan/:planId')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener suscripciones por plan',
     description: 'Obtiene todas las suscripciones de un plan específico'
@@ -225,7 +225,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch(':id/delivery-preferences')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Actualizar preferencias de horario de entrega',
     description: 'Actualiza las preferencias de horario de entrega para una suscripción específica'
@@ -249,7 +249,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id/delivery-preferences')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener preferencias de horario de entrega',
     description: 'Obtiene las preferencias de horario de entrega para una suscripción específica'
@@ -275,7 +275,7 @@ export class CustomerSubscriptionController {
   // =============================================================================
 
   @Post(':id/delivery-schedules')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Crear horario de entrega para suscripción',
     description: 'Crea un nuevo horario de entrega para una suscripción específica. El campo `scheduled_time` acepta formato puntual `HH:MM` o rango `HH:MM-HH:MM`.'
@@ -319,7 +319,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id/delivery-schedules')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener horarios de entrega de una suscripción',
     description: 'Obtiene todos los horarios de entrega configurados para una suscripción'
@@ -337,7 +337,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch('delivery-schedules/:scheduleId')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Actualizar horario de entrega',
     description: 'Actualiza un horario de entrega específico'
@@ -360,7 +360,7 @@ export class CustomerSubscriptionController {
   }
 
   @Delete('delivery-schedules/:scheduleId')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Eliminar horario de entrega',
     description: 'Elimina un horario de entrega específico'
@@ -382,7 +382,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get('delivery-schedules/by-day/:dayOfWeek')
-  @Roles(Role.ADMIN, Role.USER)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Obtener horarios de entrega por día',
     description: 'Obtiene todos los horarios de entrega configurados para un día específico de la semana'

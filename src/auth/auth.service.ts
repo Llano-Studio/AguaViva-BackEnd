@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, InternalServerErrorException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, InternalServerErrorException, ConflictException, NotFoundException, applyDecorators } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -90,7 +90,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         email,
         password: hashedPassword,
         name,
-        role: role || Role.ADMIN,
+        role: role || Role.ADMINISTRATIVE,
         isActive: isActive === undefined ? true : isActive,
       };
 
@@ -429,7 +429,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         email,
         password: hashedPassword,
         name,
-        role: role || Role.USER,
+        role: role || Role.ADMINISTRATIVE,
         isActive: isActive === undefined ? true : isActive,
       };
       if (profileImage?.filename) {
@@ -516,50 +516,76 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
     try {
       return await this.$transaction(async (prisma) => {
-        // Desactivar asignaciones previas si se especifica
-        if (dto.isActive !== false) {
-          await prisma.user_vehicle.updateMany({
-            where: { user_id: userId },
-            data: { is_active: false }
-          });
-        }
+        // 🆕 LÓGICA ADITIVA: No desactivar asignaciones previas, solo agregar nuevas
 
-        // Crear nuevas asignaciones
+        // Crear nuevas asignaciones solo para vehículos no asignados
         const assignments = await Promise.all(
           dto.vehicleIds.map(async (vehicleId) => {
-            // Verificar si ya existe la relación
+            // Verificar si ya existe la relación activa
             const existingAssignment = await prisma.user_vehicle.findFirst({
-              where: { user_id: userId, vehicle_id: vehicleId }
+              where: { user_id: userId, vehicle_id: vehicleId, is_active: true }
             });
 
             if (existingAssignment) {
-              // Actualizar la existente
-              return await prisma.user_vehicle.update({
-                where: { user_vehicle_id: existingAssignment.user_vehicle_id },
-                data: {
-                  is_active: dto.isActive ?? true,
-                  notes: dto.notes,
-                  assigned_at: new Date()
-                },
-                include: {
-                  vehicle: true,
-                  user: true
-                }
-              });
+              // 🆕 Si ya existe y está activa, NO actualizar fecha de asignación
+              // Solo actualizar notas si se proporcionan nuevas
+              if (dto.notes && dto.notes !== existingAssignment.notes) {
+                return await prisma.user_vehicle.update({
+                  where: { user_vehicle_id: existingAssignment.user_vehicle_id },
+                  data: {
+                    notes: dto.notes
+                    // NO actualizar assigned_at para mantener la fecha original
+                  },
+                  include: {
+                    vehicle: true,
+                    user: true
+                  }
+                });
+              } else {
+                // Devolver la asignación existente sin cambios
+                return await prisma.user_vehicle.findFirst({
+                  where: { user_vehicle_id: existingAssignment.user_vehicle_id },
+                  include: {
+                    vehicle: true,
+                    user: true
+                  }
+                });
+              }
             } else {
-              // Crear nueva
-              return await prisma.user_vehicle.create({
-                data: {
-                  user_id: userId,
-                  vehicle_id: vehicleId,
-                  is_active: dto.isActive ?? true,
-                  notes: dto.notes
-                },
-                include: {
-                  vehicle: true,
-                  user: true
-                }
+              // Verificar si existe una asignación inactiva para reactivarla
+              const inactiveAssignment = await prisma.user_vehicle.findFirst({
+                where: { user_id: userId, vehicle_id: vehicleId, is_active: false }
               });
+
+              if (inactiveAssignment) {
+                // Reactivar asignación existente
+                return await prisma.user_vehicle.update({
+                  where: { user_vehicle_id: inactiveAssignment.user_vehicle_id },
+                  data: {
+                    is_active: true,
+                    notes: dto.notes,
+                    assigned_at: new Date() // Solo actualizar fecha al reactivar
+                  },
+                  include: {
+                    vehicle: true,
+                    user: true
+                  }
+                });
+              } else {
+                // Crear nueva asignación
+                return await prisma.user_vehicle.create({
+                  data: {
+                    user_id: userId,
+                    vehicle_id: vehicleId,
+                    is_active: dto.isActive ?? true,
+                    notes: dto.notes
+                  },
+                  include: {
+                    vehicle: true,
+                    user: true
+                  }
+                });
+              }
             }
           })
         );

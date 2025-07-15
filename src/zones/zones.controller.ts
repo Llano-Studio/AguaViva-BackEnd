@@ -13,7 +13,7 @@ import { VehicleService } from '../vehicule/vehicle.service';
 
 @ApiTags('Zonas')
 @ApiBearerAuth()
-@Auth(Role.ADMIN, Role.USER)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('zones')
 export class ZonesController {
   constructor(

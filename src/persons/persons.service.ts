@@ -507,7 +507,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           subscription_id: subscriptionId,
           scheduled_delivery_date: { gt: effectiveEndDate }, 
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.PROCESSING],
+            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
           },
         },
         data: {
@@ -570,7 +570,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: {
           subscription_id: dto.current_subscription_id,
           scheduled_delivery_date: { gt: oldSubscriptionEndDate },
-          status: { in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.PROCESSING] },
+          status: { in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY] },
         },
         data: { status: PrismaOrderStatus.CANCELLED },
       });
@@ -637,7 +637,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           contract_id: contractId,
           scheduled_delivery_date: { gt: effectiveEndDate },
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.PROCESSING],
+            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
           },
         },
         data: {
@@ -702,7 +702,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           contract_id: dto.current_contract_id,
           scheduled_delivery_date: { gt: oldContractEffectiveEndDate },
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.PROCESSING],
+            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
           },
         },
         data: { status: PrismaOrderStatus.CANCELLED },

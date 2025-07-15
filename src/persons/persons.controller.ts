@@ -39,7 +39,7 @@ class PaginatedPersonsResponseDto {
 
 @ApiTags('Clientes')
 @ApiBearerAuth()
-@Auth(Role.ADMIN, Role.USER)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('persons')
 export class PersonsController {
   constructor(private readonly personsService: PersonsService) { }
@@ -243,7 +243,7 @@ export class PersonsController {
   }
 
   @Get(':id/loaned-products')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Obtener los productos en comodato/alquiler para una persona' })
   @ApiResponse({ 
     status: 200, 

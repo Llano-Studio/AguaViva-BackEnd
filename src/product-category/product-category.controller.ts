@@ -37,7 +37,7 @@ export class ProductCategoryController {
   ) {}
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({ 
     summary: 'Listar todas las categorías de productos con paginación y filtros',
@@ -81,7 +81,7 @@ export class ProductCategoryController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Obtener una categoría de productos por ID',
     description: 'Devuelve la información detallada de una categoría de productos específica según su ID.'
@@ -120,7 +120,7 @@ export class ProductCategoryController {
   }
 
   @Post()
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Crear una nueva categoría de productos',
     description: 'Crea una nueva categoría para clasificar productos. Solo disponible para administradores.'
@@ -160,7 +160,7 @@ export class ProductCategoryController {
   }
 
   @Put(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Actualizar una categoría de productos por ID',
     description: 'Actualiza la información de una categoría de productos existente. Solo disponible para administradores.'
@@ -200,7 +200,7 @@ export class ProductCategoryController {
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
+  @Auth(Role.SUPERADMIN)
   @ApiOperation({ 
     summary: 'Eliminar una categoría de productos por ID',
     description: 'Elimina una categoría de productos del sistema. No se puede eliminar si tiene productos asociados. Solo disponible para administradores.'

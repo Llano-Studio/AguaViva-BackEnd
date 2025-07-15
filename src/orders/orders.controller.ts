@@ -17,7 +17,7 @@ import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
-@Auth(Role.ADMIN, Role.USER)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('orders')
 export class OrdersController {
     constructor(

@@ -12,7 +12,7 @@ model User {
   email                String                @unique
   password             String
   name                 String
-  role                 Role                  @default(ADMIN)
+  role                 Role                  @default(SUPERADMIN)
   isActive             Boolean               @default(true)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime?
@@ -617,24 +617,27 @@ model delivery_stats {
 }
 
 enum Role {
-  USER
-  ADMIN
+  DRIVERS
+  ADMINISTRATIVE
+  SUPERADMIN
 }
 
 enum OrderType {
   SUBSCRIPTION
   ONE_OFF
   CONTRACT_DELIVERY
+  HYBRID
 }
 
 enum OrderStatus {
   PENDING
-  PROCESSING
-  SHIPPED
+  CONFIRMED
+  IN_PREPARATION
+  READY_FOR_DELIVERY
+  IN_DELIVERY
   DELIVERED
   CANCELLED
-  PAID
-  PARTIALLY_PAID
+  REFUNDED
 }
 
 enum SubscriptionStatus {

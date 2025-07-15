@@ -12,7 +12,7 @@ export class PriceListItemController {
     constructor(private readonly priceListItemService: PriceListItemService) { }
 
     @Post()
-    @Auth(Role.ADMIN)
+    @Auth(Role.SUPERADMIN)
     @ApiOperation({ 
         summary: 'Crear un nuevo ítem en una lista de precios',
         description: `Crea un nuevo ítem en una lista de precios específica.
@@ -34,7 +34,7 @@ export class PriceListItemController {
     }
 
     @Get()
-    @Auth(Role.ADMIN, Role.USER)
+    @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
     @ApiOperation({ summary: 'Obtener todos los ítems de todas las listas de precios' })
     @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos de lista: price_list.name. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
     @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
@@ -76,7 +76,7 @@ export class PriceListItemController {
     }
 
     @Get('by-list/:priceListId')
-    @Auth(Role.ADMIN, Role.USER)
+    @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
     @ApiOperation({ summary: 'Obtener todos los ítems de una lista de precios específica' })
     @ApiParam({ name: 'priceListId', description: 'ID de la lista de precios', type: Number, example: 1 })
     @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Campos de producto: product.description, product.code. Campos directos: unit_price, price_list_item_id. Ej: product.description,-unit_price" })
@@ -121,7 +121,7 @@ export class PriceListItemController {
     }
 
     @Get(':id')
-    @Auth(Role.ADMIN, Role.USER)
+    @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
     @ApiOperation({ summary: 'Obtener un ítem de lista de precios por su ID' })
     @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios', type: Number, example: 101 })
     @ApiResponse({ status: 200, description: 'Ítem de lista de precios encontrado.', type: PriceListItemResponseDto })
@@ -134,7 +134,7 @@ export class PriceListItemController {
     }
 
     @Patch(':id')
-    @Auth(Role.ADMIN)
+    @Auth(Role.SUPERADMIN)
     @ApiOperation({ 
         summary: 'Actualizar un ítem de lista de precios por su ID (solo precio unitario)',
         description: `Actualiza el precio unitario de un ítem específico en una lista de precios.
@@ -158,7 +158,7 @@ export class PriceListItemController {
     }
 
     @Delete(':id')
-    @Auth(Role.ADMIN)
+    @Auth(Role.SUPERADMIN)
     @ApiOperation({ summary: 'Eliminar un ítem de lista de precios por su ID' })
     @ApiParam({ name: 'id', description: 'ID del ítem de lista de precios a eliminar', type: Number, example: 101 })
     @ApiResponse({ status: 200, description: 'Ítem de lista de precios eliminado exitosamente.', schema: { properties: { message: { type: 'string', example: 'Ítem de lista de precios eliminado correctamente.'}, deleted: {type: 'boolean', example: true} } } })
