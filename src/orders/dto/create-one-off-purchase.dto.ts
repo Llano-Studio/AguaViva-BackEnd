@@ -1,15 +1,8 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
-export class CreateOneOffPurchaseDto {
-  @ApiProperty({
-    description: 'ID de la persona que realiza la compra',
-    example: 1
-  })
-  @IsInt()
-  @IsNotEmpty()
-  person_id: number;
-
+export class CreateOneOffPurchaseItemDto {
   @ApiProperty({
     description: 'ID del producto a comprar',
     example: 1
@@ -27,6 +20,26 @@ export class CreateOneOffPurchaseDto {
   @Min(1)
   @IsNotEmpty()
   quantity: number;
+}
+
+export class CreateOneOffPurchaseDto {
+  @ApiProperty({
+    description: 'ID de la persona que realiza la compra',
+    example: 1
+  })
+  @IsInt()
+  @IsNotEmpty()
+  person_id: number;
+
+  @ApiProperty({
+    description: 'Lista de productos a comprar',
+    type: [CreateOneOffPurchaseItemDto]
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOneOffPurchaseItemDto)
+  @IsNotEmpty()
+  items: CreateOneOffPurchaseItemDto[];
 
   @ApiProperty({
     description: 'ID del canal de venta',
@@ -35,6 +48,14 @@ export class CreateOneOffPurchaseDto {
   @IsInt()
   @IsNotEmpty()
   sale_channel_id: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la lista de precios a usar (opcional, si no se especifica usa la lista estándar)',
+    example: 1
+  })
+  @IsOptional()
+  @IsInt()
+  price_list_id?: number;
 
   @ApiPropertyOptional({
     description: 'Dirección de entrega específica (opcional)',
@@ -68,5 +89,5 @@ export class CreateOneOffPurchaseDto {
   @IsDateString()
   purchase_date?: string;
 
-  // total_amount y purchase_date se gestionarán en el backend.
+  // total_amount se calcula automáticamente en el backend basado en los items y la lista de precios seleccionada.
 } 

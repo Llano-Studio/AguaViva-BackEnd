@@ -69,8 +69,13 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
     private async validatePurchaseData(dto: CreateOneOffPurchaseDto | UpdateOneOffPurchaseDto, tx?: Prisma.TransactionClient) {
         const prisma = tx || this;
 
-        const product = await prisma.product.findUnique({ where: { product_id: dto.product_id } });
-        if (!product) throw new NotFoundException(`Producto con ID ${dto.product_id} no encontrado.`);
+        // Validar productos si hay items
+        if (dto.items && dto.items.length > 0) {
+            for (const item of dto.items) {
+                const product = await prisma.product.findUnique({ where: { product_id: item.product_id } });
+                if (!product) throw new NotFoundException(`Producto con ID ${item.product_id} no encontrado.`);
+            }
+        }
 
         if (dto.person_id) {
             const person = await prisma.person.findUnique({ where: { person_id: dto.person_id } });
@@ -89,6 +94,11 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             const zone = await prisma.zone.findUnique({ where: { zone_id: dto.zone_id } });
             if (!zone) throw new NotFoundException(`Zona con ID ${dto.zone_id} no encontrada.`);
         }
+
+        if (dto.price_list_id) {
+            const priceList = await prisma.price_list.findUnique({ where: { price_list_id: dto.price_list_id } });
+            if (!priceList) throw new NotFoundException(`Lista de precios con ID ${dto.price_list_id} no encontrada.`);
+        }
     }
 
     async create(createDto: CreateOneOffPurchaseDto): Promise<OneOffPurchaseResponseDto> {
@@ -96,30 +106,41 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             return await this.$transaction(async (prismaTx) => {
                 await this.validatePurchaseData(createDto, prismaTx);
 
-                const product = await prismaTx.product.findUniqueOrThrow({ where: { product_id: createDto.product_id } });
+                if (!createDto.items || createDto.items.length === 0) {
+                    throw new BadRequestException('Debe especificar al menos un producto en la compra.');
+                }
+
+                // Determinar la lista de precios a usar
+                const priceListId = createDto.price_list_id || BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
                 
-                // Buscar precio en lista estándar, si no existe usar precio base
+                let totalAmount = new Decimal(0);
+                
+                // Solo tomamos el primer item para mantener compatibilidad con la estructura actual de one_off_purchase
+                // TODO: En el futuro, considerar crear una nueva tabla para one_off_purchase_items
+                const firstItem = createDto.items[0];
+                const product = await prismaTx.product.findUniqueOrThrow({ where: { product_id: firstItem.product_id } });
+                
+                // Buscar precio en la lista seleccionada, si no existe usar precio base
                 let itemPrice = new Decimal(product.price); // Precio base como fallback
                 
-                // Intentar obtener precio de la lista estándar
-                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                const priceItem = await prismaTx.price_list_item.findFirst({
                     where: { 
-                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                        product_id: createDto.product_id 
+                        price_list_id: priceListId,
+                        product_id: firstItem.product_id 
                     }
                 });
                 
-                if (standardPriceItem) {
-                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                if (priceItem) {
+                    itemPrice = new Decimal(priceItem.unit_price);
                 }
                 
-                const totalAmount = itemPrice.mul(createDto.quantity);
+                totalAmount = itemPrice.mul(firstItem.quantity);
 
                 if (!product.is_returnable) {
-                    const stockDisponible = await this.inventoryService.getProductStock(createDto.product_id, BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, prismaTx);
-                    if (stockDisponible < createDto.quantity) {
+                    const stockDisponible = await this.inventoryService.getProductStock(firstItem.product_id, BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, prismaTx);
+                    if (stockDisponible < firstItem.quantity) {
                         throw new BadRequestException(
-                            `${this.entityName}: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${createDto.quantity}.`
+                            `${this.entityName}: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${firstItem.quantity}.`
                         );
                     }
                 }
@@ -127,8 +148,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 const newPurchase = await prismaTx.one_off_purchase.create({
                     data: {
                         person: { connect: { person_id: createDto.person_id } },
-                        product: { connect: { product_id: createDto.product_id } },
-                        quantity: createDto.quantity,
+                        product: { connect: { product_id: firstItem.product_id } },
+                        quantity: firstItem.quantity,
                         sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
                         delivery_address: createDto.delivery_address,
                         ...(createDto.locality_id && { locality: { connect: { locality_id: createDto.locality_id } } }),
@@ -274,25 +295,30 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
                 await this.validatePurchaseData(updateDto, prismaTx);
                 
-                const productForUpdate = updateDto.product_id ? 
-                    await prismaTx.product.findUniqueOrThrow({ where: { product_id: updateDto.product_id } }) :
+                // Si hay items nuevos, tomamos el primer item para compatibilidad
+                // Si no hay items, mantenemos el producto existente
+                const productForUpdate = (updateDto.items && updateDto.items.length > 0) ? 
+                    await prismaTx.product.findUniqueOrThrow({ where: { product_id: updateDto.items[0].product_id } }) :
                     existingPurchase.product;
                 
-                const newQuantity = updateDto.quantity ?? existingPurchase.quantity;
+                const newQuantity = (updateDto.items && updateDto.items.length > 0) ? 
+                    updateDto.items[0].quantity : existingPurchase.quantity;
                 
-                // Buscar precio en lista estándar, si no existe usar precio base
+                // Determinar la lista de precios a usar
+                const priceListId = updateDto.price_list_id || BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+                
+                // Buscar precio en la lista seleccionada, si no existe usar precio base
                 let itemPrice = new Decimal(productForUpdate.price); // Precio base como fallback
                 
-                // Intentar obtener precio de la lista estándar
-                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                const priceItem = await prismaTx.price_list_item.findFirst({
                     where: { 
-                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                        price_list_id: priceListId,
                         product_id: productForUpdate.product_id 
                     }
                 });
                 
-                if (standardPriceItem) {
-                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                if (priceItem) {
+                    itemPrice = new Decimal(priceItem.unit_price);
                 }
                 
                 const newTotalAmount = itemPrice.mul(newQuantity);
@@ -306,9 +332,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 }
 
                 const dataToUpdate: Prisma.one_off_purchaseUpdateInput = {
-                    ...(updateDto.product_id && { product: { connect: { product_id: updateDto.product_id } } }),
+                    ...((updateDto.items && updateDto.items.length > 0) && { product: { connect: { product_id: updateDto.items[0].product_id } } }),
                     ...(updateDto.person_id && { person: { connect: { person_id: updateDto.person_id } } }),
-                    quantity: updateDto.quantity,
+                    quantity: newQuantity,
                     ...(updateDto.sale_channel_id && { sale_channel: { connect: { sale_channel_id: updateDto.sale_channel_id } } }),
                     delivery_address: updateDto.delivery_address,
                     ...(updateDto.locality_id !== undefined && { 

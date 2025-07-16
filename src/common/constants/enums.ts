@@ -8,7 +8,8 @@ export enum PersonType {
 export enum OrderType {
   SUBSCRIPTION = 'SUBSCRIPTION',
   ONE_OFF = 'ONE_OFF',
-  CONTRACT_DELIVERY = 'CONTRACT_DELIVERY'
+  CONTRACT_DELIVERY = 'CONTRACT_DELIVERY',
+  HYBRID = 'HYBRID'
 }
 
 export enum OrderStatus {
