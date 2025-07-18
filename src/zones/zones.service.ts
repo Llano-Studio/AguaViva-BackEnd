@@ -201,12 +201,16 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async deleteZoneById(id: number): Promise<void> {
+  async deleteZoneById(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.getZoneById(id);
     try {
       await this.zone.delete({
         where: { zone_id: id },
       });
+      return {
+        message: 'Zona eliminada correctamente',
+        deleted: true
+      };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException('Error no manejado después de handlePrismaError');

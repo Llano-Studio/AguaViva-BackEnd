@@ -1,9 +1,30 @@
-import { ConflictException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { ConflictException, InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 export function handlePrismaError(error: any, entityName: string = 'registro') {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
+      case 'P2000':
+        // Error específico para valores que exceden el límite de caracteres
+        const columnName = error.meta?.column_name as string | undefined;
+        const tableName = error.meta?.table as string | undefined;
+        let lengthMessage = `Uno de los campos del ${entityName} excede el límite de caracteres permitido`;
+        if (columnName) {
+          // Mapear nombres de columnas técnicos a nombres más amigables
+          const friendlyFieldNames: { [key: string]: string } = {
+            'cuil': 'CUIL/CUIT',
+            'email': 'correo electrónico',
+            'name': 'nombre',
+            'description': 'descripción',
+            'code': 'código',
+            'address': 'dirección',
+            'phone': 'teléfono'
+          };
+          const friendlyName = friendlyFieldNames[columnName.toLowerCase()] || columnName;
+          lengthMessage = `El campo '${friendlyName}' excede el límite de caracteres permitido`;
+        }
+        lengthMessage += '. Por favor, reduzca la cantidad de caracteres e intente nuevamente.';
+        throw new BadRequestException(lengthMessage);
       case 'P2002':
         // Intenta obtener el campo que causó el conflicto del target
         const target = error.meta?.target as string[] | string | undefined;
