@@ -23,7 +23,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'Rol del usuario',
     enum: Role,
-    example: Role.USER
+    example: Role.ADMINISTRATIVE
   })
   @IsOptional()
   @IsEnum(Role)
