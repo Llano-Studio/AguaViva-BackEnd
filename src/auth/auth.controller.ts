@@ -449,7 +449,7 @@ export class AuthController {
   }
 
   @Get('roles/:role/modules')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
   @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Obtener módulos permitidos para un rol (SUPERADMIN)',
