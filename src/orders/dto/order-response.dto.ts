@@ -21,30 +21,39 @@ export class OrderItemResponseDto {
     quantity: number;
 
     @ApiProperty({
-        description: 'Subtotal del ítem',
-        example: '100.00'
+        description: '🆕 Precio unitario aplicado al producto',
+        example: '25.50'
+    })
+    unit_price: string;
+
+    @ApiProperty({
+        description: 'Subtotal del ítem (precio unitario × cantidad)',
+        example: '51.00'
     })
     subtotal: string;
 
     @ApiProperty({
-        description: 'Monto total del ítem',
-        example: '100.00'
+        description: '🆕 ID de la lista de precios utilizada para este producto (opcional)',
+        example: 3,
+        nullable: true
     })
-    total_amount: string;
+    price_list_id?: number;
 
     @ApiProperty({
-        description: 'Monto pagado del ítem',
-        example: '100.00'
+        description: '🆕 Notas específicas del ítem',
+        example: 'Extra frío',
+        nullable: true
     })
-    amount_paid: string;
+    notes?: string;
 
     @ApiProperty({
         description: 'Detalles del producto',
         type: 'object',
         properties: {
             product_id: { type: 'number', example: 1 },
-            description: { type: 'string', example: 'Producto 1' },
-            price: { type: 'string', example: '50.00' }
+            description: { type: 'string', example: 'Agua Mineral 500ml' },
+            price: { type: 'string', example: '25.50' },
+            is_returnable: { type: 'boolean', example: true }
         },
         additionalProperties: false
     })
@@ -52,6 +61,7 @@ export class OrderItemResponseDto {
         product_id: number;
         description: string;
         price: string;
+        is_returnable: boolean;
     };
 }
 

@@ -55,27 +55,29 @@ model province {
 }
 
 model locality {
-  locality_id      Int                @id @default(autoincrement()) @db.SmallInt
-  province_id      Int                @db.SmallInt
-  code             String             @db.VarChar(10)
-  name             String             @db.VarChar(100)
-  province         province           @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
-  one_off_purchase one_off_purchase[]
-  person           person[]
-  warehouse        warehouse[]
-  zones            zone[]
+  locality_id                Int                           @id @default(autoincrement()) @db.SmallInt
+  province_id                Int                           @db.SmallInt
+  code                       String                        @db.VarChar(10)
+  name                       String                        @db.VarChar(100)
+  province                   province                      @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
+  one_off_purchase           one_off_purchase[]
+  one_off_purchase_headers   one_off_purchase_header[]
+  person                     person[]
+  warehouse                  warehouse[]
+  zones                      zone[]
 }
 
 model zone {
-  zone_id          Int                @id @default(autoincrement()) @db.SmallInt
-  code             String             @db.VarChar(10)
-  name             String             @db.VarChar(100)
-  locality_id      Int                @db.SmallInt
-  delivery_stats   delivery_stats[]
-  one_off_purchase one_off_purchase[]
-  person           person[]
-  vehicle_zone     vehicle_zone[]
-  locality         locality           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
+  zone_id                    Int                           @id @default(autoincrement()) @db.SmallInt
+  code                       String                        @db.VarChar(10)
+  name                       String                        @db.VarChar(100)
+  locality_id                Int                           @db.SmallInt
+  delivery_stats             delivery_stats[]
+  one_off_purchase           one_off_purchase[]
+  one_off_purchase_headers   one_off_purchase_header[]
+  person                     person[]
+  vehicle_zone               vehicle_zone[]
+  locality                   locality                      @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
 
   @@unique([locality_id, code], name: "unique_zone_code_per_locality")
   @@unique([locality_id, name], name: "unique_zone_name_per_locality")
@@ -100,6 +102,7 @@ model product {
   inventory                 inventory[]
   inventory_transaction     inventory_transaction[]
   one_off_purchase          one_off_purchase[]
+  one_off_purchase_items    one_off_purchase_item[]
   order_item                order_item[]
   payment_line              payment_line[]
   price_list_item           price_list_item[]
@@ -112,16 +115,19 @@ model product {
 }
 
 model price_list {
-  price_list_id   Int               @id @default(autoincrement())
-  name            String            @db.VarChar(50)
-  effective_date  DateTime          @db.Date
-  active          Boolean           @default(true)
-  created_at      DateTime          @default(now())
-  description     String?           @db.VarChar(255)
-  is_default      Boolean           @default(false)
-  updated_at      DateTime          @updatedAt
-  client_contract client_contract[]
-  price_list_item price_list_item[]
+  price_list_id                     Int                       @id @default(autoincrement())
+  name                              String                    @db.VarChar(50)
+  effective_date                    DateTime                  @db.Date
+  active                            Boolean                   @default(true)
+  created_at                        DateTime                  @default(now())
+  description                       String?                   @db.VarChar(255)
+  is_default                        Boolean                   @default(false)
+  updated_at                        DateTime                  @updatedAt
+  client_contract                   client_contract[]
+  one_off_purchase_headers          one_off_purchase_header[]
+  one_off_purchase_items_individual one_off_purchase_item[]   @relation("ItemPriceList")
+  order_items_individual            order_item[]              @relation("OrderItemPriceList")
+  price_list_item                   price_list_item[]
 }
 
 model price_list_item {
@@ -210,6 +216,7 @@ model person {
   client_contract       client_contract[]
   customer_subscription customer_subscription[]
   one_off_purchase      one_off_purchase[]
+  one_off_purchase_headers  one_off_purchase_header[]
   orders                order_header[]          @relation("OrderHeaderToPerson")
   paymentInstallments   payment_installment[]   @relation("PaymentInstallmentToPerson")
   locality              locality?               @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
@@ -312,11 +319,12 @@ model subscription_delivery_schedule {
 }
 
 model sale_channel {
-  sale_channel_id  Int                @id @default(autoincrement()) @db.SmallInt
-  code             String             @unique @db.VarChar(20)
-  description      String             @db.VarChar(100)
-  one_off_purchase one_off_purchase[]
-  order_header     order_header[]
+  sale_channel_id           Int                       @id @default(autoincrement()) @db.SmallInt
+  code                      String                    @unique @db.VarChar(20)
+  description               String                    @db.VarChar(100)
+  one_off_purchase          one_off_purchase[]
+  one_off_purchase_headers  one_off_purchase_header[]
+  order_header              order_header[]
 }
 
 model order_header {
@@ -352,14 +360,18 @@ model order_item {
   order_id               Int
   product_id             Int
   quantity               Int
+  unit_price             Decimal                  @db.Decimal(10, 2)
   subtotal               Decimal                  @db.Decimal(10, 2)
-  delivered_quantity     Int?                     @default(0)
-  returned_quantity      Int?                     @default(0)
-  amount_paid            Decimal                  @db.Decimal(10, 2)
-  total_amount           Decimal                  @db.Decimal(10, 2)
+  price_list_id          Int?
+  notes                  String?
   installment_order_link installment_order_link[]
-  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_order")
-  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_product")
+  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: Cascade, onUpdate: NoAction)
+  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list             price_list?              @relation("OrderItemPriceList", fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([order_id])
+  @@index([product_id])
+  @@index([price_list_id])
 }
 
 model one_off_purchase {
@@ -378,6 +390,53 @@ model one_off_purchase {
   product          product      @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
   sale_channel     sale_channel @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
   zone             zone?        @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model one_off_purchase_header {
+  purchase_header_id      Int                      @id @default(autoincrement())
+  person_id               Int
+  sale_channel_id         Int                      @db.SmallInt
+  purchase_date           DateTime                 @default(now()) @db.Timestamp(6)
+  total_amount            Decimal                  @db.Decimal(10, 2)
+  paid_amount             Decimal                  @default(0) @db.Decimal(10, 2)
+  delivery_address        String?
+  locality_id             Int?                     @db.SmallInt
+  zone_id                 Int?                     @db.SmallInt
+  price_list_id           Int?
+  notes                   String?
+  status                  String                   @default("PENDING") @db.VarChar(20)
+  payment_status          String                   @default("PENDING") @db.VarChar(20)
+  delivery_status         String                   @default("PENDING") @db.VarChar(20)
+  created_at              DateTime                 @default(now())
+  updated_at              DateTime                 @updatedAt
+  person                  person                   @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
+  locality                locality?                @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                    zone?                    @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list              price_list?              @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_items          one_off_purchase_item[]
+
+  @@index([purchase_date])
+  @@index([status])
+  @@index([person_id])
+}
+
+model one_off_purchase_item {
+  purchase_item_id    Int                     @id @default(autoincrement())
+  purchase_header_id  Int
+  product_id          Int
+  quantity            Int
+  unit_price          Decimal                 @db.Decimal(10, 2)
+  subtotal            Decimal                 @db.Decimal(10, 2)
+  price_list_id       Int?
+  notes               String?
+  purchase_header     one_off_purchase_header @relation(fields: [purchase_header_id], references: [purchase_header_id], onDelete: Cascade, onUpdate: NoAction)
+  product             product                 @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list          price_list?             @relation("ItemPriceList", fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([purchase_header_id])
+  @@index([product_id])
+  @@index([price_list_id])
 }
 
 model payment_method {

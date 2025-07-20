@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common';
-import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { OneOffPurchaseService } from './one-off-purchase.service';
+import { MultiOneOffPurchaseService } from './multi-one-off-purchase.service';
+import { OrdersController } from './orders.controller';
+import { MultiOneOffPurchaseController } from './multi-one-off-purchase.controller';
 import { InventoryModule } from '../inventory/inventory.module';
-import { ScheduleService } from '../common/services/schedule.service';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [InventoryModule],
-  controllers: [OrdersController],
-  providers: [OrdersService, OneOffPurchaseService, ScheduleService],
-  exports: [OrdersService]
+  imports: [InventoryModule, CommonModule],
+  controllers: [OrdersController, MultiOneOffPurchaseController],
+  providers: [OrdersService, OneOffPurchaseService, MultiOneOffPurchaseService],
+  exports: [OrdersService, OneOffPurchaseService, MultiOneOffPurchaseService]
 })
 export class OrdersModule {}

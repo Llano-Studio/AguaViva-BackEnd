@@ -28,40 +28,66 @@ export class OrdersController {
 
     @Post()
     @ApiOperation({
-        summary: 'Crear un nuevo pedido regular',
-        description: `Crea un nuevo pedido regular con sus ítems asociados. 
+        summary: '🆕 Crear una nueva orden (híbrida por defecto)',
+        description: `Crea una nueva orden que AHORA ES HÍBRIDA POR DEFECTO con soporte completo para listas de precios individuales por producto.
 
-## 🆕 NUEVOS TIPOS DE ORDEN
+## ✅ SISTEMA DE ÓRDENES HÍBRIDAS MEJORADO
 
-**SUBSCRIPTION** (Órdenes de Suscripción):
-- \`total_amount\` debe ser "0.00" porque ya están pagadas en el plan
-- Solo se pueden incluir productos que estén en el plan de suscripción del cliente
-- Se valida automáticamente contra el plan activo
+**Nueva Funcionalidad Principal:**
+- **🆕 LISTAS DE PRECIOS INDIVIDUALES**: Cada producto puede usar una lista diferente
+- **Órdenes de Suscripción**: Solo productos del plan (total_amount = "0.00")
+- **Órdenes Híbridas**: Productos del plan + productos adicionales con precios diferenciados
+- **Órdenes de Contrato**: Productos con precios del contrato específico
+- **Órdenes Libres**: Productos individuales con listas personalizables
 
-**HYBRID** (Órdenes Híbridas) - ¡NUEVO!:
-- Permite combinar productos de suscripción y productos sueltos
-- Productos del plan de suscripción: usan precio proporcional del plan
-- Productos adicionales: usan lista de precios estándar o especificada
-- El \`total_amount\` solo incluye el costo de productos adicionales
+## 🎯 LÓGICA DE PRECIOS POR PRODUCTO
 
-## Sistema de Precios Diferenciados
+**Prioridad de Precios (por producto individual):**
+1. **Lista específica del producto** → \`item.price_list_id\` (máxima prioridad)
+2. **Orden de suscripción** → precio $0 (ya pagado)
+3. **Orden híbrida con producto del plan** → precio proporcional del plan
+4. **Cliente con contrato** → lista de precios del contrato
+5. **Lista estándar** → Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+6. **Precio base** → \`product.price\` (fallback)
 
-**Prioridad de Precios:**
-1. **Lista de precios personalizada**: Si se especifica \`price_list_id\`
-2. **Clientes con Contrato**: Lista de precios específica del contrato
-3. **Órdenes Híbridas**: Precio del plan para productos incluidos, lista estándar para adicionales
-4. **Clientes Generales**: Lista de precios estándar (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
-5. **Fallback**: Precio base del producto
+## 🆕 CASOS DE USO AVANZADOS
 
-## Validación de Precios
+**Ejemplo 1: Orden Híbrida Completa**
+\`\`\`json
+{
+  "order_type": "HYBRID",
+  "subscription_id": 7,
+  "items": [
+    { "product_id": 1, "quantity": 2 },                    // Del plan (precio $0)
+    { "product_id": 5, "quantity": 1, "price_list_id": 3 } // Adicional con descuento corporativo
+  ]
+}
+\`\`\`
 
-- **SUBSCRIPTION**: \`total_amount\` debe ser "0.00"
-- **Otros tipos**: El \`total_amount\` debe coincidir exactamente con la suma calculada
-- Los precios se obtienen de las listas de precios, NO del precio base del producto
+**Ejemplo 2: Orden con Productos Mixtos**
+\`\`\`json
+{
+  "order_type": "ONE_OFF",
+  "items": [
+    { "product_id": 1, "quantity": 2, "price_list_id": 5 }, // Lista promocional
+    { "product_id": 3, "quantity": 1, "price_list_id": 3 }, // Lista corporativa
+    { "product_id": 4, "quantity": 1 }                      // Lista estándar
+  ]
+}
+\`\`\`
 
-## Formato de Horario
+## 💰 CÁLCULO AUTOMÁTICO DE TOTALES
 
-- \`delivery_time\` acepta rangos: "14:00-16:00" o horarios específicos: "14:00"`
+**Validación de Precios:**
+- El sistema calcula automáticamente según las listas especificadas
+- \`total_amount\` debe coincidir exactamente con la suma calculada
+- Para órdenes SUBSCRIPTION: \`total_amount\` debe ser "0.00"
+- Para órdenes HYBRID: solo incluye costo de productos adicionales
+
+**Gestión de Stock:**
+- Descuento automático para productos no retornables
+- Validación de stock disponible antes de confirmar
+- Movimientos de inventario registrados para trazabilidad`
     })
     @ApiBody({
         description: 'Datos necesarios para crear un pedido regular. Los precios se calculan automáticamente según el tipo de cliente y orden.',
@@ -292,13 +318,16 @@ export class OrdersController {
     @Post('one-off')
     @ApiOperation({ 
         summary: 'Crear una nueva compra de una sola vez (one-off purchase)',
-        description: `Crea una nueva compra de una sola vez con múltiples productos. Este tipo de compra es para clientes ocasionales sin contrato fijo.
+        description: `Crea una nueva compra de una sola vez. 
+
+## ⚠️ LIMITACIÓN ACTUAL: UN SOLO PRODUCTO POR COMPRA
+
+**Estructura de Base de Datos:**
+- La tabla \`one_off_purchase\` solo soporta UN producto por compra única
+- Aunque el DTO acepta múltiples \`items\`, solo se procesa el primer producto
+- Para múltiples productos, debe crear varias compras separadas
 
 ## 🆕 NUEVAS CARACTERÍSTICAS
-
-**Múltiples Productos:**
-- Ahora se pueden agregar múltiples productos en una sola compra única
-- Se envía un array de \`items\` con \`product_id\` y \`quantity\` para cada producto
 
 **Lista de Precios Personalizable:**
 - Se puede especificar qué lista de precios usar con el campo \`price_list_id\` (opcional)
@@ -313,8 +342,12 @@ export class OrdersController {
 
 **Casos de Uso:**
 - Clientes ocasionales sin contrato
-- Compras esporádicas con múltiples productos
-- Precios diferenciados según promociones o listas específicas`
+- Compras esporádicas de un producto específico
+- Precios diferenciados según promociones o listas específicas
+
+**Recomendación para múltiples productos:**
+- Para simular "carrito de compras", crear múltiples one-off purchases
+- O considerar usar órdenes regulares (\`POST /orders\`) que sí soportan múltiples productos`
     })
     @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 
@@ -331,10 +364,7 @@ export class OrdersController {
                 zone_id: { type: 'number', nullable: true },
                 purchase_date: { type: 'string', format: 'date-time' },
                 total_amount: { type: 'string' },
-                payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
-                delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
-                notes: { type: 'string', nullable: true },
-                payment_method_id: { type: 'number', nullable: true },
+                delivery_address: { type: 'string', nullable: true },
                 created_at: { type: 'string', format: 'date-time' },
                 updated_at: { type: 'string', format: 'date-time' },
                 person: {
@@ -351,7 +381,6 @@ export class OrdersController {
                     properties: {
                         product_id: { type: 'number' },
                         description: { type: 'string' },
-                        code: { type: 'string', nullable: true },
                         price: { type: 'string' }
                     }
                 },
@@ -393,14 +422,18 @@ export class OrdersController {
     @Get('one-off')
     @ApiOperation({ 
         summary: 'Obtener todas las compras de una sola vez (one-off purchases)',
-        description: 'Retorna una lista paginada de compras de una sola vez con opciones de filtrado.'
+        description: 'Retorna una lista paginada de compras de una sola vez con opciones de filtrado. Cada compra contiene un solo producto.'
     })
+    @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por nombre de cliente, ID de compra o descripción de producto' })
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
-    @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde' })
-    @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta' })
-    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado de la compra (delivery_status)', enum: ['PENDING', 'COMPLETED', 'CANCELLED'] })
-    @ApiQuery({ name: 'paymentStatus', required: false, description: 'Filtrar por estado de pago', enum: ['PENDING', 'PAID', 'PARTIAL'] })
-    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente (person_id)' })
+    @ApiQuery({ name: 'productName', required: false, description: 'Filtrar por descripción del producto' })
+    @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'person_id', required: false, description: 'Filtrar por ID del cliente', type: Number })
+    @ApiQuery({ name: 'product_id', required: false, description: 'Filtrar por ID del producto', type: Number })
+    @ApiQuery({ name: 'sale_channel_id', required: false, description: 'Filtrar por ID del canal de venta', type: Number })
+    @ApiQuery({ name: 'locality_id', required: false, description: 'Filtrar por ID de localidad', type: Number })
+    @ApiQuery({ name: 'zone_id', required: false, description: 'Filtrar por ID de zona', type: Number })
     @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
     @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
     @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: -purchase_date,person.name", type: String, example: '-purchase_date,person.name' })
@@ -423,12 +456,7 @@ export class OrdersController {
                            zone_id: { type: 'number', nullable: true },
                            purchase_date: { type: 'string', format: 'date-time' },
                            total_amount: { type: 'string' },
-                           payment_status: { type: 'string', nullable: true, enum: ['PENDING', 'PAID', 'PARTIAL'] },
-                           delivery_status: { type: 'string', nullable: true, enum: ['PENDING', 'COMPLETED', 'CANCELLED'] },
-                           notes: { type: 'string', nullable: true },
-                           payment_method_id: { type: 'number', nullable: true },
-                           created_at: { type: 'string', format: 'date-time' },
-                           updated_at: { type: 'string', format: 'date-time' },
+                           delivery_address: { type: 'string', nullable: true },
                            person: {
                                type: 'object',
                                properties: {
@@ -440,7 +468,31 @@ export class OrdersController {
                                type: 'object',
                                properties: {
                                    product_id: { type: 'number' },
-                                   description: { type: 'string' }
+                                   description: { type: 'string' },
+                                   price: { type: 'string' }
+                               }
+                           },
+                           sale_channel: {
+                               type: 'object',
+                               properties: {
+                                   sale_channel_id: { type: 'number' },
+                                   name: { type: 'string' }
+                               }
+                           },
+                           locality: {
+                               type: 'object',
+                               nullable: true,
+                               properties: {
+                                   locality_id: { type: 'number' },
+                                   name: { type: 'string' }
+                               }
+                           },
+                           zone: {
+                               type: 'object',
+                               nullable: true,
+                               properties: {
+                                   zone_id: { type: 'number' },
+                                   name: { type: 'string' }
                                }
                            }
                         }
@@ -451,7 +503,8 @@ export class OrdersController {
                     properties: {
                         total: { type: 'number' },
                         page: { type: 'number' },
-                        limit: { type: 'number' }
+                        limit: { type: 'number' },
+                        totalPages: { type: 'number' }
                     }
                 }
             }
@@ -724,4 +777,21 @@ export class OrdersController {
             body.deliveryTime
         );
     }
+
+    /**
+     * 🆕 INFORMACIÓN: NUEVO SISTEMA DE COMPRAS MÚLTIPLES
+     * 
+     * Se ha implementado un nuevo sistema de compras de una sola vez que soporta múltiples productos:
+     * 
+     * Endpoint: /multi-one-off-purchases
+     * Características:
+     * - ✅ Soporte real para múltiples productos por compra
+     * - ✅ Estados granulares (compra, pago, entrega)
+     * - ✅ Lista de precios personalizables
+     * - ✅ Gestión automática de stock
+     * - ✅ Historial completo y trazabilidad
+     * 
+     * Este nuevo sistema está disponible como complemento a las compras únicas tradicionales.
+     * Use /multi-one-off-purchases para crear carritos de compras con múltiples productos.
+     */
 }

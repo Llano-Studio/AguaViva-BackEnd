@@ -32,8 +32,15 @@ export class CreateOneOffPurchaseDto {
   person_id: number;
 
   @ApiProperty({
-    description: 'Lista de productos a comprar',
-    type: [CreateOneOffPurchaseItemDto]
+    description: `Lista de productos a comprar.
+    
+⚠️ LIMITACIÓN ACTUAL: Solo se procesa el PRIMER producto de la lista.
+La base de datos actual solo soporta UN producto por compra única.
+Para múltiples productos, debe crear varias compras separadas.
+
+Recomendación: Enviar un solo item en el array hasta que se implemente soporte completo para múltiples productos.`,
+    type: [CreateOneOffPurchaseItemDto],
+    example: [{ product_id: 1, quantity: 2 }]
   })
   @IsArray()
   @ValidateNested({ each: true })

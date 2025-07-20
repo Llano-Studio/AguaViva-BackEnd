@@ -34,6 +34,36 @@ export class CreateOrderItemDto {
   @Min(1)
   @IsNotEmpty()
   quantity: number;
+
+  @ApiPropertyOptional({
+    description: `🆕 ID de la lista de precios específica para este producto (opcional). 
+    
+**Prioridad de Precios por Producto:**
+1. Si se especifica \`price_list_id\` → usar esa lista específica
+2. Si es orden de suscripción → usar precio proporcional del plan de suscripción  
+3. Si cliente tiene contrato → usar lista de precios del contrato
+4. Si no se especifica → usar lista de precios estándar
+5. Fallback → precio base del producto
+
+**Casos de Uso:**
+- Productos adicionales en órdenes híbridas con descuentos especiales
+- Productos promocionales con listas temporales
+- Productos con precios diferenciados según cliente`,
+    example: 3
+  })
+  @IsOptional()
+  @IsInt()
+  price_list_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Notas específicas para este producto',
+    maxLength: 200,
+    example: 'Extra frío, sin gas'
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
 }
 
 export class CreateOrderDto {
@@ -91,7 +121,15 @@ export class CreateOrderDto {
   delivery_time?: string;
 
   @ApiProperty({
-    description: 'Monto total del pedido con 2 decimales',
+    description: `Monto total del pedido con 2 decimales.
+
+**🆕 ÓRDENES HÍBRIDAS - Cálculo de Total:**
+- **SUBSCRIPTION**: Debe ser "0.00" (productos ya pagados en suscripción)
+- **HYBRID**: Solo incluye costo de productos adicionales (no del plan)
+- **Otros tipos**: Total completo calculado según listas de precios
+
+**Validación Automática:**
+El sistema valida que el total coincida exactamente con la suma calculada según las listas de precios de cada producto.`,
     example: '150.00'
   })
   @IsDecimal({ decimal_digits: '2' })
@@ -107,9 +145,15 @@ export class CreateOrderDto {
   paid_amount: string;
 
   @ApiProperty({
-    description: 'Tipo de pedido',
+    description: `Tipo de pedido.
+
+**🆕 SOPORTE COMPLETO PARA ÓRDENES HÍBRIDAS:**
+- **SUBSCRIPTION**: Solo productos incluidos en el plan de suscripción
+- **HYBRID**: Productos del plan + productos adicionales con listas individuales
+- **CONTRACT_DELIVERY**: Entrega según contrato con precios del contrato
+- **ONE_OFF**: Compra única con listas de precios personalizables`,
     enum: OrderType,
-    example: OrderType.CONTRACT_DELIVERY
+    example: OrderType.HYBRID
   })
   @IsEnum(OrderType)
   @IsNotEmpty()
@@ -135,7 +179,15 @@ export class CreateOrderDto {
   notes?: string;
 
   @ApiProperty({
-    description: 'Lista de productos en el pedido',
+    description: `Lista de productos en el pedido con listas de precios individuales.
+
+**🆕 LISTAS DE PRECIOS POR PRODUCTO:**
+Cada producto puede tener su propia lista de precios para máxima flexibilidad:
+
+**Ejemplos:**
+- Producto de suscripción: \`{ "product_id": 1, "quantity": 2 }\` (sin price_list_id = usa plan)
+- Producto adicional estándar: \`{ "product_id": 3, "quantity": 1 }\` (sin price_list_id = usa lista estándar)  
+- Producto con descuento: \`{ "product_id": 5, "quantity": 1, "price_list_id": 3 }\` (usa lista corporativa)`,
     type: [CreateOrderItemDto]
   })
   @IsArray()
@@ -145,20 +197,15 @@ export class CreateOrderDto {
   items: CreateOrderItemDto[];
 
   @ApiPropertyOptional({
-    description: 'ID de la suscripción asociada (si aplica)',
+    description: `ID de la suscripción asociada (requerido para tipos SUBSCRIPTION y HYBRID).
+
+**Para Órdenes Híbridas:**
+- Productos que estén en el plan de suscripción usan precio del plan
+- Productos adicionales usan sus listas de precios individuales`,
     example: 1,
     type: Number
   })
   @IsOptional()
   @IsInt()
   subscription_id?: number;
-
-  @ApiPropertyOptional({
-    description: 'ID de la lista de precios a usar (opcional, si no se especifica usa la lógica estándar según tipo de cliente)',
-    example: 1,
-    type: Number
-  })
-  @IsOptional()
-  @IsInt()
-  price_list_id?: number;
 } 
