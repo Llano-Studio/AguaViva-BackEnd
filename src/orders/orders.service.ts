@@ -51,6 +51,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             quantity: item.quantity,
             unit_price: item.unit_price.toString(),
             subtotal: item.subtotal.toString(),
+            delivered_quantity: item.delivered_quantity || undefined,
+            returned_quantity: item.returned_quantity || undefined,
             price_list_id: item.price_list_id || undefined,
             notes: item.notes || undefined,
             product: {

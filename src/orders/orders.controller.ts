@@ -777,21 +777,4 @@ export class OrdersController {
             body.deliveryTime
         );
     }
-
-    /**
-     * 🆕 INFORMACIÓN: NUEVO SISTEMA DE COMPRAS MÚLTIPLES
-     * 
-     * Se ha implementado un nuevo sistema de compras de una sola vez que soporta múltiples productos:
-     * 
-     * Endpoint: /multi-one-off-purchases
-     * Características:
-     * - ✅ Soporte real para múltiples productos por compra
-     * - ✅ Estados granulares (compra, pago, entrega)
-     * - ✅ Lista de precios personalizables
-     * - ✅ Gestión automática de stock
-     * - ✅ Historial completo y trazabilidad
-     * 
-     * Este nuevo sistema está disponible como complemento a las compras únicas tradicionales.
-     * Use /multi-one-off-purchases para crear carritos de compras con múltiples productos.
-     */
 }

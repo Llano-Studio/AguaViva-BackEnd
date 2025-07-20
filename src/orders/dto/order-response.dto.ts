@@ -33,6 +33,20 @@ export class OrderItemResponseDto {
     subtotal: string;
 
     @ApiProperty({
+        description: 'Cantidad entregada del producto',
+        example: 2,
+        nullable: true
+    })
+    delivered_quantity?: number;
+
+    @ApiProperty({
+        description: 'Cantidad devuelta del producto',
+        example: 0,
+        nullable: true
+    })
+    returned_quantity?: number;
+
+    @ApiProperty({
         description: '🆕 ID de la lista de precios utilizada para este producto (opcional)',
         example: 3,
         nullable: true

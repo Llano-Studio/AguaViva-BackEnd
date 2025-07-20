@@ -362,6 +362,8 @@ model order_item {
   quantity               Int
   unit_price             Decimal                  @db.Decimal(10, 2)
   subtotal               Decimal                  @db.Decimal(10, 2)
+  delivered_quantity     Int?                     @default(0)
+  returned_quantity      Int?                     @default(0)
   price_list_id          Int?
   notes                  String?
   installment_order_link installment_order_link[]
