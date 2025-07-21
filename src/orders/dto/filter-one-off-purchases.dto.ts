@@ -1,8 +1,10 @@
 import { IsInt, IsOptional, IsString, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   person_id?: number;
 
@@ -11,6 +13,7 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   customerName?: string; // Renombrado desde customer_name y hecho opcional
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   product_id?: number;
 
@@ -23,14 +26,17 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   purchaseDateTo?: string; // Renombrado desde purchase_date_to
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   sale_channel_id?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   locality_id?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   zone_id?: number;
 

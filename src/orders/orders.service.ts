@@ -225,11 +225,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
                     // 🆕 NUEVA LÓGICA: Prioridad de precios por producto individual
                     // 1. Lista de precios específica del producto (itemDto.price_list_id)
-                    // 2. Orden de suscripción (precio $0)
-                    // 3. Orden híbrida con producto del plan (precio proporcional)
-                    // 4. Contrato del cliente (lista del contrato)
-                    // 5. Lista de precios estándar
-                    // 6. Precio base del producto
+                    // 2. Orden con suscripción (precio $0 para productos del plan)
+                    // 3. Contrato del cliente (lista del contrato)
+                    // 4. Lista de precios estándar
+                    // 5. Precio base del producto
 
                     if (itemDto.price_list_id) {
                         // ✅ PRIORIDAD 1: Lista de precios específica del producto
@@ -251,41 +250,26 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         
                         itemSubtotal = itemPrice.mul(itemDto.quantity);
                     } 
-                    else if (createOrderDto.order_type === 'SUBSCRIPTION' && subscription_id) {
-                        // ✅ PRIORIDAD 2: Órdenes de suscripción (precio $0)
-                        itemPrice = new Decimal(0);
-                        itemSubtotal = new Decimal(0);
-                        
-                        // Validar que el producto esté en el plan de suscripción
-                        const planProduct = subscriptionPlan?.subscription_plan_product.find(
-                            spp => spp.product_id === itemDto.product_id
-                        );
-                        
-                        if (!planProduct) {
-                            throw new BadRequestException(
-                                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
-                            );
-                        }
-                    }
-                    else if (subscriptionPlan && createOrderDto.order_type === 'HYBRID') {
-                        // ✅ PRIORIDAD 3: Órdenes híbridas - productos del plan vs adicionales
+
+                    else if (subscriptionPlan && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                        // ✅ PRIORIDAD 2: Órdenes con suscripción - productos del plan vs adicionales
                         const planProduct = subscriptionPlan.subscription_plan_product.find(
                             spp => spp.product_id === itemDto.product_id
                         );
                         
                         if (planProduct) {
-                            // Producto está en el plan de suscripción → precio proporcional ($0 por defecto)
-                            if (subscriptionPlan.price) {
-                                const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
-                                const productProportion = planProduct.product_quantity / totalProductsInPlan;
-                                itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
-                            } else {
-                                // Plan sin precio específico → usar $0 (ya pagado en suscripción)
-                                itemPrice = new Decimal(0);
-                            }
-                            itemSubtotal = itemPrice.mul(itemDto.quantity);
+                            // Producto está en el plan de suscripción → precio $0 (ya pagado en suscripción)
+                            itemPrice = new Decimal(0);
+                            itemSubtotal = new Decimal(0);
                         } else {
-                            // Producto NO está en el plan → es producto adicional, usar lista estándar
+                            // Para órdenes SUBSCRIPTION, todos los productos deben estar en el plan
+                            if (createOrderDto.order_type === 'SUBSCRIPTION') {
+                                throw new BadRequestException(
+                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
+                                );
+                            }
+                            
+                            // Para órdenes HYBRID: Producto NO está en el plan → es producto adicional, usar lista estándar
                             const standardPriceItem = await prismaTx.price_list_item.findFirst({
                                 where: { 
                                     price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
@@ -301,7 +285,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         }
                     }
                     else if (contractPriceList) {
-                        // ✅ PRIORIDAD 4: Cliente con contrato → usar lista de precios del contrato
+                        // ✅ PRIORIDAD 3: Cliente con contrato → usar lista de precios del contrato
                         const priceListItem = contractPriceList.price_list_item.find(
                             item => item.product_id === itemDto.product_id
                         );
@@ -317,7 +301,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         itemSubtotal = itemPrice.mul(itemDto.quantity);
                     } 
                     else {
-                        // ✅ PRIORIDAD 5: Lista de precios estándar → último recurso
+                        // ✅ PRIORIDAD 4: Lista de precios estándar → último recurso
                         const standardPriceItem = await prismaTx.price_list_item.findFirst({
                             where: { 
                                 price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
@@ -641,18 +625,28 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 spp => spp.product_id === itemDto.product_id
                             );
                             
-                            if (!planProduct) {
-                                throw new BadRequestException(
-                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
-                                );
-                            }
-                            
-                            if (subscriptionPlan.price) {
-                                const totalProductsInPlan = subscriptionPlan.subscription_plan_product.reduce((sum, spp) => sum + spp.product_quantity, 0);
-                                const productProportion = planProduct.product_quantity / totalProductsInPlan;
-                                itemPrice = new Decimal(subscriptionPlan.price).mul(productProportion).div(planProduct.product_quantity);
+                            if (planProduct) {
+                                // Producto está en el plan de suscripción → precio $0 (ya pagado en suscripción)
+                                itemPrice = new Decimal(0);
                             } else {
-                                itemPrice = new Decimal(productDetails.price);
+                                // Para órdenes SUBSCRIPTION, todos los productos deben estar en el plan
+                                if (existingOrderWithRelations.order_type === 'SUBSCRIPTION') {
+                                    throw new BadRequestException(
+                                        `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
+                                    );
+                                }
+                                
+                                // Para órdenes HYBRID: Producto adicional, usar lista estándar
+                                const standardPriceItem = await tx.price_list_item.findFirst({
+                                    where: { 
+                                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                        product_id: itemDto.product_id 
+                                    }
+                                });
+                                
+                                if (standardPriceItem) {
+                                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                                }
                             }
                         } else {
                             // Si no hay contrato ni suscripción → usar lista de precios estándar

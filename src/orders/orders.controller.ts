@@ -44,11 +44,10 @@ export class OrdersController {
 
 **Prioridad de Precios (por producto individual):**
 1. **Lista específica del producto** → \`item.price_list_id\` (máxima prioridad)
-2. **Orden de suscripción** → precio $0 (ya pagado)
-3. **Orden híbrida con producto del plan** → precio proporcional del plan
-4. **Cliente con contrato** → lista de precios del contrato
-5. **Lista estándar** → Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
-6. **Precio base** → \`product.price\` (fallback)
+2. **Orden con suscripción** → precio $0 para productos del plan (ya pagado)
+3. **Cliente con contrato** → lista de precios del contrato
+4. **Lista estándar** → Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
+5. **Precio base** → \`product.price\` (fallback)
 
 ## 🆕 CASOS DE USO AVANZADOS
 

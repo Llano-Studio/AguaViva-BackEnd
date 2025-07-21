@@ -1,4 +1,5 @@
 import { IsOptional, IsString, IsDateString, IsEnum, IsInt } from 'class-validator';
+import { Type } from 'class-transformer';
 import { OrderStatus, OrderType } from '../../common/constants/enums';
 import { ApiProperty } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -35,16 +36,19 @@ export class FilterOrdersDto extends PaginationQueryDto {
   orderType?: OrderType;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @ApiProperty({ required: false, description: 'Filtrar por ID del cliente', type: Number })
   customerId?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @ApiProperty({ required: false, description: 'Filtrar por ID del pedido', type: Number })
   orderId?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @ApiProperty({ required: false, description: 'Filtrar por ID de la zona', type: Number })
   zoneId?: number;
