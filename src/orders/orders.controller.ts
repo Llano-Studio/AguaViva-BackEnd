@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { OneOffPurchaseService } from './one-off-purchase.service';
+import { SubscriptionQuotaService } from './services/subscription-quota.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
@@ -23,7 +24,8 @@ export class OrdersController {
     constructor(
         private readonly ordersService: OrdersService,
         private readonly oneOffPurchaseService: OneOffPurchaseService,
-        private readonly scheduleService: ScheduleService
+        private readonly scheduleService: ScheduleService,
+        private readonly subscriptionQuotaService: SubscriptionQuotaService
     ) { }
 
     @Post()
@@ -43,22 +45,24 @@ export class OrdersController {
 ## 🎯 LÓGICA DE PRECIOS POR PRODUCTO
 
 **Prioridad de Precios (por producto individual):**
-1. **Lista específica del producto** → \`item.price_list_id\` (máxima prioridad)
-2. **Orden con suscripción** → precio $0 para productos del plan (ya pagado)
+1. **Lista específica del producto** → \`item.price_list_id\` (solo para productos NO de suscripción)
+2. **🆕 Control de cuotas de suscripción:**
+   - **Productos del plan (dentro de cuota)** → precio $0 (ya pagado)
+   - **🚨 Productos del plan (exceden cuota)** → SIEMPRE Lista General (ignora price_list_id)
 3. **Cliente con contrato** → lista de precios del contrato
 4. **Lista estándar** → Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
 5. **Precio base** → \`product.price\` (fallback)
 
 ## 🆕 CASOS DE USO AVANZADOS
 
-**Ejemplo 1: Orden Híbrida Completa**
+**Ejemplo 1: Orden Híbrida con Control de Cuotas**
 \`\`\`json
 {
   "order_type": "HYBRID",
   "subscription_id": 7,
   "items": [
-    { "product_id": 1, "quantity": 2 },                    // Del plan (precio $0)
-    { "product_id": 5, "quantity": 1, "price_list_id": 3 } // Adicional con descuento corporativo
+    { "product_id": 1, "quantity": 4 },                    // Plan: 2 gratis + 2 con Lista General
+    { "product_id": 5, "quantity": 1, "price_list_id": 3 } // NO del plan → puede usar descuento
   ]
 }
 \`\`\`
@@ -775,5 +779,81 @@ export class OrdersController {
             new Date(body.scheduledDeliveryDate),
             body.deliveryTime
         );
+    }
+
+    /**
+     * Obtener créditos disponibles para una suscripción
+     */
+    @Get('subscription/:subscriptionId/available-credits')
+    @ApiOperation({ 
+        summary: '🆕 Obtener créditos disponibles de suscripción',
+        description: `Obtiene el detalle de créditos/cuotas disponibles para una suscripción específica.
+
+## 🎯 Funcionalidad
+
+Muestra por cada producto del plan de suscripción:
+- **Cantidad planificada**: Total asignado en el ciclo actual
+- **Cantidad entregada**: Ya consumida en órdenes anteriores  
+- **Saldo restante**: Créditos disponibles para usar
+
+## 📊 Casos de Uso
+
+**Ejemplo de Respuesta:**
+\`\`\`json
+[
+  {
+    "product_id": 1,
+    "product_description": "Bidón de Agua 20L",
+    "planned_quantity": 6,     // Plan mensual: 6 bidones
+    "delivered_quantity": 4,   // Ya entregados: 4 bidones
+    "remaining_balance": 2     // Disponibles: 2 bidones
+  }
+]
+\`\`\`
+
+**Interpretación:**
+- Cliente puede pedir hasta 2 bidones más sin costo adicional
+- Si pide 4 bidones: 2 gratis + 2 con precio adicional (orden HYBRID)`
+    })
+    @ApiParam({ 
+        name: 'subscriptionId', 
+        description: 'ID de la suscripción',
+        type: Number,
+        example: 7
+    })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Créditos disponibles obtenidos exitosamente',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    product_id: { type: 'number', example: 1 },
+                    product_description: { type: 'string', example: 'Bidón de Agua 20L' },
+                    planned_quantity: { type: 'number', example: 6 },
+                    delivered_quantity: { type: 'number', example: 4 },
+                    remaining_balance: { type: 'number', example: 2 }
+                }
+            }
+        }
+    })
+    @ApiResponse({ 
+        status: 404, 
+        description: 'Suscripción no encontrada o sin ciclo activo'
+    })
+    async getAvailableCredits(
+        @Param('subscriptionId', ParseIntPipe) subscriptionId: number
+    ) {
+        const credits = await this.subscriptionQuotaService.getAvailableCredits(subscriptionId);
+        
+        // Mapear solo los campos relevantes para la respuesta
+        return credits.map(credit => ({
+            product_id: credit.product_id,
+            product_description: credit.product_description,
+            planned_quantity: credit.planned_quantity,
+            delivered_quantity: credit.delivered_quantity,
+            remaining_balance: credit.remaining_balance
+        }));
     }
 }

@@ -5,6 +5,7 @@ import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { ScheduleService } from '../common/services/schedule.service';
+import { SubscriptionQuotaService } from './services/subscription-quota.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { OrderResponseDto, OrderItemResponseDto } from './dto/order-response.dto';
 import { OrderStatus as AppOrderStatus, OrderType as AppOrderType } from '../common/constants/enums';
@@ -28,7 +29,11 @@ type SaleChannelPayload = Prisma.sale_channelGetPayload<{}> | null | undefined;
 export class OrdersService extends PrismaClient implements OnModuleInit {
     private readonly entityName = 'Pedido';
 
-    constructor(private readonly inventoryService: InventoryService, private readonly scheduleService: ScheduleService) { 
+    constructor(
+        private readonly inventoryService: InventoryService, 
+        private readonly scheduleService: ScheduleService,
+        private readonly subscriptionQuotaService: SubscriptionQuotaService
+    ) { 
         super(); 
     }
 
@@ -193,25 +198,21 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     contractPriceList = contract.price_list;
                 }
 
-                // Si hay suscripción, obtener el plan con sus productos
-                let subscriptionPlan: { subscription_plan_product: { product_id: number; product_quantity: number }[]; price?: any } | null = null;
-                if (subscription_id) {
-                    const subscription = await prismaTx.customer_subscription.findUnique({
-                        where: { subscription_id },
-                        include: {
-                            subscription_plan: {
-                                include: {
-                                    subscription_plan_product: true
-                                }
-                            }
-                        }
-                    });
+                // 🆕 NUEVO: Validación de cuotas de suscripción
+                let subscriptionQuotaValidation: any = null;
+                if (subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                    subscriptionQuotaValidation = await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                        subscription_id,
+                        items.map(item => ({ product_id: item.product_id, quantity: item.quantity })),
+                        prismaTx
+                    );
                     
-                    if (!subscription) {
-                        throw new NotFoundException(`Suscripción con ID ${subscription_id} no encontrada.`);
+                    // Para órdenes SUBSCRIPTION puras, no puede haber productos adicionales
+                    if (createOrderDto.order_type === 'SUBSCRIPTION' && subscriptionQuotaValidation.has_additional_charges) {
+                        throw new BadRequestException(
+                            'Las órdenes de tipo SUBSCRIPTION no pueden contener productos adicionales. Use tipo HYBRID para incluir productos adicionales.'
+                        );
                     }
-                    
-                    subscriptionPlan = subscription.subscription_plan;
                 }
 
                 for (const itemDto of items) {
@@ -222,13 +223,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
                     let itemSubtotal = new Decimal(0);
                     let usedPriceListId: number | null = null;
-
-                    // 🆕 NUEVA LÓGICA: Prioridad de precios por producto individual
-                    // 1. Lista de precios específica del producto (itemDto.price_list_id)
-                    // 2. Orden con suscripción (precio $0 para productos del plan)
-                    // 3. Contrato del cliente (lista del contrato)
-                    // 4. Lista de precios estándar
-                    // 5. Precio base del producto
 
                     if (itemDto.price_list_id) {
                         // ✅ PRIORIDAD 1: Lista de precios específica del producto
@@ -251,35 +245,77 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         itemSubtotal = itemPrice.mul(itemDto.quantity);
                     } 
 
-                    else if (subscriptionPlan && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
-                        // ✅ PRIORIDAD 2: Órdenes con suscripción - productos del plan vs adicionales
-                        const planProduct = subscriptionPlan.subscription_plan_product.find(
-                            spp => spp.product_id === itemDto.product_id
+                    else if (subscriptionQuotaValidation && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                        // 🆕 PRIORIDAD 2: Órdenes con suscripción - usar control de cuotas
+                        const productQuota = subscriptionQuotaValidation.products.find(
+                            quota => quota.product_id === itemDto.product_id
                         );
                         
-                        if (planProduct) {
-                            // Producto está en el plan de suscripción → precio $0 (ya pagado en suscripción)
+                        if (!productQuota) {
+                            throw new BadRequestException(
+                                `Error interno: No se encontró información de cuota para el producto ${itemDto.product_id}.`
+                            );
+                        }
+                        
+                        // Calcular precio basado en cuotas
+                        if (productQuota.covered_by_subscription > 0) {
+                            // Parte cubierta por suscripción (precio $0)
                             itemPrice = new Decimal(0);
                             itemSubtotal = new Decimal(0);
-                        } else {
-                            // Para órdenes SUBSCRIPTION, todos los productos deben estar en el plan
-                            if (createOrderDto.order_type === 'SUBSCRIPTION') {
-                                throw new BadRequestException(
-                                    `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está incluido en el plan de suscripción.`
-                                );
-                            }
                             
-                            // Para órdenes HYBRID: Producto NO está en el plan → es producto adicional, usar lista estándar
-                            const standardPriceItem = await prismaTx.price_list_item.findFirst({
-                                where: { 
-                                    price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                                    product_id: itemDto.product_id 
+                            // Si hay cantidad adicional, calcular su precio
+                            if (productQuota.additional_quantity > 0) {
+                                let additionalPrice = new Decimal(productDetails.price); // Precio base por defecto
+                                
+                                // 🆕 REGLA ESPECIAL: Productos que ESTÁN en suscripción pero exceden cuota
+                                // → SIEMPRE usan lista general (no permiten price_list_id específica)
+                                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                                    where: { 
+                                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                        product_id: itemDto.product_id 
+                                    }
+                                });
+                                
+                                if (standardPriceItem) {
+                                    additionalPrice = new Decimal(standardPriceItem.unit_price);
+                                    usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
                                 }
-                            });
-                            
-                            if (standardPriceItem) {
-                                itemPrice = new Decimal(standardPriceItem.unit_price);
-                                usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+                                // Si el producto no está en la lista general, usa precio base del producto
+                                
+                                // Agregar el costo de los productos adicionales
+                                const additionalSubtotal = additionalPrice.mul(productQuota.additional_quantity);
+                                itemSubtotal = itemSubtotal.plus(additionalSubtotal);
+                            }
+                        } else {
+                            // Todo el producto es adicional (no está en el plan o no hay créditos)
+                            if (itemDto.price_list_id) {
+                                const customPriceItem = await prismaTx.price_list_item.findFirst({
+                                    where: { 
+                                        price_list_id: itemDto.price_list_id,
+                                        product_id: itemDto.product_id 
+                                    }
+                                });
+                                
+                                if (customPriceItem) {
+                                    itemPrice = new Decimal(customPriceItem.unit_price);
+                                    usedPriceListId = itemDto.price_list_id;
+                                } else {
+                                    throw new BadRequestException(
+                                        `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`
+                                    );
+                                }
+                            } else {
+                                const standardPriceItem = await prismaTx.price_list_item.findFirst({
+                                    where: { 
+                                        price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                                        product_id: itemDto.product_id 
+                                    }
+                                });
+                                
+                                if (standardPriceItem) {
+                                    itemPrice = new Decimal(standardPriceItem.unit_price);
+                                    usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+                                }
                             }
                             itemSubtotal = itemPrice.mul(itemDto.quantity);
                         }
@@ -408,6 +444,24 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})`,
                     };
                     await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
+                }
+
+                // 🆕 NUEVO: Actualizar cantidades entregadas en ciclo de suscripción
+                if (subscriptionQuotaValidation && subscription_id) {
+                    const deliveredProducts = subscriptionQuotaValidation.products
+                        .filter(quota => quota.covered_by_subscription > 0)
+                        .map(quota => ({
+                            product_id: quota.product_id,
+                            quantity: quota.covered_by_subscription
+                        }));
+                    
+                    if (deliveredProducts.length > 0) {
+                        await this.subscriptionQuotaService.updateDeliveredQuantities(
+                            subscription_id,
+                            deliveredProducts,
+                            prismaTx
+                        );
+                    }
                 }
                 
                 return this.mapToOrderResponseDto(newOrderHeader);
@@ -636,7 +690,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                     );
                                 }
                                 
-                                // Para órdenes HYBRID: Producto adicional, usar lista estándar
+                                // 🆕 REGLA ESPECIAL: Productos NO en plan de suscripción en órdenes HYBRID
+                                // → pueden usar lista específica (productos completamente adicionales)
+                                // 
+                                // NOTA: En el método update() es complejo determinar cuotas exactas,
+                                // pero podemos aplicar la regla básica: productos del plan siempre usan lista general
+                                // Solo productos completamente nuevos/adicionales pueden usar listas específicas
                                 const standardPriceItem = await tx.price_list_item.findFirst({
                                     where: { 
                                         price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
