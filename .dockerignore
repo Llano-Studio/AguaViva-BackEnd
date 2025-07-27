@@ -1,6 +1,7 @@
 node_modules
-npm-debug.log
-Dockerfile
+*.log
+Dockerfile*
+docker-compose*
 .dockerignore
 .git
 .github
@@ -8,6 +9,7 @@ Dockerfile
 README.md
 postgres
 pgadmin
+dist
 .env
 .env.local
 .env.development.local

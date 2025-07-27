@@ -15,7 +15,8 @@ import {
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
-  SkipDeliveryReason
+  SkipDeliveryReason,
+  UpdateDeliveryTimeDto
 } from './dto';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
@@ -155,20 +156,46 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`Los siguientes pedidos ya están asignados para esa fecha: ${assignedOrders.join(', ')}`);
       }
 
+      // Validar horarios de entrega contra preferencias de suscripción
+      const validationErrors: string[] = [];
+      const validatedDetails: Array<{
+        order_id: number;
+        delivery_status: string;
+        delivery_time: Date | null;
+        comments?: string;
+      }> = [];
+
+      for (const detail of details) {
+        if (detail.delivery_time) {
+          const validation = await this.validateDeliveryTimeAgainstSubscription(
+            detail.order_id,
+            detail.delivery_time
+          );
+
+          if (!validation.isValid) {
+            validationErrors.push(`Pedido ${detail.order_id}: ${validation.message}`);
+          }
+        }
+
+        validatedDetails.push({
+          order_id: detail.order_id,
+          delivery_status: detail.delivery_status || 'PENDING',
+          delivery_time: detail.delivery_time ? new Date(detail.delivery_time) : null,
+          comments: detail.comments
+        });
+      }
+
+      if (validationErrors.length > 0) {
+        throw new BadRequestException(`Errores de validación de horarios: ${validationErrors.join('; ')}`);
+      }
+
       const result = await this.$transaction(async (tx) => {
         const routeSheet = await tx.route_sheet.create({
           data: {
             driver_id,
             vehicle_id,
             delivery_date: new Date(delivery_date),
-            route_notes,
-            route_sheet_detail: {
-              create: details.map(detail => ({
-                order_id: detail.order_id,
-                delivery_status: detail.delivery_status || 'PENDING',
-                comments: detail.comments
-              }))
-            }
+            route_notes
           },
           include: {
             driver: true,
@@ -189,7 +216,42 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             }
           }
         });
-        return routeSheet;
+
+        // Crear los detalles de la hoja de ruta
+        for (const detail of validatedDetails) {
+          await tx.route_sheet_detail.create({
+            data: {
+              route_sheet_id: routeSheet.route_sheet_id,
+              order_id: detail.order_id,
+              delivery_status: detail.delivery_status,
+              delivery_time: detail.delivery_time,
+              comments: detail.comments
+            }
+          });
+        }
+
+        // Obtener la hoja de ruta completa con los detalles
+        return await tx.route_sheet.findUniqueOrThrow({
+          where: { route_sheet_id: routeSheet.route_sheet_id },
+          include: {
+            driver: true,
+            vehicle: true,
+            route_sheet_detail: {
+              include: {
+                order_header: {
+                  include: {
+                    customer: true,
+                    order_item: {
+                      include: {
+                        product: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        });
       });
       return this.mapToRouteSheetResponseDto(result);
     } catch (error) {
@@ -881,5 +943,279 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     responseDto.comments = updatedDetail.comments || undefined;
     responseDto.digital_signature_id = updatedDetail.digital_signature_id || undefined;
     return responseDto;
+  }
+
+  /**
+   * Valida que los horarios de entrega respeten las preferencias de suscripción del cliente
+   */
+  public async validateDeliveryTimeAgainstSubscription(
+    orderId: number, 
+    deliveryTime: string
+  ): Promise<{ isValid: boolean; message?: string; suggestedTime?: string }> {
+    try {
+      // Obtener el pedido con información del cliente y suscripción
+      const order = await this.order_header.findUnique({
+        where: { order_id: orderId },
+        include: {
+          customer: true,
+          customer_subscription: {
+            include: {
+              subscription_delivery_schedule: true
+            }
+          }
+        }
+      });
+
+      if (!order || !order.customer_subscription) {
+        return { isValid: true }; // No hay suscripción, no validar
+      }
+
+      const subscription = order.customer_subscription;
+      const schedules = subscription.subscription_delivery_schedule;
+
+      if (schedules.length === 0) {
+        return { isValid: true }; // No hay horarios definidos
+      }
+
+      // Obtener el día de la semana de la fecha de entrega
+      const deliveryDate = new Date(deliveryTime);
+      const dayOfWeek = deliveryDate.getDay() === 0 ? 7 : deliveryDate.getDay(); // Convertir domingo de 0 a 7
+      
+      // Buscar horarios para ese día
+      const daySchedules = schedules.filter(s => s.day_of_week === dayOfWeek);
+      
+      if (daySchedules.length === 0) {
+        return { 
+          isValid: false, 
+          message: `El cliente no tiene horarios preferidos para el día ${dayOfWeek}` 
+        };
+      }
+
+      // Extraer hora de entrega (asumiendo formato HH:MM)
+      const deliveryHour = deliveryDate.getHours();
+      const deliveryMinute = deliveryDate.getMinutes();
+      const deliveryTimeMinutes = deliveryHour * 60 + deliveryMinute;
+
+      // Validar contra cada horario preferido
+      for (const schedule of daySchedules) {
+        const timeValidation = this.validateScheduledTime(schedule.scheduled_time);
+        
+        if (timeValidation.isValid && timeValidation.type === 'rango') {
+          const [startHour, startMinute] = timeValidation.startTime!.split(':').map(Number);
+          const [endHour, endMinute] = timeValidation.endTime!.split(':').map(Number);
+          
+          const startMinutes = startHour * 60 + startMinute;
+          const endMinutes = endHour * 60 + endMinute;
+          
+          if (deliveryTimeMinutes >= startMinutes && deliveryTimeMinutes <= endMinutes) {
+            return { isValid: true };
+          }
+        } else if (timeValidation.isValid && timeValidation.type === 'puntual') {
+          const [preferredHour, preferredMinute] = timeValidation.startTime!.split(':').map(Number);
+          const preferredMinutes = preferredHour * 60 + preferredMinute;
+          
+          // Permitir un margen de ±30 minutos para horarios puntuales
+          if (Math.abs(deliveryTimeMinutes - preferredMinutes) <= 30) {
+            return { isValid: true };
+          }
+        }
+      }
+
+      // Si no cumple con ningún horario, sugerir el primer horario disponible
+      const firstSchedule = daySchedules[0];
+      const timeValidation = this.validateScheduledTime(firstSchedule.scheduled_time);
+      
+      return {
+        isValid: false,
+        message: `El horario de entrega no está dentro de las preferencias del cliente (${firstSchedule.scheduled_time})`,
+        suggestedTime: timeValidation.startTime
+      };
+    } catch (error) {
+      console.error('Error validando horario de entrega:', error);
+      return { isValid: true }; // En caso de error, permitir la entrega
+    }
+  }
+
+  /**
+   * Valida formato de horario (método auxiliar)
+   */
+  private validateScheduledTime(scheduledTime: string): { 
+    isValid: boolean; 
+    type: 'puntual' | 'rango'; 
+    startTime?: string; 
+    endTime?: string; 
+    error?: string 
+  } {
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
+    
+    if (scheduledTime.includes('-')) {
+      // Formato de rango: HH:MM-HH:MM
+      const [startTime, endTime] = scheduledTime.split('-').map(t => t.trim());
+      
+      if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+        return { isValid: false, type: 'rango', error: 'Formato inválido para rango horario' };
+      }
+      
+      const startMinutes = this.timeToMinutes(startTime);
+      const endMinutes = this.timeToMinutes(endTime);
+      
+      if (startMinutes >= endMinutes) {
+        return { isValid: false, type: 'rango', error: 'La hora de inicio debe ser menor que la hora de fin' };
+      }
+      
+      return { isValid: true, type: 'rango', startTime, endTime };
+    } else {
+      // Formato puntual: HH:MM
+      if (!timeRegex.test(scheduledTime)) {
+        return { isValid: false, type: 'puntual', error: 'Formato inválido para horario puntual' };
+      }
+      
+      return { isValid: true, type: 'puntual', startTime: scheduledTime };
+    }
+  }
+
+  /**
+   * Convierte tiempo HH:MM a minutos
+   */
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Actualiza el horario de entrega de un detalle de hoja de ruta
+   * con validación contra las preferencias de suscripción del cliente
+   */
+  async updateDeliveryTime(
+    detailId: number,
+    updateDeliveryTimeDto: UpdateDeliveryTimeDto
+  ): Promise<RouteSheetDetailResponseDto> {
+    try {
+      // Verificar que el detalle existe
+      const detail = await this.route_sheet_detail.findUnique({
+        where: { route_sheet_detail_id: detailId },
+        include: {
+          order_header: {
+            include: {
+              customer: true,
+              customer_subscription: {
+                include: {
+                  subscription_delivery_schedule: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!detail) {
+        throw new NotFoundException(`Detalle de hoja de ruta con ID ${detailId} no encontrado`);
+      }
+
+      // Validar el nuevo horario contra las preferencias de suscripción
+      const validation = await this.validateDeliveryTimeAgainstSubscription(
+        detail.order_id,
+        updateDeliveryTimeDto.delivery_time
+      );
+
+      if (!validation.isValid) {
+        throw new BadRequestException(`Horario inválido: ${validation.message}`);
+      }
+
+      // Actualizar el detalle
+      const updatedDetail = await this.route_sheet_detail.update({
+        where: { route_sheet_detail_id: detailId },
+        data: {
+          delivery_time: new Date(updateDeliveryTimeDto.delivery_time),
+          comments: updateDeliveryTimeDto.comments || detail.comments
+        },
+        include: {
+          order_header: {
+            include: {
+              customer: true,
+              order_item: {
+                include: {
+                  product: true
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Obtener la hoja de ruta completa para mapear correctamente
+      const routeSheet = await this.route_sheet.findUnique({
+        where: { route_sheet_id: updatedDetail.route_sheet_id },
+        include: {
+          driver: true,
+          vehicle: true,
+          route_sheet_detail: {
+            include: {
+              order_header: {
+                include: {
+                  customer: true,
+                  order_item: {
+                    include: {
+                      product: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (!routeSheet) {
+        throw new NotFoundException('Hoja de ruta no encontrada');
+      }
+
+      // Encontrar el detalle actualizado en la respuesta
+      const updatedDetailInResponse = routeSheet.route_sheet_detail.find(
+        detail => detail.route_sheet_detail_id === detailId
+      );
+
+      if (!updatedDetailInResponse) {
+        throw new NotFoundException('Detalle actualizado no encontrado en la respuesta');
+      }
+
+      // Retornar una respuesta básica
+      return {
+        route_sheet_detail_id: updatedDetail.route_sheet_detail_id,
+        route_sheet_id: updatedDetail.route_sheet_id,
+        delivery_status: updatedDetail.delivery_status,
+        delivery_time: updatedDetail.delivery_time?.toISOString(),
+        comments: updatedDetail.comments || undefined,
+        digital_signature_id: updatedDetail.digital_signature_id || undefined,
+        order: {
+          order_id: updatedDetail.order_header.order_id,
+          order_date: updatedDetail.order_header.order_date.toISOString(),
+          total_amount: updatedDetail.order_header.total_amount.toString(),
+          status: 'PENDING',
+          customer: {
+            person_id: updatedDetail.order_header.customer.person_id,
+            name: updatedDetail.order_header.customer.name || '',
+            phone: updatedDetail.order_header.customer.phone,
+            address: updatedDetail.order_header.customer.address || ''
+          },
+          items: updatedDetail.order_header.order_item.map(item => ({
+            order_item_id: item.order_item_id,
+            product: {
+              product_id: item.product.product_id,
+              description: item.product.description
+            },
+            quantity: item.quantity,
+            delivered_quantity: 0,
+            returned_quantity: 0
+          }))
+        }
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      handlePrismaError(error, 'Detalle de Hoja de Ruta');
+      throw new InternalServerErrorException('Error al actualizar horario de entrega');
+    }
   }
 } 

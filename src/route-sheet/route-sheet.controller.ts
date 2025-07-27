@@ -35,7 +35,10 @@ import {
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
-  RouteSheetDetailResponseDto
+  RouteSheetDetailResponseDto,
+  ValidateDeliveryTimesDto,
+  DeliveryTimeValidationResponseDto,
+  UpdateDeliveryTimeDto
 } from './dto';
 import { RouteSheetService } from './route-sheet.service';
 import { RouteOptimizationService } from './services/route-optimization.service';
@@ -45,6 +48,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('Hojas de Ruta')
 @ApiBearerAuth()
@@ -386,5 +390,90 @@ export class RouteSheetController {
     @GetUser('sub') userId: number,
   ) {
     return this.routeSheetService.skipDelivery(detailId, skipDeliveryDto, userId);
+  }
+
+  @Post('validate-delivery-times')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @ApiOperation({ 
+    summary: 'Validar horarios de entrega contra preferencias de suscripción',
+    description: 'Valida que los horarios de entrega propuestos respeten las preferencias de horario de los clientes con suscripción'
+  })
+  @ApiBody({
+    description: 'Lista de pedidos con horarios de entrega propuestos',
+    type: ValidateDeliveryTimesDto
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Validación completada',
+    type: [DeliveryTimeValidationResponseDto]
+  })
+  async validateDeliveryTimes(@Body() body: ValidateDeliveryTimesDto) {
+    const validations: DeliveryTimeValidationResponseDto[] = [];
+    
+    for (const delivery of body.deliveries) {
+      const validation = await this.routeSheetService.validateDeliveryTimeAgainstSubscription(
+        delivery.order_id,
+        delivery.proposed_delivery_time
+      );
+      
+      // Obtener información adicional del cliente
+      const order = await this.routeSheetService.order_header.findUnique({
+        where: { order_id: delivery.order_id },
+        include: {
+          customer: true,
+          customer_subscription: {
+            include: {
+              subscription_delivery_schedule: true
+            }
+          }
+        }
+      });
+      
+      validations.push({
+        order_id: delivery.order_id,
+        customer_name: order?.customer?.name || 'Cliente desconocido',
+        is_valid: validation.isValid,
+        message: validation.message,
+        suggested_time: validation.suggestedTime,
+        preferred_schedules: order?.customer_subscription?.subscription_delivery_schedule || []
+      });
+    }
+    
+    return { validations };
+  }
+
+  @Patch(':detailId/delivery-time')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Actualizar horario de entrega de un detalle de hoja de ruta',
+    description: 'Actualiza el horario de entrega de un detalle específico con validación contra las preferencias de suscripción del cliente'
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de hoja de ruta',
+    example: 1
+  })
+  @ApiBody({
+    description: 'Nuevo horario de entrega',
+    type: UpdateDeliveryTimeDto
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Horario de entrega actualizado exitosamente',
+    type: RouteSheetDetailResponseDto
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Horario inválido o datos de entrada incorrectos'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Detalle de hoja de ruta no encontrado'
+  })
+  async updateDeliveryTime(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() updateDeliveryTimeDto: UpdateDeliveryTimeDto
+  ) {
+    return this.routeSheetService.updateDeliveryTime(detailId, updateDeliveryTimeDto);
   }
 } 

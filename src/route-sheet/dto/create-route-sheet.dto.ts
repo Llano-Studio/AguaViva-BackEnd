@@ -21,6 +21,14 @@ export class CreateRouteSheetDetailDto {
   delivery_status?: string = 'PENDING';
 
   @ApiPropertyOptional({
+    description: 'Horario de entrega programado (formato ISO)',
+    example: '2024-01-15T14:30:00Z'
+  })
+  @IsDateString()
+  @IsOptional()
+  delivery_time?: string;
+
+  @ApiPropertyOptional({
     description: 'Comentarios adicionales',
     example: 'Llamar al cliente antes de entregar'
   })

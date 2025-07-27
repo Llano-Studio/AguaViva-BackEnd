@@ -8,4 +8,6 @@ export * from './delivery-evidence.dto';
 export * from './vehicle-inventory.dto';
 export * from './reconcile-route-sheet.dto';
 export * from './record-payment.dto';
-export * from './skip-delivery.dto'; 
+export * from './skip-delivery.dto';
+export * from './validate-delivery-times.dto';
+export * from './update-delivery-time.dto'; 
