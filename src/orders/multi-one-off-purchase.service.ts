@@ -198,7 +198,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                         sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
                         total_amount: totalAmount,
-                        paid_amount: new Decimal(createDto.paid_amount || 0),
+                        paid_amount: new Decimal(createDto.paid_amount || '0.00'),
                         delivery_address: createDto.delivery_address,
                         ...(createDto.locality_id && { locality: { connect: { locality_id: createDto.locality_id } } }),
                         ...(createDto.zone_id && { zone: { connect: { zone_id: createDto.zone_id } } }),

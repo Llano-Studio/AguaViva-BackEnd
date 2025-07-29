@@ -115,9 +115,8 @@ Ejemplos:
     type: 'string'
   })
   @IsOptional()
-  @Transform(({ value }) => parseFloat(value))
   @IsDecimal({ decimal_digits: '0,2' }, { message: 'El monto pagado debe tener máximo 2 decimales' })
-  paid_amount?: number;
+  paid_amount?: string;
 
   @ApiPropertyOptional({
     description: 'Notas generales sobre la compra',

@@ -90,7 +90,7 @@ export class MultiOneOffPurchaseController {
                     ],
                     delivery_address: 'Av. Principal 123, Barrio Centro',
                     notes: 'Compra mixta con diferentes descuentos',
-                    paid_amount: 150.00
+                    paid_amount: '150.00'
                 }
             },
             compraB2B: {
