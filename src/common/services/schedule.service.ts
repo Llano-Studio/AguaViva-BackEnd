@@ -134,11 +134,11 @@ export class ScheduleService {
     const minDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS * 60 * 60 * 1000));
     const maxDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MAXIMUM_ADVANCE_DAYS * 24 * 60 * 60 * 1000));
 
-    // Validar que la fecha de entrega sea posterior a la fecha del pedido
-    if (deliveryDate <= orderDate) {
+    // Validar que la fecha de entrega sea igual o posterior a la fecha del pedido
+    if (deliveryDate < orderDate) {
       return {
         isValid: false,
-        message: 'La fecha de entrega debe ser posterior a la fecha del pedido'
+        message: 'La fecha de entrega debe ser igual o posterior a la fecha del pedido'
       };
     }
 

@@ -147,7 +147,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (createOrderDto.scheduled_delivery_date) {
             const orderDate = new Date(createOrderDto.order_date);
             const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
-            if (deliveryDate <= orderDate) throw new BadRequestException('La fecha de entrega programada debe ser posterior a la fecha del pedido.');
+            if (deliveryDate < orderDate) throw new BadRequestException('La fecha de entrega programada debe ser igual o posterior a la fecha del pedido.');
         }
 
         // Validar horario
@@ -219,6 +219,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     const productDetails = await prismaTx.product.findUniqueOrThrow({
                         where: { product_id: itemDto.product_id },
                     }).catch(() => { throw new NotFoundException(`Producto con ID ${itemDto.product_id} no encontrado.`); });
+                    
+                    console.log(`\n🆕 PROCESANDO PRODUCTO: ${itemDto.product_id} (${productDetails.description})`);
                     
                     let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
                     let itemSubtotal = new Decimal(0);
@@ -399,6 +401,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         notes: itemDto.notes
                     });
                 }
+                
+                console.log(`\n🆕 RESUMEN: Se procesaron ${items.length} productos`);
+                console.log(`🆕 PRODUCTOS PROCESADOS:`);
+                orderItemsDataForCreation.forEach((item, index) => {
+                    console.log(`  ${index + 1}. Producto ${item.product_id}: ${item.quantity} unidades, Subtotal: ${item.subtotal}`);
+                });
 
                 console.log(`🆕 DEBUG FINAL:`);
                 console.log(`  - Total calculado desde BD: ${calculatedTotalFromDB}`);
