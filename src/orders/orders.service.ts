@@ -271,8 +271,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         // Calcular precio basado en cuotas
                         if (productQuota.covered_by_subscription > 0) {
                             // Producto está en el plan de suscripción
-                            let itemPrice = new Decimal(0);
-                            let itemSubtotal = new Decimal(0);
                             
                             // Si hay cantidad adicional, calcular su precio
                             if (productQuota.additional_quantity > 0) {
@@ -473,14 +471,34 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
                 for (const itemDto of items) {
                     const productDetails = await prismaTx.product.findUniqueOrThrow({ where: { product_id: itemDto.product_id } });
+                    
+                    // 🆕 NUEVO: Para órdenes híbridas con suscripción, validar solo la cantidad adicional
+                    let quantityToValidate = itemDto.quantity;
+                    
+                    if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                        const productQuota = subscriptionQuotaValidation.products.find(
+                            quota => quota.product_id === itemDto.product_id
+                        );
+                        
+                        if (productQuota && productQuota.covered_by_subscription > 0) {
+                            // Producto está en suscripción - solo validar la cantidad adicional
+                            quantityToValidate = productQuota.additional_quantity;
+                            console.log(`🆕 STOCK VALIDATION - Producto ${itemDto.product_id} (${productDetails.description}):`);
+                            console.log(`  - Cantidad total pedida: ${itemDto.quantity}`);
+                            console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
+                            console.log(`  - Cantidad adicional a validar: ${quantityToValidate}`);
+                        }
+                    }
+                    
                     const stockDisponible = await this.inventoryService.getProductStock(
                         itemDto.product_id,
                         BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                         prismaTx,
                     );
-                    if (stockDisponible < itemDto.quantity && !productDetails.is_returnable) {
+                    
+                    if (quantityToValidate > 0 && stockDisponible < quantityToValidate && !productDetails.is_returnable) {
                         throw new BadRequestException(
-                            `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${itemDto.quantity}.`,
+                            `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
                         );
                     }
                 }
@@ -515,16 +533,42 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
                 for (const createdItem of newOrderHeader.order_item) {
                     const productDesc = createdItem.product ? createdItem.product.description : 'N/A';
-                    const stockMovementDto: CreateStockMovementDto = {
-                        movement_type_id: saleMovementTypeId,
-                        product_id: createdItem.product_id,
-                        quantity: createdItem.quantity,
-                        source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                        destination_warehouse_id: null,
-                        movement_date: new Date(), 
-                        remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})`,
-                    };
-                    await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
+                    
+                    // 🆕 NUEVO: Para órdenes híbridas con suscripción, calcular la cantidad real que afecta el stock
+                    let quantityForStockMovement = createdItem.quantity;
+                    
+                    if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                        const productQuota = subscriptionQuotaValidation.products.find(
+                            quota => quota.product_id === createdItem.product_id
+                        );
+                        
+                        if (productQuota && productQuota.covered_by_subscription > 0) {
+                            // Producto está en suscripción - solo la cantidad adicional afecta el stock
+                            quantityForStockMovement = productQuota.additional_quantity;
+                            console.log(`🆕 STOCK MOVEMENT - Producto ${createdItem.product_id} (${productDesc}):`);
+                            console.log(`  - Cantidad total en orden: ${createdItem.quantity}`);
+                            console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
+                            console.log(`  - Cantidad adicional: ${productQuota.additional_quantity}`);
+                            console.log(`  - Cantidad para movimiento de stock: ${quantityForStockMovement}`);
+                        }
+                    }
+                    
+                    // Solo crear movimiento de stock si hay cantidad que afecte el stock
+                    if (quantityForStockMovement > 0) {
+                        const stockMovementDto: CreateStockMovementDto = {
+                            movement_type_id: saleMovementTypeId,
+                            product_id: createdItem.product_id,
+                            quantity: quantityForStockMovement,
+                            source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            destination_warehouse_id: null,
+                            movement_date: new Date(), 
+                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})`,
+                        };
+                        await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
+                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}`);
+                    } else {
+                        console.log(`⏭️ No se crea movimiento de stock para ${productDesc} - cantidad: ${quantityForStockMovement}`);
+                    }
                 }
 
                 // 🆕 NUEVO: Actualizar cantidades entregadas en ciclo de suscripción

@@ -440,16 +440,31 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                 );
 
                 for (const item of purchase.purchase_items) {
-                    if (item.product.is_returnable && item.quantity > 0) {
-                        await this.inventoryService.createStockMovement({
-                            movement_type_id: returnMovementTypeId,
-                            product_id: item.product_id,
-                            quantity: item.quantity,
-                            source_warehouse_id: null,
-                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                            movement_date: new Date(),
-                            remarks: `${this.entityName} #${id} CANCELADA - Devolución producto retornable ${item.product.description} (ID ${item.product_id})`,
-                        }, prismaTx);
+                    if (item.quantity > 0) {
+                        // Para productos retornables, renovar el stock
+                        if (item.product.is_returnable) {
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: returnMovementTypeId,
+                                product_id: item.product_id,
+                                quantity: item.quantity,
+                                source_warehouse_id: null,
+                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} CANCELADA - Renovación stock producto retornable ${item.product.description} (ID ${item.product_id})`,
+                            }, prismaTx);
+                        }
+                        // Para productos no retornables, mantener la lógica existente
+                        else {
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: returnMovementTypeId,
+                                product_id: item.product_id,
+                                quantity: item.quantity,
+                                source_warehouse_id: null,
+                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} CANCELADA - Devolución producto ${item.product.description} (ID ${item.product_id})`,
+                            }, prismaTx);
+                        }
                     }
                 }
 
@@ -465,7 +480,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             });
 
             return { 
-                message: `${this.entityName} con ID ${id} eliminada. El stock de productos retornables ha sido renovado.`, 
+                message: `${this.entityName} con ID ${id} eliminada. El stock de productos (retornables y no retornables) ha sido renovado.`, 
                 deleted: true 
             };
         } catch (error) {
