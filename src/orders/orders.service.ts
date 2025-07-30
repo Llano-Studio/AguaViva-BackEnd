@@ -917,9 +917,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_PEDIDO_CANCELADO', tx);
                 
                 // 🆕 NUEVO: Reiniciar créditos de suscripción si el pedido no está en estado IN_DELIVERY o DELIVERED
+                console.log(`🆕 ELIMINANDO PEDIDO ${id}:`);
+                console.log(`  - Estado del pedido: ${orderToDelete.status}`);
+                console.log(`  - Tiene suscripción: ${orderToDelete.customer_subscription ? 'SÍ' : 'NO'}`);
+                
                 if (orderToDelete.customer_subscription && 
                     orderToDelete.status !== 'IN_DELIVERY' && 
                     orderToDelete.status !== 'DELIVERED') {
+                    
+                    console.log(`  - ✅ Aplicando reinicio de créditos...`);
                     
                     // Obtener información del plan de suscripción para determinar qué productos afectan los créditos
                     const subscription = await tx.customer_subscription.findUnique({
@@ -937,11 +943,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         const planProductIds = subscription.subscription_plan.subscription_plan_product.map(
                             spp => spp.product_id
                         );
+                        
+                        console.log(`  - Productos en plan de suscripción:`, planProductIds);
 
                         // Solo reiniciar créditos para productos que están en el plan de suscripción
                         const subscriptionItems = orderItems.filter(item => 
                             planProductIds.includes(item.product_id)
                         );
+                        
+                        console.log(`  - Productos del pedido que están en plan:`, subscriptionItems.map(item => ({
+                            product_id: item.product_id,
+                            quantity: item.quantity
+                        })));
 
                         if (subscriptionItems.length > 0) {
                             const itemsForCreditReset = subscriptionItems.map(item => ({
@@ -949,13 +962,25 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 quantity: item.quantity
                             }));
 
+                            console.log(`  - Reiniciando créditos para:`, itemsForCreditReset);
+                            
                             await this.subscriptionQuotaService.resetCreditsForDeletedOrder(
                                 orderToDelete.customer_subscription.subscription_id,
                                 itemsForCreditReset,
                                 tx
                             );
+                            
+                            console.log(`  - ✅ Créditos reiniciados exitosamente`);
+                        } else {
+                            console.log(`  - ⚠️ No hay productos del plan en este pedido`);
                         }
+                    } else {
+                        console.log(`  - ❌ No se encontró información de suscripción`);
                     }
+                } else {
+                    console.log(`  - ❌ No se reinician créditos porque:`);
+                    console.log(`    - Estado: ${orderToDelete.status}`);
+                    console.log(`    - Tiene suscripción: ${orderToDelete.customer_subscription ? 'SÍ' : 'NO'}`);
                 }
                 
                 for(const item of orderItems) {
