@@ -259,9 +259,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         
                         // Calcular precio basado en cuotas
                         if (productQuota.covered_by_subscription > 0) {
-                            // Parte cubierta por suscripción (precio $0)
-                            itemPrice = new Decimal(0);
-                            itemSubtotal = new Decimal(0);
+                            // Producto está en el plan de suscripción
+                            let itemPrice = new Decimal(0);
+                            let itemSubtotal = new Decimal(0);
                             
                             // Si hay cantidad adicional, calcular su precio
                             if (productQuota.additional_quantity > 0) {
@@ -282,9 +282,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 }
                                 // Si el producto no está en la lista general, usa precio base del producto
                                 
-                                // Agregar el costo de los productos adicionales
-                                const additionalSubtotal = additionalPrice.mul(productQuota.additional_quantity);
-                                itemSubtotal = itemSubtotal.plus(additionalSubtotal);
+                                // Calcular el precio promedio ponderado para toda la cantidad
+                                const totalQuantity = itemDto.quantity;
+                                const coveredQuantity = productQuota.covered_by_subscription;
+                                const additionalQuantity = productQuota.additional_quantity;
+                                
+                                // Precio promedio = (0 * covered + additionalPrice * additional) / total
+                                const totalCost = additionalPrice.mul(additionalQuantity);
+                                itemPrice = totalQuantity > 0 ? totalCost.div(totalQuantity) : new Decimal(0);
+                                itemSubtotal = totalCost;
+                            } else {
+                                // Todo está cubierto por suscripción
+                                itemPrice = new Decimal(0);
+                                itemSubtotal = new Decimal(0);
                             }
                         } else {
                             // Todo el producto es adicional (no está en el plan o no hay créditos)
