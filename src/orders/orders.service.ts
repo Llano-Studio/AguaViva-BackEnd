@@ -347,6 +347,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             itemSubtotal = itemPrice.mul(itemDto.quantity);
                             console.log(`  - Subtotal calculado: ${itemSubtotal}`);
                         }
+                        
+                        // 🆕 IMPORTANTE: Continuar al siguiente producto después de procesar suscripción
+                        continue;
                     }
                     else if (contractPriceList) {
                         // ✅ PRIORIDAD 3: Cliente con contrato → usar lista de precios del contrato
