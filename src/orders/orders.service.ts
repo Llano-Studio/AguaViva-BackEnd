@@ -350,6 +350,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             console.log(`  - Subtotal calculado: ${itemSubtotal}`);
                         }
                         
+                        // 🆕 NUEVO: Agregar el ítem al array de creación después de procesar suscripción
+                        orderItemsDataForCreation.push({
+                            product_id: itemDto.product_id,
+                            quantity: itemDto.quantity,
+                            unit_price: itemPrice.toString(),
+                            subtotal: itemSubtotal.toString(),
+                            price_list_id: usedPriceListId,
+                            notes: itemDto.notes
+                        });
+                        
+                        console.log(`  - ✅ Producto agregado al array de creación: ${itemDto.product_id} - Subtotal: ${itemSubtotal}`);
+                        
                         // 🆕 IMPORTANTE: Continuar al siguiente producto después de procesar suscripción
                         continue;
                     }
@@ -368,6 +380,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             );
                         }
                         itemSubtotal = itemPrice.mul(itemDto.quantity);
+                        
+                        console.log(`  - ✅ Producto agregado al array de creación (contrato): ${itemDto.product_id} - Subtotal: ${itemSubtotal}`);
                     } 
                     else {
                         // ✅ PRIORIDAD 4: Lista de precios estándar → último recurso
@@ -400,6 +414,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         price_list_id: usedPriceListId,
                         notes: itemDto.notes
                     });
+                    
+                    console.log(`  - ✅ Producto agregado al array de creación: ${itemDto.product_id} - Subtotal: ${itemSubtotal}`);
                 }
                 
                 console.log(`\n🆕 RESUMEN: Se procesaron ${items.length} productos`);
@@ -947,6 +963,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         console.log(`  - Productos en plan de suscripción:`, planProductIds);
 
                         // Solo reiniciar créditos para productos que están en el plan de suscripción
+                        console.log(`  - DEBUG: Todos los productos del pedido:`, orderItems.map(item => ({
+                            product_id: item.product_id,
+                            quantity: item.quantity
+                        })));
+                        console.log(`  - DEBUG: Productos en plan de suscripción:`, planProductIds);
+                        
                         const subscriptionItems = orderItems.filter(item => 
                             planProductIds.includes(item.product_id)
                         );

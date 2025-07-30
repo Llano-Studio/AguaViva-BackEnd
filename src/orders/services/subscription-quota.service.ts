@@ -318,11 +318,23 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
    * Obtiene el resumen de créditos disponibles para un cliente
    */
   async getAvailableCredits(subscriptionId: number): Promise<ProductQuotaInfo[]> {
+    console.log(`🆕 GET AVAILABLE CREDITS - Suscripción ${subscriptionId}`);
+    
     const currentCycle = await this.getCurrentActiveCycle(subscriptionId);
     
     if (!currentCycle) {
+      console.log(`  - ❌ No hay ciclo activo`);
       return [];
     }
+
+    console.log(`  - ✅ Ciclo encontrado: ${currentCycle.cycle_id}`);
+    console.log(`  - Detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
+      product_id: d.product_id,
+      product_name: d.product.description,
+      planned_quantity: d.planned_quantity,
+      delivered_quantity: d.delivered_quantity,
+      remaining_balance: d.remaining_balance
+    })));
 
     return currentCycle.subscription_cycle_detail.map(detail => ({
       product_id: detail.product_id,
