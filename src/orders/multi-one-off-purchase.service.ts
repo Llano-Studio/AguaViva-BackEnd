@@ -418,4 +418,62 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             throw error;
         }
     }
+
+    async remove(id: number): Promise<{ message: string; deleted: boolean }> {
+        try {
+            const purchase = await this.one_off_purchase_header.findUniqueOrThrow({
+                where: { purchase_header_id: id },
+                include: {
+                    purchase_items: {
+                        include: {
+                            product: true
+                        }
+                    }
+                }
+            }).catch(() => { throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`); });
+
+            await this.$transaction(async (prismaTx) => {
+                // Crear movimientos de stock para productos retornables
+                const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
+                    BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA,
+                    prismaTx
+                );
+
+                for (const item of purchase.purchase_items) {
+                    if (item.product.is_returnable && item.quantity > 0) {
+                        await this.inventoryService.createStockMovement({
+                            movement_type_id: returnMovementTypeId,
+                            product_id: item.product_id,
+                            quantity: item.quantity,
+                            source_warehouse_id: null,
+                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `${this.entityName} #${id} CANCELADA - Devolución producto retornable ${item.product.description} (ID ${item.product_id})`,
+                        }, prismaTx);
+                    }
+                }
+
+                // Eliminar los ítems primero
+                await prismaTx.one_off_purchase_item.deleteMany({
+                    where: { purchase_header_id: id }
+                });
+
+                // Luego eliminar el header
+                await prismaTx.one_off_purchase_header.delete({
+                    where: { purchase_header_id: id }
+                });
+            });
+
+            return { 
+                message: `${this.entityName} con ID ${id} eliminada. El stock de productos retornables ha sido renovado.`, 
+                deleted: true 
+            };
+        } catch (error) {
+            handlePrismaError(error, this.entityName);
+            if (!(error instanceof NotFoundException || error instanceof InternalServerErrorException)) {
+                throw new InternalServerErrorException(`Error no manejado al eliminar ${this.entityName.toLowerCase()}`);
+            }
+            throw error;
+        }
+    }
 } 

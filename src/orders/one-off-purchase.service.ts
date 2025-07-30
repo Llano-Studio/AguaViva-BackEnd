@@ -394,21 +394,37 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             }).catch(() => { throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`); });
             
             await this.$transaction(async (prismaTx) => {
-                if (!purchase.product.is_returnable && purchase.quantity > 0) {
+                if (purchase.quantity > 0) {
                     const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA, prismaTx);
-                    await this.inventoryService.createStockMovement({
-                        movement_type_id: returnMovementTypeId,
-                        product_id: purchase.product_id,
-                        quantity: purchase.quantity,
-                        source_warehouse_id: null, 
-                        destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                        movement_date: new Date(),
-                        remarks: `${this.entityName} #${id} CANCELADA - Devolución producto ${purchase.product.description}`,
-                    }, prismaTx);
+                    
+                    // Para productos retornables, renovar el stock
+                    if (purchase.product.is_returnable) {
+                        await this.inventoryService.createStockMovement({
+                            movement_type_id: returnMovementTypeId,
+                            product_id: purchase.product_id,
+                            quantity: purchase.quantity,
+                            source_warehouse_id: null, 
+                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `${this.entityName} #${id} CANCELADA - Renovación stock producto retornable ${purchase.product.description}`,
+                        }, prismaTx);
+                    }
+                    // Para productos no retornables, mantener la lógica existente
+                    else {
+                        await this.inventoryService.createStockMovement({
+                            movement_type_id: returnMovementTypeId,
+                            product_id: purchase.product_id,
+                            quantity: purchase.quantity,
+                            source_warehouse_id: null, 
+                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `${this.entityName} #${id} CANCELADA - Devolución producto ${purchase.product.description}`,
+                        }, prismaTx);
+                    }
                 }
                 await prismaTx.one_off_purchase.delete({ where: { purchase_id: id } });
             });
-            return { message: `${this.entityName} con ID ${id} eliminada. Stock (si aplica) ajustado.`, deleted: true };
+            return { message: `${this.entityName} con ID ${id} eliminada. El stock de productos (retornables y no retornables) ha sido renovado.`, deleted: true };
         } catch (error) {
             handlePrismaError(error, this.entityName);
             if (!(error instanceof NotFoundException || error instanceof InternalServerErrorException)) {

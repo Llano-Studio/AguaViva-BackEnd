@@ -1016,16 +1016,31 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 }
                 
                 for(const item of orderItems) {
-                    if (!item.product.is_returnable && item.quantity > 0) {
-                        await this.inventoryService.createStockMovement({
-                            movement_type_id: returnMovementTypeId,
-                            product_id: item.product_id,
-                            quantity: item.quantity,
-                            source_warehouse_id: null,
-                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                            movement_date: new Date(),
-                            remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.description} (ID ${item.product_id})`
-                        }, tx);
+                    if (item.quantity > 0) {
+                        // Para productos retornables, renovar el stock
+                        if (item.product.is_returnable) {
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: returnMovementTypeId,
+                                product_id: item.product_id,
+                                quantity: item.quantity,
+                                source_warehouse_id: null,
+                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} CANCELADO - Renovación stock producto retornable ${item.product.description} (ID ${item.product_id})`
+                            }, tx);
+                        }
+                        // Para productos no retornables, mantener la lógica existente
+                        else {
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: returnMovementTypeId,
+                                product_id: item.product_id,
+                                quantity: item.quantity,
+                                source_warehouse_id: null,
+                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.description} (ID ${item.product_id})`
+                            }, tx);
+                        }
                     }
                 }
 
@@ -1035,7 +1050,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 await tx.order_item.deleteMany({ where: { order_id: id } });
                 await tx.order_header.delete({ where: { order_id: id } });
             });
-            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos no retornables (si aplica) ha sido ajustado. Los créditos de suscripción han sido reiniciados si corresponde.`, deleted: true };
+            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos (retornables y no retornables) ha sido renovado. Los créditos de suscripción han sido reiniciados si corresponde.`, deleted: true };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
                  handlePrismaError(error, `El ${this.entityName.toLowerCase()} con ID ${id} no se puede eliminar porque tiene datos relacionados (ej. en hojas de ruta activas).`);

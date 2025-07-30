@@ -224,4 +224,30 @@ export class MultiOneOffPurchaseController {
     ): Promise<MultiOneOffPurchaseResponseDto> {
         return this.multiOneOffPurchaseService.findOne(id);
     }
+
+    @Delete(':id')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ 
+        summary: '🆕 Eliminar una compra múltiple de una vez',
+        description: 'Elimina una compra múltiple y renueva el stock de productos retornables. Los productos no retornables mantienen su lógica de devolución existente.'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra múltiple a eliminar', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra múltiple eliminada exitosamente. El stock de productos retornables ha sido renovado.',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string', example: 'Compra Múltiple de Una Vez con ID 123 eliminada. El stock de productos retornables ha sido renovado.' },
+                deleted: { type: 'boolean', example: true }
+            }
+        }
+    })
+    @ApiResponse({ status: 404, description: 'Compra múltiple no encontrada.' })
+    @ApiResponse({ status: 409, description: 'No se puede eliminar porque tiene datos relacionados (ej. en hojas de ruta activas).' })
+    async removeMultiOneOffPurchase(
+        @Param('id', ParseIntPipe) id: number
+    ): Promise<{ message: string; deleted: boolean }> {
+        return this.multiOneOffPurchaseService.remove(id);
+    }
 } 
