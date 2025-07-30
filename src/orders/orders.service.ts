@@ -351,6 +351,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         }
                         
                         // 🆕 NUEVO: Agregar el ítem al array de creación después de procesar suscripción
+                        console.log(`  - DEBUG ANTES DE AGREGAR AL ARRAY:`);
+                        console.log(`    - itemPrice: ${itemPrice}`);
+                        console.log(`    - itemSubtotal: ${itemSubtotal}`);
+                        console.log(`    - usedPriceListId: ${usedPriceListId}`);
+                        
+                        // 🆕 IMPORTANTE: Actualizar el total antes de continuar
+                        calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
+                        console.log(`  - Subtotal final para este producto: ${itemSubtotal}`);
+                        console.log(`  - Total acumulado hasta ahora: ${calculatedTotalFromDB}`);
+                        
                         orderItemsDataForCreation.push({
                             product_id: itemDto.product_id,
                             quantity: itemDto.quantity,
