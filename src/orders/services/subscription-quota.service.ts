@@ -88,40 +88,59 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     cycleEnd.setDate(cycleStart.getDate() + (subscription.subscription_plan.default_cycle_days || 30));
     cycleEnd.setHours(23, 59, 59, 999);
 
-    // Crear el nuevo ciclo
-    const newCycle = await prisma.subscription_cycle.create({
-      data: {
-        subscription_id: subscriptionId,
-        cycle_start: cycleStart,
-        cycle_end: cycleEnd,
-        notes: 'Ciclo creado automáticamente por sistema de cuotas'
-      }
-    });
+         // Crear el nuevo ciclo
+     const newCycle = await prisma.subscription_cycle.create({
+       data: {
+         subscription_id: subscriptionId,
+         cycle_start: cycleStart,
+         cycle_end: cycleEnd,
+         notes: 'Ciclo creado automáticamente por sistema de cuotas'
+       }
+     });
+     
+     console.log(`🆕 DEBUG - Ciclo creado con ID: ${newCycle.cycle_id}`);
+     console.log(`🆕 DEBUG - Fechas: ${cycleStart.toISOString()} - ${cycleEnd.toISOString()}`);
 
-    // Crear los detalles del ciclo con las cantidades planificadas
-    for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
-      await prisma.subscription_cycle_detail.create({
-        data: {
-          cycle_id: newCycle.cycle_id,
-          product_id: planProduct.product_id,
-          planned_quantity: planProduct.product_quantity,
-          delivered_quantity: 0,
-          remaining_balance: planProduct.product_quantity
-        }
-      });
-    }
+         // Crear los detalles del ciclo con las cantidades planificadas
+     for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
+       console.log(`🆕 DEBUG - Creando detalle para producto ${planProduct.product_id}:`);
+       console.log(`  - Cantidad planificada: ${planProduct.product_quantity}`);
+       console.log(`  - Cantidad entregada: 0`);
+       console.log(`  - Balance restante: ${planProduct.product_quantity}`);
+       
+       await prisma.subscription_cycle_detail.create({
+         data: {
+           cycle_id: newCycle.cycle_id,
+           product_id: planProduct.product_id,
+           planned_quantity: planProduct.product_quantity,
+           delivered_quantity: 0,
+           remaining_balance: planProduct.product_quantity
+         }
+       });
+     }
 
-    // Recargar el ciclo con todas las relaciones necesarias
-    return await prisma.subscription_cycle.findUnique({
-      where: { cycle_id: newCycle.cycle_id },
-      include: {
-        subscription_cycle_detail: {
-          include: {
-            product: true
-          }
-        }
-      }
-    });
+         // Recargar el ciclo con todas las relaciones necesarias
+     const reloadedCycle = await prisma.subscription_cycle.findUnique({
+       where: { cycle_id: newCycle.cycle_id },
+       include: {
+         subscription_cycle_detail: {
+           include: {
+             product: true
+           }
+         }
+       }
+     });
+     
+     console.log(`🆕 DEBUG - Ciclo recargado:`);
+     console.log(`  - ID del ciclo: ${reloadedCycle?.cycle_id}`);
+     console.log(`  - Detalles del ciclo:`, reloadedCycle?.subscription_cycle_detail.map(d => ({
+       product_id: d.product_id,
+       planned_quantity: d.planned_quantity,
+       delivered_quantity: d.delivered_quantity,
+       remaining_balance: d.remaining_balance
+     })));
+     
+     return reloadedCycle;
   }
 
   /**
@@ -158,21 +177,28 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     
     if (allCreditsExhausted) {
       console.log(`🆕 Todos los créditos del ciclo ${currentCycle.cycle_id} están agotados. Creando nuevo ciclo...`);
-      currentCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
-      // Recargar con los detalles
-      currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
       
-      if (!currentCycle) {
+      // Eliminar el ciclo anterior agotado
+      await prisma.subscription_cycle.delete({
+        where: { cycle_id: currentCycle.cycle_id }
+      });
+      
+      const newCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
+      
+      if (!newCycle) {
         throw new BadRequestException(`No se pudo crear un nuevo ciclo para la suscripción ${subscriptionId}.`);
       }
       
-      console.log(`🆕 Nuevo ciclo creado: ${currentCycle.cycle_id}`);
-      console.log(`🆕 Nuevos detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
+      console.log(`🆕 Nuevo ciclo creado: ${newCycle.cycle_id}`);
+      console.log(`🆕 Nuevos detalles del ciclo:`, newCycle.subscription_cycle_detail.map(d => ({
         product_id: d.product_id,
         product_name: d.product.description,
         planned_quantity: d.planned_quantity,
         remaining_balance: d.remaining_balance
       })));
+      
+      // Usar el nuevo ciclo en lugar del anterior
+      currentCycle = newCycle;
     }
 
     console.log(`🆕 Ciclo actual encontrado: ${currentCycle.cycle_id}`);
