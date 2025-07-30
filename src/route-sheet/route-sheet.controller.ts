@@ -48,7 +48,6 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { UserRolesGuard } from '../auth/guards/roles.guard';
 
 @ApiTags('Hojas de Ruta')
 @ApiBearerAuth()

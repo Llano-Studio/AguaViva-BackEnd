@@ -282,15 +282,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 }
                                 // Si el producto no está en la lista general, usa precio base del producto
                                 
-                                // Calcular el precio promedio ponderado para toda la cantidad
-                                const totalQuantity = itemDto.quantity;
-                                const coveredQuantity = productQuota.covered_by_subscription;
-                                const additionalQuantity = productQuota.additional_quantity;
-                                
-                                // Precio promedio = (0 * covered + additionalPrice * additional) / total
-                                const totalCost = additionalPrice.mul(additionalQuantity);
-                                itemPrice = totalQuantity > 0 ? totalCost.div(totalQuantity) : new Decimal(0);
-                                itemSubtotal = totalCost;
+                                // 🆕 CORRECCIÓN: Solo cobrar por la cantidad adicional, no por el total
+                                // La cantidad cubierta por suscripción tiene precio $0
+                                // Solo la cantidad adicional se cobra al precio normal
+                                itemPrice = additionalPrice; // Precio por unidad adicional
+                                itemSubtotal = additionalPrice.mul(productQuota.additional_quantity);
                             } else {
                                 // Todo está cubierto por suscripción
                                 itemPrice = new Decimal(0);
@@ -855,8 +851,63 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         await this.findOne(id);
         try {
             await this.$transaction(async (tx) => {
-                const orderItems = await tx.order_item.findMany({ where: { order_id: id }, include: { product: true } });
+                // Obtener información completa del pedido antes de eliminarlo
+                const orderToDelete = await tx.order_header.findUnique({
+                    where: { order_id: id },
+                    include: {
+                        order_item: { include: { product: true } },
+                        customer_subscription: true
+                    }
+                });
+
+                if (!orderToDelete) {
+                    throw new NotFoundException(`${this.entityName} con ID ${id} no encontrado.`);
+                }
+
+                const orderItems = orderToDelete.order_item;
                 const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_PEDIDO_CANCELADO', tx);
+                
+                // 🆕 NUEVO: Reiniciar créditos de suscripción si el pedido no está en estado IN_DELIVERY o DELIVERED
+                if (orderToDelete.customer_subscription && 
+                    orderToDelete.status !== 'IN_DELIVERY' && 
+                    orderToDelete.status !== 'DELIVERED') {
+                    
+                    // Obtener información del plan de suscripción para determinar qué productos afectan los créditos
+                    const subscription = await tx.customer_subscription.findUnique({
+                        where: { subscription_id: orderToDelete.customer_subscription.subscription_id },
+                        include: {
+                            subscription_plan: {
+                                include: {
+                                    subscription_plan_product: true
+                                }
+                            }
+                        }
+                    });
+
+                    if (subscription) {
+                        const planProductIds = subscription.subscription_plan.subscription_plan_product.map(
+                            spp => spp.product_id
+                        );
+
+                        // Solo reiniciar créditos para productos que están en el plan de suscripción
+                        const subscriptionItems = orderItems.filter(item => 
+                            planProductIds.includes(item.product_id)
+                        );
+
+                        if (subscriptionItems.length > 0) {
+                            const itemsForCreditReset = subscriptionItems.map(item => ({
+                                product_id: item.product_id,
+                                quantity: item.quantity
+                            }));
+
+                            await this.subscriptionQuotaService.resetCreditsForDeletedOrder(
+                                orderToDelete.customer_subscription.subscription_id,
+                                itemsForCreditReset,
+                                tx
+                            );
+                        }
+                    }
+                }
                 
                 for(const item of orderItems) {
                     if (!item.product.is_returnable && item.quantity > 0) {
@@ -878,7 +929,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 await tx.order_item.deleteMany({ where: { order_id: id } });
                 await tx.order_header.delete({ where: { order_id: id } });
             });
-            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos no retornables (si aplica) ha sido ajustado.`, deleted: true };
+            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos no retornables (si aplica) ha sido ajustado. Los créditos de suscripción han sido reiniciados si corresponde.`, deleted: true };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
                  handlePrismaError(error, `El ${this.entityName.toLowerCase()} con ID ${id} no se puede eliminar porque tiene datos relacionados (ej. en hojas de ruta activas).`);

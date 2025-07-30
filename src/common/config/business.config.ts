@@ -22,7 +22,7 @@ export const BUSINESS_CONFIG = {
     // Días de la semana (0=Domingo, 6=Sábado)
     WORKING_DAYS: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
     // Tiempo mínimo de anticipación para pedidos (horas)
-    MINIMUM_ADVANCE_HOURS: 24,
+    MINIMUM_ADVANCE_HOURS: 0, // Cambiado de 24 a 0 para permitir pedidos inmediatos
     // Tiempo máximo de anticipación para pedidos (días)
     MAXIMUM_ADVANCE_DAYS: 30,
   },

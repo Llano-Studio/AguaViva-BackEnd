@@ -261,4 +261,42 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       additional_quantity: 0
     }));
   }
+
+  /**
+   * Reinicia los créditos de una suscripción cuando se elimina un pedido
+   * Solo se aplica para pedidos que NO están en estado IN_DELIVERY o DELIVERED
+   */
+  async resetCreditsForDeletedOrder(
+    subscriptionId: number,
+    orderItems: { product_id: number; quantity: number }[],
+    tx?: Prisma.TransactionClient
+  ): Promise<void> {
+    const prisma = tx || this;
+
+    const currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
+    if (!currentCycle) {
+      return; // No hay ciclo activo, no hay nada que reiniciar
+    }
+
+    for (const orderItem of orderItems) {
+      const cycleDetail = currentCycle.subscription_cycle_detail.find(
+        detail => detail.product_id === orderItem.product_id
+      );
+
+      if (cycleDetail) {
+        // Solo reiniciar créditos para productos que están en el plan de suscripción
+        // Los productos adicionales no afectan los créditos
+        const newDeliveredQuantity = Math.max(0, cycleDetail.delivered_quantity - orderItem.quantity);
+        const newRemainingBalance = Math.max(0, cycleDetail.planned_quantity - newDeliveredQuantity);
+
+        await prisma.subscription_cycle_detail.update({
+          where: { cycle_detail_id: cycleDetail.cycle_detail_id },
+          data: {
+            delivered_quantity: newDeliveredQuantity,
+            remaining_balance: newRemainingBalance
+          }
+        });
+      }
+    }
+  }
 } 

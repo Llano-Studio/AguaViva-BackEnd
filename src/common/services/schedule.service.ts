@@ -119,9 +119,13 @@ export class ScheduleService {
     // Validar tiempo mínimo de anticipación
     if (deliveryDate < minDate) {
       const suggestedDate = this.getNextWorkingDay(minDate);
+      const hoursText = BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS === 0 
+        ? 'inmediato' 
+        : `${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`;
+      
       return {
         isValid: false,
-        message: `Se requiere al menos ${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`,
+        message: `Se requiere al menos ${hoursText}`,
         suggestedDate
       };
     }
