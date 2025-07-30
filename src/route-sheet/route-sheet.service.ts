@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, Prisma, route_sheet, route_sheet_detail, User, vehicle } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { 
   CreateRouteSheetDto, 
   UpdateRouteSheetDto, 
@@ -15,15 +15,14 @@ import {
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
-  SkipDeliveryReason,
   UpdateDeliveryTimeDto
 } from './dto';
-import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join } from 'path';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PdfGeneratorService, RouteSheetPdfData } from '../common/services/pdf-generator.service';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -49,8 +48,11 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
 @Injectable()
 export class RouteSheetService extends PrismaClient implements OnModuleInit {
   
+  constructor(private readonly pdfGeneratorService: PdfGeneratorService) {
+    super();
+  }
+  
   private readonly entityName = 'Hoja de Ruta';
-  private readonly pdfDir = join(process.cwd(), 'public', 'pdfs');
   private readonly reconciliationSignaturesPath = join(process.cwd(), 'public', 'uploads', 'reconciliations', 'driver_signatures');
   private readonly deliveryEvidencePath = join(process.cwd(), 'public', 'uploads', 'delivery_evidence');
 
@@ -506,117 +508,53 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   async generatePrintableDocument(route_sheet_id: number, options?: any): Promise<{ url: string; filename: string }> {
     try {
       const routeSheet = await this.findOne(route_sheet_id);
-      const filename = `route_sheet_${route_sheet_id}_${new Date().toISOString().split('T')[0]}.pdf`;
-      const pdfDir = await this.ensurePdfDirectoryExists();
-      const pdfPath = join(pdfDir, filename);
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      
+      // Convertir RouteSheetResponseDto a RouteSheetPdfData
+      const pdfData: RouteSheetPdfData = {
+        route_sheet_id: routeSheet.route_sheet_id,
+        delivery_date: routeSheet.delivery_date,
+        driver: {
+          name: routeSheet.driver.name,
+          email: routeSheet.driver.email
+        },
+        vehicle: {
+          code: routeSheet.vehicle.code,
+          name: routeSheet.vehicle.name
+        },
+        route_notes: routeSheet.route_notes,
+        details: routeSheet.details.map(detail => ({
+          order: {
+            order_id: detail.order.order_id,
+            customer: {
+              name: detail.order.customer.name,
+              address: detail.order.customer.address,
+              phone: detail.order.customer.phone
+            },
+            items: detail.order.items.map(item => ({
+              quantity: item.quantity,
+              product: {
+                description: item.product.description
+              }
+            }))
+          },
+          delivery_status: detail.delivery_status
+        }))
+      };
+      
+      // Generar PDF usando el servicio común
+      const { doc, filename, pdfPath } = await this.pdfGeneratorService.generateRouteSheetPdf(pdfData, options);
       const writeStream = fs.createWriteStream(pdfPath);
       doc.pipe(writeStream);
-      await this.generatePdfContent(doc, routeSheet, options);
-      doc.end();
-      await new Promise<void>((resolve, reject) => {
-        writeStream.on('finish', () => resolve());
-        writeStream.on('error', reject);
-      });
-      const url = `/pdfs/${filename}`;
-      return { url, filename };
+      
+      // Finalizar el PDF
+      const result = await this.pdfGeneratorService.finalizePdf(doc, writeStream, filename);
+      
+      return result;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       console.error(`Error al generar PDF para ${this.entityName} ${route_sheet_id}:`, error);
       throw new InternalServerErrorException(`Error al generar PDF para ${this.entityName} ${route_sheet_id}`);
     }
-  }
-
-  private async generatePdfContent(doc: PDFKit.PDFDocument, routeSheet: RouteSheetResponseDto, options?: any): Promise<void> {
-    const includeMap = options?.includeMap || false;
-    const includeSignatureField = options?.includeSignatureField !== false;
-    const includeProductDetails = options?.includeProductDetails !== false;
-    
-    doc.fontSize(20).text('HOJA DE RUTA', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Hoja de Ruta #: ${routeSheet.route_sheet_id}`, { continued: true });
-    doc.text(`Fecha: ${routeSheet.delivery_date}`, { align: 'right' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).font('Helvetica-Bold').text('Datos del Conductor:');
-    doc.font('Helvetica').text(`Nombre: ${routeSheet.driver.name}`);
-    doc.text(`Email: ${routeSheet.driver.email}`);
-    doc.moveDown(0.5);
-    doc.fontSize(12).font('Helvetica-Bold').text('Datos del Vehículo:');
-    doc.font('Helvetica').text(`Código: ${routeSheet.vehicle.code}`);
-    doc.text(`Descripción: ${routeSheet.vehicle.name}`);
-    
-    if (routeSheet.route_notes) {
-      doc.moveDown(0.5);
-      doc.fontSize(12).font('Helvetica-Bold').text('Notas:');
-      doc.font('Helvetica').text(routeSheet.route_notes);
-    }
-    doc.moveDown();
-    doc.fontSize(14).font('Helvetica-Bold').text('PEDIDOS A ENTREGAR', { align: 'center' });
-    doc.moveDown();
-    
-    const startX = 50;
-    let currentY = doc.y;
-    const lineHeight = 20;
-    
-    doc.font('Helvetica-Bold').fontSize(10);
-    doc.text('#', startX, currentY, { width: 30 });
-    doc.text('Cliente', startX + 30, currentY, { width: 120 });
-    doc.text('Dirección', startX + 150, currentY, { width: 150 });
-    doc.text('Teléfono', startX + 300, currentY, { width: 80 });
-    doc.text('Estado', startX + 380, currentY, { width: 80 });
-    
-    currentY += lineHeight;
-    doc.moveTo(startX, currentY).lineTo(startX + 460, currentY).stroke();
-    currentY += 5;
-    
-    doc.font('Helvetica').fontSize(10);
-    
-    for (const detail of routeSheet.details) {
-      if (currentY > doc.page.height - 150) {
-        doc.addPage();
-        currentY = 50;
-      }
-      
-      doc.text(detail.order.order_id.toString(), startX, currentY, { width: 30 });
-      doc.text(detail.order.customer.name, startX + 30, currentY, { width: 120 });
-      doc.text(detail.order.customer.address, startX + 150, currentY, { width: 150 });
-      doc.text(detail.order.customer.phone, startX + 300, currentY, { width: 80 });
-      doc.text(detail.delivery_status, startX + 380, currentY, { width: 80 });
-      
-      currentY += lineHeight;
-      
-      if (includeProductDetails && detail.order.items.length > 0) {
-        doc.text('Productos:', startX + 20, currentY);
-        currentY += lineHeight - 5;
-        
-        for (const item of detail.order.items) {
-          doc.text(`- ${item.quantity}x ${item.product.description}`, startX + 30, currentY);
-          currentY += lineHeight - 5;
-        }
-        currentY += 5;
-      }
-      doc.moveTo(startX, currentY).lineTo(startX + 460, currentY).stroke();
-      currentY += 10;
-    }
-    
-    if (includeSignatureField) {
-      if (currentY > doc.page.height - 150) {
-        doc.addPage();
-        currentY = 50;
-      }
-      doc.moveDown();
-      currentY = doc.y;
-      doc.fontSize(12).font('Helvetica-Bold').text('CONFIRMACIÓN DE ENTREGAS', { align: 'center' });
-      doc.moveDown();
-      currentY = doc.y;
-      doc.font('Helvetica').text('Firma del Conductor:', startX, currentY);
-      currentY += lineHeight;
-      doc.moveTo(startX, currentY).lineTo(startX + 200, currentY).stroke();
-      doc.font('Helvetica').text('Firma del Supervisor:', startX + 250, currentY - lineHeight);
-      doc.moveTo(startX + 250, currentY).lineTo(startX + 450, currentY).stroke();
-    }
-    doc.fontSize(8);
-    doc.text(`Documento generado el: ${new Date().toLocaleString()}`, 50, doc.page.height - 50);
   }
 
   private mapToRouteSheetResponseDto(routeSheet: RouteSheetWithDetails): RouteSheetResponseDto {
