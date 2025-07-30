@@ -12,12 +12,9 @@ export const BUSINESS_CONFIG = {
 
   // Configuración de horarios de entrega
   DELIVERY_SCHEDULE: {
-    // Horarios disponibles de entrega
+    // Horarios disponibles de entrega - Cualquier franja permitida
     AVAILABLE_TIME_SLOTS: [
-      '08:00-10:00',
-      '10:00-12:00',  
-      '14:00-16:00',
-      '16:00-18:00'
+      '08:00-20:00'  // Franja completa de trabajo
     ],
     // Días de la semana (0=Domingo, 6=Sábado)
     WORKING_DAYS: [1, 2, 3, 4, 5, 6], // Lunes a Sábado

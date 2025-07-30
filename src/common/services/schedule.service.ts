@@ -18,6 +18,23 @@ export interface DeliveryScheduleValidation {
 export class ScheduleService {
   
   /**
+   * Convierte un horario en formato "HH:MM" a minutos desde medianoche
+   */
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Convierte minutos desde medianoche a formato "HH:MM"
+   */
+  private minutesToTime(minutes: number): string {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  }
+
+  /**
    * Parsea un horario en formato "HH:MM-HH:MM" o "HH:MM"
    */
   parseTimeSlot(timeString: string): TimeSlot | null {
@@ -79,6 +96,7 @@ export class ScheduleService {
 
   /**
    * Valida si un horario está dentro de los slots disponibles
+   * MODIFICADO: Ahora permite cualquier horario dentro de la franja completa de trabajo
    */
   isTimeSlotAvailable(timeString: string): boolean {
     const requestedSlot = this.parseTimeSlot(timeString);
@@ -86,10 +104,18 @@ export class ScheduleService {
 
     const availableSlots = this.getAvailableTimeSlots();
     
-    return availableSlots.some(slot => 
-      slot.start === requestedSlot.start || 
-      slot.label === timeString
-    );
+    // Convertir horarios a minutos para facilitar comparaciones
+    const requestedStartMinutes = this.timeToMinutes(requestedSlot.start);
+    const requestedEndMinutes = this.timeToMinutes(requestedSlot.end);
+    
+    // Verificar si el horario solicitado está completamente dentro de la franja disponible
+    return availableSlots.some(slot => {
+      const slotStartMinutes = this.timeToMinutes(slot.start);
+      const slotEndMinutes = this.timeToMinutes(slot.end);
+      
+      // El horario solicitado debe estar completamente dentro de la franja disponible
+      return requestedStartMinutes >= slotStartMinutes && requestedEndMinutes <= slotEndMinutes;
+    });
   }
 
   /**
