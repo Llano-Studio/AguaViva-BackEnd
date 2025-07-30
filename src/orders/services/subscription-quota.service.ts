@@ -134,10 +134,14 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
   ): Promise<SubscriptionQuotaValidation> {
     const prisma = tx || this;
 
+    console.log(`🆕 DEBUG CUOTAS - Validando suscripción ${subscriptionId}`);
+    console.log(`🆕 Productos solicitados:`, requestedProducts);
+
     // Obtener o crear ciclo actual
     let currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
     
     if (!currentCycle) {
+      console.log(`🆕 No hay ciclo activo, creando nuevo ciclo...`);
       currentCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
       // Recargar con los detalles
       currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
@@ -147,19 +151,38 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       throw new BadRequestException(`No se pudo obtener o crear un ciclo activo para la suscripción ${subscriptionId}.`);
     }
 
+    console.log(`🆕 Ciclo actual encontrado: ${currentCycle.cycle_id}`);
+    console.log(`🆕 Detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
+      product_id: d.product_id,
+      product_name: d.product.description,
+      planned_quantity: d.planned_quantity,
+      remaining_balance: d.remaining_balance
+    })));
+
     const productQuotas: ProductQuotaInfo[] = [];
     let hasAdditionalCharges = false;
 
     for (const requestedProduct of requestedProducts) {
+      console.log(`🆕 Validando producto ${requestedProduct.product_id} (cantidad: ${requestedProduct.quantity})`);
+      
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
         detail => detail.product_id === requestedProduct.product_id
       );
 
       if (cycleDetail) {
+        console.log(`🆕 ✅ Producto ${requestedProduct.product_id} ENCONTRADO en ciclo`);
+        console.log(`🆕   - Planificado: ${cycleDetail.planned_quantity}`);
+        console.log(`🆕   - Entregado: ${cycleDetail.delivered_quantity}`);
+        console.log(`🆕   - Balance restante: ${cycleDetail.remaining_balance}`);
+        
         // Producto está en el plan de suscripción
         const availableBalance = Math.max(0, cycleDetail.remaining_balance);
         const coveredBySubscription = Math.min(requestedProduct.quantity, availableBalance);
         const additionalQuantity = Math.max(0, requestedProduct.quantity - coveredBySubscription);
+
+        console.log(`🆕   - Balance disponible: ${availableBalance}`);
+        console.log(`🆕   - Cubierto por suscripción: ${coveredBySubscription}`);
+        console.log(`🆕   - Cantidad adicional: ${additionalQuantity}`);
 
         if (additionalQuantity > 0) {
           hasAdditionalCharges = true;
@@ -176,6 +199,7 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
           additional_quantity: additionalQuantity
         });
       } else {
+        console.log(`🆕 ❌ Producto ${requestedProduct.product_id} NO encontrado en ciclo`);
         // Producto NO está en el plan → todo es adicional
         const product = await prisma.product.findUnique({
           where: { product_id: requestedProduct.product_id }
