@@ -472,7 +472,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 for (const itemDto of items) {
                     const productDetails = await prismaTx.product.findUniqueOrThrow({ where: { product_id: itemDto.product_id } });
                     
-                    // 🆕 NUEVO: Para órdenes híbridas con suscripción, validar solo la cantidad adicional
+                    // 🆕 CORRECCIÓN: Validar stock para TODOS los productos (incluyendo retornables)
+                    // Los productos retornables necesitan stock disponible para prestar
                     let quantityToValidate = itemDto.quantity;
                     
                     if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
@@ -496,10 +497,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         prismaTx,
                     );
                     
-                    if (quantityToValidate > 0 && stockDisponible < quantityToValidate && !productDetails.is_returnable) {
+                    if (quantityToValidate > 0 && stockDisponible < quantityToValidate) {
                         throw new BadRequestException(
                             `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
                         );
+                    }
+                    
+                    if (productDetails.is_returnable) {
+                        console.log(`🔄 Producto retornable ${productDetails.description} - Stock validado para préstamo: ${quantityToValidate} unidades`);
                     }
                 }
 
@@ -534,7 +539,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 for (const createdItem of newOrderHeader.order_item) {
                     const productDesc = createdItem.product ? createdItem.product.description : 'N/A';
                     
-                    // 🆕 NUEVO: Para órdenes híbridas con suscripción, calcular la cantidad real que afecta el stock
+                    // 🆕 CORRECCIÓN: Crear movimientos de stock para TODOS los productos (retornables y no retornables)
+                    // Los productos retornables necesitan control de stock para saber cuántos se prestaron
                     let quantityForStockMovement = createdItem.quantity;
                     
                     if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
@@ -553,7 +559,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         }
                     }
                     
-                    // Solo crear movimiento de stock si hay cantidad que afecte el stock
+                    // Crear movimiento de stock para todos los productos (control de préstamos)
                     if (quantityForStockMovement > 0) {
                         const stockMovementDto: CreateStockMovementDto = {
                             movement_type_id: saleMovementTypeId,
@@ -562,10 +568,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                             destination_warehouse_id: null,
                             movement_date: new Date(), 
-                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})`,
+                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})${createdItem.product.is_returnable ? ' - PRÉSTAMO' : ''}`,
                         };
                         await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
-                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}`);
+                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}${createdItem.product.is_returnable ? ' (PRÉSTAMO)' : ''}`);
                     } else {
                         console.log(`⏭️ No se crea movimiento de stock para ${productDesc} - cantidad: ${quantityForStockMovement}`);
                     }
@@ -1061,6 +1067,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 
                 for(const item of orderItems) {
                     if (item.quantity > 0) {
+                        console.log(`🔄 CANCELACIÓN - Producto ${item.product_id} (${item.product.description}):`);
+                        console.log(`  - Es retornable: ${item.product.is_returnable ? 'SÍ' : 'NO'}`);
+                        console.log(`  - Cantidad: ${item.quantity}`);
+                        
                         // Para productos retornables, renovar el stock
                         if (item.product.is_returnable) {
                             await this.inventoryService.createStockMovement({
@@ -1072,6 +1082,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 movement_date: new Date(),
                                 remarks: `${this.entityName} #${id} CANCELADO - Renovación stock producto retornable ${item.product.description} (ID ${item.product_id})`
                             }, tx);
+                            console.log(`✅ Stock renovado para producto retornable: ${item.quantity} unidades`);
                         }
                         // Para productos no retornables, mantener la lógica existente
                         else {
@@ -1084,6 +1095,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 movement_date: new Date(),
                                 remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.description} (ID ${item.product_id})`
                             }, tx);
+                            console.log(`✅ Stock devuelto para producto no retornable: ${item.quantity} unidades`);
                         }
                     }
                 }
@@ -1094,7 +1106,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 await tx.order_item.deleteMany({ where: { order_id: id } });
                 await tx.order_header.delete({ where: { order_id: id } });
             });
-            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos (retornables y no retornables) ha sido renovado. Los créditos de suscripción han sido reiniciados si corresponde.`, deleted: true };
+            return { message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos ha sido renovado (préstamos devueltos y productos no retornables restaurados). Los créditos de suscripción han sido reiniciados si corresponde.`, deleted: true };
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
                  handlePrismaError(error, `El ${this.entityName.toLowerCase()} con ID ${id} no se puede eliminar porque tiene datos relacionados (ej. en hojas de ruta activas).`);
