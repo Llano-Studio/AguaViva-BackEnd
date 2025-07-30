@@ -257,6 +257,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             );
                         }
                         
+                        // 🆕 DEBUG: Log para entender el cálculo
+                        console.log(`DEBUG - Producto ${itemDto.product_id} (${productDetails.description}):`);
+                        console.log(`  - Cantidad pedida: ${itemDto.quantity}`);
+                        console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
+                        console.log(`  - Cantidad adicional: ${productQuota.additional_quantity}`);
+                        console.log(`  - Precio base del producto: ${productDetails.price}`);
+                        console.log(`  - ¿Está en plan de suscripción?: ${productQuota.covered_by_subscription > 0 ? 'SÍ' : 'NO'}`);
+                        console.log(`  - ¿Tiene cantidad adicional?: ${productQuota.additional_quantity > 0 ? 'SÍ' : 'NO'}`);
+                        
                         // Calcular precio basado en cuotas
                         if (productQuota.covered_by_subscription > 0) {
                             // Producto está en el plan de suscripción
@@ -287,13 +296,21 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 // Solo la cantidad adicional se cobra al precio normal
                                 itemPrice = additionalPrice; // Precio por unidad adicional
                                 itemSubtotal = additionalPrice.mul(productQuota.additional_quantity);
+                                
+                                console.log(`  - Precio por unidad adicional: ${additionalPrice}`);
+                                console.log(`  - Subtotal calculado: ${itemSubtotal}`);
                             } else {
                                 // Todo está cubierto por suscripción
                                 itemPrice = new Decimal(0);
                                 itemSubtotal = new Decimal(0);
+                                console.log(`  - Todo cubierto por suscripción, subtotal: $0`);
                             }
                         } else {
                             // Todo el producto es adicional (no está en el plan o no hay créditos)
+                            console.log(`DEBUG - Producto ${itemDto.product_id} (${productDetails.description}) NO está en plan de suscripción:`);
+                            console.log(`  - Cantidad pedida: ${itemDto.quantity}`);
+                            console.log(`  - Precio base del producto: ${productDetails.price}`);
+                            
                             if (itemDto.price_list_id) {
                                 const customPriceItem = await prismaTx.price_list_item.findFirst({
                                     where: { 
@@ -305,6 +322,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 if (customPriceItem) {
                                     itemPrice = new Decimal(customPriceItem.unit_price);
                                     usedPriceListId = itemDto.price_list_id;
+                                    console.log(`  - Usando lista de precios específica: ${customPriceItem.unit_price}`);
                                 } else {
                                     throw new BadRequestException(
                                         `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`
@@ -321,9 +339,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                                 if (standardPriceItem) {
                                     itemPrice = new Decimal(standardPriceItem.unit_price);
                                     usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+                                    console.log(`  - Usando lista de precios estándar: ${standardPriceItem.unit_price}`);
+                                } else {
+                                    console.log(`  - Usando precio base del producto: ${productDetails.price}`);
                                 }
                             }
                             itemSubtotal = itemPrice.mul(itemDto.quantity);
+                            console.log(`  - Subtotal calculado: ${itemSubtotal}`);
                         }
                     }
                     else if (contractPriceList) {
@@ -361,6 +383,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     
                     calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
                     
+                    console.log(`  - Subtotal final para este producto: ${itemSubtotal}`);
+                    console.log(`  - Total acumulado hasta ahora: ${calculatedTotalFromDB}`);
+                    
                     // 🆕 NUEVO: Incluir price_list_id y notes en los datos del ítem
                     orderItemsDataForCreation.push({
                         product_id: itemDto.product_id,
@@ -372,6 +397,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     });
                 }
 
+                console.log(`🆕 DEBUG FINAL:`);
+                console.log(`  - Total calculado desde BD: ${calculatedTotalFromDB}`);
+                console.log(`  - Total enviado desde frontend: ${dtoTotalAmountStr}`);
+                console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
+                console.log(`  - ID de suscripción: ${subscription_id}`);
+                
                 const finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
                 if (finalPaidAmount.greaterThan(calculatedTotalFromDB)) {
                     throw new BadRequestException('El monto pagado no puede ser mayor al monto total del pedido calculado.');
@@ -381,6 +412,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 if (createOrderDto.order_type === 'SUBSCRIPTION' && subscription_id) {
                     if (calculatedTotalFromDB.greaterThan(0)) {
                         throw new BadRequestException('Las órdenes de suscripción deben tener total_amount = 0 porque ya están pagadas en el plan.');
+                    }
+                } else if (createOrderDto.order_type === 'HYBRID' && subscription_id) {
+                    // 🆕 NUEVO: Para órdenes HYBRID con suscripción, validar que el total coincida
+                    // pero permitir que el frontend envíe 0 si no calcula correctamente
+                    if (dtoTotalAmountStr && !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)) {
+                        console.log(`⚠️ ADVERTENCIA: Total del frontend (${dtoTotalAmountStr}) no coincide con el calculado (${calculatedTotalFromDB}). Usando el calculado.`);
+                        // No lanzar error, usar el total calculado
                     }
                 } else {
                     // Para otros tipos de orden, validar que el total coincida
