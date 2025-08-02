@@ -1,50 +1,61 @@
-import { IsInt, IsOptional, IsString, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsInt} from 'class-validator';
 import { Type } from 'class-transformer';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterOneOffPurchasesDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: 'ID de la persona' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   person_id?: number;
 
-  @IsOptional()
-  @IsString()
-  customerName?: string; // Renombrado desde customer_name y hecho opcional
-
+  @ApiPropertyOptional({ description: 'ID del producto' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   product_id?: number;
 
-  @IsOptional()
-  @IsDateString()
-  purchaseDateFrom?: string; // Renombrado desde purchase_date_from
-
-  @IsOptional()
-  @IsDateString()
-  purchaseDateTo?: string; // Renombrado desde purchase_date_to
-
+  @ApiPropertyOptional({ description: 'ID del canal de venta' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   sale_channel_id?: number;
 
+  @ApiPropertyOptional({ description: 'ID de la localidad' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   locality_id?: number;
 
+  @ApiPropertyOptional({ description: 'ID de la zona' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   zone_id?: number;
 
+  @ApiPropertyOptional({ description: 'Nombre del cliente' })
   @IsOptional()
   @IsString()
-  search?: string; // Búsqueda general
+  customerName?: string;
 
+  @ApiPropertyOptional({ description: 'Fecha de compra desde' })
+  @IsOptional()
+  @IsDateString()
+  purchaseDateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Fecha de compra hasta' })
+  @IsOptional()
+  @IsDateString()
+  purchaseDateTo?: string;
+
+  @ApiPropertyOptional({ description: 'Búsqueda general' })
   @IsOptional()
   @IsString()
-  productName?: string; // Añadido
-} 
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Nombre del producto' })
+  @IsOptional()
+  @IsString()
+  productName?: string;
+}

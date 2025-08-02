@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe, UsePipes, DefaultValuePipe } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { OneOffPurchaseService } from './one-off-purchase.service';
 import { SubscriptionQuotaService } from './services/subscription-quota.service';
@@ -6,6 +6,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
+import { CreateOneOffPurchaseWithCustomerDto } from './dto/create-one-off-purchase-with-customer.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
 import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
@@ -422,6 +423,107 @@ export class OrdersController {
         return this.oneOffPurchaseService.create(createOneOffPurchaseDto);
     }
 
+    @Post('one-off/with-customer')
+    @ApiOperation({ 
+        summary: 'Crear compra one-off con registro automático de cliente',
+        description: `Crea una compra de una sola vez registrando automáticamente al cliente con datos mínimos.
+
+## 🆕 FUNCIONALIDAD PRINCIPAL
+
+**Registro Automático de Cliente:**
+- Si el cliente ya existe (por teléfono), se usa el existente
+- Si no existe, se crea automáticamente con datos mínimos
+- Permite futuras ofertas de suscripción al tener el cliente registrado
+
+**Opciones de Entrega:**
+- \`requires_delivery: true\` → Entrega a domicilio (usa delivery_address)
+- \`requires_delivery: false\` → Cliente retira en punto de venta
+
+**Datos Mínimos del Cliente:**
+- Nombre, teléfono, localidad, zona (obligatorios)
+- Alias, dirección, RUC (opcionales)
+
+**Casos de Uso:**
+- Ventas rápidas a clientes nuevos
+- Registro para futuras campañas de suscripción
+- Flexibilidad en método de entrega`
+    })
+    @ApiBody({ type: CreateOneOffPurchaseWithCustomerDto })
+    @ApiResponse({ 
+        status: 201, 
+        description: 'Compra creada y cliente registrado exitosamente.',
+        schema: {
+            properties: {
+                purchase_id: { type: 'number' },
+                person_id: { type: 'number' },
+                product_id: { type: 'number' },
+                quantity: { type: 'number' },
+                sale_channel_id: { type: 'number' },
+                locality_id: { type: 'number', nullable: true },
+                zone_id: { type: 'number', nullable: true },
+                purchase_date: { type: 'string', format: 'date-time' },
+                total_amount: { type: 'string' },
+                delivery_address: { type: 'string', nullable: true },
+                requires_delivery: { type: 'boolean' },
+                notes: { type: 'string', nullable: true },
+                created_at: { type: 'string', format: 'date-time' },
+                updated_at: { type: 'string', format: 'date-time' },
+                person: {
+                    type: 'object',
+                    properties: {
+                        person_id: { type: 'number' },
+                        name: { type: 'string' },
+                        phone: { type: 'string' },
+                        tax_id: { type: 'string', nullable: true },
+                        address: { type: 'string', nullable: true },
+                        alias: { type: 'string', nullable: true }
+                    }
+                },
+                product: {
+                    type: 'object',
+                    properties: {
+                        product_id: { type: 'number' },
+                        description: { type: 'string' },
+                        price: { type: 'string' }
+                    }
+                },
+                sale_channel: {
+                    type: 'object',
+                    properties: {
+                        sale_channel_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                locality: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        locality_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                },
+                zone: {
+                    type: 'object',
+                    nullable: true,
+                    properties: {
+                        zone_id: { type: 'number' },
+                        name: { type: 'string' }
+                    }
+                }
+            }
+        }
+    })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o validaciones fallidas.' })
+    @ApiResponse({ status: 404, description: 'Producto, localidad, zona o canal de venta no encontrado.' })
+    @ApiResponse({ status: 409, description: 'Conflicto de stock insuficiente.' })
+    createOneOffPurchaseWithCustomer(
+        @Body(ValidationPipe) createOneOffPurchaseWithCustomerDto: CreateOneOffPurchaseWithCustomerDto
+    ): Promise<OneOffPurchaseResponseDto> {
+        return this.oneOffPurchaseService.createWithCustomer(createOneOffPurchaseWithCustomerDto);
+    }
+
+
+    @Auth(Role.SUPERADMIN)
     @Get('one-off')
     @ApiOperation({ 
         summary: 'Obtener todas las compras de una sola vez (one-off purchases)',
@@ -515,7 +617,7 @@ export class OrdersController {
     })
     async findAllOneOffPurchases(
         @Query(ValidationPipe) filterOneOffPurchasesDto: FilterOneOffPurchasesDto
-    ): Promise<{ data: OneOffPurchaseResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
+    ): Promise<any> {
         return this.oneOffPurchaseService.findAll(filterOneOffPurchasesDto);
     }
 

@@ -35,7 +35,7 @@ export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh'
   async validate(req: any, payload: JwtPayload): Promise<{ user: ValidatedUserForStrategy, refreshToken: string }> {
     const refreshToken = req.headers.authorization.split(' ')[1];
   
-    const user = await this.authService.getUserById(payload.id);
+    const user = await this.authService.getUserById(Number(payload.id));
 
     if (!user) {
       throw new UnauthorizedException('Usuario no encontrado.');

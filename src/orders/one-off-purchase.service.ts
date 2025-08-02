@@ -4,6 +4,8 @@ import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
 import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
 import { OneOffPurchaseResponseDto } from './dto/one-off-purchase-response.dto';
+import { CreateOneOffPurchaseWithCustomerDto } from './dto/create-one-off-purchase-with-customer.dto';
+import { PersonType as PrismaPersonType } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -184,8 +186,21 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         }
     }
 
-    async findAll(filters: FilterOneOffPurchasesDto): Promise<{ data: OneOffPurchaseResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
-        const { search, customerName, productName, page = 1, limit = 10, sortBy, purchaseDateFrom, purchaseDateTo, person_id, product_id, sale_channel_id, locality_id, zone_id } = filters;
+    async findAll(filters: FilterOneOffPurchasesDto): Promise<any> {
+        const { 
+            search, 
+            customerName, 
+            productName, 
+            page = 1, 
+            limit = 10, 
+            sortBy, 
+            purchaseDateFrom, 
+            purchaseDateTo, 
+            person_id, 
+            product_id, 
+            sale_channel_id, 
+            locality_id, 
+            zone_id } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
         const where: Prisma.one_off_purchaseWhereInput = {};
@@ -433,4 +448,147 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             throw error;
         }
     }
-} 
+
+    async createWithCustomer(createDto: CreateOneOffPurchaseWithCustomerDto): Promise<OneOffPurchaseResponseDto> {
+        try {
+            return await this.$transaction(async (prismaTx) => {
+                // Validar que los productos existen
+                if (!createDto.items || createDto.items.length === 0) {
+                    throw new BadRequestException('Debe especificar al menos un producto en la compra.');
+                }
+
+                // Validar localidad del cliente
+                const localityExists = await prismaTx.locality.findUnique({ 
+                    where: { locality_id: createDto.customer.localityId } 
+                });
+                if (!localityExists) {
+                    throw new BadRequestException(`Localidad con ID ${createDto.customer.localityId} no encontrada.`);
+                }
+
+                // Validar zona del cliente
+                const zoneExists = await prismaTx.zone.findUnique({ 
+                    where: { zone_id: createDto.customer.zoneId } 
+                });
+                if (!zoneExists) {
+                    throw new BadRequestException(`Zona con ID ${createDto.customer.zoneId} no encontrada.`);
+                }
+
+                // Validar canal de venta
+                const saleChannelExists = await prismaTx.sale_channel.findUnique({ 
+                    where: { sale_channel_id: createDto.sale_channel_id } 
+                });
+                if (!saleChannelExists) {
+                    throw new BadRequestException(`Canal de venta con ID ${createDto.sale_channel_id} no encontrado.`);
+                }
+
+                // Verificar si el cliente ya existe por teléfono
+                let customer = await prismaTx.person.findUnique({
+                    where: { phone: createDto.customer.phone }
+                });
+
+                // Si el cliente no existe, crearlo
+                if (!customer) {
+                    const customerData: Prisma.personCreateInput = {
+                        name: createDto.customer.name,
+                        phone: createDto.customer.phone,
+                        alias: createDto.customer.alias,
+                        address: createDto.customer.address,
+                        tax_id: createDto.customer.taxId,
+                        type: createDto.customer.type as PrismaPersonType,
+                        locality: { connect: { locality_id: createDto.customer.localityId } },
+                        zone: { connect: { zone_id: createDto.customer.zoneId } }
+                    };
+
+                    customer = await prismaTx.person.create({
+                        data: customerData
+                    });
+                }
+
+                // Validar productos y calcular total
+                let totalAmount = new Decimal(0);
+                const firstItem = createDto.items[0]; // Por limitación actual, solo procesamos el primer producto
+
+                const product = await prismaTx.product.findUnique({
+                    where: { product_id: firstItem.product_id }
+                });
+                if (!product) {
+                    throw new BadRequestException(`Producto con ID ${firstItem.product_id} no encontrado.`);
+                }
+
+                // Obtener precio del producto
+                let itemPrice = new Decimal(product.price);
+                if (createDto.price_list_id) {
+                    const priceItem = await prismaTx.price_list_item.findFirst({
+                        where: {
+                            price_list_id: createDto.price_list_id,
+                            product_id: firstItem.product_id
+                        }
+                    });
+                    if (priceItem) {
+                        itemPrice = new Decimal(priceItem.unit_price);
+                    }
+                }
+
+                totalAmount = itemPrice.mul(firstItem.quantity);
+
+                // Determinar dirección y ubicación de entrega
+                const deliveryAddress = createDto.requires_delivery 
+                    ? (createDto.delivery_address || createDto.customer.address)
+                    : null;
+                
+                const deliveryLocalityId = createDto.requires_delivery 
+                    ? (createDto.locality_id || createDto.customer.localityId)
+                    : null;
+                
+                const deliveryZoneId = createDto.requires_delivery 
+                    ? (createDto.zone_id || createDto.customer.zoneId)
+                    : null;
+
+                // Crear el pedido one-off
+                const newPurchase = await prismaTx.one_off_purchase.create({
+                    data: {
+                        person: { connect: { person_id: customer.person_id } },
+                        product: { connect: { product_id: firstItem.product_id } },
+                        sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
+                        quantity: firstItem.quantity,
+                        ...(deliveryLocalityId && { locality: { connect: { locality_id: deliveryLocalityId } } }),
+                        ...(deliveryZoneId && { zone: { connect: { zone_id: deliveryZoneId } } }),
+                        purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
+                        total_amount: totalAmount.toString(),
+                        delivery_address: deliveryAddress
+                    },
+                    include: { product: true, person: true, sale_channel: true, locality: true, zone: true }
+                });
+
+                // Crear movimiento de stock si el producto no es retornable
+                if (!product.is_returnable) {
+                    const stockDisponible = await this.inventoryService.getProductStock(firstItem.product_id, BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, prismaTx);
+                    if (stockDisponible < firstItem.quantity) {
+                        throw new BadRequestException(
+                            `${this.entityName}: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${firstItem.quantity}.`
+                        );
+                    }
+                    
+                    const movementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA, prismaTx);
+                    const stockMovementDto: CreateStockMovementDto = {
+                        movement_type_id: movementTypeId,
+                        product_id: firstItem.product_id,
+                        source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                        quantity: firstItem.quantity,
+                        movement_date: new Date(),
+                        remarks: `${this.entityName} #${newPurchase.purchase_id} - Producto ${product.description}`
+                    };
+                    await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
+                }
+
+                return this.mapToOneOffPurchaseResponseDto(newPurchase);
+            });
+        } catch (error) {
+            handlePrismaError(error, this.entityName);
+            if (!(error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException)) {
+                throw new InternalServerErrorException(`Error no manejado al crear ${this.entityName.toLowerCase()} con cliente`);
+            }
+            throw error;
+        }
+    }
+}

@@ -901,7 +901,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         }
 
                         if (quantityChange !== 0 && !productDetails.is_returnable) { 
-                            const movementTypeForUpdate = quantityChange > 0 ? saleMovementTypeId : await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_CLIENTE', tx);
+                            const movementTypeForUpdate = quantityChange > 0 ? saleMovementTypeId : await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_CLIENTE, tx);
                             await this.inventoryService.createStockMovement({
                                 movement_type_id: movementTypeForUpdate,
                                 product_id: itemDto.product_id,
@@ -921,7 +921,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
                 if (item_ids_to_delete && item_ids_to_delete.length > 0) {
                     const itemsBeingDeleted = existingOrder.order_item.filter(item => item_ids_to_delete.includes(item.order_item_id));
-                    const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_CLIENTE', tx);
+                    const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_CLIENTE, tx);
 
                     for (const itemToDelete of itemsBeingDeleted) {
                         if (!itemToDelete.product.is_returnable && itemToDelete.quantity > 0) {
@@ -990,7 +990,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 }
 
                 const orderItems = orderToDelete.order_item;
-                const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode('INGRESO_DEVOLUCION_PEDIDO_CANCELADO', tx);
+                const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_PEDIDO_CANCELADO, tx);
                 
                 // 🆕 NUEVO: Reiniciar créditos de suscripción si el pedido no está en estado IN_DELIVERY o DELIVERED
                 console.log(`🆕 ELIMINANDO PEDIDO ${id}:`);
