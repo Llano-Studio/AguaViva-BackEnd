@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe, Patch, BadRequestException } from '@nestjs/common';
 import { MultiOneOffPurchaseService } from './multi-one-off-purchase.service';
 import { CreateMultiOneOffPurchaseDto } from './dto/create-multi-one-off-purchase.dto';
 import { FilterMultiOneOffPurchasesDto } from './dto/filter-multi-one-off-purchases.dto';
@@ -21,141 +21,68 @@ export class MultiOneOffPurchaseController {
 
     @Post()
     @ApiOperation({ 
-        summary: '🆕 Crear una nueva compra de una sola vez con múltiples productos',
-        description: `Crea una nueva compra de una sola vez que SOPORTA MÚLTIPLES PRODUCTOS con listas de precios individuales por producto.
+        summary: 'Crear una nueva compra múltiple one-off (con gestión automática de cliente)',
+        description: `Crea una nueva compra múltiple de una sola vez con gestión automática del cliente.
 
-## ✅ SOPORTE COMPLETO PARA MÚLTIPLES PRODUCTOS
+## 🆕 FUNCIONALIDAD INTELIGENTE
 
-**Nueva Estructura de Base de Datos:**
-- Utiliza \`one_off_purchase_header\` y \`one_off_purchase_item\` 
-- Soporte real para múltiples productos por compra
-- **🆕 LISTAS DE PRECIOS INDIVIDUALES**: Cada producto puede usar una lista diferente
-- Mejor gestión de estados (compra, pago, entrega)
-- Historial completo y trazabilidad
-
-## 🆕 LISTAS DE PRECIOS POR PRODUCTO
-
-**Flexibilidad Total:**
-- Cada producto en la misma compra puede usar una lista de precios diferente
-- Campo \`price_list_id\` opcional a nivel de cada ítem
-- Si no se especifica → usa Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
-- Precios calculados automáticamente según la lista de cada producto
-
-**Estados Granulares:**
-- \`status\`: Estado general de la compra (PENDING, CONFIRMED, CANCELLED)
-- \`payment_status\`: Estado del pago (PENDING, PARTIAL, PAID)
-- \`delivery_status\`: Estado de entrega (PENDING, IN_TRANSIT, DELIVERED, FAILED)
-
-**Gestión Automática de Stock:**
-- Descontado automático para productos no retornables
-- Movimientos de inventario registrados para trazabilidad
-- Validación de stock disponible antes de confirmar
-
-## Sistema de Precios Avanzado
-
-**Flujo de Precios por Producto Individual:**
-1. Si el producto especifica \`price_list_id\` → usar esa lista específica
-2. Si no especifica lista → usar Lista General (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID})
-3. Si el producto no está en la lista → usar precio base del producto (\`product.price\`)
+**Gestión Automática de Cliente:**
+- Si se proporciona \`person_id\` → usa el cliente existente
+- Si se proporciona \`customer\` → busca o crea cliente automáticamente
+- Si no se proporciona ninguno → error (debe especificar cliente)
 
 **Casos de Uso:**
-- ✅ Carritos mixtos: algunos productos con descuento corporativo, otros con precio estándar
-- ✅ Promociones por producto: productos específicos con listas promocionales
-- ✅ Compras B2B complejas: diferentes listas según tipo de producto
-- ✅ Trazabilidad completa: qué lista se usó para cada producto`
+- Cliente existente: Proporcionar \`person_id\`
+- Cliente nuevo: Proporcionar \`customer\` con datos mínimos
+- Flexibilidad total en el método de registro
+
+**Compatibilidad:**
+- Mantiene compatibilidad con el endpoint anterior
+- Agrega funcionalidad de registro automático
+- Un solo endpoint para todos los casos
+
+**Ventajas sobre one-off simple:**
+- Múltiples productos en una sola compra
+- Listas de precios individuales por producto
+- Mejor gestión de stock y precios`
     })
     @ApiBody({ 
-        type: CreateMultiOneOffPurchaseDto,
-        examples: {
-            compraMixta: {
-                summary: '🆕 Compra con listas de precios mixtas',
-                description: 'Ejemplo donde cada producto usa una lista de precios diferente',
-                value: {
-                    person_id: 1,
-                    sale_channel_id: 1,
-                    items: [
-                        { 
-                            product_id: 1, 
-                            quantity: 2, 
-                            price_list_id: 3,  // Lista Corporativa
-                            notes: 'Descuento corporativo' 
-                        },
-                        { 
-                            product_id: 3, 
-                            quantity: 1, 
-                            price_list_id: 5,  // Lista Promocional
-                            notes: 'Oferta especial' 
-                        },
-                        { 
-                            product_id: 5, 
-                            quantity: 3
-                            // Sin price_list_id = Lista General
-                        }
-                    ],
-                    delivery_address: 'Av. Principal 123, Barrio Centro',
-                    notes: 'Compra mixta con diferentes descuentos',
-                    paid_amount: '150.00'
+        type: 'object',
+        schema: {
+            oneOf: [
+                {
+                    type: 'object',
+                    properties: {
+                        person_id: { type: 'number', description: 'ID del cliente existente' },
+                        items: { type: 'array', items: { type: 'object' } },
+                        sale_channel_id: { type: 'number' },
+                        // ... otros campos
+                    },
+                    required: ['person_id', 'items', 'sale_channel_id']
+                },
+                {
+                    type: 'object',
+                    properties: {
+                        customer: { type: 'object', description: 'Datos del cliente a registrar' },
+                        items: { type: 'array', items: { type: 'object' } },
+                        sale_channel_id: { type: 'number' },
+                        requires_delivery: { type: 'boolean' },
+                        // ... otros campos
+                    },
+                    required: ['customer', 'items', 'sale_channel_id', 'requires_delivery']
                 }
-            },
-            compraB2B: {
-                summary: 'Compra B2B con listas específicas',
-                description: 'Compra empresarial con diferentes listas por tipo de producto',
-                value: {
-                    person_id: 1,
-                    sale_channel_id: 1,
-                    items: [
-                        { 
-                            product_id: 1, 
-                            quantity: 10, 
-                            price_list_id: 3  // Lista Corporativa Mayorista
-                        },
-                        { 
-                            product_id: 2, 
-                            quantity: 5, 
-                            price_list_id: 4  // Lista VIP
-                        }
-                    ],
-                    locality_id: 1,
-                    zone_id: 2,
-                    delivery_address: 'Oficina Central - Piso 5',
-                    notes: 'Compra empresarial mensual',
-                    status: 'CONFIRMED',
-                    payment_status: 'PAID'
-                }
-            },
-            compraPromocion: {
-                summary: 'Compra con productos en promoción',
-                description: 'Algunos productos con lista promocional, otros normales',
-                value: {
-                    person_id: 1,
-                    sale_channel_id: 1,
-                    items: [
-                        { 
-                            product_id: 1, 
-                            quantity: 2, 
-                            price_list_id: 6,  // Lista Black Friday
-                            notes: 'Promoción Black Friday' 
-                        },
-                        { 
-                            product_id: 3, 
-                            quantity: 1
-                            // Precio estándar (Lista General)
-                        }
-                    ],
-                    notes: 'Aprovechando promoción especial'
-                }
-            }
+            ]
         }
     })
     @ApiResponse({ 
         status: 201, 
-        description: 'Compra múltiple creada exitosamente.',
+        description: 'Compra múltiple one-off creada exitosamente.',
         type: MultiOneOffPurchaseResponseDto
     })
-    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o validaciones fallidas.' })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o cliente no especificado.' })
     @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
     @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
-    createMultiOneOffPurchase(
+    create(
         @Body(ValidationPipe) createMultiOneOffPurchaseDto: CreateMultiOneOffPurchaseDto
     ): Promise<MultiOneOffPurchaseResponseDto> {
         return this.multiOneOffPurchaseService.create(createMultiOneOffPurchaseDto);
@@ -217,21 +144,74 @@ export class MultiOneOffPurchaseController {
 
     @Post('one-off')
     @ApiOperation({ 
-        summary: 'Crear una nueva compra one-off simple',
-        description: 'Crea una nueva compra de una sola vez con un solo producto'
+        summary: 'Crear una nueva compra one-off (con gestión automática de cliente)',
+        description: `Crea una nueva compra de una sola vez con gestión automática del cliente.
+
+## 🆕 FUNCIONALIDAD INTELIGENTE
+
+**Gestión Automática de Cliente:**
+- Si se proporciona \`person_id\` → usa el cliente existente
+- Si se proporciona \`customer\` → busca o crea cliente automáticamente
+- Si no se proporciona ninguno → error (debe especificar cliente)
+
+**Casos de Uso:**
+- Cliente existente: Proporcionar \`person_id\`
+- Cliente nuevo: Proporcionar \`customer\` con datos mínimos
+- Flexibilidad total en el método de registro
+
+**Compatibilidad:**
+- Mantiene compatibilidad con el endpoint anterior
+- Agrega funcionalidad de registro automático
+- Un solo endpoint para todos los casos`
     })
-    @ApiBody({ type: CreateOneOffPurchaseDto })
+    @ApiBody({ 
+        type: 'object',
+        schema: {
+            oneOf: [
+                {
+                    type: 'object',
+                    properties: {
+                        person_id: { type: 'number', description: 'ID del cliente existente' },
+                        items: { type: 'array', items: { type: 'object' } },
+                        sale_channel_id: { type: 'number' },
+                        // ... otros campos
+                    },
+                    required: ['person_id', 'items', 'sale_channel_id']
+                },
+                {
+                    type: 'object',
+                    properties: {
+                        customer: { type: 'object', description: 'Datos del cliente a registrar' },
+                        items: { type: 'array', items: { type: 'object' } },
+                        sale_channel_id: { type: 'number' },
+                        requires_delivery: { type: 'boolean' },
+                        // ... otros campos
+                    },
+                    required: ['customer', 'items', 'sale_channel_id', 'requires_delivery']
+                }
+            ]
+        }
+    })
     @ApiResponse({ 
         status: 201, 
         description: 'Compra one-off creada exitosamente.',
         type: OneOffPurchaseResponseDto
     })
-    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o cliente no especificado.' })
     @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
+    @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
     createOneOffPurchase(
-        @Body(ValidationPipe) createOneOffPurchaseDto: CreateOneOffPurchaseDto
+        @Body(ValidationPipe) createDto: any
     ): Promise<OneOffPurchaseResponseDto> {
-        return this.multiOneOffPurchaseService.createOneOff(createOneOffPurchaseDto);
+        // Determinar si es creación con cliente o sin cliente
+        if (createDto.customer) {
+            // Convertir el formato de customer a person_id
+            return this.multiOneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
+        } else if (createDto.person_id) {
+            return this.multiOneOffPurchaseService.createOneOff(createDto);
+        } else {
+            throw new BadRequestException('Debe especificar person_id (cliente existente) o customer (cliente nuevo)');
+        }
     }
 
     @Get('one-off')
