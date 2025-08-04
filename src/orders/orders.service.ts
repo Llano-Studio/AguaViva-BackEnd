@@ -612,6 +612,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             customerName,
             orderDateFrom,
             orderDateTo,
+            deliveryDateFrom,
+            deliveryDateTo,
             status,
             orderType,
             customerId,
@@ -668,6 +670,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 const toDate = new Date(orderDateTo); 
                 toDate.setHours(23, 59, 59, 999); 
                 where.order_date.lte = toDate; 
+            }
+        }
+
+        if (deliveryDateFrom || deliveryDateTo) {
+            where.scheduled_delivery_date = {};
+            if (deliveryDateFrom) where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+            if (deliveryDateTo) { 
+                const toDate = new Date(deliveryDateTo); 
+                toDate.setHours(23, 59, 59, 999); 
+                where.scheduled_delivery_date.lte = toDate; 
             }
         }
         

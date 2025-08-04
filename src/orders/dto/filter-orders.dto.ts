@@ -26,6 +26,16 @@ export class FilterOrdersDto extends PaginationQueryDto {
   orderDateTo?: string;
 
   @IsOptional()
+  @IsDateString()
+  @ApiProperty({ required: false, description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)' })
+  deliveryDateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  @ApiProperty({ required: false, description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)' })
+  deliveryDateTo?: string;
+
+  @IsOptional()
   @IsEnum(OrderStatus)
   @ApiProperty({ required: false, description: 'Filtrar por estado del pedido', enum: OrderStatus })
   status?: OrderStatus;

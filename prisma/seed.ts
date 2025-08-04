@@ -181,7 +181,7 @@ async function main() {
     update: {},
     create: {
       category_id: 1,
-      name: 'Agua'
+      name: 'Bidones'
     }
   });
   console.log(`  ✅ Categoría: ${category.name}`);
@@ -195,14 +195,6 @@ async function main() {
       volume_liters: 20.00,
       price: 1500.00,
       is_returnable: true,
-      category_id: category.category_id
-    },
-    {
-      product_id: 2,
-      description: 'Botella 500ml Descartable',
-      volume_liters: 0.50,
-      price: 200.00,
-      is_returnable: false,
       category_id: category.category_id
     }
   ];
@@ -222,17 +214,12 @@ async function main() {
     {
       sale_channel_id: 1,
       code: 'WEB',
-      description: 'Canal Web'
+      description: 'Whatsapp'
     },
     {
       sale_channel_id: 2,
       code: 'WHATSAPP',
-      description: 'Canal WhatsApp'
-    },
-    {
-      sale_channel_id: 3,
-      code: 'LOCAL',
-      description: 'Canal Local'
+      description: 'Local'
     }
   ];
 

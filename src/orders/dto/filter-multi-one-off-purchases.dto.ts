@@ -63,6 +63,22 @@ export class FilterMultiOneOffPurchasesDto extends PaginationQueryDto {
   purchaseDateTo?: string;
 
   @ApiPropertyOptional({
+    description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)',
+    example: '2024-03-01'
+  })
+  @IsOptional()
+  @IsDateString()
+  deliveryDateFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)',
+    example: '2024-03-31'
+  })
+  @IsOptional()
+  @IsDateString()
+  deliveryDateTo?: string;
+
+  @ApiPropertyOptional({
     description: 'Filtrar por ID del canal de venta',
     example: 1
   })

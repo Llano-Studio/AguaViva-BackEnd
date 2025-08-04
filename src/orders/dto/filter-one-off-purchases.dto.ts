@@ -49,6 +49,16 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   @IsDateString()
   purchaseDateTo?: string;
 
+  @ApiPropertyOptional({ description: 'Fecha de entrega desde (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsDateString()
+  deliveryDateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Fecha de entrega hasta (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsDateString()
+  deliveryDateTo?: string;
+
   @ApiPropertyOptional({ description: 'Búsqueda general' })
   @IsOptional()
   @IsString()

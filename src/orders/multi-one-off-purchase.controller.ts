@@ -1,8 +1,12 @@
-import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, Query, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe, Patch } from '@nestjs/common';
 import { MultiOneOffPurchaseService } from './multi-one-off-purchase.service';
 import { CreateMultiOneOffPurchaseDto } from './dto/create-multi-one-off-purchase.dto';
 import { FilterMultiOneOffPurchasesDto } from './dto/filter-multi-one-off-purchases.dto';
 import { MultiOneOffPurchaseResponseDto } from './dto/multi-one-off-purchase-response.dto';
+import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
+import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
+import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
+import { OneOffPurchaseResponseDto } from './dto/one-off-purchase-response.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -167,6 +171,8 @@ export class MultiOneOffPurchaseController {
     @ApiQuery({ name: 'productName', required: false, description: 'Filtrar por descripción del producto' })
     @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde (YYYY-MM-DD)' })
     @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'deliveryDateFrom', required: false, description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'deliveryDateTo', required: false, description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)' })
     @ApiQuery({ name: 'person_id', required: false, description: 'Filtrar por ID del cliente', type: Number })
     @ApiQuery({ name: 'product_id', required: false, description: 'Filtrar por ID del producto', type: Number })
     @ApiQuery({ name: 'sale_channel_id', required: false, description: 'Filtrar por ID del canal de venta', type: Number })
@@ -205,6 +211,138 @@ export class MultiOneOffPurchaseController {
         filterMultiOneOffPurchasesDto: FilterMultiOneOffPurchasesDto
     ): Promise<{ data: MultiOneOffPurchaseResponseDto[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
         return this.multiOneOffPurchaseService.findAll(filterMultiOneOffPurchasesDto);
+    }
+
+    // ===== ONE-OFF PURCHASES ENDPOINTS =====
+
+    @Post('one-off')
+    @ApiOperation({ 
+        summary: 'Crear una nueva compra one-off simple',
+        description: 'Crea una nueva compra de una sola vez con un solo producto'
+    })
+    @ApiBody({ type: CreateOneOffPurchaseDto })
+    @ApiResponse({ 
+        status: 201, 
+        description: 'Compra one-off creada exitosamente.',
+        type: OneOffPurchaseResponseDto
+    })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
+    createOneOffPurchase(
+        @Body(ValidationPipe) createOneOffPurchaseDto: CreateOneOffPurchaseDto
+    ): Promise<OneOffPurchaseResponseDto> {
+        return this.multiOneOffPurchaseService.createOneOff(createOneOffPurchaseDto);
+    }
+
+    @Get('one-off')
+    @ApiOperation({ 
+        summary: 'Obtener todas las compras one-off con filtros y paginación',
+        description: 'Retorna una lista paginada de compras one-off con opciones de filtrado'
+    })
+    @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general' })
+    @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
+    @ApiQuery({ name: 'productName', required: false, description: 'Filtrar por descripción del producto' })
+    @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'purchaseDateTo', required: false, description: 'Filtrar por fecha de compra hasta (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'deliveryDateFrom', required: false, description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'deliveryDateTo', required: false, description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'person_id', required: false, description: 'Filtrar por ID del cliente', type: Number })
+    @ApiQuery({ name: 'product_id', required: false, description: 'Filtrar por ID del producto', type: Number })
+    @ApiQuery({ name: 'sale_channel_id', required: false, description: 'Filtrar por ID del canal de venta', type: Number })
+    @ApiQuery({ name: 'locality_id', required: false, description: 'Filtrar por ID de localidad', type: Number })
+    @ApiQuery({ name: 'zone_id', required: false, description: 'Filtrar por ID de zona', type: Number })
+    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
+    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
+    @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente.", type: String })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Lista de compras one-off obtenida exitosamente.',
+        schema: {
+            properties: {
+                data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/OneOffPurchaseResponseDto' }
+                },
+                meta: {
+                    type: 'object',
+                    properties: {
+                        total: { type: 'number' },
+                        page: { type: 'number' },
+                        limit: { type: 'number' },
+                        totalPages: { type: 'number' }
+                    }
+                }
+            }
+        }
+    })
+    async findAllOneOffPurchases(
+        @Query() filterOneOffPurchasesDto: FilterOneOffPurchasesDto
+    ): Promise<any> {
+        return this.multiOneOffPurchaseService.findAllOneOff(filterOneOffPurchasesDto);
+    }
+
+    @Get('one-off/:id')
+    @ApiOperation({ 
+        summary: 'Obtener una compra one-off por su ID',
+        description: 'Retorna los detalles completos de una compra one-off específica'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra one-off', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra one-off encontrada exitosamente.',
+        type: OneOffPurchaseResponseDto
+    })
+    @ApiResponse({ status: 404, description: 'Compra one-off no encontrada.' })
+    findOneOneOffPurchase(
+        @Param('id', ParseIntPipe) id: number
+    ): Promise<OneOffPurchaseResponseDto> {
+        return this.multiOneOffPurchaseService.findOneOneOff(id);
+    }
+
+    @Patch('one-off/:id')
+    @ApiOperation({ 
+        summary: 'Actualizar una compra one-off por su ID',
+        description: 'Actualiza los detalles de una compra one-off existente'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra one-off a actualizar', type: Number })
+    @ApiBody({ type: UpdateOneOffPurchaseDto })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra one-off actualizada exitosamente.',
+        type: OneOffPurchaseResponseDto
+    })
+    @ApiResponse({ status: 404, description: 'Compra one-off no encontrada.' })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    updateOneOffPurchase(
+        @Param('id', ParseIntPipe) id: number,
+        @Body(ValidationPipe) updateOneOffPurchaseDto: UpdateOneOffPurchaseDto
+    ): Promise<OneOffPurchaseResponseDto> {
+        return this.multiOneOffPurchaseService.updateOneOff(id, updateOneOffPurchaseDto);
+    }
+
+    @Delete('one-off/:id')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ 
+        summary: 'Eliminar una compra one-off por su ID',
+        description: 'Elimina una compra one-off y renueva el stock de productos retornables'
+    })
+    @ApiParam({ name: 'id', description: 'ID de la compra one-off a eliminar', type: Number })
+    @ApiResponse({ 
+        status: 200, 
+        description: 'Compra one-off eliminada exitosamente.',
+        schema: {
+            type: 'object',
+            properties: {
+                message: { type: 'string', example: 'Compra One-Off con ID 123 eliminada exitosamente.' },
+                deleted: { type: 'boolean', example: true }
+            }
+        }
+    })
+    @ApiResponse({ status: 404, description: 'Compra one-off no encontrada.' })
+    async removeOneOffPurchase(
+        @Param('id', ParseIntPipe) id: number
+    ): Promise<{ message: string; deleted: boolean }> {
+        return this.multiOneOffPurchaseService.removeOneOff(id);
     }
 
     @Get(':id')

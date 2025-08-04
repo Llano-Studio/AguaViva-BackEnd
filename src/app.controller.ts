@@ -52,7 +52,7 @@ El sistema permite diferentes precios para los mismos productos según el tipo d
 ### 2. **Compras Únicas (one_off_purchase)**
 - **Flujo**: \`Lista General (ID: 1) → price_list_item.unit_price → product.price\` (fallback)
 - **Uso**: Clientes ocasionales sin contrato, usan la lista estándar/pública
-- **Endpoint**: \`POST /api/orders/one-off\`
+- **Endpoint**: \`POST /api/multi-one-off-purchases/one-off\`
 
 ### 3. **Suscripciones (customer_subscription)**
 - **Flujo**: \`subscription_plan.price\` (precio fijo del paquete)
@@ -121,7 +121,7 @@ PRICING: {
           type: 'object',
           properties: {
             contracts: { type: 'string', example: 'POST /api/orders' },
-            one_off_purchases: { type: 'string', example: 'POST /api/orders/one-off' },
+            one_off_purchases: { type: 'string', example: 'POST /api/multi-one-off-purchases/one-off' },
             subscriptions: { type: 'string', example: 'POST /api/customer-subscriptions' },
             price_lists: { type: 'string', example: 'GET /api/price-list' },
             price_management: { type: 'string', example: 'POST /api/price-list/:id/apply-percentage' }
@@ -147,7 +147,7 @@ PRICING: {
       },
       key_endpoints: {
         contracts: 'POST /api/orders',
-        one_off_purchases: 'POST /api/orders/one-off',
+        one_off_purchases: 'POST /api/multi-one-off-purchases/one-off',
         subscriptions: 'POST /api/customer-subscriptions',
         price_lists: 'GET /api/price-list',
         price_management: 'POST /api/price-list/:id/apply-percentage',
