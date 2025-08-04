@@ -657,10 +657,6 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             if (!product) throw new NotFoundException(`Producto con ID ${item.product_id} no encontrado.`);
         }
 
-        // Validar persona
-        const person = await prisma.person.findUnique({ where: { person_id: dto.person_id } });
-        if (!person) throw new NotFoundException(`Persona con ID ${dto.person_id} no encontrada.`);
-
         // Validar canal de venta
         const saleChannel = await prisma.sale_channel.findUnique({ where: { sale_channel_id: dto.sale_channel_id } });
         if (!saleChannel) throw new NotFoundException(`Canal de venta con ID ${dto.sale_channel_id} no encontrado.`);
@@ -681,7 +677,10 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
     async createOneOff(createDto: CreateOneOffPurchaseDto): Promise<OneOffPurchaseResponseDto> {
         try {
             return await this.$transaction(async (prismaTx) => {
-                await this.validateOneOffPurchaseData(createDto, prismaTx);
+                // Validar que hay items
+                if (!createDto.items || createDto.items.length === 0) {
+                    throw new BadRequestException('Debe especificar al menos un producto en la compra.');
+                }
 
                 // Tomar el primer item (limitación actual del sistema)
                 const firstItem = createDto.items[0];
@@ -722,7 +721,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
 
                 const newPurchase = await prismaTx.one_off_purchase.create({
                     data: {
-                        person: { connect: { person_id: createDto.person_id } },
+                        person: { connect: { person_id: 0 } }, // Este método ya no se usa, pero mantenemos la estructura
                         product: { connect: { product_id: firstItem.product_id } },
                         quantity: firstItem.quantity,
                         sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
@@ -782,6 +781,11 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                 });
 
                 if (!person) {
+                    // Validar que se proporcionen los campos obligatorios para cliente nuevo
+                    if (!createDto.customer.name || !createDto.customer.localityId || !createDto.customer.zoneId) {
+                        throw new BadRequestException('Para clientes nuevos, debe proporcionar: name, localityId y zoneId');
+                    }
+
                     // Crear nuevo cliente
                     person = await prismaTx.person.create({
                         data: {
@@ -836,8 +840,8 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                     : null;
 
                 // Determinar localidad y zona para entrega
-                const deliveryLocalityId = createDto.locality_id || createDto.customer.localityId;
-                const deliveryZoneId = createDto.zone_id || createDto.customer.zoneId;
+                const deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
+                const deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
 
                 const newPurchase = await prismaTx.one_off_purchase.create({
                     data: {
@@ -846,8 +850,8 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                         quantity: firstItem.quantity,
                         sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
                         delivery_address: deliveryAddress,
-                        locality: { connect: { locality_id: deliveryLocalityId } },
-                        zone: { connect: { zone_id: deliveryZoneId } },
+                        locality: deliveryLocalityId ? { connect: { locality_id: deliveryLocalityId } } : undefined,
+                        zone: deliveryZoneId ? { connect: { zone_id: deliveryZoneId } } : undefined,
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
                         total_amount: totalAmount,
                     },
@@ -1059,7 +1063,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                 const dataToUpdate: Prisma.one_off_purchaseUpdateInput = {
                     product: { connect: { product_id: firstItem.product_id } },
                     quantity: newQuantity,
-                    ...(updateDto.person_id && { person: { connect: { person_id: updateDto.person_id } } }),
+                    // person_id ya no se actualiza en este flujo
                     ...(updateDto.sale_channel_id && { sale_channel: { connect: { sale_channel_id: updateDto.sale_channel_id } } }),
                     ...(updateDto.locality_id !== undefined && { 
                         locality: updateDto.locality_id === null 

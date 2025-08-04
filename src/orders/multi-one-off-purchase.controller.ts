@@ -144,25 +144,29 @@ export class MultiOneOffPurchaseController {
 
     @Post('one-off')
     @ApiOperation({ 
-        summary: 'Crear una nueva compra one-off (con gestión automática de cliente)',
-        description: `Crea una nueva compra de una sola vez con gestión automática del cliente.
+        summary: 'Crear una nueva compra one-off (con verificación automática de cliente)',
+        description: `Crea una nueva compra de una sola vez con verificación automática del cliente por teléfono.
 
 ## 🆕 FUNCIONALIDAD INTELIGENTE
 
-**Gestión Automática de Cliente:**
-- Si se proporciona \`person_id\` → usa el cliente existente
-- Si se proporciona \`customer\` → busca o crea cliente automáticamente
-- Si no se proporciona ninguno → error (debe especificar cliente)
+**Verificación Automática por Teléfono:**
+- El frontend SIEMPRE envía el \`phone\` del cliente
+- El sistema busca si el cliente ya existe por teléfono
+- Si existe → usa el cliente existente y crea la orden
+- Si no existe → crea el cliente nuevo y luego la orden
+
+**Flujo del Frontend:**
+1. Usuario ingresa teléfono en el formulario
+2. Frontend envía todos los datos del cliente (incluyendo teléfono)
+3. Backend verifica si el cliente existe por teléfono
+4. Si existe → reutiliza el cliente existente
+5. Si no existe → crea nuevo cliente con los datos proporcionados
+6. Crea la orden one-off asociada al cliente
 
 **Casos de Uso:**
-- Cliente existente: Proporcionar \`person_id\`
-- Cliente nuevo: Proporcionar \`customer\` con datos mínimos
-- Flexibilidad total en el método de registro
-
-**Compatibilidad:**
-- Mantiene compatibilidad con el endpoint anterior
-- Agrega funcionalidad de registro automático
-- Un solo endpoint para todos los casos`
+- Cliente existente: Se reutiliza automáticamente
+- Cliente nuevo: Se crea automáticamente
+- Flexibilidad total en el método de registro`
     })
     @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 
@@ -170,21 +174,14 @@ export class MultiOneOffPurchaseController {
         description: 'Compra one-off creada exitosamente.',
         type: OneOffPurchaseResponseDto
     })
-    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos o cliente no especificado.' })
-    @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
+    @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
+    @ApiResponse({ status: 404, description: 'Producto o entidad relacionada no encontrada.' })
     @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
     createOneOffPurchase(
         @Body(ValidationPipe) createDto: CreateOneOffPurchaseDto
     ): Promise<OneOffPurchaseResponseDto> {
-        // Determinar si es creación con cliente o sin cliente
-        if (createDto.customer) {
-            // Convertir el formato de customer a person_id
-            return this.multiOneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
-        } else if (createDto.person_id) {
-            return this.multiOneOffPurchaseService.createOneOff(createDto);
-        } else {
-            throw new BadRequestException('Debe especificar person_id (cliente existente) o customer (cliente nuevo)');
-        }
+        // Siempre usar la lógica de cliente automático
+        return this.multiOneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
     }
 
     @Get('one-off')

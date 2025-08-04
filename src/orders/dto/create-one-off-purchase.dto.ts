@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested, ValidateIf, IsEnum } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
@@ -24,16 +24,16 @@ export class CreateOneOffPurchaseItemDto {
 }
 
 export class CreateOneOffPurchaseCustomerDto {
-  @ApiProperty({
-    description: 'Nombre completo del cliente',
+  @ApiPropertyOptional({
+    description: 'Nombre completo del cliente (solo requerido si es cliente nuevo)',
     example: 'Juan Pérez'
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  name?: string;
 
   @ApiProperty({
-    description: 'Número de teléfono del cliente (se usa para buscar clientes existentes)',
+    description: 'Número de teléfono del cliente (SIEMPRE REQUERIDO para verificar si existe)',
     example: '3412345678'
   })
   @IsString()
@@ -41,7 +41,7 @@ export class CreateOneOffPurchaseCustomerDto {
   phone: string;
 
   @ApiPropertyOptional({
-    description: 'Alias o apodo del cliente',
+    description: 'Alias o apodo del cliente (solo si es cliente nuevo)',
     example: 'Juan'
   })
   @IsOptional()
@@ -49,7 +49,7 @@ export class CreateOneOffPurchaseCustomerDto {
   alias?: string;
 
   @ApiPropertyOptional({
-    description: 'Dirección del cliente',
+    description: 'Dirección del cliente (solo si es cliente nuevo)',
     example: 'Av. Principal 123'
   })
   @IsOptional()
@@ -57,31 +57,31 @@ export class CreateOneOffPurchaseCustomerDto {
   address?: string;
 
   @ApiPropertyOptional({
-    description: 'RUC o documento de identidad',
+    description: 'RUC o documento de identidad (solo si es cliente nuevo)',
     example: '12345678-9'
   })
   @IsOptional()
   @IsString()
   taxId?: string;
 
-  @ApiProperty({
-    description: 'ID de la localidad del cliente',
+  @ApiPropertyOptional({
+    description: 'ID de la localidad del cliente (solo si es cliente nuevo)',
     example: 1
   })
+  @IsOptional()
   @IsInt()
-  @IsNotEmpty()
-  localityId: number;
-
-  @ApiProperty({
-    description: 'ID de la zona del cliente',
-    example: 1
-  })
-  @IsInt()
-  @IsNotEmpty()
-  zoneId: number;
+  localityId?: number;
 
   @ApiPropertyOptional({
-    description: 'Tipo de cliente',
+    description: 'ID de la zona del cliente (solo si es cliente nuevo)',
+    example: 1
+  })
+  @IsOptional()
+  @IsInt()
+  zoneId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tipo de cliente (solo si es cliente nuevo)',
     example: 'INDIVIDUAL',
     enum: ['INDIVIDUAL', 'CORPORATE']
   })
@@ -91,23 +91,13 @@ export class CreateOneOffPurchaseCustomerDto {
 }
 
 export class CreateOneOffPurchaseDto {
-  @ApiPropertyOptional({
-    description: 'ID de la persona existente (opcional si se proporciona customer)',
-    example: 1
-  })
-  @ValidateIf(o => !o.customer)
-  @IsInt()
-  @IsNotEmpty()
-  person_id?: number;
-
-  @ApiPropertyOptional({
-    description: 'Datos del cliente a registrar o buscar (opcional si se proporciona person_id)',
+  @ApiProperty({
+    description: 'Datos del cliente (SIEMPRE REQUERIDO). El sistema verificará si existe por teléfono.',
     type: CreateOneOffPurchaseCustomerDto
   })
-  @ValidateIf(o => !o.person_id)
   @ValidateNested()
   @Type(() => CreateOneOffPurchaseCustomerDto)
-  customer?: CreateOneOffPurchaseCustomerDto;
+  customer: CreateOneOffPurchaseCustomerDto;
 
   @ApiProperty({
     description: `Lista de productos a comprar.
