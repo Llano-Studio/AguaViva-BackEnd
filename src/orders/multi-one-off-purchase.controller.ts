@@ -164,34 +164,7 @@ export class MultiOneOffPurchaseController {
 - Agrega funcionalidad de registro automático
 - Un solo endpoint para todos los casos`
     })
-    @ApiBody({ 
-        type: 'object',
-        schema: {
-            oneOf: [
-                {
-                    type: 'object',
-                    properties: {
-                        person_id: { type: 'number', description: 'ID del cliente existente' },
-                        items: { type: 'array', items: { type: 'object' } },
-                        sale_channel_id: { type: 'number' },
-                        // ... otros campos
-                    },
-                    required: ['person_id', 'items', 'sale_channel_id']
-                },
-                {
-                    type: 'object',
-                    properties: {
-                        customer: { type: 'object', description: 'Datos del cliente a registrar' },
-                        items: { type: 'array', items: { type: 'object' } },
-                        sale_channel_id: { type: 'number' },
-                        requires_delivery: { type: 'boolean' },
-                        // ... otros campos
-                    },
-                    required: ['customer', 'items', 'sale_channel_id', 'requires_delivery']
-                }
-            ]
-        }
-    })
+    @ApiBody({ type: CreateOneOffPurchaseDto })
     @ApiResponse({ 
         status: 201, 
         description: 'Compra one-off creada exitosamente.',
@@ -201,7 +174,7 @@ export class MultiOneOffPurchaseController {
     @ApiResponse({ status: 404, description: 'Cliente, producto o entidad relacionada no encontrada.' })
     @ApiResponse({ status: 409, description: 'Conflicto de stock o restricción única.' })
     createOneOffPurchase(
-        @Body(ValidationPipe) createDto: any
+        @Body(ValidationPipe) createDto: CreateOneOffPurchaseDto
     ): Promise<OneOffPurchaseResponseDto> {
         // Determinar si es creación con cliente o sin cliente
         if (createDto.customer) {
