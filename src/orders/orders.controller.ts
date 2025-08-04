@@ -186,22 +186,22 @@ export class OrdersController {
     @Get()
     @ApiOperation({ 
         summary: 'Obtener todos los pedidos regulares',
-        description: 'Retorna una lista paginada de pedidos regulares con opciones de filtrado.'
+        description: 'Retorna una lista paginada de pedidos regulares con filtros opcionales.'
     })
     @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por cliente, número de pedido, etc.' })
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
-    @ApiQuery({ name: 'orderDateFrom', required: false, description: 'Filtrar por fecha de pedido desde' })
-    @ApiQuery({ name: 'orderDateTo', required: false, description: 'Filtrar por fecha de pedido hasta' })
+    @ApiQuery({ name: 'orderDateFrom', required: false, description: 'Filtrar por fecha de pedido desde (YYYY-MM-DD)' })
+    @ApiQuery({ name: 'orderDateTo', required: false, description: 'Filtrar por fecha de pedido hasta (YYYY-MM-DD)' })
     @ApiQuery({ name: 'deliveryDateFrom', required: false, description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)' })
     @ApiQuery({ name: 'deliveryDateTo', required: false, description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)' })
-    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado del pedido' })
-    @ApiQuery({ name: 'orderType', required: false, description: 'Filtrar por tipo de pedido' })
-    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente' })
-    @ApiQuery({ name: 'orderId', required: false, description: 'Filtrar por número/ID de pedido', type: Number })
-    @ApiQuery({ name: 'zoneId', required: false, description: 'Filtrar por ID de zona', type: Number })
-    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
-    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
-    @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente. Ej: order_date,-customer.name", type: String, example: '-order_date,customer.name' })
+    @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado del pedido', enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED'] })
+    @ApiQuery({ name: 'orderType', required: false, description: 'Filtrar por tipo de pedido', enum: ['SUBSCRIPTION', 'HYBRID', 'ONE_OFF', 'CONTRACT'] })
+    @ApiQuery({ name: 'customerId', required: false, description: 'Filtrar por ID del cliente', type: Number })
+    @ApiQuery({ name: 'orderId', required: false, description: 'Filtrar por ID del pedido', type: Number })
+    @ApiQuery({ name: 'zoneId', required: false, description: 'Filtrar por ID de la zona', type: Number })
+    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, description: 'Elementos por página', type: Number, example: 10 })
+    @ApiQuery({ name: 'sortBy', required: false, description: 'Ordenamiento (ej: order_date:desc)', example: 'order_date:desc' })
     @ApiResponse({ 
         status: 200, 
         description: 'Lista de pedidos obtenida exitosamente.',
@@ -215,10 +215,10 @@ export class OrdersController {
                 meta: {
                     type: 'object',
                     properties: {
-                        total: { type: 'number', example: 100 },
-                        page: { type: 'number', example: 1 },
-                        limit: { type: 'number', example: 10 },
-                        totalPages: { type: 'number', example: 10 }
+                        total: { type: 'number' },
+                        page: { type: 'number' },
+                        limit: { type: 'number' },
+                        totalPages: { type: 'number' }
                     }
                 }
             }

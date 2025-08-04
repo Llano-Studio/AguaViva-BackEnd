@@ -186,10 +186,10 @@ export class MultiOneOffPurchaseController {
 
     @Get('one-off')
     @ApiOperation({ 
-        summary: 'Obtener todas las compras one-off con filtros y paginación',
-        description: 'Retorna una lista paginada de compras one-off con opciones de filtrado'
+        summary: 'Obtener todas las compras one-off',
+        description: 'Retorna una lista paginada de compras one-off con opciones de filtrado.'
     })
-    @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general' })
+    @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por nombre de cliente, ID de compra o descripción de producto' })
     @ApiQuery({ name: 'customerName', required: false, description: 'Filtrar por nombre del cliente' })
     @ApiQuery({ name: 'productName', required: false, description: 'Filtrar por descripción del producto' })
     @ApiQuery({ name: 'purchaseDateFrom', required: false, description: 'Filtrar por fecha de compra desde (YYYY-MM-DD)' })
@@ -201,9 +201,9 @@ export class MultiOneOffPurchaseController {
     @ApiQuery({ name: 'sale_channel_id', required: false, description: 'Filtrar por ID del canal de venta', type: Number })
     @ApiQuery({ name: 'locality_id', required: false, description: 'Filtrar por ID de localidad', type: Number })
     @ApiQuery({ name: 'zone_id', required: false, description: 'Filtrar por ID de zona', type: Number })
-    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number })
-    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number })
-    @ApiQuery({ name: 'sortBy', required: false, description: "Campos para ordenar. Prefijo '-' para descendente.", type: String })
+    @ApiQuery({ name: 'page', required: false, description: 'Número de página', type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados por página', type: Number, example: 10 })
+    @ApiQuery({ name: 'sortBy', required: false, description: 'Ordenamiento (ej: purchase_date:desc)', example: 'purchase_date:desc' })
     @ApiResponse({ 
         status: 200, 
         description: 'Lista de compras one-off obtenida exitosamente.',
