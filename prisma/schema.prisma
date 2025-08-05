@@ -384,6 +384,7 @@ model one_off_purchase {
   total_amount           Decimal      @db.Decimal(10, 2)
   purchase_date          DateTime     @default(now()) @db.Timestamp(6)
   scheduled_delivery_date DateTime?   @db.Timestamp(6)
+  delivery_time          String?      @db.VarChar(50)
   sale_channel_id        Int          @db.SmallInt
   delivery_address       String?
   locality_id            Int?         @db.SmallInt

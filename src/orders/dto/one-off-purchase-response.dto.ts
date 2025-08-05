@@ -65,6 +65,9 @@ export class OneOffPurchaseResponseDto {
     @ApiProperty({ example: '2024-03-26T14:00:00Z', nullable: true })
     scheduled_delivery_date?: string;
 
+    @ApiProperty({ example: '9:00 AM - 12:00 PM', nullable: true })
+    delivery_time?: string;
+
     @ApiProperty({ example: '1000.00' })
     total_amount: string;
 

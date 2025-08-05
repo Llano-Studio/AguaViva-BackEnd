@@ -132,6 +132,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             zone_id: purchase.zone_id,
             purchase_date: purchase.purchase_date.toISOString(),
             scheduled_delivery_date: purchase.scheduled_delivery_date?.toISOString(),
+            delivery_time: purchase.delivery_time,
             total_amount: purchase.total_amount.toString(),
             person: {
                 person_id: purchase.person.person_id,
@@ -244,6 +245,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                         zone: createDto.zone_id ? { connect: { zone_id: createDto.zone_id } } : undefined,
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
                         scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
+                        delivery_time: createDto.delivery_time,
                         total_amount: totalAmount,
                     },
                     include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
@@ -373,6 +375,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             zone: deliveryZoneId ? { connect: { zone_id: deliveryZoneId } } : undefined,
                             purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
                             scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
+                            delivery_time: createDto.delivery_time,
                             total_amount: itemTotalAmount,
                         },
                         include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
@@ -467,6 +470,24 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 where.OR = where.OR.concat(orConditions);
             } else {
                 where.OR = orConditions;
+            }
+        }
+
+        // Validación de rangos de fechas de compra
+        if (purchaseDateFrom && purchaseDateTo) {
+            const fromDate = new Date(purchaseDateFrom);
+            const toDate = new Date(purchaseDateTo);
+            if (toDate < fromDate) {
+                throw new BadRequestException('La fecha de compra "hasta" no puede ser menor que la fecha de compra "desde"');
+            }
+        }
+
+        // Validación de rangos de fechas de entrega
+        if (deliveryDateFrom && deliveryDateTo) {
+            const fromDate = new Date(deliveryDateFrom);
+            const toDate = new Date(deliveryDateTo);
+            if (toDate < fromDate) {
+                throw new BadRequestException('La fecha de entrega "hasta" no puede ser menor que la fecha de entrega "desde"');
             }
         }
 
@@ -608,6 +629,10 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             : { connect: { zone_id: updateDto.zone_id } } 
                     }),
                     purchase_date: updateDto.purchase_date ? new Date(updateDto.purchase_date) : existingPurchase.purchase_date,
+                    ...(updateDto.scheduled_delivery_date !== undefined && { 
+                        scheduled_delivery_date: updateDto.scheduled_delivery_date ? new Date(updateDto.scheduled_delivery_date) : null 
+                    }),
+                    ...(updateDto.delivery_time !== undefined && { delivery_time: updateDto.delivery_time }),
                     total_amount: newTotalAmount.toString(),
                 };
 

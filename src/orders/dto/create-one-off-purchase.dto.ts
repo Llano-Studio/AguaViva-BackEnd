@@ -179,5 +179,13 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   @IsDateString()
   scheduled_delivery_date?: string;
 
+  @ApiPropertyOptional({
+    description: 'Rango de horario de entrega (opcional)',
+    example: '9:00 AM - 12:00 PM'
+  })
+  @IsOptional()
+  @IsString()
+  delivery_time?: string;
+
   // total_amount se calcula automáticamente en el backend basado en los items y la lista de precios seleccionada.
 }
