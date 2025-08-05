@@ -144,9 +144,9 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             }
 
             // 2. Lógica para determinar la naturaleza del movimiento y validar almacenes
-            const movementTypeCodeUpper = movementType.code.toUpperCase();
-            const isEntry = this.entryMovementTypeCodes.includes(movementTypeCodeUpper);
-            const isExit = this.exitMovementTypeCodes.includes(movementTypeCodeUpper);
+            const movementTypeCode = movementType.code;
+            const isEntry = this.entryMovementTypeCodes.includes(movementTypeCode);
+            const isExit = this.exitMovementTypeCodes.includes(movementTypeCode);
 
             let effectiveSourceWarehouseId = source_warehouse_id || null;
             let effectiveDestinationWarehouseId = destination_warehouse_id || null;
@@ -161,7 +161,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                     throw new BadRequestException(`Para un movimiento de salida (${movementType.description}), se requiere source_warehouse_id.`);
                 }
                 effectiveDestinationWarehouseId = null;
-            } else if (this.transferMovementTypeCodes.includes(movementTypeCodeUpper)) {
+            } else if (this.transferMovementTypeCodes.includes(movementTypeCode)) {
                 if (!source_warehouse_id || !destination_warehouse_id) {
                     throw new BadRequestException('Para una transferencia, se requieren source_warehouse_id y destination_warehouse_id.');
                 }
@@ -202,7 +202,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             }
 
             try {
-                if (effectiveSourceWarehouseId && (isExit || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
+                if (effectiveSourceWarehouseId && (isExit || this.transferMovementTypeCodes.includes(movementTypeCode))) {
                     const currentInventorySource = await prismaClient.inventory.findUnique({
                         where: { warehouse_id_product_id: { warehouse_id: effectiveSourceWarehouseId, product_id } },
                     });
@@ -229,7 +229,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                     }
                 }
     
-                if (effectiveDestinationWarehouseId && (isEntry || this.transferMovementTypeCodes.includes(movementTypeCodeUpper))) {
+                if (effectiveDestinationWarehouseId && (isEntry || this.transferMovementTypeCodes.includes(movementTypeCode))) {
                     const currentInventoryDest = await prismaClient.inventory.findUnique({
                         where: { warehouse_id_product_id: { warehouse_id: effectiveDestinationWarehouseId, product_id } },
                     });
