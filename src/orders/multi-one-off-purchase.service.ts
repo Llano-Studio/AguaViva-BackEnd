@@ -389,7 +389,11 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
         // Filtros de fecha de compra
         if (purchaseDateFrom || purchaseDateTo) {
             where.purchase_date = {};
-            if (purchaseDateFrom) where.purchase_date.gte = new Date(purchaseDateFrom);
+            if (purchaseDateFrom) {
+                const fromDate = new Date(purchaseDateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                where.purchase_date.gte = fromDate;
+            }
             if (purchaseDateTo) {
                 const toDate = new Date(purchaseDateTo);
                 toDate.setHours(23, 59, 59, 999);
@@ -399,7 +403,11 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
 
         if (deliveryDateFrom || deliveryDateTo) {
             where.scheduled_delivery_date = {};
-            if (deliveryDateFrom) where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+            if (deliveryDateFrom) {
+                const fromDate = new Date(deliveryDateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                where.scheduled_delivery_date.gte = fromDate;
+            }
             if (deliveryDateTo) {
                 const toDate = new Date(deliveryDateTo);
                 toDate.setHours(23, 59, 59, 999);
@@ -939,7 +947,11 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
 
         if (purchaseDateFrom || purchaseDateTo) {
             where.purchase_date = {};
-            if (purchaseDateFrom) where.purchase_date.gte = new Date(purchaseDateFrom);
+            if (purchaseDateFrom) {
+                const fromDate = new Date(purchaseDateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                where.purchase_date.gte = fromDate;
+            }
             if (purchaseDateTo) {
                 const toDate = new Date(purchaseDateTo);
                 toDate.setHours(23, 59, 59, 999);
@@ -950,7 +962,11 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
         // Filtros de fecha de entrega
         if (deliveryDateFrom || deliveryDateTo) {
             where.scheduled_delivery_date = {};
-            if (deliveryDateFrom) where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+            if (deliveryDateFrom) {
+                const fromDate = new Date(deliveryDateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                where.scheduled_delivery_date.gte = fromDate;
+            }
             if (deliveryDateTo) {
                 const toDate = new Date(deliveryDateTo);
                 toDate.setHours(23, 59, 59, 999);

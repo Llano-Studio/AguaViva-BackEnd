@@ -452,10 +452,28 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
     if (filters.start_date_from || filters.start_date_to) {
       where.start_date = {};
       if (filters.start_date_from) {
-        where.start_date.gte = new Date(filters.start_date_from);
+        const fromDate = new Date(filters.start_date_from);
+        fromDate.setHours(0, 0, 0, 0);
+        where.start_date.gte = fromDate;
       }
       if (filters.start_date_to) {
-        where.start_date.lte = new Date(filters.start_date_to);
+        const toDate = new Date(filters.start_date_to);
+        toDate.setHours(23, 59, 59, 999);
+        where.start_date.lte = toDate;
+      }
+    }
+
+    if (filters.end_date_from || filters.end_date_to) {
+      where.end_date = {};
+      if (filters.end_date_from) {
+        const fromDate = new Date(filters.end_date_from);
+        fromDate.setHours(0, 0, 0, 0);
+        where.end_date.gte = fromDate;
+      }
+      if (filters.end_date_to) {
+        const toDate = new Date(filters.end_date_to);
+        toDate.setHours(23, 59, 59, 999);
+        where.end_date.lte = toDate;
       }
     }
 

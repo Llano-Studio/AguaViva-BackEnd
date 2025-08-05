@@ -282,10 +282,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           whereClause.delivery_date = {}; 
         }
         if (filters.from_date && typeof whereClause.delivery_date === 'object') {
-          (whereClause.delivery_date as Prisma.DateTimeFilter).gte = new Date(filters.from_date);
+          const fromDate = new Date(filters.from_date);
+          fromDate.setHours(0, 0, 0, 0);
+          (whereClause.delivery_date as Prisma.DateTimeFilter).gte = fromDate;
         }
         if (filters.to_date && typeof whereClause.delivery_date === 'object') {
-          (whereClause.delivery_date as Prisma.DateTimeFilter).lte = new Date(filters.to_date);
+          const toDate = new Date(filters.to_date);
+          toDate.setHours(23, 59, 59, 999);
+          (whereClause.delivery_date as Prisma.DateTimeFilter).lte = toDate;
         }
       }
 
@@ -1156,4 +1160,4 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       throw new InternalServerErrorException('Error al actualizar horario de entrega');
     }
   }
-} 
+}
