@@ -769,10 +769,6 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                     throw new BadRequestException('Debe especificar al menos un producto en la compra.');
                 }
 
-                // Tomar el primer item (limitación actual del sistema)
-                const firstItem = createDto.items[0];
-                const product = await prismaTx.product.findUniqueOrThrow({ where: { product_id: firstItem.product_id } });
-                
                 // Buscar o crear el cliente
                 let person = await prismaTx.person.findFirst({
                     where: { phone: createDto.customer.phone }
@@ -802,80 +798,92 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                 // Determinar qué lista de precios usar
                 const priceListId = createDto.price_list_id || BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
                 
-                // Buscar precio en la lista específica
-                let itemPrice = new Decimal(product.price); // Precio base como fallback
-                
-                const priceItem = await prismaTx.price_list_item.findFirst({
-                    where: { 
-                        price_list_id: priceListId,
-                        product_id: firstItem.product_id 
-                    }
-                });
-                
-                if (priceItem) {
-                    itemPrice = new Decimal(priceItem.unit_price);
-                }
-                
-                const totalAmount = itemPrice.mul(firstItem.quantity);
+                let totalAmount = new Decimal(0);
+                const createdPurchases: any[] = [];
 
-                // Verificar stock para productos no retornables
-                if (!product.is_returnable) {
-                    const stockDisponible = await this.inventoryService.getProductStock(
-                        firstItem.product_id, 
-                        BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
-                        prismaTx
-                    );
-                    if (stockDisponible < firstItem.quantity) {
-                        throw new BadRequestException(
-                            `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${firstItem.quantity}.`
+                // Procesar cada item en el array
+                for (const item of createDto.items) {
+                    const product = await prismaTx.product.findUniqueOrThrow({ where: { product_id: item.product_id } });
+                    
+                    // Buscar precio en la lista específica
+                    let itemPrice = new Decimal(product.price); // Precio base como fallback
+                    
+                    const priceItem = await prismaTx.price_list_item.findFirst({
+                        where: { 
+                            price_list_id: priceListId,
+                            product_id: item.product_id 
+                        }
+                    });
+                    
+                    if (priceItem) {
+                        itemPrice = new Decimal(priceItem.unit_price);
+                    }
+                    
+                    const itemTotalAmount = itemPrice.mul(item.quantity);
+                    totalAmount = totalAmount.add(itemTotalAmount);
+
+                    // Verificar stock para productos no retornables
+                    if (!product.is_returnable) {
+                        const stockDisponible = await this.inventoryService.getProductStock(
+                            item.product_id, 
+                            BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
+                            prismaTx
                         );
+                        if (stockDisponible < item.quantity) {
+                            throw new BadRequestException(
+                                `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`
+                            );
+                        }
+                    }
+
+                    // Determinar dirección de entrega
+                    const deliveryAddress = createDto.requires_delivery 
+                        ? (createDto.delivery_address || person.address)
+                        : null;
+
+                    // Determinar localidad y zona para entrega
+                    const deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
+                    const deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
+
+                    const newPurchase = await prismaTx.one_off_purchase.create({
+                        data: {
+                            person: { connect: { person_id: person.person_id } },
+                            product: { connect: { product_id: item.product_id } },
+                            quantity: item.quantity,
+                            sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
+                            delivery_address: deliveryAddress,
+                            locality: deliveryLocalityId ? { connect: { locality_id: deliveryLocalityId } } : undefined,
+                            zone: deliveryZoneId ? { connect: { zone_id: deliveryZoneId } } : undefined,
+                            purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
+                            scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
+                            total_amount: itemTotalAmount,
+                        },
+                        include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
+                    });
+
+                    createdPurchases.push(newPurchase);
+
+                    // Crear movimiento de stock para productos no retornables
+                    if (!product.is_returnable) {
+                        const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
+                            BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
+                            prismaTx
+                        );
+
+                        const stockMovement: CreateStockMovementDto = {
+                            movement_type_id: saleMovementTypeId,
+                            product_id: item.product_id,
+                            quantity: item.quantity,
+                            source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
+                        };
+                        await this.inventoryService.createStockMovement(stockMovement, prismaTx);
                     }
                 }
 
-                // Determinar dirección de entrega
-                const deliveryAddress = createDto.requires_delivery 
-                    ? (createDto.delivery_address || person.address)
-                    : null;
-
-                // Determinar localidad y zona para entrega
-                const deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
-                const deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
-
-                const newPurchase = await prismaTx.one_off_purchase.create({
-                    data: {
-                        person: { connect: { person_id: person.person_id } },
-                        product: { connect: { product_id: firstItem.product_id } },
-                        quantity: firstItem.quantity,
-                        sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
-                        delivery_address: deliveryAddress,
-                        locality: deliveryLocalityId ? { connect: { locality_id: deliveryLocalityId } } : undefined,
-                        zone: deliveryZoneId ? { connect: { zone_id: deliveryZoneId } } : undefined,
-                        purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
-                        scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
-                        total_amount: totalAmount,
-                    },
-                    include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
-                });
-
-                // Crear movimiento de stock para productos no retornables
-                if (!product.is_returnable) {
-                    const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
-                        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
-                        prismaTx
-                    );
-
-                    const stockMovement: CreateStockMovementDto = {
-                        movement_type_id: saleMovementTypeId,
-                        product_id: firstItem.product_id,
-                        quantity: firstItem.quantity,
-                        source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                        movement_date: new Date(),
-                        remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
-                    };
-                    await this.inventoryService.createStockMovement(stockMovement, prismaTx);
-                }
-
-                return this.mapToOneOffPurchaseResponseDto(newPurchase);
+                // Retornar la primera compra creada (para mantener compatibilidad con la respuesta)
+                return this.mapToOneOffPurchaseResponseDto(createdPurchases[0]);
             });
         } catch (error) {
             handlePrismaError(error, 'Compra One-Off con Cliente');
