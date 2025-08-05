@@ -11,13 +11,13 @@ import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderSta
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { LoanedProductDto, LoanedProductDetailDto, PersonResponseDto } from './dto/person-response.dto';
+import { LoanedProductDetailDto, PersonResponseDto } from './dto/person-response.dto';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
-import { BUSINESS_CONFIG, PaymentSemaphoreStatus } from '../common/config/business.config';
+import { PaymentSemaphoreStatus } from '../common/config/business.config';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 
 @Injectable()
@@ -36,95 +36,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     return this.paymentSemaphoreService.getPaymentSemaphoreStatus(personId);
   }
 
-  private async getLoanedProducts(personId: number): Promise<LoanedProductDto[]> {
-    // Buscar todos los pedidos del cliente que estén en estados donde los productos ya fueron entregados
-    // Solo considerar pedidos que están en delivery, entregados, o reembolsados
-    const orders = await this.order_header.findMany({
-      where: {
-        customer_id: personId,
-        status: { 
-          in: [
-            PrismaOrderStatus.IN_DELIVERY,
-            PrismaOrderStatus.DELIVERED,
-            PrismaOrderStatus.REFUNDED
-          ]
-        }
-      },
-      include: {
-        order_item: {
-          where: {
-            product: {
-              is_returnable: true
-            }
-          },
-          include: { 
-            product: true 
-          },
-        },
-      },
-    });
-
-    console.log(`🔍 Buscando productos prestados para cliente ${personId}:`);
-    console.log(`  - Total de pedidos encontrados: ${orders.length}`);
-
-    const productMap = new Map<number, { description: string; loaned_quantity: number }>();
-
-    for (const order of orders) {
-      console.log(`  - Procesando pedido ${order.order_id} (estado: ${order.status}):`);
-      
-      for (const item of order.order_item) {
-        const delivered = item.delivered_quantity ?? 0;
-        const returned = item.returned_quantity ?? 0;
-        const netLoanedForItem = delivered - returned;
-        
-        console.log(`    - Producto ${item.product_id} (${item.product.description}):`);
-        console.log(`      - Cantidad pedida: ${item.quantity}`);
-        console.log(`      - Cantidad entregada: ${delivered}`);
-        console.log(`      - Cantidad devuelta: ${returned}`);
-        console.log(`      - Neto prestado: ${netLoanedForItem}`);
-        
-        // Solo considerar productos que realmente fueron entregados
-        if (delivered > 0 && netLoanedForItem > 0) {
-          const productId = item.product_id;
-          const current = productMap.get(productId) || { 
-            description: item.product.description, 
-            loaned_quantity: 0 
-          };
-          current.loaned_quantity += netLoanedForItem;
-          productMap.set(productId, current);
-          console.log(`      - ✅ Agregado al mapa. Total acumulado: ${current.loaned_quantity}`);
-        } else {
-          if (delivered === 0) {
-            console.log(`      - ❌ No se agrega (no entregado)`);
-          } else {
-            console.log(`      - ❌ No se agrega (neto <= 0)`);
-          }
-        }
-      }
-    }
-
-    const loanedProducts: LoanedProductDto[] = [];
-    for (const [product_id, data] of productMap.entries()) {
-      if (data.loaned_quantity > 0) {
-        loanedProducts.push({ 
-          product_id, 
-          description: data.description, 
-          loaned_quantity: data.loaned_quantity 
-        });
-        console.log(`  - ✅ Producto final: ${data.description} - ${data.loaned_quantity} unidades`);
-      }
-    }
-
-    console.log(`  - Total de productos prestados: ${loanedProducts.length}`);
-    return loanedProducts;
-  }
 
   private mapToPersonResponseDto(
     personEntity: person & {
       locality?: (locality & { province?: (province & { country?: country }) }) | null;
       zone?: zone | null;
     },
-    loanedProducts: LoanedProductDto[],
     loanedProductsDetail: LoanedProductDetailDto[],
     paymentSemaphoreStatus: PaymentSemaphoreStatus
   ): PersonResponseDto {
@@ -141,7 +58,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       registration_date: personEntity.registration_date,
       locality: personEntity.locality as any,
       zone: personEntity.zone as any,
-      loaned_products: loanedProducts,
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
     };
@@ -196,10 +112,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
       });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(newPerson.person_id);
-      const loanedProducts = await this.getLoanedProducts(newPerson.person_id);
       const loanedProductsDetail = await this.getLoanedProductsDetail(newPerson.person_id);
 
-      return this.mapToPersonResponseDto(newPerson, loanedProducts, loanedProductsDetail, semaphoreStatus);
+      return this.mapToPersonResponseDto(newPerson, loanedProductsDetail, semaphoreStatus);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`El teléfono '${dto.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
@@ -309,10 +224,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             continue;
           }
           
-          const loanedProducts = await this.getLoanedProducts(person.person_id);
+        
           const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProducts, loanedProductsDetail, semaphoreStatus)
+            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus)
           );
         }
 
@@ -381,10 +296,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const processedPersons: PersonResponseDto[] = [];
         for (const person of personsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
-          const loanedProducts = await this.getLoanedProducts(person.person_id);
+        
           const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProducts, loanedProductsDetail, semaphoreStatus)
+            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus)
           );
         }
 
@@ -423,10 +338,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (!person) throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`);
 
     const semaphoreStatus = await this.getPaymentSemaphoreStatus(id);
-    const loanedProducts = await this.getLoanedProducts(id);
+    
     const loanedProductsDetail = await this.getLoanedProductsDetail(id);
 
-    return this.mapToPersonResponseDto(person, loanedProducts, loanedProductsDetail, semaphoreStatus);
+    return this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus);
   }
 
   async updatePerson(id: number, dto: UpdatePersonDto): Promise<PersonResponseDto> {
@@ -490,9 +405,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
       });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(updatedPerson.person_id);
-      const loanedProducts = await this.getLoanedProducts(updatedPerson.person_id);
       const loanedProductsDetail = await this.getLoanedProductsDetail(updatedPerson.person_id);
-      return this.mapToPersonResponseDto(updatedPerson, loanedProducts, loanedProductsDetail, semaphoreStatus);
+      return this.mapToPersonResponseDto(updatedPerson, loanedProductsDetail, semaphoreStatus);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`El teléfono '${dto.phone ?? existingPerson.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
@@ -824,70 +738,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
 
     return loanedProductsDetail;
-  }
-
-  async getPublicLoanedProductsByPerson(personId: number): Promise<LoanedProductDto[]> {
-    await this.findPersonById(personId);
-    
-    // Versión sin logs para uso público
-    const orders = await this.order_header.findMany({
-      where: {
-        customer_id: personId,
-        status: { 
-          in: [
-            PrismaOrderStatus.IN_DELIVERY,
-            PrismaOrderStatus.DELIVERED,
-            PrismaOrderStatus.REFUNDED
-          ]
-        }
-      },
-      include: {
-        order_item: {
-          where: {
-            product: {
-              is_returnable: true
-            }
-          },
-          include: { 
-            product: true 
-          },
-        },
-      },
-    });
-
-    const productMap = new Map<number, { description: string; loaned_quantity: number }>();
-
-    for (const order of orders) {
-      for (const item of order.order_item) {
-        const delivered = item.delivered_quantity ?? 0;
-        const returned = item.returned_quantity ?? 0;
-        const netLoanedForItem = delivered - returned;
-        
-        // Solo considerar productos que realmente fueron entregados
-        if (delivered > 0 && netLoanedForItem > 0) {
-          const productId = item.product_id;
-          const current = productMap.get(productId) || { 
-            description: item.product.description, 
-            loaned_quantity: 0 
-          };
-          current.loaned_quantity += netLoanedForItem;
-          productMap.set(productId, current);
-        }
-      }
-    }
-
-    const loanedProducts: LoanedProductDto[] = [];
-    for (const [product_id, data] of productMap.entries()) {
-      if (data.loaned_quantity > 0) {
-        loanedProducts.push({ 
-          product_id, 
-          description: data.description, 
-          loaned_quantity: data.loaned_quantity 
-        });
-      }
-    }
-
-    return loanedProducts;
   }
 
   async getPublicLoanedProductsDetailByPerson(personId: number): Promise<LoanedProductDetailDto[]> {

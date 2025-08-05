@@ -14,7 +14,7 @@ import { PersonType } from '../common/constants/enums';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
-import { LoanedProductDto, LoanedProductDetailDto } from './dto/person-response.dto';
+import { LoanedProductDetailDto } from './dto/person-response.dto';
 
 class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
@@ -240,22 +240,6 @@ export class PersonsController {
     @Body(ValidationPipe) changeContractPriceListDto: ChangeContractPriceListDto,
   ) {
     return this.personsService.changeContractPriceList(personId, changeContractPriceListDto);
-  }
-
-  @Get(':id/loaned-products')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Obtener los productos en comodato/alquiler para una persona' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Lista de productos en comodato/alquiler obtenida.', 
-    type: [LoanedProductDto] 
-  })
-  @ApiResponse({ status: 404, description: 'Persona no encontrada.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
-  async getLoanedProductsForPerson(
-    @Param('id', ParseIntPipe) id: number
-  ): Promise<LoanedProductDto[]> {
-    return this.personsService.getPublicLoanedProductsByPerson(id);
   }
 
   @Get(':id/loaned-products-detail')
