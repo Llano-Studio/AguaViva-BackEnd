@@ -475,6 +475,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
         // Validación de rangos de fechas de compra
         if (purchaseDateFrom && purchaseDateTo) {
+            console.log('Validando fechas de compra:', { purchaseDateFrom, purchaseDateTo });
             const fromDate = new Date(purchaseDateFrom);
             const toDate = new Date(purchaseDateTo);
             if (toDate < fromDate) {
@@ -493,6 +494,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
         if (purchaseDateFrom || purchaseDateTo) {
             where.purchase_date = {};
+            
             if (purchaseDateFrom) {
                 const fromDate = new Date(purchaseDateFrom);
                 fromDate.setHours(0, 0, 0, 0);
@@ -502,6 +504,15 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 const toDate = new Date(purchaseDateTo);
                 toDate.setHours(23, 59, 59, 999);
                 where.purchase_date.lte = toDate;
+            }
+            
+            // Log para debugging del filtrado de fechas
+            if (purchaseDateFrom && purchaseDateTo) {
+                console.log('Fechas convertidas:', {
+                    fromDate: where.purchase_date.gte,
+                    toDate: where.purchase_date.lte,
+                    isInvalid: false
+                });
             }
         }
 
