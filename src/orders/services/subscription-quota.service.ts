@@ -170,36 +170,9 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       throw new BadRequestException(`No se pudo obtener o crear un ciclo activo para la suscripción ${subscriptionId}.`);
     }
 
-    // 🆕 NUEVO: Verificar si todos los créditos están agotados y crear nuevo ciclo si es necesario
-    const allCreditsExhausted = currentCycle.subscription_cycle_detail.every(
-      detail => detail.remaining_balance === 0
-    );
-    
-    if (allCreditsExhausted) {
-      console.log(`🆕 Todos los créditos del ciclo ${currentCycle.cycle_id} están agotados. Creando nuevo ciclo...`);
-      
-      // Eliminar el ciclo anterior agotado
-      await prisma.subscription_cycle.delete({
-        where: { cycle_id: currentCycle.cycle_id }
-      });
-      
-      const newCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
-      
-      if (!newCycle) {
-        throw new BadRequestException(`No se pudo crear un nuevo ciclo para la suscripción ${subscriptionId}.`);
-      }
-      
-      console.log(`🆕 Nuevo ciclo creado: ${newCycle.cycle_id}`);
-      console.log(`🆕 Nuevos detalles del ciclo:`, newCycle.subscription_cycle_detail.map(d => ({
-        product_id: d.product_id,
-        product_name: d.product.description,
-        planned_quantity: d.planned_quantity,
-        remaining_balance: d.remaining_balance
-      })));
-      
-      // Usar el nuevo ciclo en lugar del anterior
-      currentCycle = newCycle;
-    }
+    // Los ciclos se renuevan automáticamente solo por fecha (mensualmente), 
+    // no por agotamiento de créditos. Si no hay créditos disponibles, 
+    // los productos adicionales se cobran como productos individuales.
 
     console.log(`🆕 Ciclo actual encontrado: ${currentCycle.cycle_id}`);
     console.log(`🆕 Detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
@@ -410,4 +383,4 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     
     console.log(`  - ✅ Reinicio de créditos completado`);
   }
-} 
+}

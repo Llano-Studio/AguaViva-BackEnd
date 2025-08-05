@@ -131,9 +131,44 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
           notes,
         },
         include: {
-          subscription_plan: true,
+          subscription_plan: {
+            include: {
+              subscription_plan_product: true
+            }
+          },
         },
       });
+
+      // Crear el primer ciclo de suscripción automáticamente
+      const firstCycleStartDate = new Date(createDto.start_date);
+      const firstCycleEndDate = new Date(firstCycleStartDate);
+      firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1);
+      firstCycleEndDate.setDate(firstCycleStartDate.getDate() - 1);
+      firstCycleEndDate.setHours(23, 59, 59, 999);
+
+      const firstCycle = await this.subscription_cycle.create({
+        data: {
+          subscription_id: subscription.subscription_id,
+          cycle_start: firstCycleStartDate,
+          cycle_end: firstCycleEndDate,
+          notes: 'Primer ciclo creado automáticamente al crear la suscripción',
+        },
+      });
+
+      // Crear los detalles del ciclo con las cantidades planificadas del plan
+      for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
+        await this.subscription_cycle_detail.create({
+          data: {
+            cycle_id: firstCycle.cycle_id,
+            product_id: planProduct.product_id,
+            planned_quantity: planProduct.product_quantity,
+            delivered_quantity: 0,
+            remaining_balance: planProduct.product_quantity,
+          },
+        });
+      }
+
+      this.logger.log(`Created first cycle for subscription ${subscription.subscription_id} from ${firstCycleStartDate.toISOString().split('T')[0]} to ${firstCycleEndDate.toISOString().split('T')[0]}`);
 
       // Crear horarios de entrega según delivery_preferences
       if (createDto.delivery_preferences?.preferred_days && createDto.delivery_preferences.preferred_time_range) {
@@ -746,4 +781,4 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
 
     return schedules.map(schedule => new SubscriptionDeliveryScheduleResponseDto(schedule));
   }
-} 
+}

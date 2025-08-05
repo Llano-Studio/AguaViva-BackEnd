@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
@@ -27,6 +28,7 @@ import environmentConfig from './common/config/environment.config';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     CommonModule,
     PersonsModule, 
     AuthModule,

@@ -39,13 +39,17 @@ import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { SubscriptionCycleRenewalService } from '../common/services/subscription-cycle-renewal.service';
 
 @ApiTags('Suscripciones de Clientes')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, UserRolesGuard)
 @Controller('customer-subscriptions')
 export class CustomerSubscriptionController {
-  constructor(private readonly customerSubscriptionService: CustomerSubscriptionService) {}
+  constructor(
+    private readonly customerSubscriptionService: CustomerSubscriptionService,
+    private readonly subscriptionCycleRenewalService: SubscriptionCycleRenewalService
+  ) {}
 
   @Post()
   @Auth(Role.SUPERADMIN)
@@ -397,8 +401,26 @@ export class CustomerSubscriptionController {
     type: [SubscriptionDeliveryScheduleResponseDto],
   })
   async getDeliverySchedulesByDay(
-    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
-  ): Promise<SubscriptionDeliveryScheduleResponseDto[]> {
-    return this.customerSubscriptionService.findDeliverySchedulesByDay(dayOfWeek);
+     @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
+   ): Promise<SubscriptionDeliveryScheduleResponseDto[]> {
+     return this.customerSubscriptionService.findDeliverySchedulesByDay(dayOfWeek);
+   }
+
+  @Post('admin/force-cycle-renewal')
+  @Auth(Role.SUPERADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Forzar renovación de ciclos',
+    description: 'Ejecuta manualmente la renovación de ciclos de suscripción expirados (solo para administradores)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Renovación de ciclos ejecutada exitosamente'
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  async forceCycleRenewal(): Promise<{ message: string }> {
+    await this.subscriptionCycleRenewalService.forceRenewalCheck();
+    return { message: 'Renovación de ciclos ejecutada exitosamente' };
   }
-} 
+}
