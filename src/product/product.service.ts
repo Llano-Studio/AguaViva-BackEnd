@@ -508,7 +508,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     } else if (stockDifference !== 0) {
       // Existe inventario, crear movimiento de ajuste
       const isPositiveAdjustment = stockDifference > 0;
-      const movementTypeCode = isPositiveAdjustment ? 'AJUSTE_POSITIVO' : 'AJUSTE_NEGATIVO';
+      const movementTypeCode = isPositiveAdjustment ? BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_POSITIVO : BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_NEGATIVO;
       
       const movementTypeId = await this.inventoryService.getMovementTypeIdByCode(movementTypeCode, tx);
       

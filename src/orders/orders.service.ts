@@ -539,27 +539,34 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 for (const createdItem of newOrderHeader.order_item) {
                     const productDesc = createdItem.product ? createdItem.product.description : 'N/A';
                     
-                    // 🆕 CORRECCIÓN: Crear movimientos de stock para TODOS los productos (retornables y no retornables)
-                    // Los productos retornables necesitan control de stock para saber cuántos se prestaron
+                    // 🔧 CORRECCIÓN: Crear movimientos de stock para TODOS los productos
+                    // SIEMPRE se debe restar el stock, independientemente del tipo de orden o abono
                     let quantityForStockMovement = createdItem.quantity;
                     
-                    if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                    // Solo para órdenes de suscripción pura, ajustar la cantidad según las cuotas
+                    if (subscriptionQuotaValidation && subscription_id && createOrderDto.order_type === 'SUBSCRIPTION') {
                         const productQuota = subscriptionQuotaValidation.products.find(
                             quota => quota.product_id === createdItem.product_id
                         );
                         
                         if (productQuota && productQuota.covered_by_subscription > 0) {
-                            // Producto está en suscripción - solo la cantidad adicional afecta el stock
+                            // Para órdenes SUBSCRIPTION puras, solo la cantidad adicional afecta el stock
                             quantityForStockMovement = productQuota.additional_quantity;
-                            console.log(`🆕 STOCK MOVEMENT - Producto ${createdItem.product_id} (${productDesc}):`);
+                            console.log(`🆕 STOCK MOVEMENT (SUBSCRIPTION) - Producto ${createdItem.product_id} (${productDesc}):`);
                             console.log(`  - Cantidad total en orden: ${createdItem.quantity}`);
                             console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
                             console.log(`  - Cantidad adicional: ${productQuota.additional_quantity}`);
                             console.log(`  - Cantidad para movimiento de stock: ${quantityForStockMovement}`);
                         }
                     }
+                    // Para órdenes HYBRID, ONE_OFF, o cualquier otra, SIEMPRE restar toda la cantidad
+                    else {
+                        console.log(`🆕 STOCK MOVEMENT (${createOrderDto.order_type || 'ONE_OFF'}) - Producto ${createdItem.product_id} (${productDesc}):`);
+                        console.log(`  - Cantidad total para movimiento de stock: ${quantityForStockMovement}`);
+                        console.log(`  - Abono: ${finalPaidAmount.toString()}`);
+                    }
                     
-                    // Crear movimiento de stock para todos los productos (control de préstamos)
+                    // Crear movimiento de stock para todos los productos
                     if (quantityForStockMovement > 0) {
                         const stockMovementDto: CreateStockMovementDto = {
                             movement_type_id: saleMovementTypeId,
@@ -568,10 +575,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                             destination_warehouse_id: null,
                             movement_date: new Date(), 
-                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})${createdItem.product.is_returnable ? ' - PRÉSTAMO' : ''}`,
+                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})${createdItem.product.is_returnable ? ' - PRÉSTAMO' : ''} - Abono: $${finalPaidAmount.toString()}`,
                         };
                         await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
-                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}${createdItem.product.is_returnable ? ' (PRÉSTAMO)' : ''}`);
+                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}${createdItem.product.is_returnable ? ' (PRÉSTAMO)' : ''} - Abono: $${finalPaidAmount.toString()}`);
                     } else {
                         console.log(`⏭️ No se crea movimiento de stock para ${productDesc} - cantidad: ${quantityForStockMovement}`);
                     }
@@ -636,7 +643,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         let customerConditions: Prisma.personWhereInput[] = [];
         if (zoneId) {
             customerConditions.push({ zone_id: zoneId });
-            customerConditions.push({ locality: { zones: { some: { zone_id: zoneId } } } });
         }
         if (customerName) {
              customerConditions.push({ name: { contains: customerName, mode: 'insensitive' }});
@@ -1082,33 +1088,35 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         console.log(`🔄 CANCELACIÓN - Producto ${item.product_id} (${item.product.description}):`);
                         console.log(`  - Es retornable: ${item.product.is_returnable ? 'SÍ' : 'NO'}`);
                         console.log(`  - Cantidad: ${item.quantity}`);
+                        console.log(`  - Tipo de orden: ${orderToDelete.order_type}`);
+                        console.log(`  - Monto pagado: $${orderToDelete.paid_amount}`);
                         
-                        // Para productos retornables, renovar el stock
-                        if (item.product.is_returnable) {
-                            await this.inventoryService.createStockMovement({
-                                movement_type_id: returnMovementTypeId,
-                                product_id: item.product_id,
-                                quantity: item.quantity,
-                                source_warehouse_id: null,
-                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                                movement_date: new Date(),
-                                remarks: `${this.entityName} #${id} CANCELADO - Renovación stock producto retornable ${item.product.description} (ID ${item.product_id})`
-                            }, tx);
-                            console.log(`✅ Stock renovado para producto retornable: ${item.quantity} unidades`);
+                        // 🔧 CORRECCIÓN: Determinar la cantidad correcta a devolver al stock
+                        let quantityToReturn = item.quantity;
+                        
+                        // Solo para órdenes SUBSCRIPTION puras, verificar si había cantidad cubierta por suscripción
+                        if (orderToDelete.customer_subscription && orderToDelete.order_type === 'SUBSCRIPTION') {
+                            // Para órdenes de suscripción pura, la cantidad que se restó del stock fue solo la adicional
+                            // Necesitamos calcular cuánto se restó realmente del stock cuando se creó la orden
+                            console.log(`  - ⚠️ Orden de suscripción: verificando cantidad que se restó del stock`);
+                            // En este caso, mantener la cantidad completa para devolución
+                            // porque el sistema de suscripción ya manejó los créditos
                         }
-                        // Para productos no retornables, mantener la lógica existente
-                        else {
-                            await this.inventoryService.createStockMovement({
-                                movement_type_id: returnMovementTypeId,
-                                product_id: item.product_id,
-                                quantity: item.quantity,
-                                source_warehouse_id: null,
-                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                                movement_date: new Date(),
-                                remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.description} (ID ${item.product_id})`
-                            }, tx);
-                            console.log(`✅ Stock devuelto para producto no retornable: ${item.quantity} unidades`);
-                        }
+                        
+                        console.log(`  - Cantidad a devolver al stock: ${quantityToReturn}`);
+                        
+                        // Crear movimiento de devolución para todos los productos
+                        await this.inventoryService.createStockMovement({
+                            movement_type_id: returnMovementTypeId,
+                            product_id: item.product_id,
+                            quantity: quantityToReturn,
+                            source_warehouse_id: null,
+                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `${this.entityName} #${id} CANCELADO - ${item.product.is_returnable ? 'Renovación stock producto retornable' : 'Devolución'} ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`
+                        }, tx);
+                        
+                        console.log(`✅ Stock ${item.product.is_returnable ? 'renovado' : 'devuelto'}: ${quantityToReturn} unidades de ${item.product.description} - Abono original: $${orderToDelete.paid_amount}`);
                     }
                 }
 

@@ -171,5 +171,13 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   @IsDateString()
   purchase_date?: string;
 
+  @ApiPropertyOptional({
+    description: 'Fecha programada de entrega del pedido en formato ISO (opcional)',
+    example: '2024-03-21T14:00:00Z'
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduled_delivery_date?: string;
+
   // total_amount se calcula automáticamente en el backend basado en los items y la lista de precios seleccionada.
-} 
+}

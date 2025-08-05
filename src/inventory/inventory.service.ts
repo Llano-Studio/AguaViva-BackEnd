@@ -7,6 +7,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { FilterInventoryDto, PaginatedInventoryResponseDto, InventoryDetailDto } from './dto/filter-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()
 export class InventoryService extends PrismaClient implements OnModuleInit {
@@ -16,24 +17,28 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     private readonly entityNameProduct = 'Producto';
     private readonly entityNameWarehouse = 'Almacén';
 
-    // Es VITAL que estos códigos coincidan con los de tu tabla `movement_type`
-    private movementTypeCodes = {
-        INGRESO_PRODUCCION: 'INGRESO_PRODUCCION',
-        INGRESO_COMPRA_EXTERNA: 'INGRESO_COMPRA_EXTERNA',
-        INGRESO_DEVOLUCION_COMODATO: 'INGRESO_DEVOLUCION_COMODATO',
-        AJUSTE_POSITIVO: 'AJUSTE_POSITIVO',
-        TRANSFERENCIA_ENTRADA: 'TRANSFERENCIA_ENTRADA',
-        EGRESO_VENTA_PRODUCTO: 'EGRESO_VENTA_PRODUCTO',
-        EGRESO_ENTREGA_COMODATO: 'EGRESO_ENTREGA_COMODATO',
-        AJUSTE_NEGATIVO: 'AJUSTE_NEGATIVO',
-        TRANSFERENCIA_SALIDA: 'TRANSFERENCIA_SALIDA',
-        INGRESO_DEVOLUCION_PEDIDO_CANCELADO: 'INGRESO_DEVOLUCION_PEDIDO_CANCELADO',
-    };
+    // Los códigos de tipos de movimiento ahora se obtienen desde BUSINESS_CONFIG
 
-    // DEBES AJUSTAR ESTOS CÓDIGOS A LOS VALORES REALES DE TU BASE DE DATOS
-    private entryMovementTypeCodes = ['ENTRADA_COMPRA', 'AJUSTE_ENTRADA', 'DEVOLUCION_CLIENTE', 'INGRESO_PRODUCCION', 'INGRESO_COMPRA_EXTERNA', 'INGRESO_DEVOLUCION_COMODATO', 'AJUSTE_POSITIVO', 'TRANSFERENCIA_ENTRADA'];
-    private exitMovementTypeCodes = ['SALIDA_VENTA', 'AJUSTE_SALIDA', 'MERMA', 'TRANSFER_SALIDA', 'EGRESO_VENTA_PRODUCTO', 'EGRESO_ENTREGA_COMODATO', 'AJUSTE_NEGATIVO'];
-    // No es necesario para getProductStock, pero útil para la creación de movimientos si se quiere
+    // Códigos de tipos de movimiento obtenidos desde BUSINESS_CONFIG
+    private entryMovementTypeCodes: string[] = [
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_PRODUCCION,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_COMPRA_EXTERNA,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_COMODATO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_POSITIVO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.TRANSFERENCIA_ENTRADA,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_PEDIDO_CANCELADO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_CLIENTE,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_VENTA_UNICA,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA
+    ];
+    private exitMovementTypeCodes: string[] = [
+        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_ENTREGA_COMODATO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_NEGATIVO,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
+        BUSINESS_CONFIG.MOVEMENT_TYPES.TRANSFERENCIA_SALIDA
+    ];
+    // Códigos de transferencia
     private transferMovementTypeCodes = ['TRANSFERENCIA'];
 
     constructor() {
@@ -425,8 +430,8 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                         where: { 
                             OR: [
                                 { code: 'INVENTARIO_INICIAL' },
-                                { code: 'AJUSTE_POSITIVO' },
-                                { code: 'INGRESO_PRODUCCION' }
+                                { code: BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_POSITIVO },
+                                { code: BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_PRODUCCION }
                             ]
                         }
                     });
@@ -470,4 +475,4 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             throw new InternalServerErrorException(`Error en la transacción al crear ${this.entityNameInventory.toLowerCase()} inicial.`);
         }
     }
-} 
+}

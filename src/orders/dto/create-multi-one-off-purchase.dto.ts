@@ -194,6 +194,14 @@ Ejemplos:
   purchase_date?: string;
 
   @ApiPropertyOptional({
+    description: 'Fecha programada de entrega del pedido',
+    example: '2024-03-21T14:00:00Z'
+  })
+  @IsOptional()
+  @IsDateString()
+  scheduled_delivery_date?: string;
+
+  @ApiPropertyOptional({
     description: 'Monto pagado hasta el momento',
     example: '150.50',
     type: 'string'
@@ -236,4 +244,4 @@ Ejemplos:
   @IsOptional()
   @IsEnum(['PENDING', 'IN_TRANSIT', 'DELIVERED', 'FAILED'])
   delivery_status?: string;
-} 
+}

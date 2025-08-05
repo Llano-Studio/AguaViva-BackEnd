@@ -8,35 +8,16 @@ async function main() {
 
   // 1. Crear tipos de movimiento
   console.log('📋 Creando tipos de movimiento...');
-  // Mapeo de códigos largos a códigos cortos que caben en la BD (max 10 chars)
+  // Tipos de movimiento según la base de datos
   const movementTypes = [
-    {
-      code: 'ING_PROD',
-      description: 'Ingreso por producción'
-    },
+    // Egresos (Salidas de inventario)
     {
       code: 'EGR_VENTA',
       description: 'Egreso por venta de producto'
     },
     {
-      code: 'ING_DEV_PC',
-      description: 'Ingreso por devolución de pedido cancelado'
-    },
-    {
-      code: 'ING_DEV_CL',
-      description: 'Ingreso por devolución de cliente'
-    },
-    {
       code: 'EGR_V_UNI',
       description: 'Egreso por venta única'
-    },
-    {
-      code: 'ING_DV_VU',
-      description: 'Ingreso por devolución de venta única'
-    },
-    {
-      code: 'ING_DV_VUC',
-      description: 'Ingreso por devolución de venta única cancelada'
     },
     {
       code: 'EGR_COMOD',
@@ -49,6 +30,44 @@ async function main() {
     {
       code: 'TRANS_SAL',
       description: 'Transferencia de salida'
+    },
+    // Ingresos (Entradas de inventario)
+    {
+      code: 'ING_DEV_PC',
+      description: 'Ingreso por devolución de pedido cancelado'
+    },
+    {
+      code: 'ING_DEV_CL',
+      description: 'Ingreso por devolución de cliente'
+    },
+    {
+      code: 'ING_DV_VU',
+      description: 'Ingreso por devolución de venta única'
+    },
+    {
+      code: 'ING_DV_VUC',
+      description: 'Ingreso por devolución de venta única cancelada'
+    },
+    // Tipos adicionales
+    {
+      code: 'ING_PROD',
+      description: 'Ingreso por producción'
+    },
+    {
+      code: 'ING_COMP_EXT',
+      description: 'Ingreso por compra externa'
+    },
+    {
+      code: 'ING_DEV_COM',
+      description: 'Ingreso por devolución de comodato'
+    },
+    {
+      code: 'AJ_POS',
+      description: 'Ajuste positivo de inventario'
+    },
+    {
+      code: 'TRANS_ENT',
+      description: 'Transferencia de entrada'
     }
   ];
 

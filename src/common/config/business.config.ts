@@ -26,25 +26,25 @@ export const BUSINESS_CONFIG = {
 
   // Códigos de tipos de movimiento de stock
   MOVEMENT_TYPES: {
-    INGRESO_DEVOLUCION_CLIENTE: 'INGRESO_DEVOLUCION_CLIENTE',
-    INGRESO_DEVOLUCION_PEDIDO_CANCELADO: 'INGRESO_DEVOLUCION_PEDIDO_CANCELADO',
-    // Ingresos
-    INGRESO_PRODUCCION: 'INGRESO_PRODUCCION',
-    INGRESO_COMPRA_EXTERNA: 'INGRESO_COMPRA_EXTERNA',
-    INGRESO_DEVOLUCION_COMODATO: 'INGRESO_DEVOLUCION_COMODATO',
-    AJUSTE_POSITIVO: 'AJUSTE_POSITIVO',
-    TRANSFERENCIA_ENTRADA: 'TRANSFERENCIA_ENTRADA',
+    // Egresos (Salidas de inventario)
+    EGRESO_VENTA_PRODUCTO: 'EGR_VENTA', // Egreso por venta de producto
+    EGRESO_VENTA_UNICA: 'EGR_V_UNI', // Egreso por venta única
+    EGRESO_ENTREGA_COMODATO: 'EGR_COMOD', // Egreso por entrega en comodato
+    AJUSTE_NEGATIVO: 'AJ_NEG', // Ajuste negativo de inventario
+    TRANSFERENCIA_SALIDA: 'TRANS_SAL', // Transferencia de salida
     
-    // Egresos
-    EGRESO_VENTA_PRODUCTO: 'EGRESO_VENTA_PRODUCTO',
-    EGRESO_ENTREGA_COMODATO: 'EGRESO_ENTREGA_COMODATO',
-    AJUSTE_NEGATIVO: 'AJUSTE_NEGATIVO',
-    TRANSFERENCIA_SALIDA: 'TRANSFERENCIA_SALIDA',
+    // Ingresos (Entradas de inventario)
+    INGRESO_DEVOLUCION_PEDIDO_CANCELADO: 'ING_DEV_PC', // Ingreso por devolución de pedido cancelado
+    INGRESO_DEVOLUCION_CLIENTE: 'ING_DEV_CL', // Ingreso por devolución de cliente
+    INGRESO_DEVOLUCION_VENTA_UNICA: 'ING_DV_VU', // Ingreso por devolución de venta única
+    INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA: 'ING_DV_VUC', // Ingreso por devolución de venta única cancelada
     
-    // One-off purchases
-    EGRESO_VENTA_UNICA: 'EGR_V_UNI',
-    INGRESO_DEVOLUCION_VENTA_UNICA: 'ING_DV_VU',
-    INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA: 'ING_DV_VUC',
+    // Tipos adicionales con códigos de base de datos
+    INGRESO_PRODUCCION: 'ING_PROD',
+    INGRESO_COMPRA_EXTERNA: 'ING_COMP_EXT',
+    INGRESO_DEVOLUCION_COMODATO: 'ING_DEV_COM',
+    AJUSTE_POSITIVO: 'AJ_POS',
+    TRANSFERENCIA_ENTRADA: 'TRANS_ENT',
   },
 
   // Configuración de semáforo de pagos
@@ -63,4 +63,4 @@ export const BUSINESS_CONFIG = {
 
 // Tipos para mejor type safety
 export type MovementTypeCode = keyof typeof BUSINESS_CONFIG.MOVEMENT_TYPES;
-export type PaymentSemaphoreStatus = 'NONE' | 'GREEN' | 'YELLOW' | 'RED'; 
+export type PaymentSemaphoreStatus = 'NONE' | 'GREEN' | 'YELLOW' | 'RED';

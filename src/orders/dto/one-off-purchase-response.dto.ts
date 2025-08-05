@@ -62,6 +62,9 @@ export class OneOffPurchaseResponseDto {
     @ApiProperty({ example: '2024-03-25T10:00:00Z' })
     purchase_date: string;
 
+    @ApiProperty({ example: '2024-03-26T14:00:00Z', nullable: true })
+    scheduled_delivery_date?: string;
+
     @ApiProperty({ example: '1000.00' })
     total_amount: string;
 
@@ -79,4 +82,4 @@ export class OneOffPurchaseResponseDto {
 
     @ApiProperty({ type: OneOffPurchaseZoneResponseDto, nullable: true })
     zone?: OneOffPurchaseZoneResponseDto;
-} 
+}

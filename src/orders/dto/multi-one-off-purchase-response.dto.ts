@@ -67,6 +67,9 @@ export class MultiOneOffPurchaseResponseDto {
   @ApiProperty({ description: 'Fecha de la compra', example: '2024-03-20T10:00:00.000Z' })
   purchase_date: string;
 
+  @ApiPropertyOptional({ description: 'Fecha programada de entrega', example: '2024-03-21T14:00:00.000Z' })
+  scheduled_delivery_date?: string;
+
   @ApiProperty({ description: 'Monto total de la compra', example: '125.50' })
   total_amount: string;
 
@@ -163,4 +166,4 @@ export class MultiOneOffPurchaseResponseDto {
     type: [MultiOneOffPurchaseItemResponseDto]
   })
   purchase_items: MultiOneOffPurchaseItemResponseDto[];
-} 
+}

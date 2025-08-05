@@ -49,6 +49,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             person_id: purchase.person_id,
             sale_channel_id: purchase.sale_channel_id,
             purchase_date: purchase.purchase_date.toISOString(),
+            scheduled_delivery_date: purchase.scheduled_delivery_date?.toISOString(),
             total_amount: purchase.total_amount.toString(),
             paid_amount: purchase.paid_amount.toString(),
             delivery_address: purchase.delivery_address || undefined,
@@ -242,6 +243,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                         person: { connect: { person_id: personId } },
                         sale_channel: { connect: { sale_channel_id: createDto.sale_channel_id } },
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
+                        scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
                         total_amount: totalAmount,
                         paid_amount: new Decimal(createDto.paid_amount || '0.00'),
                         delivery_address: deliveryAddress,
@@ -618,6 +620,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             locality_id: purchase.locality_id,
             zone_id: purchase.zone_id,
             purchase_date: purchase.purchase_date.toISOString(),
+            scheduled_delivery_date: purchase.scheduled_delivery_date?.toISOString(),
             total_amount: purchase.total_amount.toString(),
             person: {
                 person_id: purchase.person.person_id,
@@ -729,6 +732,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                         locality: createDto.locality_id ? { connect: { locality_id: createDto.locality_id } } : undefined,
                         zone: createDto.zone_id ? { connect: { zone_id: createDto.zone_id } } : undefined,
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
+                        scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
                         total_amount: totalAmount,
                     },
                     include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
@@ -853,6 +857,7 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
                         locality: deliveryLocalityId ? { connect: { locality_id: deliveryLocalityId } } : undefined,
                         zone: deliveryZoneId ? { connect: { zone_id: deliveryZoneId } } : undefined,
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
+                        scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
                         total_amount: totalAmount,
                     },
                     include: { product: true, person: true, sale_channel: true, locality: true, zone: true },
@@ -1178,4 +1183,4 @@ export class MultiOneOffPurchaseService extends PrismaClient implements OnModule
             throw error;
         }
     }
-} 
+}
