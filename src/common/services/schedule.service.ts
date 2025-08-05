@@ -143,17 +143,33 @@ export class ScheduleService {
     }
 
     // Validar tiempo mínimo de anticipación
-    if (deliveryDate < minDate) {
-      const suggestedDate = this.getNextWorkingDay(minDate);
-      const hoursText = BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS === 0 
-        ? 'inmediato' 
-        : `${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`;
+    // Si MINIMUM_ADVANCE_HOURS es 0, permitir entregas el mismo día
+    if (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS === 0) {
+      // Para pedidos inmediatos, solo validar que sea el mismo día o posterior
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const deliveryDateOnly = new Date(deliveryDate);
+      deliveryDateOnly.setHours(0, 0, 0, 0);
       
-      return {
-        isValid: false,
-        message: `Se requiere al menos ${hoursText}`,
-        suggestedDate
-      };
+      if (deliveryDateOnly < today) {
+        return {
+          isValid: false,
+          message: 'No se pueden programar entregas en fechas pasadas',
+          suggestedDate: this.getNextWorkingDay(new Date())
+        };
+      }
+    } else {
+      // Para otros casos, aplicar la validación normal de horas mínimas
+      if (deliveryDate < minDate) {
+        const suggestedDate = this.getNextWorkingDay(minDate);
+        const hoursText = `${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`;
+        
+        return {
+          isValid: false,
+          message: `Se requiere al menos ${hoursText}`,
+          suggestedDate
+        };
+      }
     }
 
     // Validar tiempo máximo de anticipación
@@ -266,4 +282,4 @@ export class ScheduleService {
 
     return deliveries;
   }
-} 
+}
