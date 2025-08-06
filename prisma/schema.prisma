@@ -75,6 +75,7 @@ model zone {
   delivery_stats             delivery_stats[]
   one_off_purchase           one_off_purchase[]
   one_off_purchase_headers   one_off_purchase_header[]
+  order_header               order_header[]
   person                     person[]
   vehicle_zone               vehicle_zone[]
   locality                   locality                      @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
@@ -128,6 +129,7 @@ model price_list {
   one_off_purchase_items_individual one_off_purchase_item[]   @relation("ItemPriceList")
   order_items_individual            order_item[]              @relation("OrderItemPriceList")
   price_list_item                   price_list_item[]
+  one_off_purchases                 one_off_purchase[]
 }
 
 model price_list_item {
@@ -341,11 +343,13 @@ model order_header {
   status                  OrderStatus
   notes                   String?
   subscription_id         Int?
+  zone_id                 Int?                     @db.SmallInt
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
   customer                person                   @relation("OrderHeaderToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   customer_subscription   customer_subscription?   @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                    zone?                    @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
   order_item              order_item[]
   payment_transaction     payment_transaction[]
   route_sheet_detail      route_sheet_detail[]
@@ -382,6 +386,7 @@ model one_off_purchase {
   product_id             Int
   quantity               Int
   total_amount           Decimal      @db.Decimal(10, 2)
+  paid_amount            Decimal      @default(0) @db.Decimal(10, 2)
   purchase_date          DateTime     @default(now()) @db.Timestamp(6)
   scheduled_delivery_date DateTime?   @db.Timestamp(6)
   delivery_time          String?      @db.VarChar(50)
@@ -389,11 +394,14 @@ model one_off_purchase {
   delivery_address       String?
   locality_id            Int?         @db.SmallInt
   zone_id                Int?         @db.SmallInt
+  price_list_id          Int?
+  notes                  String?
   locality               locality?    @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
   person                 person       @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   product                product      @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
   sale_channel           sale_channel @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
   zone                   zone?        @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list             price_list?  @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model one_off_purchase_header {
@@ -582,7 +590,7 @@ model route_sheet_detail {
   route_sheet_id         Int
   order_id               Int
   delivery_status        String                  @db.VarChar(20)
-  delivery_time          DateTime?               @db.Timestamp(6)
+  delivery_time          String?                 @db.VarChar(50)
   comments               String?
   digital_signature_id   String?                 @db.VarChar(100)
   actual_arrival_time    DateTime?

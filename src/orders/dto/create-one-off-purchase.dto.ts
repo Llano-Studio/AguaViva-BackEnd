@@ -5,7 +5,7 @@ import { PersonType } from '../../common/constants/enums';
 
 export class CreateOneOffPurchaseItemDto {
   @ApiProperty({
-    description: 'ID del producto a comprar',
+    description: 'ID del producto a comprar. ⚠️ VALIDACIÓN: El producto debe existir en la base de datos.',
     example: 1
   })
   @IsInt()
@@ -21,6 +21,14 @@ export class CreateOneOffPurchaseItemDto {
   @Min(1)
   @IsNotEmpty()
   quantity: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la lista de precios específica para este producto (opcional). ⚠️ VALIDACIÓN: Si se proporciona, la lista de precios debe existir en la base de datos. Si no se especifica, se usa la lista de precios estándar.',
+    example: 2
+  })
+  @IsOptional()
+  @IsInt()
+  price_list_id?: number;
 }
 
 export class CreateOneOffPurchaseCustomerDto {
@@ -131,13 +139,7 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   @IsOptional()
   requires_delivery?: boolean = false;
 
-  @ApiPropertyOptional({
-    description: 'ID de la lista de precios a usar (opcional, si no se especifica usa la lista estándar)',
-    example: 1
-  })
-  @IsOptional()
-  @IsInt()
-  price_list_id?: number;
+
 
   @ApiPropertyOptional({
     description: 'Dirección de entrega específica (opcional)',
@@ -186,6 +188,22 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   @IsOptional()
   @IsString()
   delivery_time?: string;
+
+  @ApiPropertyOptional({
+    description: 'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser exactamente igual al total_amount calculado automáticamente.',
+    example: '1500.00'
+  })
+  @IsOptional()
+  @IsString()
+  paid_amount?: string;
+
+  @ApiPropertyOptional({
+    description: 'Notas adicionales sobre la compra (opcional)',
+    example: 'Cliente prefiere entrega por la mañana'
+  })
+  @IsOptional()
+  @IsString()
+  notes?: string;
 
   // total_amount se calcula automáticamente en el backend basado en los items y la lista de precios seleccionada.
 }

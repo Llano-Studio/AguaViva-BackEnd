@@ -54,11 +54,11 @@ async function main() {
       description: 'Ingreso por producción'
     },
     {
-      code: 'ING_COMP_EXT',
+      code: 'ING_COMP',
       description: 'Ingreso por compra externa'
     },
     {
-      code: 'ING_DEV_COM',
+      code: 'ING_DV_COM',
       description: 'Ingreso por devolución de comodato'
     },
     {
@@ -227,7 +227,23 @@ async function main() {
     console.log(`  ✅ Producto: ${product.description}`);
   }
 
-  // 7. Crear canales de venta
+  // 7. Crear lista de precios por defecto
+  console.log('\n💰 Creando lista de precios por defecto...');
+  const defaultPriceList = await prisma.price_list.upsert({
+    where: { price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID },
+    update: {},
+    create: {
+      price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+      name: BUSINESS_CONFIG.PRICING.STANDARD_PRICE_LIST_NAME,
+      description: 'Lista de precios estándar del sistema',
+      effective_date: new Date('2024-01-01'),
+      is_default: true,
+      active: true
+    }
+  });
+  console.log(`  ✅ Lista de precios: ${defaultPriceList.name}`);
+
+  // 8. Crear canales de venta
   console.log('\n📱 Creando canales de venta...');
   const saleChannels = [
     {
@@ -254,7 +270,7 @@ async function main() {
     console.log(`  ✅ Canal de venta: ${saleChannel.description}`);
   }
 
-  // 8. Crear inventario inicial
+  // 9. Crear inventario inicial
   console.log('\n📊 Creando inventario inicial...');
   for (const product of products) {
     await prisma.inventory.upsert({

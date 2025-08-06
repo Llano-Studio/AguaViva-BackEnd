@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString, Matches } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateRouteSheetDetailDto {
@@ -21,10 +21,10 @@ export class CreateRouteSheetDetailDto {
   delivery_status?: string = 'PENDING';
 
   @ApiPropertyOptional({
-    description: 'Horario de entrega programado (formato ISO)',
-    example: '2024-01-15T14:30:00Z'
+    description: 'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    example: '08:00-16:00'
   })
-  @IsDateString()
+  @IsString()
   @IsOptional()
   delivery_time?: string;
 
@@ -78,4 +78,4 @@ export class CreateRouteSheetDto {
   @ValidateNested({ each: true })
   @Type(() => CreateRouteSheetDetailDto)
   details: CreateRouteSheetDetailDto[];
-} 
+}

@@ -1,12 +1,50 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class OneOffPurchasePriceListResponseDto {
+    @ApiProperty({ 
+        example: 1,
+        description: 'ID de la lista de precios utilizada en la compra'
+    })
+    price_list_id: number;
+    
+    @ApiProperty({ 
+        example: 'Lista Mayorista',
+        description: 'Nombre de la lista de precios'
+    })
+    name: string;
+    
+    @ApiProperty({ 
+        example: '450.00',
+        description: 'Precio unitario del producto según la lista de precios utilizada'
+    })
+    unit_price: string;
+}
+
 export class OneOffPurchaseProductResponseDto {
-    @ApiProperty({ example: 1 })
+    @ApiProperty({ 
+        example: 1,
+        description: 'ID del producto comprado'
+    })
     product_id: number;
-    @ApiProperty({ example: 'Agua Bidón 20L' })
+    
+    @ApiProperty({ 
+        example: 'Agua Bidón 20L',
+        description: 'Descripción del producto'
+    })
     description: string;
-    @ApiProperty({ example: '500.00' })
-    price: string;
+    
+    @ApiProperty({ 
+        example: 2,
+        description: 'Cantidad del producto comprado'
+    })
+    quantity: number;
+    
+    @ApiProperty({ 
+        type: OneOffPurchasePriceListResponseDto, 
+        nullable: true,
+        description: 'Información de la lista de precios utilizada para este producto (incluye ID, nombre y precio unitario)'
+    })
+    price_list?: OneOffPurchasePriceListResponseDto;
 }
 
 export class OneOffPurchasePersonResponseDto {
@@ -42,22 +80,8 @@ export class OneOffPurchaseResponseDto {
     purchase_id: number;
 
     @ApiProperty({ example: 1 })
-    product_id: number;
-
-    @ApiProperty({ example: 1 })
     person_id: number;
 
-    @ApiProperty({ example: 2 })
-    quantity: number;
-
-    @ApiProperty({ example: 1 })
-    sale_channel_id: number;
-
-    @ApiProperty({ example: 1, nullable: true })
-    locality_id?: number;
-
-    @ApiProperty({ example: 1, nullable: true })
-    zone_id?: number;
 
     @ApiProperty({ example: '2024-03-25T10:00:00Z' })
     purchase_date: string;
@@ -71,8 +95,14 @@ export class OneOffPurchaseResponseDto {
     @ApiProperty({ example: '1000.00' })
     total_amount: string;
 
-    @ApiProperty({ type: OneOffPurchaseProductResponseDto })
-    product: OneOffPurchaseProductResponseDto;
+    @ApiProperty({ example: '500.00' })
+    paid_amount: string;
+
+    @ApiProperty({ example: 'Cliente prefiere entrega por la mañana', nullable: true })
+    notes?: string;
+
+    @ApiProperty({ type: [OneOffPurchaseProductResponseDto] })
+    products: OneOffPurchaseProductResponseDto[];
 
     @ApiProperty({ type: OneOffPurchasePersonResponseDto })
     person: OneOffPurchasePersonResponseDto;

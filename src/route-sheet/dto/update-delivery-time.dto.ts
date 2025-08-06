@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
 export class UpdateDeliveryTimeDto {
   @ApiProperty({
-    description: 'Nuevo horario de entrega programado (formato ISO)',
-    example: '2024-01-15T14:30:00Z'
+    description: 'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    example: '08:00-16:00'
   })
-  @IsDateString()
+  @IsString()
   @IsNotEmpty()
   delivery_time: string;
 
@@ -17,4 +17,4 @@ export class UpdateDeliveryTimeDto {
   @IsString()
   @IsOptional()
   comments?: string;
-} 
+}

@@ -1,13 +1,13 @@
 import { Injectable, NotFoundException, OnModuleInit, InternalServerErrorException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma, order_header as PrismaOrderHeader, order_item as PrismaOrderItem, OrderStatus as PrismaOrderStatus, OrderType as PrismaOrderType, product as PrismaProduct, person as PrismaPerson, sale_channel as PrismaSaleChannel, client_contract as PrismaClientContract } from '@prisma/client';
-import { CreateOrderDto, CreateOrderItemDto } from './dto/create-order.dto';
-import { UpdateOrderDto, UpdateOrderItemDto } from './dto/update-order.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { UpdateOrderDto} from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { ScheduleService } from '../common/services/schedule.service';
 import { SubscriptionQuotaService } from './services/subscription-quota.service';
 import { Decimal } from '@prisma/client/runtime/library';
-import { OrderResponseDto, OrderItemResponseDto } from './dto/order-response.dto';
+import { OrderResponseDto } from './dto/order-response.dto';
 import { OrderStatus as AppOrderStatus, OrderType as AppOrderType } from '../common/constants/enums';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
@@ -17,8 +17,7 @@ import { BUSINESS_CONFIG } from '../common/config/business.config';
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload = Prisma.personGetPayload<{
     include: { 
-        locality: { include: { zones: true } }, 
-        zone: true 
+        locality: true
     }
 }> | null | undefined;
 
@@ -44,10 +43,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     private mapToOrderResponseDto(order: Prisma.order_headerGetPayload<{ 
         include: { 
             order_item: { include: { product: true } }, 
-            customer: { include: { locality: { include: { zones: true } }, zone: true } }, 
+            customer: { include: { locality: true } }, 
             sale_channel: true, 
             customer_subscription: true, 
-            client_contract: true 
+            client_contract: true,
+            zone: true 
         }
     }>): OrderResponseDto {
         const items = order.order_item?.map(item => ({
@@ -80,14 +80,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 locality: customerPayload.locality ? {
                     locality_id: customerPayload.locality.locality_id,
                     name: customerPayload.locality.name || '',
-                    zones: customerPayload.locality.zones?.map(zone => ({
-                        zone_id: zone.zone_id,
-                        name: zone.name || ''
-                    })) || []
-                } : undefined,
-                zone: customerPayload.zone ? {
-                    zone_id: customerPayload.zone.zone_id,
-                    name: customerPayload.zone.name || ''
+                
                 } : undefined
             };
         }
@@ -117,6 +110,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_item: items,
             customer: customerResponsePart,
             sale_channel: saleChannelResponsePart,
+            zone: order.zone ? {
+                zone_id: order.zone.zone_id,
+                name: order.zone.name || ''
+            } : undefined,
         };
     }
 
@@ -529,10 +526,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     },
                     include: {
                         order_item: { include: { product: true } },
-                        customer: { include: { locality: { include: { zones: true } }, zone: true } }, 
+                        customer: { include: { locality: true } }, 
                         sale_channel: true,
                         customer_subscription: true,
-                        client_contract: true
+                        client_contract: true,
+                        zone: true
                     },
                 });
 
@@ -641,14 +639,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (customerId) where.customer_id = customerId;
         
         let customerConditions: Prisma.personWhereInput[] = [];
-        if (zoneId) {
-            customerConditions.push({ zone_id: zoneId });
-        }
         if (customerName) {
              customerConditions.push({ name: { contains: customerName, mode: 'insensitive' }});
         }
         if (customerConditions.length > 0) {
             where.customer = { OR: customerConditions.length > 1 ? customerConditions : undefined, AND: customerConditions.length === 1 ? customerConditions[0] : undefined };
+        }
+        
+        // Filtro por zona de la orden
+        if (zoneId) {
+            where.zone_id = zoneId;
         }
         
         if (search) {
@@ -708,13 +708,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     order_item: { include: { product: true } }, 
                     customer: { 
                         include: { 
-                            locality: { include: { zones: true } }, 
-                            zone: true 
+                            locality: true
                         } 
                     }, 
                     sale_channel: true,
                     customer_subscription: true,
-                    client_contract: true
+                    client_contract: true,
+                    zone: true
                 },
                 orderBy: orderByClause,
                 skip,
@@ -742,10 +742,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 where: { order_id: id },
                 include: { 
                     order_item: { include: { product: true } }, 
-                    customer: { include: { locality: { include: { zones: true } }, zone: true } }, 
+                    customer: { include: { locality: true } }, 
                     sale_channel: true, 
                     customer_subscription: true, 
-                    client_contract: true 
+                    client_contract: true,
+                    zone: true 
                 },
             });
             return this.mapToOrderResponseDto(order);
@@ -980,10 +981,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: { order_id: id }, 
                     include: { 
                         order_item: { include: { product: true } }, 
-                        customer: { include: { locality: { include: { zones: true } }, zone: true } }, 
+                        customer: { include: { locality: true } }, 
                         sale_channel: true, 
                         customer_subscription: true, 
-                        client_contract: true 
+                        client_contract: true,
+                        zone: true 
                     }
                 });
                 return this.mapToOrderResponseDto(finalOrder);

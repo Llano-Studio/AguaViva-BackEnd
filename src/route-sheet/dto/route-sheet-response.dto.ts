@@ -136,8 +136,8 @@ export class RouteSheetDetailResponseDto {
   delivery_status: string;
 
   @ApiProperty({
-    description: 'Hora de entrega',
-    example: '2023-07-15T16:30:00Z',
+    description: 'Horario de entrega. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    example: '08:00-16:00',
     required: false
   })
   delivery_time?: string;
@@ -245,4 +245,4 @@ export class RouteSheetResponseDto {
   constructor(partial: Partial<RouteSheetResponseDto>) {
     Object.assign(this, partial);
   }
-} 
+}

@@ -182,14 +182,7 @@ export class OrderResponseDto {
                 type: 'object', 
                 properties: {
                     locality_id: { type: 'number', example: 1 },
-                    name: { type: 'string', example: 'Centro' },
-                    zone: {
-                        type: 'object',
-                        properties: {
-                            zone_id: { type: 'number', example: 1 },
-                            name: { type: 'string', example: 'Zona Norte' }
-                        }
-                    }
+                    name: { type: 'string', example: 'Centro' }
                 },
                 nullable: true
             }
@@ -203,10 +196,6 @@ export class OrderResponseDto {
         locality?: {
             locality_id: number;
             name: string;
-            zone?: {
-                zone_id: number;
-                name: string;
-            }
         }
     };
 
@@ -223,4 +212,18 @@ export class OrderResponseDto {
         sale_channel_id: number;
         name: string;
     };
-} 
+
+    @ApiProperty({
+        description: 'Zona de la orden',
+        type: 'object',
+        properties: {
+            zone_id: { type: 'number', example: 1 },
+            name: { type: 'string', example: 'Centro' }
+        },
+        nullable: true
+    })
+    zone?: {
+        zone_id: number;
+        name: string;
+    };
+}

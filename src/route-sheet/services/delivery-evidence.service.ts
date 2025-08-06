@@ -77,7 +77,7 @@ export class DeliveryEvidenceService extends PrismaClient {
         await this.route_sheet_detail.update({
           where: { route_sheet_detail_id },
           data: {
-            delivery_time: new Date(),
+            delivery_time: new Date().toTimeString().slice(0, 5), // Formato HH:MM
             delivery_status: 'DELIVERED',
             actual_arrival_time: new Date()
           }
@@ -187,4 +187,4 @@ export class DeliveryEvidenceService extends PrismaClient {
     
     return mimeMap[mimeType] || 'dat';
   }
-} 
+}
