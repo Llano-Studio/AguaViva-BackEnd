@@ -17,7 +17,8 @@ import { BUSINESS_CONFIG } from '../common/config/business.config';
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload = Prisma.personGetPayload<{
     include: { 
-        locality: true
+        locality: true,
+        zone: true
     }
 }> | null | undefined;
 
@@ -43,7 +44,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     private mapToOrderResponseDto(order: Prisma.order_headerGetPayload<{ 
         include: { 
             order_item: { include: { product: true } }, 
-            customer: { include: { locality: true } }, 
+            customer: { include: { locality: true, zone: true } }, 
             sale_channel: true, 
             customer_subscription: true, 
             client_contract: true,
@@ -81,6 +82,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     locality_id: customerPayload.locality.locality_id,
                     name: customerPayload.locality.name || '',
                 
+                } : undefined,
+                zone: customerPayload.zone ? {
+                    zone_id: customerPayload.zone.zone_id,
+                    name: customerPayload.zone.name || ''
                 } : undefined
             };
         }
@@ -526,7 +531,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     },
                     include: {
                         order_item: { include: { product: true } },
-                        customer: { include: { locality: true } }, 
+                        customer: { include: { locality: true, zone: true } }, 
                         sale_channel: true,
                         customer_subscription: true,
                         client_contract: true,
@@ -642,13 +647,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (customerName) {
              customerConditions.push({ name: { contains: customerName, mode: 'insensitive' }});
         }
-        if (customerConditions.length > 0) {
-            where.customer = { OR: customerConditions.length > 1 ? customerConditions : undefined, AND: customerConditions.length === 1 ? customerConditions[0] : undefined };
+        
+        // Filtro por zona del cliente
+        if (zoneId) {
+            customerConditions.push({ zone_id: zoneId });
         }
         
-        // Filtro por zona de la orden
-        if (zoneId) {
-            where.zone_id = zoneId;
+        if (customerConditions.length > 0) {
+            where.customer = { OR: customerConditions.length > 1 ? customerConditions : undefined, AND: customerConditions.length === 1 ? customerConditions[0] : undefined };
         }
         
         if (search) {
@@ -707,10 +713,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 include: { 
                     order_item: { include: { product: true } }, 
                     customer: { 
-                        include: { 
-                            locality: true
-                        } 
-                    }, 
+                include: { 
+                    locality: true,
+                    zone: true
+                } 
+            }, 
                     sale_channel: true,
                     customer_subscription: true,
                     client_contract: true,
@@ -742,7 +749,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 where: { order_id: id },
                 include: { 
                     order_item: { include: { product: true } }, 
-                    customer: { include: { locality: true } }, 
+                    customer: { include: { locality: true, zone: true } }, 
                     sale_channel: true, 
                     customer_subscription: true, 
                     client_contract: true,
@@ -981,7 +988,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: { order_id: id }, 
                     include: { 
                         order_item: { include: { product: true } }, 
-                        customer: { include: { locality: true } }, 
+                        customer: { include: { locality: true, zone: true } }, 
                         sale_channel: true, 
                         customer_subscription: true, 
                         client_contract: true,

@@ -100,36 +100,34 @@ export class PdfGeneratorService {
     
     // Encabezado principal con diseño moderno
     doc.rect(0, 0, doc.page.width, 80).fill(primaryColor);
-    doc.fontSize(28).fillColor('white').text('HOJA DE RUTA', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`#${routeSheet.route_sheet_id}`, { align: 'center' });
+    doc.fontSize(28).fillColor('white').text('HOJA DE RUTA', 50, 25, { align: 'center', width: doc.page.width - 100 });
+    doc.fontSize(12).text(`#${routeSheet.route_sheet_id}`, 50, 50, { align: 'center', width: doc.page.width - 100 });
     
     // Información de fecha y estado
-    doc.fillColor(secondaryColor).fontSize(10);
-    doc.text(`Fecha: ${routeSheet.delivery_date}`, { align: 'right' });
-    doc.moveDown(0.5);
-    doc.text(`Estado: Pendiente`, { align: 'right' });
+    doc.fillColor('white').fontSize(10);
+    doc.text(`Fecha: ${routeSheet.delivery_date}`, doc.page.width - 180, 25);
+    doc.text(`Estado: Pendiente`, doc.page.width - 180, 40);
     
     // Sección de información del conductor y vehículo
     let currentY = 100;
     
     // Tarjeta del conductor
-    doc.rect(50, currentY, 250, 80).fill(lightGray);
+    doc.rect(50, currentY, 240, 80).fill(lightGray);
     doc.fillColor(primaryColor).fontSize(14).font('Helvetica-Bold');
-    doc.text('👤 CONDUCTOR', 70, currentY + 10);
+    doc.text('CONDUCTOR', 60, currentY + 10);
     doc.fillColor('black').fontSize(11).font('Helvetica');
-    doc.text(`Nombre: ${routeSheet.driver.name}`, 70, currentY + 30);
-    doc.text(`Email: ${routeSheet.driver.email}`, 70, currentY + 45);
-    doc.text(`Teléfono: N/A`, 70, currentY + 60);
+    doc.text(`Nombre: ${routeSheet.driver.name}`, 60, currentY + 30);
+    doc.text(`Email: ${routeSheet.driver.email}`, 60, currentY + 45);
+    doc.text(`Teléfono: N/A`, 60, currentY + 60);
     
     // Tarjeta del vehículo
-    doc.rect(320, currentY, 250, 80).fill(lightGray);
+    doc.rect(310, currentY, 240, 80).fill(lightGray);
     doc.fillColor(primaryColor).fontSize(14).font('Helvetica-Bold');
-    doc.text('🚚 VEHÍCULO', 340, currentY + 10);
+    doc.text('VEHICULO', 320, currentY + 10);
     doc.fillColor('black').fontSize(11).font('Helvetica');
-    doc.text(`Código: ${routeSheet.vehicle.code}`, 340, currentY + 30);
-    doc.text(`Descripción: ${routeSheet.vehicle.name}`, 340, currentY + 45);
-    doc.text(`Placa: N/A`, 340, currentY + 60);
+    doc.text(`Código: ${routeSheet.vehicle.code}`, 320, currentY + 30);
+    doc.text(`Descripción: ${routeSheet.vehicle.name}`, 320, currentY + 45);
+    doc.text(`Placa: N/A`, 320, currentY + 60);
     
     currentY += 100;
     
@@ -137,22 +135,21 @@ export class PdfGeneratorService {
     if (routeSheet.route_notes) {
       doc.rect(50, currentY, 520, 40).fill(accentColor);
       doc.fillColor('white').fontSize(12).font('Helvetica-Bold');
-      doc.text('📝 NOTAS DE RUTA', 70, currentY + 10);
+      doc.text('NOTAS DE RUTA', 60, currentY + 10);
       doc.font('Helvetica').fontSize(10);
-      doc.text(routeSheet.route_notes, 70, currentY + 25, { width: 480 });
+      doc.text(routeSheet.route_notes, 60, currentY + 25, { width: 480 });
       currentY += 60;
     }
     
     // Título de pedidos
-    doc.fillColor(primaryColor).fontSize(16).font('Helvetica-Bold');
-    doc.text('📦 PEDIDOS A ENTREGAR', { align: 'center' });
-    doc.moveDown();
-    currentY = doc.y;
+    doc.fillColor(primaryColor).fontSize(18).font('Helvetica-Bold');
+    doc.text('PEDIDOS A ENTREGAR', 50, currentY, { align: 'center', width: doc.page.width - 100 });
+    currentY += 30;
     
     // Tabla de pedidos con diseño mejorado
     const startX = 50;
     const tableWidth = 520;
-    const colWidths = [40, 150, 200, 80, 50]; // Anchos de columnas
+    const colWidths = [40, 140, 190, 80, 70]; // Anchos de columnas
     const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Estado'];
     
     // Encabezado de tabla
@@ -195,10 +192,11 @@ export class PdfGeneratorService {
       doc.text(detail.order.customer.phone, colX, currentY + 8, { width: colWidths[3] - 10 });
       colX += colWidths[3];
       
-      // Estado con color
+      // Estado con color (traducido)
       const statusColor = this.getStatusColor(detail.delivery_status);
+      const translatedStatus = this.translateStatus(detail.delivery_status);
       doc.fillColor(statusColor);
-      doc.text(detail.delivery_status, colX, currentY + 8, { width: colWidths[4] - 10 });
+      doc.text(translatedStatus, colX, currentY + 8, { width: colWidths[4] - 10 });
       doc.fillColor('black');
       
       currentY += 25;
@@ -229,47 +227,72 @@ export class PdfGeneratorService {
         currentY = 50;
       }
       
-      doc.fillColor(primaryColor).fontSize(14).font('Helvetica-Bold');
-      doc.text('✍️ CONFIRMACIÓN DE ENTREGAS', { align: 'center' });
-      doc.moveDown();
-      currentY = doc.y;
+      doc.fillColor(primaryColor).fontSize(18).font('Helvetica-Bold');
+         doc.text('CONFIRMACION DE ENTREGAS', 50, currentY, { align: 'center', width: doc.page.width - 100 });
+         currentY += 50;
       
       // Campos de firma con diseño mejorado
       const signatureY = currentY;
       
       // Firma del conductor
-      doc.rect(startX, signatureY, 240, 80).fill(lightGray);
+      doc.rect(50, signatureY, 240, 80).fill(lightGray);
       doc.fillColor(primaryColor).fontSize(12).font('Helvetica-Bold');
-      doc.text('Firma del Conductor', startX + 10, signatureY + 10);
+      doc.text('Firma del Conductor', 60, signatureY + 10);
       doc.fillColor('black').fontSize(10);
-      doc.text('Nombre:', startX + 10, signatureY + 30);
-      doc.text('Fecha:', startX + 10, signatureY + 50);
-      doc.text('Hora:', startX + 10, signatureY + 70);
+      doc.text('Nombre:', 60, signatureY + 30);
+      doc.text('Fecha:', 60, signatureY + 50);
+      doc.text('Hora:', 60, signatureY + 70);
       
       // Línea de firma
-      doc.moveTo(startX + 10, signatureY + 40).lineTo(startX + 230, signatureY + 40).stroke();
-      doc.moveTo(startX + 10, signatureY + 60).lineTo(startX + 230, signatureY + 60).stroke();
-      doc.moveTo(startX + 10, signatureY + 80).lineTo(startX + 230, signatureY + 80).stroke();
+      doc.moveTo(60, signatureY + 40).lineTo(280, signatureY + 40).stroke();
+      doc.moveTo(60, signatureY + 60).lineTo(280, signatureY + 60).stroke();
+      doc.moveTo(60, signatureY + 80).lineTo(280, signatureY + 80).stroke();
       
       // Firma del supervisor
-      doc.rect(startX + 280, signatureY, 240, 80).fill(lightGray);
+      doc.rect(310, signatureY, 240, 80).fill(lightGray);
       doc.fillColor(primaryColor).fontSize(12).font('Helvetica-Bold');
-      doc.text('Firma del Supervisor', startX + 290, signatureY + 10);
+      doc.text('Firma del Supervisor', 320, signatureY + 10);
       doc.fillColor('black').fontSize(10);
-      doc.text('Nombre:', startX + 290, signatureY + 30);
-      doc.text('Fecha:', startX + 290, signatureY + 50);
-      doc.text('Hora:', startX + 290, signatureY + 70);
+      doc.text('Nombre:', 320, signatureY + 30);
+      doc.text('Fecha:', 320, signatureY + 50);
+      doc.text('Hora:', 320, signatureY + 70);
       
       // Línea de firma
-      doc.moveTo(startX + 290, signatureY + 40).lineTo(startX + 510, signatureY + 40).stroke();
-      doc.moveTo(startX + 290, signatureY + 60).lineTo(startX + 510, signatureY + 60).stroke();
-      doc.moveTo(startX + 290, signatureY + 80).lineTo(startX + 510, signatureY + 80).stroke();
+      doc.moveTo(320, signatureY + 40).lineTo(540, signatureY + 40).stroke();
+      doc.moveTo(320, signatureY + 60).lineTo(540, signatureY + 60).stroke();
+      doc.moveTo(320, signatureY + 80).lineTo(540, signatureY + 80).stroke();
     }
     
     // Pie de página
-    doc.fillColor(secondaryColor).fontSize(8);
+    doc.fillColor('black').fontSize(8);
     doc.text(`Documento generado el: ${new Date().toLocaleString('es-ES')}`, 50, doc.page.height - 30);
     doc.text(`Total de pedidos: ${routeSheet.details.length}`, { align: 'right' });
+  }
+
+  /**
+   * Traduce el estado de entrega al español
+   */
+  private translateStatus(status: string): string {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'PENDIENTE';
+      case 'delivered':
+        return 'ENTREGADO';
+      case 'cancelled':
+        return 'CANCELADO';
+      case 'in_route':
+        return 'EN RUTA';
+      case 'pendiente':
+        return 'PENDIENTE';
+      case 'entregado':
+        return 'ENTREGADO';
+      case 'cancelado':
+        return 'CANCELADO';
+      case 'en_ruta':
+        return 'EN RUTA';
+      default:
+        return status.toUpperCase();
+    }
   }
 
   /**
@@ -305,10 +328,10 @@ export class PdfGeneratorService {
     return new Promise((resolve, reject) => {
       doc.end();
       writeStream.on('finish', () => {
-        const url = `http://localhost:3000/pdfs/${filename}`;
+        const url = `http://localhost:3000/public/pdfs/${filename}`;
         resolve({ url, filename });
       });
       writeStream.on('error', reject);
     });
   }
-} 
+}

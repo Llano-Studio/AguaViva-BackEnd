@@ -185,6 +185,14 @@ export class OrderResponseDto {
                     name: { type: 'string', example: 'Centro' }
                 },
                 nullable: true
+            },
+            zone: { 
+                type: 'object', 
+                properties: {
+                    zone_id: { type: 'number', example: 1 },
+                    name: { type: 'string', example: 'Centro' }
+                },
+                nullable: true
             }
         },
         additionalProperties: false
@@ -195,6 +203,10 @@ export class OrderResponseDto {
         phone: string;
         locality?: {
             locality_id: number;
+            name: string;
+        };
+        zone?: {
+            zone_id: number;
             name: string;
         }
     };
