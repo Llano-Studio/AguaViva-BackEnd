@@ -385,6 +385,8 @@ model one_off_purchase {
   person_id              Int
   product_id             Int
   quantity               Int
+  delivered_quantity     Int?         @default(0)
+  returned_quantity      Int?         @default(0)
   total_amount           Decimal      @db.Decimal(10, 2)
   paid_amount            Decimal      @default(0) @db.Decimal(10, 2)
   purchase_date          DateTime     @default(now()) @db.Timestamp(6)
@@ -396,12 +398,18 @@ model one_off_purchase {
   zone_id                Int?         @db.SmallInt
   price_list_id          Int?
   notes                  String?
-  locality               locality?    @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
-  person                 person       @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
-  product                product      @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
-  sale_channel           sale_channel @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
-  zone                   zone?        @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
-  price_list             price_list?  @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  status                 String       @default("PENDING") @db.VarChar(20)
+  requires_delivery      Boolean      @default(false)
+  locality               locality?           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
+  person                 person              @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  product                product             @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  sale_channel           sale_channel        @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                   zone?               @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list             price_list?         @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  route_sheet_detail     route_sheet_detail[]
+
+  @@index([status])
+  @@index([requires_delivery])
 }
 
 model one_off_purchase_header {
@@ -428,6 +436,7 @@ model one_off_purchase_header {
   zone                    zone?                    @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
   price_list              price_list?              @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
   purchase_items          one_off_purchase_item[]
+  route_sheet_detail      route_sheet_detail[]
 
   @@index([purchase_date])
   @@index([scheduled_delivery_date])
@@ -442,6 +451,8 @@ model one_off_purchase_item {
   quantity            Int
   unit_price          Decimal                 @db.Decimal(10, 2)
   subtotal            Decimal                 @db.Decimal(10, 2)
+  delivered_quantity  Int?                    @default(0)
+  returned_quantity   Int?                    @default(0)
   price_list_id       Int?
   notes               String?
   purchase_header     one_off_purchase_header @relation(fields: [purchase_header_id], references: [purchase_header_id], onDelete: Cascade, onUpdate: NoAction)
@@ -586,27 +597,31 @@ model route_sheet {
 }
 
 model route_sheet_detail {
-  route_sheet_detail_id  Int                     @id @default(autoincrement())
-  route_sheet_id         Int
-  order_id               Int
-  delivery_status        String                  @db.VarChar(20)
-  delivery_time          String?                 @db.VarChar(50)
-  comments               String?
-  digital_signature_id   String?                 @db.VarChar(100)
-  actual_arrival_time    DateTime?
-  delivery_notes         String?
-  estimated_arrival_time DateTime?
-  lat                    Decimal?                @db.Decimal(10, 8)
-  lng                    Decimal?                @db.Decimal(10, 8)
-  recipient_name         String?
-  rejection_reason       String?
-  reschedule_date        DateTime?
-  sequence_number        Int?
-  delivery_evidence      delivery_evidence[]
-  delivery_incident      delivery_incident[]
-  inventory_transaction  inventory_transaction[]
-  order_header           order_header            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
-  route_sheet            route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+  route_sheet_detail_id     Int                      @id @default(autoincrement())
+  route_sheet_id            Int
+  order_id                  Int?
+  one_off_purchase_id       Int?
+  one_off_purchase_header_id Int?
+  delivery_status           String                   @db.VarChar(20)
+  delivery_time             String?                  @db.VarChar(50)
+  comments                  String?
+  digital_signature_id      String?                  @db.VarChar(100)
+  actual_arrival_time       DateTime?
+  delivery_notes            String?
+  estimated_arrival_time    DateTime?
+  lat                       Decimal?                 @db.Decimal(10, 8)
+  lng                       Decimal?                 @db.Decimal(10, 8)
+  recipient_name            String?
+  rejection_reason          String?
+  reschedule_date           DateTime?
+  sequence_number           Int?
+  delivery_evidence         delivery_evidence[]
+  delivery_incident         delivery_incident[]
+  inventory_transaction     inventory_transaction[]
+  order_header              order_header?            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
+  one_off_purchase          one_off_purchase?        @relation(fields: [one_off_purchase_id], references: [purchase_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_oneoff")
+  one_off_purchase_header   one_off_purchase_header? @relation(fields: [one_off_purchase_header_id], references: [purchase_header_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_oneoff_header")
+  route_sheet               route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
 }
 
 model route_optimization {

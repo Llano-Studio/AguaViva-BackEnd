@@ -40,6 +40,22 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
             };
           }
         };
+        one_off_purchase: {
+          include: {
+            person: true;
+            product: true;
+          }
+        };
+        one_off_purchase_header: {
+          include: {
+            person: true;
+            purchase_items: {
+              include: {
+                product: true;
+              }
+            };
+          }
+        };
       }
     };
   };
@@ -129,19 +145,55 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`El vehículo con ID ${vehicle_id} no existe`);
       }
 
-      const orderIds = details.map(detail => detail.order_id);
-      const orders = await this.order_header.findMany({
-        where: { order_id: { in: orderIds } }
-      });
-      if (orders.length !== orderIds.length) {
-        const foundOrderIds = orders.map(order => order.order_id);
-        const missingOrderIds = orderIds.filter(id => !foundOrderIds.includes(id));
-        throw new BadRequestException(`Los siguientes pedidos no existen: ${missingOrderIds.join(', ')}`);
+      // Validar que existan las órdenes según su tipo
+      const orderIds = details.filter(detail => detail.order_id).map(detail => detail.order_id!);
+      const oneOffPurchaseIds = details.filter(detail => detail.one_off_purchase_id).map(detail => detail.one_off_purchase_id!);
+      const oneOffPurchaseHeaderIds = details.filter(detail => detail.one_off_purchase_header_id).map(detail => detail.one_off_purchase_header_id!);
+
+      // Validar órdenes de suscripción
+      if (orderIds.length > 0) {
+        const orders = await this.order_header.findMany({
+          where: { order_id: { in: orderIds } }
+        });
+        if (orders.length !== orderIds.length) {
+          const foundOrderIds = orders.map(order => order.order_id);
+          const missingOrderIds = orderIds.filter(id => !foundOrderIds.includes(id));
+          throw new BadRequestException(`Los siguientes pedidos de suscripción no existen: ${missingOrderIds.join(', ')}`);
+        }
       }
 
+      // Validar órdenes one-off
+      if (oneOffPurchaseIds.length > 0) {
+        const oneOffPurchases = await this.one_off_purchase.findMany({
+          where: { purchase_id: { in: oneOffPurchaseIds } }
+        });
+        if (oneOffPurchases.length !== oneOffPurchaseIds.length) {
+          const foundIds = oneOffPurchases.map(purchase => purchase.purchase_id);
+          const missingIds = oneOffPurchaseIds.filter(id => !foundIds.includes(id));
+          throw new BadRequestException(`Las siguientes compras one-off no existen: ${missingIds.join(', ')}`);
+        }
+      }
+
+      // Validar órdenes one-off header
+      if (oneOffPurchaseHeaderIds.length > 0) {
+        const oneOffPurchaseHeaders = await this.one_off_purchase_header.findMany({
+          where: { purchase_header_id: { in: oneOffPurchaseHeaderIds } }
+        });
+        if (oneOffPurchaseHeaders.length !== oneOffPurchaseHeaderIds.length) {
+          const foundIds = oneOffPurchaseHeaders.map(header => header.purchase_header_id);
+          const missingIds = oneOffPurchaseHeaderIds.filter(id => !foundIds.includes(id));
+          throw new BadRequestException(`Los siguientes headers de compras one-off no existen: ${missingIds.join(', ')}`);
+        }
+      }
+
+      // Verificar asignaciones existentes para todos los tipos de órdenes
       const existingAssignments = await this.route_sheet_detail.findMany({
         where: {
-          order_id: { in: orderIds },
+          OR: [
+            orderIds.length > 0 ? { order_id: { in: orderIds } } : {},
+            oneOffPurchaseIds.length > 0 ? { one_off_purchase_id: { in: oneOffPurchaseIds } } : {},
+            oneOffPurchaseHeaderIds.length > 0 ? { one_off_purchase_header_id: { in: oneOffPurchaseHeaderIds } } : {}
+          ].filter(condition => Object.keys(condition).length > 0),
           route_sheet: {
             delivery_date: new Date(delivery_date)
           }
@@ -153,34 +205,46 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       if (existingAssignments.length > 0) {
         const assignedOrders = existingAssignments.map(assignment => {
-          return `Pedido ${assignment.order_id} ya asignado a la hoja de ruta ${assignment.route_sheet_id}`;
+          if (assignment.order_id) {
+            return `Pedido de suscripción ${assignment.order_id} ya asignado a la hoja de ruta ${assignment.route_sheet_id}`;
+          } else if (assignment.one_off_purchase_id) {
+            return `Compra one-off ${assignment.one_off_purchase_id} ya asignada a la hoja de ruta ${assignment.route_sheet_id}`;
+          } else if (assignment.one_off_purchase_header_id) {
+            return `Header de compra one-off ${assignment.one_off_purchase_header_id} ya asignado a la hoja de ruta ${assignment.route_sheet_id}`;
+          }
+          return `Orden desconocida ya asignada a la hoja de ruta ${assignment.route_sheet_id}`;
         });
-        throw new BadRequestException(`Los siguientes pedidos ya están asignados para esa fecha: ${assignedOrders.join(', ')}`);
+        throw new BadRequestException(`Las siguientes órdenes ya están asignadas para esa fecha: ${assignedOrders.join(', ')}`);
       }
 
-      // Validar horarios de entrega contra preferencias de suscripción
+      // Validar horarios de entrega contra preferencias de suscripción (solo para órdenes de suscripción)
       const validationErrors: string[] = [];
       const validatedDetails: Array<{
-        order_id: number;
+        order_id?: number;
+        one_off_purchase_id?: number;
+        one_off_purchase_header_id?: number;
         delivery_status: string;
         delivery_time: string | null;
         comments?: string;
       }> = [];
 
       for (const detail of details) {
-        if (detail.delivery_time) {
+        // Solo validar horarios para órdenes de suscripción
+        if (detail.delivery_time && detail.order_id) {
           const validation = await this.validateDeliveryTimeAgainstSubscription(
             detail.order_id,
             detail.delivery_time
           );
 
           if (!validation.isValid) {
-            validationErrors.push(`Pedido ${detail.order_id}: ${validation.message}`);
+            validationErrors.push(`Pedido de suscripción ${detail.order_id}: ${validation.message}`);
           }
         }
 
         validatedDetails.push({
           order_id: detail.order_id,
+          one_off_purchase_id: detail.one_off_purchase_id,
+          one_off_purchase_header_id: detail.one_off_purchase_header_id,
           delivery_status: detail.delivery_status || 'PENDING',
           delivery_time: detail.delivery_time || null,
           comments: detail.comments
@@ -213,7 +277,23 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                       }
                     }
                   }
-                }
+                },
+                one_off_purchase: {
+                  include: {
+                    person: true,
+                    product: true
+                  }
+                },
+                one_off_purchase_header: {
+                 include: {
+                   person: true,
+                   purchase_items: {
+                     include: {
+                       product: true
+                     }
+                   }
+                 }
+               }
               }
             }
           }
@@ -224,7 +304,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           await tx.route_sheet_detail.create({
             data: {
               route_sheet_id: routeSheet.route_sheet_id,
-              order_id: detail.order_id,
+              order_id: detail.order_id || undefined,
+              one_off_purchase_id: detail.one_off_purchase_id || undefined,
+              one_off_purchase_header_id: detail.one_off_purchase_header_id || undefined,
               delivery_status: detail.delivery_status,
               delivery_time: detail.delivery_time || undefined,
               comments: detail.comments
@@ -244,6 +326,22 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   include: {
                     customer: true,
                     order_item: {
+                      include: {
+                        product: true
+                      }
+                    }
+                  }
+                },
+                one_off_purchase: {
+                  include: {
+                    person: true,
+                    product: true
+                  }
+                },
+                one_off_purchase_header: {
+                  include: {
+                    person: true,
+                    purchase_items: {
                       include: {
                         product: true
                       }
@@ -311,6 +409,22 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     }
                   }
                 }
+              },
+              one_off_purchase: {
+                include: {
+                  person: true,
+                  product: true
+                }
+              },
+              one_off_purchase_header: {
+                include: {
+                  person: true,
+                  purchase_items: {
+                    include: {
+                      product: true
+                    }
+                  }
+                }
               }
             }
           }
@@ -349,6 +463,22 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               include: {
                 customer: true,
                 order_item: {
+                  include: {
+                    product: true
+                  }
+                }
+              }
+            },
+            one_off_purchase: {
+              include: {
+                person: true,
+                product: true
+              }
+            },
+            one_off_purchase_header: {
+              include: {
+                person: true,
+                purchase_items: {
                   include: {
                     product: true
                   }
@@ -404,6 +534,22 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   include: {
                     customer: true,
                     order_item: {
+                      include: {
+                        product: true
+                      }
+                    }
+                  }
+                },
+                one_off_purchase: {
+                  include: {
+                    person: true,
+                    product: true
+                  }
+                },
+                one_off_purchase_header: {
+                  include: {
+                    person: true,
+                    purchase_items: {
                       include: {
                         product: true
                       }
@@ -474,6 +620,22 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                       }
                     }
                   }
+                },
+                one_off_purchase: {
+                  include: {
+                    person: true,
+                    product: true
+                  }
+                },
+                one_off_purchase_header: {
+                  include: {
+                    person: true,
+                    purchase_items: {
+                      include: {
+                        product: true
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -526,23 +688,41 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           name: routeSheet.vehicle.name
         },
         route_notes: routeSheet.route_notes,
-        details: routeSheet.details.map(detail => ({
-          order: {
-            order_id: detail.order.order_id,
-            customer: {
-              name: detail.order.customer.name,
-              address: detail.order.customer.address,
-              phone: detail.order.customer.phone
+        details: routeSheet.details.map(detail => {
+          // Solo procesar detalles que tengan orden de suscripción
+          if (detail.order) {
+            return {
+              order: {
+                order_id: detail.order.order_id,
+                customer: {
+                  name: detail.order.customer.name,
+                  address: detail.order.customer.address,
+                  phone: detail.order.customer.phone
+                },
+                items: detail.order.items.map(item => ({
+                  quantity: item.quantity,
+                  product: {
+                    description: item.product.description
+                  }
+                }))
+              },
+              delivery_status: detail.delivery_status
+            };
+          }
+          // Si no hay orden de suscripción, devolver estructura básica
+          return {
+            order: {
+              order_id: 0,
+              customer: {
+                name: "Compra One-Off",
+                address: "",
+                phone: ""
+              },
+              items: []
             },
-            items: detail.order.items.map(item => ({
-              quantity: item.quantity,
-              product: {
-                description: item.product.description
-              }
-            }))
-          },
-          delivery_status: detail.delivery_status
-        }))
+            delivery_status: detail.delivery_status
+          };
+        }).filter(detail => detail.order.order_id > 0)
       };
       
       // Generar PDF usando el servicio común
@@ -582,41 +762,111 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
     let currentDeliveryFound = false;
     const detailsDto: RouteSheetDetailResponseDto[] = sortedDetails.map(detail => {
-      const customerDto: CustomerDto = {
-        person_id: detail.order_header.customer.person_id,
-        name: detail.order_header.customer.name || 'Sin nombre',
-        phone: detail.order_header.customer.phone,
-        address: detail.order_header.customer.address || 'Sin dirección'
-      };
+      let customerDto: CustomerDto;
+      let orderDto: OrderDto;
+
+      // Determinar el tipo de orden y mapear los datos correspondientes
+      if (detail.order_header) {
+        // Orden de suscripción
+        customerDto = {
+          person_id: detail.order_header.customer.person_id,
+          name: detail.order_header.customer.name || 'Sin nombre',
+          phone: detail.order_header.customer.phone,
+          address: detail.order_header.customer.address || 'Sin dirección'
+        };
+
+        const orderItemsDto: OrderItemDto[] = detail.order_header.order_item.map(item => {
+          const productDto: ProductDto = {
+            product_id: item.product.product_id,
+            description: item.product.description
+          };
+          return {
+            order_item_id: item.order_item_id,
+            product: productDto,
+            quantity: item.quantity,
+            delivered_quantity: item.delivered_quantity || 0,
+            returned_quantity: item.returned_quantity || 0
+          };
+        });
+
+        orderDto = {
+          order_id: detail.order_header.order_id,
+          order_date: detail.order_header.order_date.toISOString(),
+          total_amount: detail.order_header.total_amount.toString(),
+          status: detail.order_header.status,
+          customer: customerDto,
+          items: orderItemsDto
+        };
+      } else if (detail.one_off_purchase) {
+        // Compra one-off individual
+        customerDto = {
+          person_id: detail.one_off_purchase.person.person_id,
+          name: detail.one_off_purchase.person.name || 'Sin nombre',
+          phone: detail.one_off_purchase.person.phone,
+          address: detail.one_off_purchase.person.address || 'Sin dirección'
+        };
+
+        const productDto: ProductDto = {
+          product_id: detail.one_off_purchase.product.product_id,
+          description: detail.one_off_purchase.product.description
+        };
+
+        const orderItemsDto: OrderItemDto[] = [{
+          order_item_id: detail.one_off_purchase.purchase_id, // Usar purchase_id como identificador
+          product: productDto,
+          quantity: detail.one_off_purchase.quantity,
+          delivered_quantity: 0, // Las compras one-off no tienen delivered_quantity
+          returned_quantity: 0
+        }];
+
+        orderDto = {
+          order_id: detail.one_off_purchase.purchase_id,
+          order_date: detail.one_off_purchase.purchase_date.toISOString(),
+          total_amount: detail.one_off_purchase.total_amount.toString(),
+          status: detail.one_off_purchase.status,
+          customer: customerDto,
+          items: orderItemsDto
+        };
+      } else if (detail.one_off_purchase_header) {
+        // Compra one-off con header
+        customerDto = {
+          person_id: detail.one_off_purchase_header.person.person_id,
+          name: detail.one_off_purchase_header.person.name || 'Sin nombre',
+          phone: detail.one_off_purchase_header.person.phone,
+          address: detail.one_off_purchase_header.person.address || 'Sin dirección'
+        };
+
+        const orderItemsDto: OrderItemDto[] = (detail.one_off_purchase_header?.purchase_items || []).map(item => {
+          const productDto: ProductDto = {
+            product_id: item.product.product_id,
+            description: item.product.description
+          };
+          return {
+            order_item_id: item.purchase_item_id,
+            product: productDto,
+            quantity: item.quantity,
+            delivered_quantity: 0, // Las compras one-off no tienen delivered_quantity
+            returned_quantity: 0
+          };
+        });
+
+        orderDto = {
+          order_id: detail.one_off_purchase_header.purchase_header_id,
+          order_date: detail.one_off_purchase_header.purchase_date.toISOString(),
+          total_amount: detail.one_off_purchase_header.total_amount.toString(),
+          status: detail.one_off_purchase_header.status,
+          customer: customerDto,
+          items: orderItemsDto
+        };
+      } else {
+        throw new Error('Detalle de hoja de ruta sin orden válida');
+      }
 
       let isCurrent = false;
       if (!currentDeliveryFound && detail.delivery_status === 'PENDING') {
         isCurrent = true;
         currentDeliveryFound = true;
       }
-
-      const orderItemsDto: OrderItemDto[] = detail.order_header.order_item.map(item => {
-        const productDto: ProductDto = {
-          product_id: item.product.product_id,
-          description: item.product.description
-        };
-        return {
-          order_item_id: item.order_item_id,
-          product: productDto,
-          quantity: item.quantity,
-          delivered_quantity: item.delivered_quantity || 0,
-          returned_quantity: item.returned_quantity || 0
-        };
-      });
-
-      const orderDto: OrderDto = {
-        order_id: detail.order_header.order_id,
-        order_date: detail.order_header.order_date.toISOString(),
-        total_amount: detail.order_header.total_amount.toString(),
-        status: detail.order_header.status,
-        customer: customerDto,
-        items: orderItemsDto
-      };
 
       return {
         route_sheet_detail_id: detail.route_sheet_detail_id,
@@ -664,12 +914,16 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         `driver_reconciliation_routesheet_${route_sheet_id}`
       );
 
-      const updatedRouteSheet = await this.route_sheet.update({
+      await this.route_sheet.update({
         where: { route_sheet_id },
         data: {
           driver_reconciliation_signature_path: signatureFileName,
           reconciliation_at: new Date(),
-        },
+        }
+      });
+
+      const updatedRouteSheet = await this.route_sheet.findUniqueOrThrow({
+        where: { route_sheet_id },
         include: {
           driver: true,
           vehicle: true,
@@ -684,12 +938,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     }
                   }
                 }
+              },
+              one_off_purchase: {
+                include: {
+                  person: true,
+                  product: true
+                }
+              },
+              one_off_purchase_header: {
+                include: {
+                  person: true,
+                  purchase_items: {
+                    include: {
+                      product: true
+                    }
+                  }
+                }
               }
             }
           }
         }
       });
-      return this.mapToRouteSheetResponseDto(updatedRouteSheet as any);
+      return this.mapToRouteSheetResponseDto(updatedRouteSheet as RouteSheetWithDetails);
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
@@ -853,37 +1123,41 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         }
       }
     });
-
-    const customerDto = new CustomerDto();
-    customerDto.person_id = updatedDetail.order_header.customer.person_id;
-    customerDto.name = updatedDetail.order_header.customer.name || 'N/A';
-    customerDto.phone = updatedDetail.order_header.customer.phone;
-    customerDto.address = updatedDetail.order_header.customer.address || 'N/A';
-
-    const orderItemsDto: OrderItemDto[] = updatedDetail.order_header.order_item.map(item => ({
-        order_item_id: item.order_item_id,
-        product: { product_id: item.product_id, description: item.product.description },
-        quantity: item.quantity,
-        delivered_quantity: item.delivered_quantity || 0,
-        returned_quantity: item.returned_quantity || 0,
-    }));
-
-    const orderDto = new OrderDto();
-    orderDto.order_id = updatedDetail.order_header.order_id;
-    orderDto.order_date = updatedDetail.order_header.order_date.toISOString();
-    orderDto.total_amount = updatedDetail.order_header.total_amount.toString();
-    orderDto.status = updatedDetail.order_header.status;
-    orderDto.customer = customerDto;
-    orderDto.items = orderItemsDto;
-    
     const responseDto = new RouteSheetDetailResponseDto();
     responseDto.route_sheet_detail_id = updatedDetail.route_sheet_detail_id;
     responseDto.route_sheet_id = updatedDetail.route_sheet_id;
-    responseDto.order = orderDto;
     responseDto.delivery_status = updatedDetail.delivery_status;
     responseDto.delivery_time = updatedDetail.delivery_time || undefined;
     responseDto.comments = updatedDetail.comments || undefined;
     responseDto.digital_signature_id = updatedDetail.digital_signature_id || undefined;
+
+    // Only populate order data if order_header exists (for subscription orders)
+    if (updatedDetail.order_header) {
+      const customerDto = new CustomerDto();
+      customerDto.person_id = updatedDetail.order_header.customer.person_id;
+      customerDto.name = updatedDetail.order_header.customer.name || 'N/A';
+      customerDto.phone = updatedDetail.order_header.customer.phone;
+      customerDto.address = updatedDetail.order_header.customer.address || 'N/A';
+
+      const orderItemsDto: OrderItemDto[] = updatedDetail.order_header.order_item.map(item => ({
+          order_item_id: item.order_item_id,
+          product: { product_id: item.product_id, description: item.product.description },
+          quantity: item.quantity,
+          delivered_quantity: item.delivered_quantity || 0,
+          returned_quantity: item.returned_quantity || 0,
+      }));
+
+      const orderDto = new OrderDto();
+      orderDto.order_id = updatedDetail.order_header.order_id;
+      orderDto.order_date = updatedDetail.order_header.order_date.toISOString();
+      orderDto.total_amount = updatedDetail.order_header.total_amount.toString();
+      orderDto.status = updatedDetail.order_header.status;
+      orderDto.customer = customerDto;
+      orderDto.items = orderItemsDto;
+      
+      responseDto.order = orderDto;
+    }
+    
     return responseDto;
   }
 
@@ -1014,14 +1288,16 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         throw new NotFoundException(`Detalle de hoja de ruta con ID ${detailId} no encontrado`);
       }
 
-      // Validar el nuevo horario contra las preferencias de suscripción
-      const validation = await this.validateDeliveryTimeAgainstSubscription(
-        detail.order_id,
-        updateDeliveryTimeDto.delivery_time
-      );
+      // Validar el nuevo horario contra las preferencias de suscripción (solo para órdenes de suscripción)
+      if (detail.order_id) {
+        const validation = await this.validateDeliveryTimeAgainstSubscription(
+          detail.order_id,
+          updateDeliveryTimeDto.delivery_time
+        );
 
-      if (!validation.isValid) {
-        throw new BadRequestException(`Horario inválido: ${validation.message}`);
+        if (!validation.isValid) {
+          throw new BadRequestException(`Horario inválido: ${validation.message}`);
+        }
       }
 
       // Actualizar el detalle
@@ -1082,14 +1358,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       }
 
       // Retornar una respuesta básica
-      return {
+      const responseDto: RouteSheetDetailResponseDto = {
         route_sheet_detail_id: updatedDetail.route_sheet_detail_id,
         route_sheet_id: updatedDetail.route_sheet_id,
         delivery_status: updatedDetail.delivery_status,
         delivery_time: updatedDetail.delivery_time || undefined,
         comments: updatedDetail.comments || undefined,
-        digital_signature_id: updatedDetail.digital_signature_id || undefined,
-        order: {
+        digital_signature_id: updatedDetail.digital_signature_id || undefined
+      };
+
+      // Solo agregar información de orden si existe order_header
+      if (updatedDetail.order_header) {
+        responseDto.order = {
           order_id: updatedDetail.order_header.order_id,
           order_date: updatedDetail.order_header.order_date.toISOString(),
           total_amount: updatedDetail.order_header.total_amount.toString(),
@@ -1110,8 +1390,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             delivered_quantity: 0,
             returned_quantity: 0
           }))
-        }
-      };
+        };
+      }
+
+      return responseDto;
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof NotFoundException) {
         throw error;

@@ -125,9 +125,10 @@ export class RouteSheetDetailResponseDto {
 
   @ApiProperty({
     description: 'Pedido a entregar',
-    type: OrderDto
+    type: OrderDto,
+    required: false
   })
-  order: OrderDto;
+  order?: OrderDto;
 
   @ApiProperty({
     description: 'Estado de la entrega',

@@ -22,6 +22,16 @@ export class RouteOptimizationService extends PrismaClient {
                 include: {
                   customer: true
                 }
+              },
+              one_off_purchase: {
+                include: {
+                  person: true
+                }
+              },
+              one_off_purchase_header: {
+                include: {
+                  person: true
+                }
               }
             }
           }
@@ -56,11 +66,20 @@ export class RouteOptimizationService extends PrismaClient {
         const randomLat = -34.603722 + (Math.random() - 0.5) * 0.1;
         const randomLng = -58.381592 + (Math.random() - 0.5) * 0.1;
         
+        let customerAddress = 'Dirección desconocida';
+        if (detail.order_header) {
+          customerAddress = detail.order_header.customer.address || 'Dirección desconocida';
+        } else if (detail.one_off_purchase) {
+          customerAddress = detail.one_off_purchase.delivery_address || detail.one_off_purchase.person.address || 'Dirección desconocida';
+        } else if (detail.one_off_purchase_header) {
+          customerAddress = detail.one_off_purchase_header.delivery_address || detail.one_off_purchase_header.person.address || 'Dirección desconocida';
+        }
+        
         waypoints.push({
           lat: detail.lat ? Number(detail.lat) : randomLat,
           lng: detail.lng ? Number(detail.lng) : randomLng,
           route_sheet_detail_id: detail.route_sheet_detail_id,
-          address: detail.order_header.customer.address || 'Dirección desconocida'
+          address: customerAddress
         });
       }
       
@@ -268,4 +287,4 @@ export class RouteOptimizationService extends PrismaClient {
     
     return totalMinutes;
   }
-} 
+}

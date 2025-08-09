@@ -63,11 +63,17 @@ export class OneOffPurchaseController {
 - Cliente nuevo: Se crea automáticamente
 - Flexibilidad total en el método de registro
 
+**🆕 CONTROL DE STATUS AUTOMÁTICO:**
+- Si \`requires_delivery = false\` → Status = 'DELIVERED' (orden completada)
+- Si \`requires_delivery = true\` → Status = 'PENDING' (pendiente de entrega)
+- Si se especifica \`status\` explícitamente → Se usa el valor proporcionado
+
 🔍 VALIDACIONES IMPLEMENTADAS:
 • Verificación de existencia de product_id
 • Verificación de existencia de price_list_id (si se proporciona)
 • Validación de que paid_amount sea igual a total_amount (si se proporciona)
-• Cálculo automático de total_amount basado en precio y cantidad`,
+• Cálculo automático de total_amount basado en precio y cantidad
+• Control automático de status según tipo de entrega`,
   })
   @ApiBody({ type: CreateOneOffPurchaseDto })
   @ApiResponse({
@@ -173,6 +179,20 @@ export class OneOffPurchaseController {
     required: false,
     description: 'Filtrar por ID de zona',
     type: Number,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filtrar por estado de la orden (PENDING, DELIVERED, CANCELLED)',
+    type: String,
+    example: 'PENDING',
+  })
+  @ApiQuery({
+    name: 'requires_delivery',
+    required: false,
+    description: 'Filtrar por si requiere entrega (true/false)',
+    type: Boolean,
+    example: true,
   })
   @ApiQuery({
     name: 'page',

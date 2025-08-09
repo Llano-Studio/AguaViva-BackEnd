@@ -56,6 +56,13 @@ async function bootstrap() {
         res.setHeader('Cache-Control', 'public, max-age=31536000'); 
         res.setHeader('Access-Control-Allow-Origin', '*');
       }
+      // 🆕 Configuración CORS para archivos PDF
+      if (path.match(/\.pdf$/i)) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache de 1 hora para PDFs
+      }
     },
   });
 
@@ -112,6 +119,7 @@ async function bootstrap() {
     './public/uploads/evidence',
     './public/uploads/delivery-evidence',
     './public/uploads/reconciliations',
+    './public/pdfs', // 🆕 Directorio para PDFs generados
   ];
   
   uploadsDirectories.forEach(dir => {

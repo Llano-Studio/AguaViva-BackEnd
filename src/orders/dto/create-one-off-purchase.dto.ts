@@ -190,7 +190,15 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   delivery_time?: string;
 
   @ApiPropertyOptional({
-    description: 'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser exactamente igual al total_amount calculado automáticamente.',
+    description: 'Monto total de la compra (opcional, se calcula automáticamente si no se proporciona)',
+    example: '1500.00'
+  })
+  @IsOptional()
+  @IsString()
+  total_amount?: string;
+
+  @ApiPropertyOptional({
+    description: 'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser menor o igual al total_amount.',
     example: '1500.00'
   })
   @IsOptional()
@@ -204,6 +212,15 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Estado de la orden (opcional). Si no se especifica, se determina automáticamente: DELIVERED si requires_delivery=false, PENDING si requires_delivery=true',
+    example: 'PENDING',
+    enum: ['PENDING', 'DELIVERED', 'CANCELLED']
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
 
   // total_amount se calcula automáticamente en el backend basado en los items y la lista de precios seleccionada.
 }

@@ -1,15 +1,44 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString, Matches } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString, Matches, ValidatorConstraint, ValidatorConstraintInterface, Validate } from 'class-validator';
 import { Type } from 'class-transformer';
 
+@ValidatorConstraint({ name: 'atLeastOneOrderId', async: false })
+export class AtLeastOneOrderIdConstraint implements ValidatorConstraintInterface {
+  validate(value: any, args: any) {
+    const object = args.object;
+    return !!(object.order_id || object.one_off_purchase_id || object.one_off_purchase_header_id);
+  }
+
+  defaultMessage() {
+    return 'Al menos uno de los siguientes campos debe estar presente: order_id, one_off_purchase_id, one_off_purchase_header_id';
+  }
+}
+
 export class CreateRouteSheetDetailDto {
-  @ApiProperty({
-    description: 'ID del pedido que debe ser entregado',
+  @Validate(AtLeastOneOrderIdConstraint)
+  @ApiPropertyOptional({
+    description: 'ID del pedido de suscripción/contrato que debe ser entregado',
     example: 1
   })
   @IsInt()
-  @IsNotEmpty()
-  order_id: number;
+  @IsOptional()
+  order_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la compra one-off individual que debe ser entregada',
+    example: 1
+  })
+  @IsInt()
+  @IsOptional()
+  one_off_purchase_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la compra one-off con múltiples productos que debe ser entregada',
+    example: 1
+  })
+  @IsInt()
+  @IsOptional()
+  one_off_purchase_header_id?: number;
 
   @ApiPropertyOptional({
     description: 'Estado inicial de la entrega (por defecto PENDING)',

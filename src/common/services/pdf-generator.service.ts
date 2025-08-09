@@ -328,7 +328,8 @@ export class PdfGeneratorService {
     return new Promise((resolve, reject) => {
       doc.end();
       writeStream.on('finish', () => {
-        const url = `http://localhost:3000/public/pdfs/${filename}`;
+        // Use relative path instead of hardcoded localhost URL to avoid CORS issues
+        const url = `/public/pdfs/${filename}`;
         resolve({ url, filename });
       });
       writeStream.on('error', reject);

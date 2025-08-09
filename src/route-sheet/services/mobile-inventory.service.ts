@@ -187,19 +187,45 @@ export class MobileInventoryService extends PrismaClient {
                     where: { product_id }
                   }
                 }
+              },
+              one_off_purchase: true,
+              one_off_purchase_header: {
+                include: {
+                  purchase_items: {
+                    where: { product_id }
+                  }
+                }
               }
             }
           });
 
-          if (detail && detail.order_header.order_item.length > 0) {
-            const orderItem = detail.order_header.order_item[0];
-            
-            await tx.order_item.update({
-              where: { order_item_id: orderItem.order_item_id },
-              data: {
-                delivered_quantity: (orderItem.delivered_quantity || 0) + Math.abs(quantity)
-              }
-            });
+          if (detail) {
+            if (detail.order_header && detail.order_header.order_item.length > 0) {
+              const orderItem = detail.order_header.order_item[0];
+              
+              await tx.order_item.update({
+                where: { order_item_id: orderItem.order_item_id },
+                data: {
+                  delivered_quantity: (orderItem.delivered_quantity || 0) + Math.abs(quantity)
+                }
+              });
+            } else if (detail.one_off_purchase && detail.one_off_purchase.product_id === product_id) {
+               await tx.one_off_purchase.update({
+                 where: { purchase_id: detail.one_off_purchase.purchase_id },
+                 data: {
+                   delivered_quantity: (detail.one_off_purchase.delivered_quantity || 0) + Math.abs(quantity)
+                 }
+               });
+             } else if (detail.one_off_purchase_header && detail.one_off_purchase_header.purchase_items.length > 0) {
+               const purchaseItem = detail.one_off_purchase_header.purchase_items[0];
+               
+               await tx.one_off_purchase_item.update({
+                 where: { purchase_item_id: purchaseItem.purchase_item_id },
+                 data: {
+                   delivered_quantity: (purchaseItem.delivered_quantity || 0) + Math.abs(quantity)
+                 }
+               });
+            }
           }
         }
       });
@@ -272,6 +298,12 @@ export class MobileInventoryService extends PrismaClient {
                     include: {
                       order_item: true
                     }
+                  },
+                  one_off_purchase: true,
+                  one_off_purchase_header: {
+                    include: {
+                      purchase_items: true
+                    }
                   }
                 }
               }
@@ -295,9 +327,18 @@ export class MobileInventoryService extends PrismaClient {
         // Sumar las cantidades necesarias de las entregas pendientes
         for (const detail of item.route_sheet.route_sheet_detail) {
           if (detail.delivery_status === 'PENDING') {
-            const orderItems = detail.order_header.order_item.filter(oi => oi.product_id === item.product_id);
-            for (const orderItem of orderItems) {
-              requiredQuantity += orderItem.quantity - (orderItem.delivered_quantity || 0);
+            if (detail.order_header) {
+              const orderItems = detail.order_header.order_item.filter(oi => oi.product_id === item.product_id);
+              for (const orderItem of orderItems) {
+                requiredQuantity += orderItem.quantity - (orderItem.delivered_quantity || 0);
+              }
+            } else if (detail.one_off_purchase && detail.one_off_purchase.product_id === item.product_id) {
+               requiredQuantity += detail.one_off_purchase.quantity - (detail.one_off_purchase.delivered_quantity || 0);
+             } else if (detail.one_off_purchase_header) {
+               const purchaseItems = detail.one_off_purchase_header.purchase_items.filter(oi => oi.product_id === item.product_id);
+               for (const purchaseItem of purchaseItems) {
+                 requiredQuantity += purchaseItem.quantity - (purchaseItem.delivered_quantity || 0);
+               }
             }
           }
         }
@@ -324,4 +365,4 @@ export class MobileInventoryService extends PrismaClient {
       throw new InternalServerErrorException('Error al verificar alertas de inventario');
     }
   }
-} 
+}

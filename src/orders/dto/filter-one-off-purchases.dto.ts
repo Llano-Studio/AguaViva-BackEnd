@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsDateString, IsInt} from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsInt, IsBoolean} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -68,4 +68,14 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   productName?: string;
+
+  @ApiPropertyOptional({ description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({ description: 'Filtrar por si requiere entrega (true/false)' })
+  @IsOptional()
+  @Type(() => Boolean)
+  requires_delivery?: boolean;
 }

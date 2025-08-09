@@ -187,7 +187,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     throw new BadRequestException('Debe especificar al menos un producto en la compra.');
                 }
 
-                // Buscar o crear el cliente
+                // Buscar o crear el cliente (NO consolidar órdenes)
                 let person = await prismaTx.person.findFirst({
                     where: { phone: createDto.customer.phone }
                 });
@@ -216,36 +216,69 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 let totalAmount = new Decimal(0);
                 const createdPurchases: any[] = [];
 
-                // Procesar cada item en el array
+                // Calcular total_amount primero
                 for (const item of createDto.items) {
-                    // Verificar que el producto existe
                     const product = await prismaTx.product.findUnique({ where: { product_id: item.product_id } });
-                    
                     if (!product) {
                         throw new BadRequestException(
                             `Producto con ID ${item.product_id} no encontrado. Verifique que el producto existe antes de crear la compra.`
                         );
                     }
-                    
-                    // Determinar qué lista de precios usar para este item específico
+
                     const itemPriceListId = item.price_list_id || BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
-                    
-                    // Buscar precio en la lista específica
-                    let itemPrice = new Decimal(product.price); // Precio base como fallback
-                    
+                    let itemPrice = new Decimal(product.price);
+
                     const priceItem = await prismaTx.price_list_item.findFirst({
                         where: { 
                             price_list_id: itemPriceListId,
                             product_id: item.product_id 
                         }
                     });
-                    
+
                     if (priceItem) {
                         itemPrice = new Decimal(priceItem.unit_price);
                     }
-                    
+
                     const itemTotalAmount = itemPrice.mul(item.quantity);
                     totalAmount = totalAmount.add(itemTotalAmount);
+                }
+
+                // Determinar total_amount y paid_amount correctamente
+                const finalTotalAmount = createDto.total_amount ? new Decimal(createDto.total_amount) : totalAmount;
+                const finalPaidAmount = createDto.paid_amount ? new Decimal(createDto.paid_amount) : new Decimal(0);
+
+                // Validar que paid_amount no sea mayor que total_amount
+                if (finalPaidAmount.gt(finalTotalAmount)) {
+                    throw new BadRequestException(
+                        `El monto pagado (${finalPaidAmount.toString()}) no puede ser mayor al monto total (${finalTotalAmount.toString()}).`
+                    );
+                }
+
+                // Determinar status basado en requires_delivery o usar el status proporcionado
+                const orderStatus = createDto.status || 
+                    (createDto.requires_delivery === false ? 'DELIVERED' : 'PENDING');
+
+                // Procesar cada item en el array
+                for (const item of createDto.items) {
+                    const product = await prismaTx.product.findUnique({ where: { product_id: item.product_id } });
+                    
+                    if(!product) throw new BadRequestException(`Producto con ID ${item.product_id} no encontrado. Verifique que el producto existe antes de crear la compra.`);
+                    
+                    const itemPriceListId = item.price_list_id || BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+                    let itemPrice = new Decimal(product.price);
+
+                    const priceItem = await prismaTx.price_list_item.findFirst({
+                        where: { 
+                            price_list_id: itemPriceListId,
+                            product_id: item.product_id 
+                        }
+                    });
+
+                    if (priceItem) {
+                        itemPrice = new Decimal(priceItem.unit_price);
+                    }
+
+                    const itemTotalAmount = itemPrice.mul(item.quantity);
 
                     // Verificar stock para productos no retornables
                     if (!product.is_returnable) {
@@ -261,16 +294,18 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                         }
                     }
 
-                    // Determinar dirección de entrega
-                    const deliveryAddress = createDto.requires_delivery 
-                        ? (createDto.delivery_address || person.address)
-                        : null;
+                    // Determinar dirección, localidad y zona según requires_delivery
+                    let deliveryAddress = null;
+                    let deliveryLocalityId = null;
+                    let deliveryZoneId = null;
 
-                    // Determinar localidad y zona para entrega
-                    const deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
-                    const deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
+                    if (createDto.requires_delivery === true) {
+                        deliveryAddress = createDto.delivery_address || person.address;
+                        deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
+                        deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
+                    }
 
-                    // Verificar que existe la price_list - obligatorio
+                    // Verificar que existe la price_list
                     const priceListExists = await prismaTx.price_list.findUnique({
                         where: { price_list_id: itemPriceListId }
                     });
@@ -284,7 +319,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     const newPurchase = await prismaTx.one_off_purchase.create({
                         data: {
                             person_id: person.person_id,
-                            paid_amount: createDto.paid_amount ? new Decimal(createDto.paid_amount) : new Decimal(0),
+                            total_amount: itemTotalAmount,
+                            paid_amount: finalPaidAmount.div(createDto.items.length), // Distribuir paid_amount entre items
                             notes: createDto.notes,
                             product_id: item.product_id,
                             quantity: item.quantity,
@@ -296,7 +332,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
                             scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
                             delivery_time: createDto.delivery_time,
-                            total_amount: itemTotalAmount,
+                            status: orderStatus,
+                            requires_delivery: createDto.requires_delivery || false,
                         },
                         include: { product: true, person: true, sale_channel: true, locality: true, zone: true, price_list: true },
                     });
@@ -319,16 +356,6 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
                         };
                         await this.inventoryService.createStockMovement(stockMovement, prismaTx);
-                    }
-                }
-
-                // Validar que paid_amount sea igual a total_amount
-                if (createDto.paid_amount !== undefined && createDto.paid_amount !== null) {
-                    const paidAmount = new Decimal(createDto.paid_amount);
-                    if (!paidAmount.equals(totalAmount)) {
-                        throw new BadRequestException(
-                            `El monto pagado (${paidAmount.toString()}) debe ser igual al monto total (${totalAmount.toString()}).`
-                        );
                     }
                 }
 
@@ -360,7 +387,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             product_id, 
             sale_channel_id, 
             locality_id, 
-            zone_id } = filters;
+            zone_id,
+            status,
+            requires_delivery } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
         const where: Prisma.one_off_purchaseWhereInput = {};
@@ -370,6 +399,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         if (sale_channel_id) where.sale_channel_id = sale_channel_id;
         if (locality_id) where.locality_id = locality_id;
         if (zone_id) where.zone_id = zone_id;
+        if (status) where.status = status;
+        if (requires_delivery !== undefined) where.requires_delivery = requires_delivery;
 
         const personFilter: Prisma.personWhereInput = {};
         if (customerName) {
@@ -624,6 +655,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     ...(updateDto.delivery_time !== undefined && { delivery_time: updateDto.delivery_time }),
                     ...(updateDto.paid_amount !== undefined && { paid_amount: updateDto.paid_amount ? new Decimal(updateDto.paid_amount) : new Decimal(0) }),
                     ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
+                    ...(updateDto.status !== undefined && { status: updateDto.status }),
                     total_amount: newTotalAmount,
                 };
 
@@ -783,6 +815,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             delivery_time: basePurchase.delivery_time,
             total_amount: totalAmount.toString(),
             paid_amount: basePurchase.paid_amount.toString(),
+            status: basePurchase.status,
+            requires_delivery: basePurchase.requires_delivery,
             notes: basePurchase.notes,
             person: {
                 person_id: basePurchase.person.person_id,
@@ -793,11 +827,11 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 sale_channel_id: basePurchase.sale_channel.sale_channel_id,
                 name: basePurchase.sale_channel.description || 'Canal no disponible'
             },
-            locality: basePurchase.locality ? {
+            locality: (basePurchase.requires_delivery && basePurchase.locality) ? {
                 locality_id: basePurchase.locality.locality_id,
                 name: basePurchase.locality.name
             } : undefined,
-            zone: basePurchase.zone ? {
+            zone: (basePurchase.requires_delivery && basePurchase.zone) ? {
                 zone_id: basePurchase.zone.zone_id,
                 name: basePurchase.zone.name
             } : undefined
@@ -813,6 +847,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             delivery_time: purchase.delivery_time,
             total_amount: purchase.total_amount.toString(),
             paid_amount: purchase.paid_amount.toString(),
+            status: purchase.status,
+            requires_delivery: purchase.requires_delivery,
             notes: purchase.notes,
             person: {
                 person_id: purchase.person.person_id,
@@ -834,11 +870,11 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 sale_channel_id: purchase.sale_channel.sale_channel_id,
                 name: purchase.sale_channel.description || 'Canal no disponible'
             },
-            locality: purchase.locality ? {
+            locality: (purchase.requires_delivery && purchase.locality) ? {
                 locality_id: purchase.locality.locality_id,
                 name: purchase.locality.name
             } : undefined,
-            zone: purchase.zone ? {
+            zone: (purchase.requires_delivery && purchase.zone) ? {
                 zone_id: purchase.zone.zone_id,
                 name: purchase.zone.name
             } : undefined

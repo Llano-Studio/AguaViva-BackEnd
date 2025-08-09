@@ -98,6 +98,12 @@ export class OneOffPurchaseResponseDto {
     @ApiProperty({ example: '500.00' })
     paid_amount: string;
 
+    @ApiProperty({ example: 'PENDING', description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)' })
+    status: string;
+
+    @ApiProperty({ example: true, description: 'Indica si la orden requiere entrega a domicilio' })
+    requires_delivery: boolean;
+
     @ApiProperty({ example: 'Cliente prefiere entrega por la mañana', nullable: true })
     notes?: string;
 
