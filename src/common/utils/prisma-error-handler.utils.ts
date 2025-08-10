@@ -47,10 +47,32 @@ export function handlePrismaError(error: any, entityName: string = 'registro') {
         }
         foreignKeyMessage += '. Elimine o reasigne estas referencias primero.';
         throw new ConflictException(foreignKeyMessage);
+      case 'P2022':
+        // Error de columna que no puede ser nula o valor que no cumple restricciones
+        const columnInfo = error.meta?.column_name as string | undefined;
+        const tableInfo = error.meta?.table as string | undefined;
+        let constraintMessage = `Error de restricción de base de datos en ${entityName}`;
+        if (columnInfo && tableInfo) {
+          constraintMessage = `El campo '${columnInfo}' en la tabla '${tableInfo}' no cumple con las restricciones de la base de datos`;
+        } else if (columnInfo) {
+          constraintMessage = `El campo '${columnInfo}' no cumple con las restricciones de la base de datos`;
+        }
+        console.error(`P2022 Error Details:`, { 
+          code: error.code, 
+          meta: error.meta, 
+          message: error.message,
+          constraintMessage 
+        });
+        throw new BadRequestException(constraintMessage);
       case 'P2025':
         throw new NotFoundException(`El ${entityName} no fue encontrado para esta operación.`);
       default:
         // Otros errores conocidos de Prisma
+        console.error(`Unhandled Prisma Error:`, { 
+          code: error.code, 
+          meta: error.meta, 
+          message: error.message 
+        });
         throw new InternalServerErrorException(`Error de base de datos (${error.code}) al procesar el ${entityName}.`);
     }
   }

@@ -138,13 +138,13 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                         sale_channel_id: createDto.sale_channel_id,
                         price_list_id: priceListId,
                         delivery_address: createDto.delivery_address,
-                        locality_id: createDto.locality_id,
-                        zone_id: createDto.zone_id,
+                        locality_id: (createDto.locality_id && createDto.locality_id > 0) ? createDto.locality_id : null,
+                        zone_id: (createDto.zone_id && createDto.zone_id > 0) ? createDto.zone_id : null,
                         paid_amount: createDto.paid_amount ? new Decimal(createDto.paid_amount) : new Decimal(0),
                         notes: createDto.notes,
                         purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
-                        scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
-                        delivery_time: createDto.delivery_time,
+                        scheduled_delivery_date: (createDto.scheduled_delivery_date && createDto.scheduled_delivery_date.trim() !== '') ? new Date(createDto.scheduled_delivery_date) : null,
+                        delivery_time: (createDto.delivery_time && createDto.delivery_time.trim() !== '') ? createDto.delivery_time : null,
                         total_amount: totalAmount,
                     },
                     include: { product: true, person: true, sale_channel: true, locality: true, zone: true, price_list: true },
@@ -280,18 +280,16 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
                     const itemTotalAmount = itemPrice.mul(item.quantity);
 
-                    // Verificar stock para productos no retornables
-                    if (!product.is_returnable) {
-                        const stockDisponible = await this.inventoryService.getProductStock(
-                            item.product_id, 
-                            BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
-                            prismaTx
+                    // Verificar stock disponible para todos los productos
+                    const stockDisponible = await this.inventoryService.getProductStock(
+                        item.product_id, 
+                        BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
+                        prismaTx
+                    );
+                    if (stockDisponible < item.quantity) {
+                        throw new BadRequestException(
+                            `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`
                         );
-                        if (stockDisponible < item.quantity) {
-                            throw new BadRequestException(
-                                `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`
-                            );
-                        }
                     }
 
                     // Determinar dirección, localidad y zona según requires_delivery
@@ -301,8 +299,13 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
                     if (createDto.requires_delivery === true) {
                         deliveryAddress = createDto.delivery_address || person.address;
-                        deliveryLocalityId = createDto.locality_id || createDto.customer.localityId || person.locality_id;
-                        deliveryZoneId = createDto.zone_id || createDto.customer.zoneId || person.zone_id;
+                        // Convertir 0 a null para evitar problemas de foreign key
+                        deliveryLocalityId = (createDto.locality_id && createDto.locality_id > 0) ? createDto.locality_id : 
+                                            (createDto.customer.localityId && createDto.customer.localityId > 0) ? createDto.customer.localityId : 
+                                            (person.locality_id && person.locality_id > 0) ? person.locality_id : null;
+                        deliveryZoneId = (createDto.zone_id && createDto.zone_id > 0) ? createDto.zone_id : 
+                                        (createDto.customer.zoneId && createDto.customer.zoneId > 0) ? createDto.customer.zoneId : 
+                                        (person.zone_id && person.zone_id > 0) ? person.zone_id : null;
                     }
 
                     // Verificar que existe la price_list
@@ -330,8 +333,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             locality_id: deliveryLocalityId,
                             zone_id: deliveryZoneId,
                             purchase_date: createDto.purchase_date ? new Date(createDto.purchase_date) : new Date(),
-                            scheduled_delivery_date: createDto.scheduled_delivery_date ? new Date(createDto.scheduled_delivery_date) : null,
-                            delivery_time: createDto.delivery_time,
+                            scheduled_delivery_date: (createDto.scheduled_delivery_date && createDto.scheduled_delivery_date.trim() !== '') ? new Date(createDto.scheduled_delivery_date) : null,
+                            delivery_time: (createDto.delivery_time && createDto.delivery_time.trim() !== '') ? createDto.delivery_time : null,
                             status: orderStatus,
                             requires_delivery: createDto.requires_delivery || false,
                         },
@@ -340,23 +343,21 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
                     createdPurchases.push(newPurchase);
 
-                    // Crear movimiento de stock para productos no retornables
-                    if (!product.is_returnable) {
-                        const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
-                            BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
-                            prismaTx
-                        );
+                    // Crear movimiento de stock para todos los productos
+                    const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
+                        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
+                        prismaTx
+                    );
 
-                        const stockMovement: CreateStockMovementDto = {
-                            movement_type_id: saleMovementTypeId,
-                            product_id: item.product_id,
-                            quantity: item.quantity,
-                            source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                            movement_date: new Date(),
-                            remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
-                        };
-                        await this.inventoryService.createStockMovement(stockMovement, prismaTx);
-                    }
+                    const stockMovement: CreateStockMovementDto = {
+                        movement_type_id: saleMovementTypeId,
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                        movement_date: new Date(),
+                        remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
+                    };
+                    await this.inventoryService.createStockMovement(stockMovement, prismaTx);
                 }
 
                 // Retornar respuesta consolidada con todos los productos
@@ -639,18 +640,18 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     // person_id ya no se actualiza en este flujo
                     ...(updateDto.sale_channel_id && { sale_channel: { connect: { sale_channel_id: updateDto.sale_channel_id } } }),
                     ...(updateDto.locality_id !== undefined && { 
-                        locality: updateDto.locality_id === null 
+                        locality: (updateDto.locality_id === null || updateDto.locality_id === 0)
                             ? { disconnect: true } 
                             : { connect: { locality_id: updateDto.locality_id } } 
                     }),
                     ...(updateDto.zone_id !== undefined && { 
-                        zone: updateDto.zone_id === null 
+                        zone: (updateDto.zone_id === null || updateDto.zone_id === 0)
                             ? { disconnect: true } 
                             : { connect: { zone_id: updateDto.zone_id } } 
                     }),
                     purchase_date: updateDto.purchase_date ? new Date(updateDto.purchase_date) : existingPurchase.purchase_date,
                     ...(updateDto.scheduled_delivery_date !== undefined && { 
-                        scheduled_delivery_date: updateDto.scheduled_delivery_date ? new Date(updateDto.scheduled_delivery_date) : null 
+                        scheduled_delivery_date: (updateDto.scheduled_delivery_date && updateDto.scheduled_delivery_date.trim() !== '') ? new Date(updateDto.scheduled_delivery_date) : null 
                     }),
                     ...(updateDto.delivery_time !== undefined && { delivery_time: updateDto.delivery_time }),
                     ...(updateDto.paid_amount !== undefined && { paid_amount: updateDto.paid_amount ? new Decimal(updateDto.paid_amount) : new Decimal(0) }),

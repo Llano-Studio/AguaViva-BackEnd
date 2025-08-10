@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested, IsEnum, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
@@ -174,18 +174,20 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   purchase_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha programada de entrega del pedido en formato ISO (opcional)',
+    description: 'Fecha programada de entrega del pedido en formato ISO (opcional). NOTA: No requerido si requires_delivery=false',
     example: '2024-03-21T14:00:00Z'
   })
   @IsOptional()
+  @ValidateIf((object) => object.scheduled_delivery_date !== '' && object.scheduled_delivery_date !== null && object.scheduled_delivery_date !== undefined)
   @IsDateString()
   scheduled_delivery_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Rango de horario de entrega (opcional)',
+    description: 'Rango de horario de entrega (opcional). NOTA: No requerido si requires_delivery=false',
     example: '9:00 AM - 12:00 PM'
   })
   @IsOptional()
+  @ValidateIf((object) => object.delivery_time !== '' && object.delivery_time !== null && object.delivery_time !== undefined)
   @IsString()
   delivery_time?: string;
 
