@@ -329,7 +329,7 @@ export class PdfGeneratorService {
       doc.end();
       writeStream.on('finish', () => {
         // Use relative path instead of hardcoded localhost URL to avoid CORS issues
-        const url = `/pdfs/${filename}`;
+        const url = `/public/pdfs/${filename}`;
         resolve({ url, filename });
       });
       writeStream.on('error', reject);
