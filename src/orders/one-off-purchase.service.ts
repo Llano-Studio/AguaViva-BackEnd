@@ -762,6 +762,35 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 include: { product: true }
             }).catch(() => { throw new NotFoundException(`Compra One-Off con ID ${id} no encontrada.`); });
 
+            // 🆕 VALIDACIÓN PREVIA: Verificar si la compra está en alguna hoja de ruta
+            const routeSheetReferences = await this.route_sheet_detail.findMany({
+                where: { one_off_purchase_id: id },
+                include: {
+                    route_sheet: {
+                        include: {
+                            driver: { select: { name: true } },
+                            vehicle: { select: { name: true } }
+                        }
+                    }
+                }
+            });
+
+            if (routeSheetReferences.length > 0) {
+                // Construir un mensaje más informativo con detalles de las hojas de ruta
+                const routeInfo = routeSheetReferences.map(ref => {
+                    const routeSheet = ref.route_sheet;
+                    const driverName = routeSheet.driver?.name || 'Conductor no asignado';
+                    const vehicleName = routeSheet.vehicle?.name || 'Vehículo no asignado';
+                    const deliveryDate = routeSheet.delivery_date.toLocaleDateString('es-ES');
+                    return `Hoja de Ruta #${routeSheet.route_sheet_id} (${deliveryDate}) - ${driverName} - ${vehicleName}`;
+                }).join(', ');
+
+                throw new ConflictException(
+                    `No se puede eliminar la Compra One-Off #${id} porque está incluida en ${routeSheetReferences.length} hoja(s) de ruta activa(s): ${routeInfo}. ` +
+                    `Para eliminar esta compra, primero debe removerla de las hojas de ruta correspondientes o eliminar las hojas de ruta completas.`
+                );
+            }
+
             await this.$transaction(async (prismaTx) => {
                 // Renovar stock usando la función unificada
                 await this.renewStockForNonReturnableProducts(
@@ -786,7 +815,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             };
         } catch (error) {
             handlePrismaError(error, 'Compra One-Off');
-            if (!(error instanceof NotFoundException || error instanceof InternalServerErrorException)) {
+            if (!(error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException)) {
                 throw new InternalServerErrorException(`Error no manejado al eliminar compra one-off`);
             }
             throw error;

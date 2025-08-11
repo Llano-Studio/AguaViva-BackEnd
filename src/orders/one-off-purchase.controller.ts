@@ -317,8 +317,17 @@ export class OneOffPurchaseController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Eliminar una compra one-off por su ID',
-    description:
-      'Elimina una compra one-off y renueva el stock de productos no retornables usando la lógica unificada',
+    description: `Elimina una compra one-off y renueva el stock de productos no retornables usando la lógica unificada.
+
+⚠️ **RESTRICCIONES IMPORTANTES:**
+- No se puede eliminar una compra que esté incluida en hojas de ruta activas
+- El sistema verificará automáticamente si la compra está asignada a conductores
+- Si hay conflictos, se mostrará información detallada de las hojas de ruta afectadas
+
+🔍 **VALIDACIONES APLICADAS:**
+• Verificación de existencia de la compra
+• Verificación de referencias en hojas de ruta activas
+• Restauración automática de stock para productos no retornables`,
   })
   @ApiParam({
     name: 'id',
@@ -341,6 +350,10 @@ export class OneOffPurchaseController {
     },
   })
   @ApiResponse({ status: 404, description: 'Compra one-off no encontrada.' })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Conflicto: La compra está incluida en hojas de ruta activas y no puede ser eliminada. El mensaje incluye detalles específicos de las hojas de ruta afectadas.' 
+  })
   async removeOneOffPurchase(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string; deleted: boolean }> {
