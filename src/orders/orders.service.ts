@@ -10,7 +10,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { OrderStatus as AppOrderStatus, OrderType as AppOrderType } from '../common/constants/enums';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
-import { parseSortByString } from '../common/utils/query-parser.utils';
+import { parseSortByString, mapOrderSortFields } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 
@@ -704,7 +704,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             }
         }
         
-        const orderByClause = parseSortByString(sortBy, [{ order_date: 'desc' }]);
+        const orderByClause = parseSortByString(sortBy, [{ order_date: 'desc' }], mapOrderSortFields);
 
         try {
             const totalOrders = await this.order_header.count({ where });

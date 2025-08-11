@@ -9,7 +9,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
-import { parseSortByString } from '../common/utils/query-parser.utils';
+import { parseSortByString, mapOneOffSortFields, mapOneOffHeaderSortFields } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()
@@ -556,7 +556,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             }
         }
 
-        const orderBy = parseSortByString(sortBy, [{ purchase_date: 'desc' }]);
+        const orderBy = parseSortByString(sortBy, [{ purchase_date: 'desc' }], mapOneOffSortFields);
 
         try {
             const total = await this.one_off_purchase.count({ where });
@@ -1151,12 +1151,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 }
             }
 
-            let orderBy: Prisma.one_off_purchase_headerOrderByWithRelationInput = { purchase_date: 'desc' };
-            if (sortBy) {
-                const [field, direction] = sortBy.split(':');
-                const orderDirection = direction === 'asc' ? 'asc' : 'desc';
-                orderBy = { [field]: orderDirection };
-            }
+            const orderBy = parseSortByString(sortBy, [{ purchase_date: 'desc' }], mapOneOffHeaderSortFields);
 
             const headerPurchases = await this.one_off_purchase_header.findMany({
                 where,
