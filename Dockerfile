@@ -24,18 +24,13 @@ EXPOSE 3000
 
 # Instalamos curl para health checks
 RUN apk add --no-cache curl
-
-# Variables de entorno por defecto (serán sobrescritas por docker-compose)
-ENV DB_HOST=sgarav-postgres
-ENV DB_PORT=5432
-ENV DB_NAME=sgarav_db
-ENV DB_USER=postgres
-ENV DB_PASSWORD=123456
-ENV NODE_ENV=production
-
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
+# Copiar script de inicio
+COPY start.sh ./
+RUN chmod +x start.sh
+
 # Comando para iniciar la aplicación
-CMD ["npm", "run", "start:prod"]
+CMD ["./start.sh"]
