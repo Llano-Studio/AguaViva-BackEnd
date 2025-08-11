@@ -166,6 +166,13 @@ export class OrderResponseDto {
     notes?: string;
 
     @ApiProperty({
+        description: 'Dirección de entrega específica para este pedido',
+        example: 'Av. Principal 123, Centro',
+        nullable: true
+    })
+    delivery_address?: string;
+
+    @ApiProperty({
         description: 'Ítems del pedido',
         type: [OrderItemResponseDto]
     })

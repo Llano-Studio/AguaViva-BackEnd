@@ -52,6 +52,10 @@ export class OneOffPurchasePersonResponseDto {
     person_id: number;
     @ApiProperty({ example: 'Cliente Ocasional' })
     name: string;
+    @ApiProperty({ example: '1234567890', description: 'Teléfono del cliente' })
+    phone: string;
+    @ApiProperty({ example: 'Av. Principal 123, Centro', nullable: true, description: 'Dirección del cliente' })
+    address?: string;
 }
 
 export class OneOffPurchaseSaleChannelResponseDto {
@@ -106,6 +110,9 @@ export class OneOffPurchaseResponseDto {
 
     @ApiProperty({ example: 'Cliente prefiere entrega por la mañana', nullable: true })
     notes?: string;
+
+    @ApiProperty({ example: 'Av. Principal 123, Centro', nullable: true, description: 'Dirección de entrega específica para esta compra' })
+    delivery_address?: string;
 
     @ApiProperty({ type: [OneOffPurchaseProductResponseDto] })
     products: OneOffPurchaseProductResponseDto[];

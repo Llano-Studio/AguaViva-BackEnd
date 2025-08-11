@@ -112,6 +112,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_type: order.order_type as unknown as AppOrderType,
             status: order.status as unknown as AppOrderStatus,
             notes: order.notes ?? undefined,
+            delivery_address: customerPayload?.address ?? undefined,
             order_item: items,
             customer: customerResponsePart,
             sale_channel: saleChannelResponsePart,

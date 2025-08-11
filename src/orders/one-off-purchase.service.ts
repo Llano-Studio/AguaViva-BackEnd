@@ -48,8 +48,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 person: {
                     person_id: purchase.person.person_id,
                     name: purchase.person.name || 'Nombre no disponible',
-                    phone: purchase.person.phone,
-                    tax_id: purchase.person.tax_id
+                    phone: purchase.person.phone || '',
+                    address: purchase.person.address || undefined
                 },
                 products: [{
                     product_id: purchase.product_id,
@@ -915,9 +915,12 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             status: basePurchase.status,
             requires_delivery: basePurchase.requires_delivery,
             notes: basePurchase.notes,
+            delivery_address: basePurchase.delivery_address || undefined,
             person: {
                 person_id: basePurchase.person.person_id,
-                name: basePurchase.person.name || 'Nombre no disponible'
+                name: basePurchase.person.name || 'Nombre no disponible',
+                phone: basePurchase.person.phone || '',
+                address: basePurchase.person.address || undefined
             },
             products: products,
             sale_channel: {
@@ -947,9 +950,12 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             status: purchase.status,
             requires_delivery: purchase.requires_delivery,
             notes: purchase.notes,
+            delivery_address: purchase.delivery_address || undefined,
             person: {
                 person_id: purchase.person.person_id,
-                name: purchase.person.name || 'Nombre no disponible'
+                name: purchase.person.name || 'Nombre no disponible',
+                phone: purchase.person.phone || '',
+                address: purchase.person.address || undefined
             },
             products: [{
                 product_id: purchase.product.product_id,
@@ -990,9 +996,12 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             status: purchaseHeader.status,
             requires_delivery: !!purchaseHeader.delivery_address,
             notes: purchaseHeader.notes,
+            delivery_address: purchaseHeader.delivery_address || undefined,
             person: {
                 person_id: purchaseHeader.person.person_id,
-                name: purchaseHeader.person.name || 'Nombre no disponible'
+                name: purchaseHeader.person.name || 'Nombre no disponible',
+                phone: purchaseHeader.person.phone || '',
+                address: purchaseHeader.person.address || undefined
             },
             products: purchaseHeader.purchase_items.map((item: any) => ({
                 product_id: item.product.product_id,
