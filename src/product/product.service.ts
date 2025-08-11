@@ -80,8 +80,19 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           ];
         }
 
-        // Filtros específicos
-        if (filters.categoryId) {
+        // Filtros específicos de categorías (múltiples o única)
+        if (filters.categoryIds && filters.categoryIds.length > 0) {
+          // Validar que todas las categorías existan
+          for (const categoryId of filters.categoryIds) {
+            const category = await this.product_category.findUnique({ where: { category_id: categoryId } });
+            if (!category) {
+              throw new NotFoundException(`Categoría con ID ${categoryId} no encontrada.`);
+            }
+          }
+          // Si se proporcionan múltiples categorías, usar operador IN
+          whereClause.category_id = { in: filters.categoryIds };
+        } else if (filters.categoryId) {
+          // Si solo se proporciona una categoría (compatibilidad), usar equality
           const category = await this.product_category.findUnique({ where: { category_id: filters.categoryId } });
           if (!category) {
               throw new NotFoundException(`Categoría con ID ${filters.categoryId} no encontrada.`);

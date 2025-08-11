@@ -143,8 +143,16 @@ export class AuthController {
   @ApiQuery({ 
     name: 'role', 
     required: false, 
-    description: 'Filtrar por rol',
+    description: 'Filtrar por rol (para compatibilidad)',
     enum: Role
+  })
+  @ApiQuery({ 
+    name: 'roles', 
+    required: false, 
+    description: 'Filtrar por roles múltiples. Formato: "SUPERADMIN,ADMINISTRATIVE" o array',
+    enum: Role,
+    isArray: true,
+    example: "SUPERADMIN,ADMINISTRATIVE"
   })
   @ApiQuery({ 
     name: 'isActive', 

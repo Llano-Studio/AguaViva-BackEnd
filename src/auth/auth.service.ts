@@ -192,7 +192,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             { email: { contains: filters.search, mode: 'insensitive' } }
           ];
         }
-        if (filters.role) whereClause.role = filters.role;
+        // Filtros de roles (múltiples o único)
+        if (filters.roles && filters.roles.length > 0) {
+          // Si se proporcionan múltiples roles, usar operador IN
+          whereClause.role = { in: filters.roles };
+        } else if (filters.role) {
+          // Si solo se proporciona un rol (compatibilidad), usar equality
+          whereClause.role = filters.role;
+        }
         if (filters.isActive !== undefined) whereClause.isActive = filters.isActive;
       }
 

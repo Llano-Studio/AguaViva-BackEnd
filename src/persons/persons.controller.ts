@@ -61,16 +61,26 @@ export class PersonsController {
   @ApiQuery({ name: 'personId', required: false, type: Number, description: 'Filtrar por ID de persona' })
   @ApiQuery({ name: 'name', required: false, type: String, description: 'Filtrar por nombre (parcial)' })
   @ApiQuery({ name: 'address', required: false, type: String, description: 'Filtrar por dirección (parcial)' })
-  @ApiQuery({ name: 'type', required: false, enum: PersonType, description: 'Filtrar por tipo de persona' })
+  @ApiQuery({ name: 'type', required: false, enum: PersonType, description: 'Filtrar por tipo de persona (para compatibilidad)' })
+  @ApiQuery({ name: 'types', required: false, type: String, description: 'Filtrar por tipos de persona múltiples. Formato: "INDIVIDUAL,PLAN" o array' })
   @ApiQuery({ name: 'phone', required: false, type: String, description: 'Filtrar por teléfono (parcial)' })
   @ApiQuery({ name: 'taxId', required: false, type: String, description: 'Filtrar por CUIT/CUIL/DNI (parcial)' })
-  @ApiQuery({ name: 'localityId', required: false, type: Number, description: 'Filtrar por ID de localidad' })
-  @ApiQuery({ name: 'zoneId', required: false, type: Number, description: 'Filtrar por ID de zona' })
+  @ApiQuery({ name: 'localityId', required: false, type: Number, description: 'Filtrar por ID de localidad (para compatibilidad)' })
+  @ApiQuery({ name: 'localityIds', required: false, type: String, description: 'Filtrar por IDs de localidades múltiples. Formato: "1,2,3" o array [1,2,3]' })
+  @ApiQuery({ name: 'zoneId', required: false, type: Number, description: 'Filtrar por ID de zona (para compatibilidad)' })
+  @ApiQuery({ name: 'zoneIds', required: false, type: String, description: 'Filtrar por IDs de zonas múltiples. Formato: "1,2,3" o array [1,2,3]' })
   @ApiQuery({ 
     name: 'payment_semaphore_status', 
     required: false, 
     type: String, 
-    description: 'Filtrar por estado del semáforo de pagos (NONE, GREEN, YELLOW, RED)', 
+    description: 'Filtrar por estado del semáforo de pagos (NONE, GREEN, YELLOW, RED) - para compatibilidad', 
+    enum: ['NONE', 'GREEN', 'YELLOW', 'RED'] 
+  })
+  @ApiQuery({ 
+    name: 'payment_semaphore_statuses', 
+    required: false, 
+    type: String, 
+    description: 'Filtrar por estados del semáforo múltiples. Formato: "GREEN,YELLOW" o array', 
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED'] 
   })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })

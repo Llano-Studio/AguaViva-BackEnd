@@ -133,12 +133,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       alias,
       address,
       type,
+      types,
       personId,
       phone,
       taxId,
       localityId,
+      localityIds,
       zoneId,
+      zoneIds,
       payment_semaphore_status,
+      payment_semaphore_statuses,
       sortBy
     } = filters;
 
@@ -162,9 +166,32 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (address) where.address = { contains: address, mode: 'insensitive' };
     if (phone) where.phone = { contains: phone, mode: 'insensitive' };
     if (taxId) where.tax_id = { contains: taxId, mode: 'insensitive' };
-    if (type) where.type = type as PrismaPersonType;
-    if (localityId) where.locality_id = localityId;
-    if (zoneId) where.zone_id = zoneId;
+    // Manejar filtrado por tipos (múltiples o único)
+    if (types && types.length > 0) {
+      // Si se proporcionan múltiples tipos, usar operador IN
+      where.type = { in: types as PrismaPersonType[] };
+    } else if (type) {
+      // Si solo se proporciona un tipo (compatibilidad), usar equality
+      where.type = type as PrismaPersonType;
+    }
+    
+    // Manejar filtrado por localidades (múltiples o única)
+    if (localityIds && localityIds.length > 0) {
+      // Si se proporcionan múltiples localidades, usar operador IN
+      where.locality_id = { in: localityIds };
+    } else if (localityId) {
+      // Si solo se proporciona una localidad (compatibilidad), usar equality
+      where.locality_id = localityId;
+    }
+    
+    // Manejar filtrado por zonas (múltiples o única)
+    if (zoneIds && zoneIds.length > 0) {
+      // Si se proporcionan múltiples zonas, usar operador IN
+      where.zone_id = { in: zoneIds };
+    } else if (zoneId) {
+      // Si solo se proporciona una zona (compatibilidad), usar equality
+      where.zone_id = zoneId;
+    }
 
     // Verificar si se debe ordenar por semáforo
     const shouldSortBySemaphore = sortBy && sortBy.includes('payment_semaphore_status');
@@ -192,7 +219,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
     try {
       // Si se filtra por semáforo O se ordena por semáforo, necesitamos obtener todas las personas para calcular el semáforo
-      if (payment_semaphore_status || shouldSortBySemaphore) {
+      if (payment_semaphore_status || payment_semaphore_statuses || shouldSortBySemaphore) {
         const allPersonsFromDb = await this.person.findMany({
           where,
           include: {
@@ -219,8 +246,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
           
-          // Si hay filtro por semáforo, aplicar filtro
-          if (payment_semaphore_status && semaphoreStatus !== payment_semaphore_status) {
+          // Si hay filtro por semáforo (múltiples o único), aplicar filtro
+          if (payment_semaphore_statuses && payment_semaphore_statuses.length > 0) {
+            // Filtro múltiple: verificar si el estado está en la lista
+            if (!payment_semaphore_statuses.includes(semaphoreStatus)) {
+              continue;
+            }
+          } else if (payment_semaphore_status && semaphoreStatus !== payment_semaphore_status) {
+            // Filtro único (compatibilidad)
             continue;
           }
           

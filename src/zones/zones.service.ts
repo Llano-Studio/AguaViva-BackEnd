@@ -15,7 +15,7 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
   }
 
   async getAllZones(filters: FilterZonesDto): Promise<{ data: zone[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
-    const { page = 1, limit = 10, sortBy, search, name, locality_id, locality_name } = filters;
+    const { page = 1, limit = 10, sortBy, search, name, locality_id, locality_ids, locality_name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     
@@ -38,8 +38,12 @@ export class ZonesService  extends PrismaClient implements OnModuleInit {
       };
     }
 
-    // Filtros de localidad
-    if (locality_id) {
+    // Filtros de localidad (múltiples o única)
+    if (locality_ids && locality_ids.length > 0) {
+      // Si se proporcionan múltiples localidades, usar operador IN
+      where.locality_id = { in: locality_ids };
+    } else if (locality_id) {
+      // Si solo se proporciona una localidad (compatibilidad), usar equality
       where.locality_id = locality_id;
     }
 
