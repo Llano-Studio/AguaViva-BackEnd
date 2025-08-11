@@ -98,7 +98,7 @@ export class OneOffPurchaseController {
   createOneOffPurchase(
     @Body(ValidationPipe) createDto: CreateOneOffPurchaseDto,
   ): Promise<OneOffPurchaseResponseDto> {
-    return this.oneOffPurchaseService.createOneOff(createDto);
+    return this.oneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
   }
 
   @Get('one-off')

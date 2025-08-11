@@ -194,11 +194,13 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 }
 
                 // Buscar o crear el cliente
+                console.log('🔍 Buscando cliente con teléfono:', createDto.customer.phone);
                 let person = await prismaTx.person.findFirst({
                     where: { phone: createDto.customer.phone }
                 });
 
                 if (!person) {
+                    console.log('✨ Cliente no encontrado, creando nuevo cliente');
                     // Validar que se proporcionen los campos obligatorios para cliente nuevo
                     if (!createDto.customer.name || !createDto.customer.localityId || !createDto.customer.zoneId) {
                         throw new BadRequestException('Para clientes nuevos, debe proporcionar: name, localityId y zoneId');
@@ -217,6 +219,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             type: (createDto.customer.type || 'INDIVIDUAL') as PersonType,
                         }
                     });
+                    console.log('✅ Cliente creado exitosamente con ID:', person.person_id);
+                } else {
+                    console.log('🔄 Cliente existente encontrado con ID:', person.person_id);
                 }
 
                 // Calcular total_amount y preparar items
@@ -326,6 +331,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     (createDto.requires_delivery === false ? 'DELIVERED' : 'PENDING');
 
                 // 🆕 CREAR UNA SOLA ORDEN HEADER CON MÚLTIPLES ITEMS
+                console.log('💼 Creando compra one-off header para cliente ID:', person.person_id);
                 const newPurchaseHeader = await prismaTx.one_off_purchase_header.create({
                     data: {
                         person_id: person.person_id,
@@ -383,6 +389,12 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 return this.mapToHeaderItemsOneOffPurchaseResponseDto(newPurchaseHeader);
             });
         } catch (error) {
+            console.error('🚨 ERROR EN createOneOffWithCustomerLogic:', {
+                message: error.message,
+                code: error.code,
+                meta: error.meta,
+                stack: error.stack
+            });
             handlePrismaError(error, 'Compra One-Off con Cliente');
             if (!(error instanceof BadRequestException || error instanceof NotFoundException || error instanceof ConflictException || error instanceof InternalServerErrorException)) {
                 throw new InternalServerErrorException(`Error no manejado al crear compra one-off con cliente`);
