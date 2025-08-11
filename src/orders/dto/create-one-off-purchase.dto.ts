@@ -216,9 +216,9 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Estado de la orden (opcional). Si no se especifica, se determina automáticamente: DELIVERED si requires_delivery=false, PENDING si requires_delivery=true',
+    description: 'Estado de la orden (opcional). Si no se especifica, se determina automáticamente: RETIRADO si requires_delivery=false, PENDING si requires_delivery=true',
     example: 'PENDING',
-    enum: ['PENDING', 'DELIVERED', 'CANCELLED']
+    enum: ['PENDING', 'RETIRADO', 'DELIVERED', 'CANCELLED']
   })
   @IsOptional()
   @IsString()

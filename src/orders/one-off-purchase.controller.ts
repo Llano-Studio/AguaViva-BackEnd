@@ -64,7 +64,7 @@ export class OneOffPurchaseController {
 - Flexibilidad total en el método de registro
 
 **🆕 CONTROL DE STATUS AUTOMÁTICO:**
-- Si \`requires_delivery = false\` → Status = 'DELIVERED' (orden completada)
+- Si \`requires_delivery = false\` → Status = 'RETIRADO' (producto retirado en local)
 - Si \`requires_delivery = true\` → Status = 'PENDING' (pendiente de entrega)
 - Si se especifica \`status\` explícitamente → Se usa el valor proporcionado
 
@@ -98,8 +98,7 @@ export class OneOffPurchaseController {
   createOneOffPurchase(
     @Body(ValidationPipe) createDto: CreateOneOffPurchaseDto,
   ): Promise<OneOffPurchaseResponseDto> {
-    // Siempre usar la lógica de cliente automático
-    return this.oneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
+    return this.oneOffPurchaseService.createOneOff(createDto);
   }
 
   @Get('one-off')
@@ -183,7 +182,7 @@ export class OneOffPurchaseController {
   @ApiQuery({
     name: 'status',
     required: false,
-    description: 'Filtrar por estado de la orden (PENDING, DELIVERED, CANCELLED)',
+    description: 'Filtrar por estado de la orden (PENDING, RETIRADO, DELIVERED, CANCELLED)',
     type: String,
     example: 'PENDING',
   })
