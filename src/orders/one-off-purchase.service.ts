@@ -55,13 +55,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     product_id: purchase.product_id,
                     description: purchase.product.description,
                     quantity: purchase.quantity,
-                    price_list: purchase.price_list 
-                        ? {
-                            price_list_id: purchase.price_list.price_list_id,
-                            name: purchase.price_list.name,
-                            unit_price: (purchase.total_amount.div(purchase.quantity)).toString()
-                        }
-                        : undefined
+                    unit_price: (purchase.total_amount.div(purchase.quantity)).toString(),
+                    subtotal: purchase.total_amount.toString(),
+                    price_list_id: purchase.price_list?.price_list_id || null
                 }],
                 sale_channel: {
                     sale_channel_id: purchase.sale_channel.sale_channel_id,
@@ -922,18 +918,19 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         );
 
         // Consolidar todos los productos
-        const products = purchases.map(purchase => ({
-            product_id: purchase.product.product_id,
-            description: purchase.product.description,
-            quantity: purchase.quantity,
-            price_list: purchase.price_list 
-                ? {
-                    price_list_id: purchase.price_list.price_list_id,
-                    name: purchase.price_list.name,
-                    unit_price: (purchase.total_amount.div(purchase.quantity)).toString()
-                }
-                : undefined
-        }));
+        const products = purchases.map(purchase => {
+            const unitPrice = purchase.total_amount.div(purchase.quantity);
+            const subtotal = purchase.total_amount;
+            
+            return {
+                product_id: purchase.product.product_id,
+                description: purchase.product.description,
+                quantity: purchase.quantity,
+                unit_price: unitPrice.toString(),
+                subtotal: subtotal.toString(),
+                price_list_id: purchase.price_list?.price_list_id || null
+            };
+        });
 
         return {
             purchase_id: basePurchase.purchase_id,
@@ -992,13 +989,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 product_id: purchase.product.product_id,
                 description: purchase.product.description,
                 quantity: purchase.quantity,
-                price_list: purchase.price_list 
-                    ? {
-                        price_list_id: purchase.price_list.price_list_id,
-                        name: purchase.price_list.name,
-                        unit_price: (purchase.total_amount.div(purchase.quantity)).toString()
-                    }
-                    : undefined
+                unit_price: (purchase.total_amount.div(purchase.quantity)).toString(),
+                subtotal: purchase.total_amount.toString(),
+                price_list_id: purchase.price_list?.price_list_id || null
             }],
             sale_channel: {
                 sale_channel_id: purchase.sale_channel.sale_channel_id,
@@ -1038,11 +1031,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 product_id: item.product.product_id,
                 description: item.product.description,
                 quantity: item.quantity,
-                price_list: item.price_list ? {
-                    price_list_id: item.price_list.price_list_id,
-                    name: item.price_list.name,
-                    unit_price: item.unit_price
-                } : undefined
+                unit_price: item.unit_price,
+                subtotal: item.subtotal,
+                price_list_id: item.price_list?.price_list_id || null
             })),
             sale_channel: {
                 sale_channel_id: purchaseHeader.sale_channel.sale_channel_id,

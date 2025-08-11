@@ -1,24 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class OneOffPurchasePriceListResponseDto {
-    @ApiProperty({ 
-        example: 1,
-        description: 'ID de la lista de precios utilizada en la compra'
-    })
-    price_list_id: number;
-    
-    @ApiProperty({ 
-        example: 'Lista Mayorista',
-        description: 'Nombre de la lista de precios'
-    })
-    name: string;
-    
-    @ApiProperty({ 
-        example: '450.00',
-        description: 'Precio unitario del producto según la lista de precios utilizada'
-    })
-    unit_price: string;
-}
+
 
 export class OneOffPurchaseProductResponseDto {
     @ApiProperty({ 
@@ -38,13 +20,25 @@ export class OneOffPurchaseProductResponseDto {
         description: 'Cantidad del producto comprado'
     })
     quantity: number;
+
+    @ApiProperty({ 
+        example: '5000.00',
+        description: 'Precio unitario aplicado al producto'
+    })
+    unit_price: string;
+
+    @ApiProperty({ 
+        example: '10000.00',
+        description: 'Subtotal del ítem (precio unitario × cantidad)'
+    })
+    subtotal: string;
     
     @ApiProperty({ 
-        type: OneOffPurchasePriceListResponseDto, 
-        nullable: true,
-        description: 'Información de la lista de precios utilizada para este producto (incluye ID, nombre y precio unitario)'
+        example: 1,
+        description: 'ID de la lista de precios utilizada',
+        nullable: true
     })
-    price_list?: OneOffPurchasePriceListResponseDto;
+    price_list_id?: number;
 }
 
 export class OneOffPurchasePersonResponseDto {
