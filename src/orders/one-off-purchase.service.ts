@@ -603,50 +603,81 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
     async findOneOneOff(id: number): Promise<OneOffPurchaseResponseDto> {
         try {
-            // Primero buscar la compra específica para obtener person_id y fecha
-            const basePurchase = await this.one_off_purchase.findUniqueOrThrow({
-                where: { purchase_id: id },
-                include: { 
-                    product: true, 
-                    person: true, 
-                    sale_channel: true, 
-                    locality: true, 
-                    zone: true,
-                    price_list: true 
-                },
-            }).catch(() => { throw new NotFoundException(`Compra One-Off con ID ${id} no encontrada.`); });
-
-            // Buscar todas las compras del mismo cliente en la misma fecha
-            const purchaseDate = new Date(basePurchase.purchase_date);
-            const startOfDay = new Date(purchaseDate);
-            startOfDay.setHours(0, 0, 0, 0);
-            const endOfDay = new Date(purchaseDate);
-            endOfDay.setHours(23, 59, 59, 999);
-
-            const relatedPurchases = await this.one_off_purchase.findMany({
-                where: {
-                    person_id: basePurchase.person_id,
-                    purchase_date: {
-                        gte: startOfDay,
-                        lte: endOfDay
+            // 🆕 BÚSQUEDA PARALELA: Buscar en ambas estructuras simultáneamente
+            const [legacyPurchase, headerPurchase] = await Promise.all([
+                // Buscar en estructura legacy
+                this.one_off_purchase.findUnique({
+                    where: { purchase_id: id },
+                    include: { 
+                        product: true, 
+                        person: true, 
+                        sale_channel: true, 
+                        locality: true, 
+                        zone: true,
+                        price_list: true 
+                    },
+                }).catch(() => null), // No lanzar error, solo retornar null
+                
+                // Buscar en estructura header
+                this.one_off_purchase_header.findUnique({
+                    where: { purchase_header_id: id },
+                    include: {
+                        person: true,
+                        sale_channel: true,
+                        locality: true,
+                        zone: true,
+                        purchase_items: {
+                            include: {
+                                product: true,
+                                price_list: true
+                            }
+                        }
                     }
-                },
-                include: { 
-                    product: true, 
-                    person: true, 
-                    sale_channel: true, 
-                    locality: true, 
-                    zone: true,
-                    price_list: true 
-                },
-                orderBy: { purchase_id: 'asc' }
-            });
+                }).catch(() => null) // No lanzar error, solo retornar null
+            ]);
 
-            return this.mapToConsolidatedOneOffPurchaseResponseDto(relatedPurchases);
+            // Si se encuentra en legacy, usar lógica de consolidación
+            if (legacyPurchase) {
+                const purchaseDate = new Date(legacyPurchase.purchase_date);
+                const startOfDay = new Date(purchaseDate);
+                startOfDay.setHours(0, 0, 0, 0);
+                const endOfDay = new Date(purchaseDate);
+                endOfDay.setHours(23, 59, 59, 999);
+
+                const relatedPurchases = await this.one_off_purchase.findMany({
+                    where: {
+                        person_id: legacyPurchase.person_id,
+                        purchase_date: {
+                            gte: startOfDay,
+                            lte: endOfDay
+                        }
+                    },
+                    include: { 
+                        product: true, 
+                        person: true, 
+                        sale_channel: true, 
+                        locality: true, 
+                        zone: true,
+                        price_list: true 
+                    },
+                    orderBy: { purchase_id: 'asc' }
+                });
+
+                return this.mapToConsolidatedOneOffPurchaseResponseDto(relatedPurchases);
+            }
+
+            // Si se encuentra en header, usar mapeo directo
+            if (headerPurchase) {
+                return this.mapToHeaderItemsOneOffPurchaseResponseDto(headerPurchase);
+            }
+
+            // Si no se encuentra en ninguna estructura, lanzar error
+            throw new NotFoundException(`Compra One-Off con ID ${id} no encontrada en ninguna de las estructuras disponibles.`);
+
         } catch (error) {
             handlePrismaError(error, 'Compra One-Off');
             if (!(error instanceof NotFoundException || error instanceof InternalServerErrorException)) {
-                throw new InternalServerErrorException(`Error no manejado al buscar compra one-off por ID.`);
+                throw new InternalServerErrorException(`Error no manejado al buscar compra one-off por ID ${id}.`);
             }
             throw error;
         }
@@ -1058,7 +1089,6 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             if (!zone) throw new NotFoundException(`Zona con ID ${dto.zone_id} no encontrada.`);
         }
     }
-
     async findAllHeaderOneOff(filters: FilterOneOffPurchasesDto): Promise<any> {
         try {
             const { 
