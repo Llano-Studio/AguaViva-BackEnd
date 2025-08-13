@@ -18,6 +18,12 @@ export interface SubscriptionQuotaValidation {
   current_cycle_id: number;
   products: ProductQuotaInfo[];
   has_additional_charges: boolean;
+  late_fee_info?: {
+    is_overdue: boolean;
+    late_fee_percentage: number;
+    late_fee_applied: boolean;
+    payment_due_date?: Date;
+  };
 }
 
 @Injectable()
@@ -243,11 +249,20 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       }
     }
 
+    // Obtener información de recargos por mora del ciclo actual
+    const lateFeeInfo = {
+      is_overdue: currentCycle.is_overdue || false,
+      late_fee_percentage: currentCycle.late_fee_percentage ? parseFloat(currentCycle.late_fee_percentage.toString()) : 0,
+      late_fee_applied: currentCycle.late_fee_applied || false,
+      payment_due_date: currentCycle.payment_due_date || undefined
+    };
+
     return {
       subscription_id: subscriptionId,
       current_cycle_id: currentCycle.cycle_id,
       products: productQuotas,
-      has_additional_charges: hasAdditionalCharges
+      has_additional_charges: hasAdditionalCharges,
+      late_fee_info: lateFeeInfo
     };
   }
 

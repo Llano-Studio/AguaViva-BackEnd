@@ -265,21 +265,38 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     }
 
     async getFullStockWithDetails(filters: FilterInventoryDto): Promise<PaginatedInventoryResponseDto> {
-        const { page = 1, limit = 10, sortBy, warehouse_id, product_id, product_description, category_id, min_quantity, max_quantity } = filters;
+        const { page = 1, limit = 10, sortBy, warehouse_id, warehouse_ids, product_id, product_ids, product_description, category_id, category_ids, min_quantity, max_quantity } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
 
         const where: Prisma.inventoryWhereInput = {};
-        if (warehouse_id) where.warehouse_id = warehouse_id;
-        if (product_id) where.product_id = product_id;
+        
+        // Filtro por warehouse_id (múltiples o único)
+        if (warehouse_ids && warehouse_ids.length > 0) {
+            where.warehouse_id = { in: warehouse_ids };
+        } else if (warehouse_id) {
+            where.warehouse_id = warehouse_id;
+        }
+        
+        // Filtro por product_id (múltiples o único)
+        if (product_ids && product_ids.length > 0) {
+            where.product_id = { in: product_ids };
+        } else if (product_id) {
+            where.product_id = product_id;
+        }
         
         let productWhere: Prisma.productWhereInput = {};
         if (product_description) {
             productWhere.description = { contains: product_description, mode: 'insensitive' };
         }
-        if (category_id) {
+        
+        // Filtro por category_id (múltiples o único)
+        if (category_ids && category_ids.length > 0) {
+            productWhere.category_id = { in: category_ids };
+        } else if (category_id) {
             productWhere.category_id = category_id;
         }
+        
         if (Object.keys(productWhere).length > 0) {
             where.product = productWhere;
         }

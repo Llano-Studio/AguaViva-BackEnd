@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class SubscriptionCycleRenewalService extends PrismaClient implements OnModuleInit {
@@ -12,11 +13,11 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
   }
 
   /**
-   * Tarea programada que se ejecuta diariamente a las 00:01
-   * para verificar y crear nuevos ciclos de suscripción cuando sea necesario
+   * Ejecuta la renovación de ciclos expirados y verificación de recargos cada día a la 1 AM
    */
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async renewExpiredCycles() {
+    await this.checkAndApplyLateFees();
     this.logger.log('🔄 Iniciando renovación automática de ciclos de suscripción...');
     
     try {
@@ -72,12 +73,20 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
       cycleEndDate.setDate(cycleStartDate.getDate() - 1);
       cycleEndDate.setHours(23, 59, 59, 999);
 
+      // Calcular fecha de vencimiento de pago (10 días después del final del ciclo)
+      const paymentDueDate = new Date(cycleEndDate);
+      paymentDueDate.setDate(paymentDueDate.getDate() + 10);
+
       // Crear el nuevo ciclo
       const newCycle = await this.subscription_cycle.create({
         data: {
           subscription_id: subscription.subscription_id,
           cycle_start: cycleStartDate,
           cycle_end: cycleEndDate,
+          payment_due_date: paymentDueDate,
+          is_overdue: false,
+          late_fee_applied: false,
+          late_fee_percentage: new Decimal(20.00), // 20% de recargo
           notes: 'Ciclo renovado automáticamente'
         }
       });
@@ -109,10 +118,78 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
   }
 
   /**
+   * Verifica y aplica recargos por mora a ciclos vencidos
+   */
+  async checkAndApplyLateFees() {
+    this.logger.log('💰 Verificando ciclos vencidos para aplicar recargos por mora...');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+      // Buscar ciclos que han pasado la fecha de vencimiento de pago y no tienen recargo aplicado
+      const overdueCycles = await this.subscription_cycle.findMany({
+        where: {
+          payment_due_date: {
+            lt: today
+          },
+          late_fee_applied: false,
+          customer_subscription: {
+            status: SubscriptionStatus.ACTIVE
+          }
+        },
+        include: {
+          customer_subscription: {
+            include: {
+              subscription_plan: true
+            }
+          }
+        }
+      });
+
+      this.logger.log(`📋 Encontrados ${overdueCycles.length} ciclos vencidos sin recargo aplicado`);
+
+      for (const cycle of overdueCycles) {
+        try {
+          // Marcar como vencido y aplicar recargo
+          await this.subscription_cycle.update({
+            where: { cycle_id: cycle.cycle_id },
+            data: {
+              is_overdue: true,
+              late_fee_applied: true
+            }
+          });
+
+          this.logger.log(
+            `✅ Recargo del 20% aplicado al ciclo ${cycle.cycle_id} de la suscripción ${cycle.subscription_id}`
+          );
+
+        } catch (error) {
+          this.logger.error(
+            `❌ Error aplicando recargo al ciclo ${cycle.cycle_id}:`,
+            error
+          );
+        }
+      }
+
+    } catch (error) {
+      this.logger.error('❌ Error en verificación de recargos por mora:', error);
+    }
+  }
+
+  /**
    * Método manual para forzar la renovación de ciclos (útil para testing)
    */
   async forceRenewalCheck() {
     this.logger.log('🔧 Ejecutando renovación manual de ciclos...');
     await this.renewExpiredCycles();
+  }
+
+  /**
+   * Método manual para forzar la verificación de recargos (útil para testing)
+   */
+  async forceLateFeeCheck() {
+    this.logger.log('🔧 Ejecutando verificación manual de recargos...');
+    await this.checkAndApplyLateFees();
   }
 }

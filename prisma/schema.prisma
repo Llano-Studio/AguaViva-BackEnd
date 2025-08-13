@@ -296,6 +296,10 @@ model subscription_cycle {
   subscription_id           Int
   cycle_start               DateTime                    @db.Date
   cycle_end                 DateTime                    @db.Date
+  payment_due_date          DateTime?                   @db.Date
+  is_overdue                Boolean                     @default(false)
+  late_fee_applied          Boolean                     @default(false)
+  late_fee_percentage       Decimal?                    @db.Decimal(5,2)
   notes                     String?
   customer_subscription     customer_subscription       @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_subscription")
   subscription_cycle_detail subscription_cycle_detail[]
