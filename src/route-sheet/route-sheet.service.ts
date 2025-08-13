@@ -315,7 +315,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           });
         }
 
-        // 🆕 CORRECCIÓN: Cambiar estado de órdenes de PENDING a IN_DELIVERY al asignar a hoja de ruta
+        // 🆕 CORRECCIÓN: Cambiar estado de órdenes de PENDING a READY_FOR_DELIVERY al asignar a hoja de ruta
         const orderIdsToUpdate = validatedDetails
           .filter(detail => detail.order_id)
           .map(detail => detail.order_id!);
@@ -327,10 +327,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               status: 'PENDING'
             },
             data: {
-              status: 'IN_DELIVERY'
+              status: 'READY_FOR_DELIVERY'
             }
           });
-          console.log(`✅ Estado actualizado a IN_DELIVERY para ${orderIdsToUpdate.length} órdenes: ${orderIdsToUpdate.join(', ')}`);
+          console.log(`✅ Estado actualizado a READY_FOR_DELIVERY para ${orderIdsToUpdate.length} órdenes: ${orderIdsToUpdate.join(', ')}`);
         }
 
         // Obtener la hoja de ruta completa con los detalles

@@ -1173,23 +1173,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         
                         console.log(`  - Cantidad a devolver al stock: ${quantityToReturn}`);
                         
-                        // Solo crear movimiento de devolución para productos NO retornables
-                        // Los productos retornables no afectan el stock al crear o eliminar órdenes
-                        if (!item.product.is_returnable) {
-                            await this.inventoryService.createStockMovement({
-                                movement_type_id: returnMovementTypeId,
-                                product_id: item.product_id,
-                                quantity: quantityToReturn,
-                                source_warehouse_id: null,
-                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                                movement_date: new Date(),
-                                remarks: `${this.entityName} #${id} CANCELADO - Devolución producto no retornable ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`
-                            }, tx);
-                            
-                            console.log(`✅ Stock devuelto: ${quantityToReturn} unidades de ${item.product.description} - Abono original: $${orderToDelete.paid_amount}`);
-                        } else {
-                            console.log(`ℹ️ Producto retornable ${item.product.description}: no se afecta el stock`);
-                        }
+                        // 🔧 CORRECCIÓN: Crear movimiento de devolución para TODOS los productos
+                        // Tanto retornables como no retornables deben devolver el stock al cancelar
+                        await this.inventoryService.createStockMovement({
+                            movement_type_id: returnMovementTypeId,
+                            product_id: item.product_id,
+                            quantity: quantityToReturn,
+                            source_warehouse_id: null,
+                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.is_returnable ? 'producto retornable (PRÉSTAMO)' : 'producto no retornable'} ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`
+                        }, tx);
+                        
+                        console.log(`✅ Stock devuelto: ${quantityToReturn} unidades de ${item.product.description}${item.product.is_returnable ? ' (PRÉSTAMO)' : ''} - Abono original: $${orderToDelete.paid_amount}`);
                     }
                 }
 
