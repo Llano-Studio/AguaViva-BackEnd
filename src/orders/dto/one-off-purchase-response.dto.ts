@@ -99,6 +99,9 @@ export class OneOffPurchaseResponseDto {
     @ApiProperty({ example: 'PENDING', description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)' })
     status: string;
 
+    @ApiProperty({ example: 'green', description: 'Sistema de semáforos: green (<5 días), yellow (5-10 días), red (>10 días)' })
+    traffic_light_status: string;
+
     @ApiProperty({ example: true, description: 'Indica si la orden requiere entrega a domicilio' })
     requires_delivery: boolean;
 

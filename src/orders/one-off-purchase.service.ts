@@ -198,8 +198,13 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 if (!person) {
                     console.log('✨ Cliente no encontrado, creando nuevo cliente');
                     // Validar que se proporcionen los campos obligatorios para cliente nuevo
-                    if (!createDto.customer.name || !createDto.customer.localityId || !createDto.customer.zoneId) {
-                        throw new BadRequestException('Para clientes nuevos, debe proporcionar: name, localityId y zoneId');
+                    if (!createDto.customer.name) {
+                        throw new BadRequestException('Para clientes nuevos, debe proporcionar: name');
+                    }
+                    
+                    // Solo requerir localityId y zoneId si requiere entrega a domicilio
+                    if (createDto.requires_delivery === true && (!createDto.customer.localityId || !createDto.customer.zoneId)) {
+                        throw new BadRequestException('Para clientes nuevos con entrega a domicilio, debe proporcionar: localityId y zoneId');
                     }
 
                     // Crear nuevo cliente
@@ -210,8 +215,8 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                             alias: createDto.customer.alias,
                             address: createDto.customer.address,
                             tax_id: createDto.customer.taxId,
-                            locality: { connect: { locality_id: createDto.customer.localityId } },
-                            zone: { connect: { zone_id: createDto.customer.zoneId } },
+                            ...(createDto.customer.localityId && { locality: { connect: { locality_id: createDto.customer.localityId } } }),
+                            ...(createDto.customer.zoneId && { zone: { connect: { zone_id: createDto.customer.zoneId } } }),
                             type: (createDto.customer.type || 'INDIVIDUAL') as PersonType,
                         }
                     });
@@ -249,16 +254,21 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                     const itemSubtotal = itemPrice.mul(item.quantity);
                     totalAmount = totalAmount.add(itemSubtotal);
 
-                    // Verificar stock disponible
-                    const stockDisponible = await this.inventoryService.getProductStock(
-                        item.product_id, 
-                        BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
-                        prismaTx
-                    );
-                    if (stockDisponible < item.quantity) {
-                        throw new BadRequestException(
-                            `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`
+                    // 🆕 CORRECCIÓN: Verificar stock SOLO para productos NO retornables
+                    if (!product.is_returnable) {
+                        const stockDisponible = await this.inventoryService.getProductStock(
+                            item.product_id, 
+                            BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID, 
+                            prismaTx
                         );
+                        if (stockDisponible < item.quantity) {
+                            throw new BadRequestException(
+                                `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`
+                            );
+                        }
+                        console.log(`✅ Stock verificado para producto NO retornable: ${product.description} (Disponible: ${stockDisponible}, Solicitado: ${item.quantity})`);
+                    } else {
+                        console.log(`⏭️ Verificación de stock omitida para producto retornable: ${product.description} (${item.quantity} unidades) - Es un PRÉSTAMO`);
                     }
 
                     // Verificar que existe la price_list
@@ -363,22 +373,34 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
                 // Compra creada exitosamente
 
-                // Crear movimientos de stock para todos los productos
+                // 🆕 CORRECCIÓN: Crear movimientos de stock SOLO para productos NO retornables
                 for (const item of createDto.items) {
-                    const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
-                        BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
-                        prismaTx
-                    );
+                    // Obtener información del producto para verificar si es retornable
+                    const product = await prismaTx.product.findUnique({
+                        where: { product_id: item.product_id },
+                        select: { is_returnable: true, description: true }
+                    });
 
-                    const stockMovement: CreateStockMovementDto = {
-                        movement_type_id: saleMovementTypeId,
-                        product_id: item.product_id,
-                        quantity: item.quantity,
-                        source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                        movement_date: new Date(),
-                        remarks: `Compra One-Off Header #${newPurchaseHeader.purchase_header_id} - Producto ID ${item.product_id}`,
-                    };
-                    await this.inventoryService.createStockMovement(stockMovement, prismaTx);
+                    // Solo crear movimiento de stock para productos NO retornables
+                    if (product && !product.is_returnable) {
+                        const saleMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
+                            BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
+                            prismaTx
+                        );
+
+                        const stockMovement: CreateStockMovementDto = {
+                            movement_type_id: saleMovementTypeId,
+                            product_id: item.product_id,
+                            quantity: item.quantity,
+                            source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            movement_date: new Date(),
+                            remarks: `Compra One-Off Header #${newPurchaseHeader.purchase_header_id} - ${product.description} (NO retornable)`,
+                        };
+                        await this.inventoryService.createStockMovement(stockMovement, prismaTx);
+                        console.log(`✅ Movimiento de stock creado para producto NO retornable: ${product.description} (${item.quantity} unidades)`);
+                    } else if (product && product.is_returnable) {
+                        console.log(`⏭️ Producto retornable omitido del movimiento de stock: ${product.description} (${item.quantity} unidades) - Es un PRÉSTAMO`);
+                    }
                 }
 
                 // Retornar respuesta usando el nuevo header/items structure
@@ -453,6 +475,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             locality_id, 
             zone_id,
             status,
+            statuses,
             requires_delivery } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
@@ -463,7 +486,16 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         if (sale_channel_id) where.sale_channel_id = sale_channel_id;
         if (locality_id) where.locality_id = locality_id;
         if (zone_id) where.zone_id = zone_id;
-        if (status) where.status = status;
+        
+        // Manejar filtrado por estados (múltiples o único)
+        if (statuses && statuses.length > 0) {
+            // Si se proporcionan múltiples estados, usar operador IN
+            where.status = { in: statuses };
+        } else if (status) {
+            // Si solo se proporciona un estado (compatibilidad), usar equality
+            where.status = status;
+        }
+        
         if (requires_delivery !== undefined) where.requires_delivery = requires_delivery;
 
         const personFilter: Prisma.personWhereInput = {};
@@ -796,14 +828,40 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
 
     async removeOneOff(id: number): Promise<{ message: string; deleted: boolean }> {
         try {
-            const purchase = await this.one_off_purchase.findUniqueOrThrow({
-                where: { purchase_id: id },
-                include: { product: true }
-            }).catch(() => { throw new NotFoundException(`Compra One-Off con ID ${id} no encontrada.`); });
+            // 🆕 BÚSQUEDA PARALELA: Buscar en ambas estructuras simultáneamente
+            const [legacyPurchase, headerPurchase] = await Promise.all([
+                // Buscar en estructura legacy
+                this.one_off_purchase.findUnique({
+                    where: { purchase_id: id },
+                    include: { product: true }
+                }).catch(() => null),
+                
+                // Buscar en estructura header
+                this.one_off_purchase_header.findUnique({
+                    where: { purchase_header_id: id },
+                    include: {
+                        purchase_items: {
+                            include: { product: true }
+                        }
+                    }
+                }).catch(() => null)
+            ]);
 
-            // 🆕 VALIDACIÓN PREVIA: Verificar si la compra está en alguna hoja de ruta
+            // Verificar que al menos una estructura tenga el registro
+            if (!legacyPurchase && !headerPurchase) {
+                throw new NotFoundException(`Compra One-Off con ID ${id} no encontrada en ninguna de las estructuras disponibles.`);
+            }
+
+            const purchase = legacyPurchase || headerPurchase;
+
+            // 🆕 VALIDACIÓN PREVIA: Verificar si la compra está en alguna hoja de ruta (ambas estructuras)
             const routeSheetReferences = await this.route_sheet_detail.findMany({
-                where: { one_off_purchase_id: id },
+                where: {
+                    OR: [
+                        { one_off_purchase_id: id },        // Estructura legacy
+                        { one_off_purchase_header_id: id }   // Estructura header
+                    ]
+                },
                 include: {
                     route_sheet: {
                         include: {
@@ -831,25 +889,51 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             }
 
             await this.$transaction(async (prismaTx) => {
-                // Renovar stock usando la función unificada
-                await this.renewStockForNonReturnableProducts(
-                    [{ 
-                        product_id: purchase.product_id, 
-                        quantity: purchase.quantity, 
-                        product: purchase.product 
-                    }],
-                    `Compra One-Off #${id}`,
-                    prismaTx
-                );
+                // 🆕 RENOVAR STOCK: Manejar ambas estructuras
+                if (legacyPurchase) {
+                    // Renovar stock para estructura legacy
+                    await this.renewStockForNonReturnableProducts(
+                        [{ 
+                            product_id: legacyPurchase.product_id, 
+                            quantity: legacyPurchase.quantity, 
+                            product: legacyPurchase.product 
+                        }],
+                        `Compra One-Off Legacy #${id}`,
+                        prismaTx
+                    );
 
-                // Eliminar la compra
-                await prismaTx.one_off_purchase.delete({
-                    where: { purchase_id: id }
-                });
+                    // Eliminar la compra legacy
+                    await prismaTx.one_off_purchase.delete({
+                        where: { purchase_id: id }
+                    });
+                } else if (headerPurchase) {
+                    // Renovar stock para estructura header (múltiples items)
+                    const items = headerPurchase.purchase_items.map(item => ({
+                        product_id: item.product_id,
+                        quantity: item.quantity,
+                        product: item.product
+                    }));
+
+                    await this.renewStockForNonReturnableProducts(
+                        items,
+                        `Compra One-Off Header #${id}`,
+                        prismaTx
+                    );
+
+                    // Eliminar primero los items y luego el header
+                    await prismaTx.one_off_purchase_item.deleteMany({
+                        where: { purchase_header_id: id }
+                    });
+                    
+                    await prismaTx.one_off_purchase_header.delete({
+                        where: { purchase_header_id: id }
+                    });
+                }
             });
 
+            const structureType = legacyPurchase ? 'legacy' : 'header';
             return { 
-                message: `Compra One-Off con ID ${id} eliminada exitosamente. El stock de productos no retornables ha sido renovado.`, 
+                message: `Compra One-Off con ID ${id} (estructura ${structureType}) eliminada exitosamente. El stock de productos no retornables ha sido renovado.`, 
                 deleted: true 
             };
         } catch (error) {
@@ -941,6 +1025,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             total_amount: totalAmount.toString(),
             paid_amount: basePurchase.paid_amount.toString(),
             status: basePurchase.status,
+            traffic_light_status: this.calculateTrafficLightStatus(basePurchase.purchase_date),
             requires_delivery: basePurchase.requires_delivery,
             notes: basePurchase.notes,
             delivery_address: basePurchase.delivery_address || undefined,
@@ -966,6 +1051,24 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         };
     }
 
+    /**
+     * Calcula el estado del semáforo basado en días transcurridos desde la fecha del pedido
+     * Verde: < 5 días, Amarillo: 5-10 días, Rojo: > 10 días
+     */
+    private calculateTrafficLightStatus(purchaseDate: Date): string {
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - purchaseDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 5) {
+            return 'green';
+        } else if (diffDays <= 10) {
+            return 'yellow';
+        } else {
+            return 'red';
+        }
+    }
+
     private mapToOneOffPurchaseResponseDto(purchase: any): OneOffPurchaseResponseDto {
         return {
             purchase_id: purchase.purchase_id,
@@ -976,6 +1079,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             total_amount: purchase.total_amount.toString(),
             paid_amount: purchase.paid_amount.toString(),
             status: purchase.status,
+            traffic_light_status: this.calculateTrafficLightStatus(purchase.purchase_date),
             requires_delivery: purchase.requires_delivery,
             notes: purchase.notes,
             delivery_address: purchase.delivery_address || undefined,
@@ -1018,6 +1122,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             total_amount: purchaseHeader.total_amount.toString(),
             paid_amount: purchaseHeader.paid_amount.toString(),
             status: purchaseHeader.status,
+            traffic_light_status: this.calculateTrafficLightStatus(purchaseHeader.purchase_date),
             requires_delivery: !!purchaseHeader.delivery_address,
             notes: purchaseHeader.notes,
             delivery_address: purchaseHeader.delivery_address || undefined,
@@ -1098,6 +1203,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 locality_id, 
                 zone_id,
                 status,
+                statuses,
                 requires_delivery 
             } = filters;
 
@@ -1107,7 +1213,15 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             if (sale_channel_id) where.sale_channel_id = sale_channel_id;
             if (locality_id) where.locality_id = locality_id;
             if (zone_id) where.zone_id = zone_id;
-            if (status) where.status = status;
+            
+            // Manejar filtrado por estados (múltiples o único)
+            if (statuses && statuses.length > 0) {
+                // Si se proporcionan múltiples estados, usar operador IN
+                where.status = { in: statuses };
+            } else if (status) {
+                // Si solo se proporciona un estado (compatibilidad), usar equality
+                where.status = status;
+            }
 
             const personFilter: Prisma.personWhereInput = {};
             if (customerName) {

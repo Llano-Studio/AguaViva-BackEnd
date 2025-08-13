@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import {
   CreateCustomerSubscriptionDto,
   UpdateCustomerSubscriptionDto,
@@ -146,11 +147,19 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       firstCycleEndDate.setDate(firstCycleStartDate.getDate() - 1);
       firstCycleEndDate.setHours(23, 59, 59, 999);
 
+      // Calcular fecha de vencimiento de pago (10 días después del final del ciclo)
+      const paymentDueDate = new Date(firstCycleEndDate);
+      paymentDueDate.setDate(paymentDueDate.getDate() + 10);
+
       const firstCycle = await this.subscription_cycle.create({
         data: {
           subscription_id: subscription.subscription_id,
           cycle_start: firstCycleStartDate,
           cycle_end: firstCycleEndDate,
+          payment_due_date: paymentDueDate,
+          is_overdue: false,
+          late_fee_applied: false,
+          late_fee_percentage: new Decimal(20.00), // 20% de recargo
           notes: 'Primer ciclo creado automáticamente al crear la suscripción',
         },
       });
@@ -437,15 +446,30 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
   private buildWhereClause(filters: Partial<FilterCustomerSubscriptionsDto>): Prisma.customer_subscriptionWhereInput {
     const where: Prisma.customer_subscriptionWhereInput = {};
 
-    if (filters.customer_id) {
+    // Manejar filtrado por IDs de clientes (múltiples o único)
+    if (filters.customer_ids && filters.customer_ids.length > 0) {
+      // Si se proporcionan múltiples IDs de clientes, usar operador IN
+      where.customer_id = { in: filters.customer_ids };
+    } else if (filters.customer_id) {
+      // Si solo se proporciona un ID de cliente (compatibilidad), usar equality
       where.customer_id = filters.customer_id;
     }
 
-    if (filters.subscription_plan_id) {
+    // Manejar filtrado por IDs de planes de suscripción (múltiples o único)
+    if (filters.subscription_plan_ids && filters.subscription_plan_ids.length > 0) {
+      // Si se proporcionan múltiples IDs de planes, usar operador IN
+      where.subscription_plan_id = { in: filters.subscription_plan_ids };
+    } else if (filters.subscription_plan_id) {
+      // Si solo se proporciona un ID de plan (compatibilidad), usar equality
       where.subscription_plan_id = filters.subscription_plan_id;
     }
 
-    if (filters.status) {
+    // Manejar filtrado por estados (múltiples o único)
+    if (filters.statuses && filters.statuses.length > 0) {
+      // Si se proporcionan múltiples estados, usar operador IN
+      where.status = { in: filters.statuses };
+    } else if (filters.status) {
+      // Si solo se proporciona un estado (compatibilidad), usar equality
       where.status = filters.status;
     }
 

@@ -1,11 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterInventoryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'ID del almacén para filtrar el inventario',
+    description: 'ID del almacén para filtrar el inventario (para compatibilidad)',
     example: 1,
   })
   @IsOptional()
@@ -14,13 +14,55 @@ export class FilterInventoryDto extends PaginationQueryDto {
   warehouse_id?: number;
 
   @ApiPropertyOptional({
-    description: 'ID del producto para filtrar el inventario',
+    description: 'Filtrar por múltiples IDs de almacenes. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    example: [1, 2, 3],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    
+    if (typeof value === 'string') {
+      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    if (Array.isArray(value)) {
+      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    return undefined;
+  })
+  warehouse_ids?: number[];
+
+  @ApiPropertyOptional({
+    description: 'ID del producto para filtrar el inventario (para compatibilidad)',
     example: 101,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   product_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por múltiples IDs de productos. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    example: [101, 102, 103],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    
+    if (typeof value === 'string') {
+      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    if (Array.isArray(value)) {
+      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    return undefined;
+  })
+  product_ids?: number[];
 
   @ApiPropertyOptional({
     description: 'Texto para buscar en la descripción del producto (búsqueda parcial insensible a mayúsculas)',
@@ -31,13 +73,34 @@ export class FilterInventoryDto extends PaginationQueryDto {
   product_description?: string;
 
   @ApiPropertyOptional({
-    description: 'ID de la categoría del producto para filtrar',
+    description: 'ID de la categoría del producto para filtrar (para compatibilidad)',
     example: 1,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   category_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por múltiples IDs de categorías. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    example: [1, 2, 3],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    
+    if (typeof value === 'string') {
+      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    if (Array.isArray(value)) {
+      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    return undefined;
+  })
+  category_ids?: number[];
 
   @ApiPropertyOptional({
     description: 'Cantidad mínima de stock para filtrar',
@@ -92,4 +155,4 @@ export class PaginatedInventoryResponseDto {
 
   @ApiProperty({ example: 10 })
   totalPages: number;
-} 
+}

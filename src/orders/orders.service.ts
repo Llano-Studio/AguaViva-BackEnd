@@ -435,8 +435,26 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     console.log(`  ${index + 1}. Producto ${item.product_id}: ${item.quantity} unidades, Subtotal: ${item.subtotal}`);
                 });
 
+                // 🆕 NUEVO: Aplicar recargo por mora del 20% si corresponde
+                let lateFeeAmount = new Decimal(0);
+                if (subscriptionQuotaValidation?.late_fee_info?.is_overdue && 
+                    subscriptionQuotaValidation?.late_fee_info?.late_fee_applied && 
+                    subscriptionQuotaValidation?.late_fee_info?.late_fee_percentage > 0) {
+                    
+                    const lateFeePercentage = new Decimal(subscriptionQuotaValidation.late_fee_info.late_fee_percentage);
+                    lateFeeAmount = calculatedTotalFromDB.mul(lateFeePercentage).div(100);
+                    calculatedTotalFromDB = calculatedTotalFromDB.plus(lateFeeAmount);
+                    
+                    console.log(`🚨 RECARGO POR MORA APLICADO:`);
+                    console.log(`  - Porcentaje de recargo: ${lateFeePercentage}%`);
+                    console.log(`  - Monto del recargo: $${lateFeeAmount}`);
+                    console.log(`  - Fecha de vencimiento: ${subscriptionQuotaValidation.late_fee_info.payment_due_date}`);
+                }
+
                 console.log(`🆕 DEBUG FINAL:`);
-                console.log(`  - Total calculado desde BD: ${calculatedTotalFromDB}`);
+                console.log(`  - Total calculado desde BD (sin recargo): ${calculatedTotalFromDB.minus(lateFeeAmount)}`);
+                console.log(`  - Recargo por mora: $${lateFeeAmount}`);
+                console.log(`  - Total final (con recargo): ${calculatedTotalFromDB}`);
                 console.log(`  - Total enviado desde frontend: ${dtoTotalAmountStr}`);
                 console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
                 console.log(`  - ID de suscripción: ${subscription_id}`);
@@ -626,10 +644,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             deliveryDateFrom,
             deliveryDateTo,
             status,
+            statuses,
             orderType,
+            orderTypes,
             customerId,
+            customerIds,
             orderId,
             zoneId,
+            zoneIds,
             page = 1,
             limit = 10,
             sortBy
@@ -640,17 +662,45 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const where: Prisma.order_headerWhereInput = {};
         
         if (orderId) where.order_id = orderId;
-        if (status) where.status = status as PrismaOrderStatus;
-        if (orderType) where.order_type = orderType as PrismaOrderType;
-        if (customerId) where.customer_id = customerId;
+        
+        // Manejar filtrado por estados (múltiples o único)
+        if (statuses && statuses.length > 0) {
+            // Si se proporcionan múltiples estados, usar operador IN
+            where.status = { in: statuses as PrismaOrderStatus[] };
+        } else if (status) {
+            // Si solo se proporciona un estado (compatibilidad), usar equality
+            where.status = status as PrismaOrderStatus;
+        }
+        
+        // Manejar filtrado por tipos de orden (múltiples o único)
+        if (orderTypes && orderTypes.length > 0) {
+            // Si se proporcionan múltiples tipos, usar operador IN
+            where.order_type = { in: orderTypes as PrismaOrderType[] };
+        } else if (orderType) {
+            // Si solo se proporciona un tipo (compatibilidad), usar equality
+            where.order_type = orderType as PrismaOrderType;
+        }
+        
+        // Manejar filtrado por IDs de clientes (múltiples o único)
+        if (customerIds && customerIds.length > 0) {
+            // Si se proporcionan múltiples IDs de clientes, usar operador IN
+            where.customer_id = { in: customerIds };
+        } else if (customerId) {
+            // Si solo se proporciona un ID de cliente (compatibilidad), usar equality
+            where.customer_id = customerId;
+        }
         
         let customerConditions: Prisma.personWhereInput[] = [];
         if (customerName) {
              customerConditions.push({ name: { contains: customerName, mode: 'insensitive' }});
         }
         
-        // Filtro por zona del cliente
-        if (zoneId) {
+        // Manejar filtrado por zonas del cliente (múltiples o única)
+        if (zoneIds && zoneIds.length > 0) {
+            // Si se proporcionan múltiples zonas, usar operador IN
+            customerConditions.push({ zone_id: { in: zoneIds } });
+        } else if (zoneId) {
+            // Si solo se proporciona una zona (compatibilidad), usar equality
             customerConditions.push({ zone_id: zoneId });
         }
         
