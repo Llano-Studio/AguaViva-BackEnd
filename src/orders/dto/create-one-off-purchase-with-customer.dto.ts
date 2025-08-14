@@ -41,6 +41,14 @@ export class MinimalCustomerDataDto {
   phone: string;
 
   @ApiPropertyOptional({ 
+    description: 'Teléfonos adicionales separados por comas',
+    example: '3412345679, 3412345680' 
+  })
+  @IsString()
+  @IsOptional()
+  additionalPhones?: string;
+
+  @ApiPropertyOptional({ 
     description: 'Apodo o alias del cliente',
     example: 'Juancho' 
   })

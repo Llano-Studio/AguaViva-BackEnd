@@ -212,6 +212,7 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                         data: {
                             name: createDto.customer.name,
                             phone: createDto.customer.phone,
+                            additional_phones: createDto.customer.additionalPhones,
                             alias: createDto.customer.alias,
                             address: createDto.customer.address,
                             tax_id: createDto.customer.taxId,

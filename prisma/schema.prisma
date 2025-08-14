@@ -207,6 +207,7 @@ model stock_movement {
 model person {
   person_id                Int                       @id @default(autoincrement())
   phone                    String                    @unique @db.VarChar(20)
+  additional_phones        String?                   @db.VarChar(200)
   name                     String?                   @db.VarChar(100)
   tax_id                   String?                   @db.VarChar(20)
   address                  String?                   @db.VarChar(200)

@@ -49,6 +49,14 @@ export class CreateOneOffPurchaseCustomerDto {
   phone: string;
 
   @ApiPropertyOptional({
+    description: 'Teléfonos adicionales separados por comas (solo si es cliente nuevo)',
+    example: '3412345679, 3412345680'
+  })
+  @IsOptional()
+  @IsString()
+  additionalPhones?: string;
+
+  @ApiPropertyOptional({
     description: 'Alias o apodo del cliente (solo si es cliente nuevo)',
     example: 'Juan'
   })
