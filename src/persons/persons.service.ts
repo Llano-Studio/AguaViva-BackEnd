@@ -50,6 +50,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       name: personEntity.name || '',
       alias: personEntity.alias || '',
       phone: personEntity.phone,
+      additionalPhones: personEntity.additional_phones || '',
       address: personEntity.address || '',
       localityId: personEntity.locality_id === null ? 0 : personEntity.locality_id,
       zoneId: personEntity.zone_id === null ? 0 : personEntity.zone_id,
@@ -87,6 +88,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       name: dto.name,
       alias: dto.alias,
       phone: dto.phone,
+      additional_phones: dto.additionalPhones,
       address: dto.address,
       tax_id: dto.taxId,
       registration_date: registration_date_for_prisma,
@@ -403,6 +405,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (dto.name !== undefined) dataToUpdate.name = dto.name;
     if (dto.alias !== undefined) dataToUpdate.alias = dto.alias;
     if (dto.phone !== undefined) dataToUpdate.phone = dto.phone;
+    if (dto.additionalPhones !== undefined) dataToUpdate.additional_phones = dto.additionalPhones;
     if (dto.address !== undefined) dataToUpdate.address = dto.address;
     if (dto.taxId !== undefined) dataToUpdate.tax_id = dto.taxId;
     if (dto.type !== undefined) dataToUpdate.type = dto.type as PrismaPersonType; 

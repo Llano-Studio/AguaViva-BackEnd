@@ -41,6 +41,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         await this.$connect();
     }
 
+    /**
+     * Convierte un tiempo en formato HH:MM a minutos
+     */
+    private timeToMinutes(time: string): number {
+        const [hours, minutes] = time.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
     private mapToOrderResponseDto(order: Prisma.order_headerGetPayload<{ 
         include: { 
             order_item: { include: { product: true } }, 
@@ -150,10 +158,44 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (createOrderDto.scheduled_delivery_date) {
             const orderDate = new Date(createOrderDto.order_date);
             const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
-            if (deliveryDate < orderDate) throw new BadRequestException('La fecha de entrega programada debe ser igual o posterior a la fecha del pedido.');
+            
+            // Para pedidos híbridos, permitir fecha de inicio igual a fecha de entrega
+            if (createOrderDto.order_type === 'HYBRID') {
+                // Validar que la fecha de entrega no sea anterior a la fecha del pedido
+                if (deliveryDate < orderDate) {
+                    throw new BadRequestException('La fecha de entrega programada debe ser igual o posterior a la fecha del pedido.');
+                }
+                
+                // Si es el mismo día, validar que el horario de entrega sea posterior al horario actual
+                if (deliveryDate.toDateString() === orderDate.toDateString()) {
+                    if (createOrderDto.delivery_time) {
+                        const now = new Date();
+                        const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                        
+                        // Extraer hora de inicio del rango de entrega
+                        let deliveryStartTime = createOrderDto.delivery_time;
+                        if (createOrderDto.delivery_time.includes('-')) {
+                            deliveryStartTime = createOrderDto.delivery_time.split('-')[0].trim();
+                        }
+                        
+                        // Convertir a minutos para comparar
+                        const currentMinutes = this.timeToMinutes(currentTime);
+                        const deliveryMinutes = this.timeToMinutes(deliveryStartTime);
+                        
+                        if (deliveryMinutes <= currentMinutes) {
+                            throw new BadRequestException('Para entregas el mismo día, el horario de entrega debe ser posterior al horario actual.');
+                        }
+                    }
+                }
+            } else {
+                // Para otros tipos de pedido, mantener la validación original
+                if (deliveryDate < orderDate) {
+                    throw new BadRequestException('La fecha de entrega programada debe ser igual o posterior a la fecha del pedido.');
+                }
+            }
         }
 
-        // Validar horario
+        // Validar horario usando el servicio de schedule
         if (createOrderDto.scheduled_delivery_date) {
             const orderDate = new Date(createOrderDto.order_date);
             const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
@@ -493,39 +535,41 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 for (const itemDto of items) {
                     const productDetails = await prismaTx.product.findUniqueOrThrow({ where: { product_id: itemDto.product_id } });
                     
-                    // 🆕 CORRECCIÓN: Validar stock para TODOS los productos (incluyendo retornables)
-                    // Los productos retornables necesitan stock disponible para prestar
-                    let quantityToValidate = itemDto.quantity;
-                    
-                    if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
-                        const productQuota = subscriptionQuotaValidation.products.find(
-                            quota => quota.product_id === itemDto.product_id
+                    // 🆕 CORRECCIÓN: Solo validar stock para productos NO retornables
+                    // Los productos retornables no necesitan validación de stock porque no se descuenta del inventario
+                    if (!productDetails.is_returnable) {
+                        let quantityToValidate = itemDto.quantity;
+                        
+                        if (subscriptionQuotaValidation && subscription_id && (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'SUBSCRIPTION')) {
+                            const productQuota = subscriptionQuotaValidation.products.find(
+                                quota => quota.product_id === itemDto.product_id
+                            );
+                            
+                            if (productQuota && productQuota.covered_by_subscription > 0) {
+                                // Producto está en suscripción - solo validar la cantidad adicional
+                                quantityToValidate = productQuota.additional_quantity;
+                                console.log(`🆕 STOCK VALIDATION - Producto ${itemDto.product_id} (${productDetails.description}):`);
+                                console.log(`  - Cantidad total pedida: ${itemDto.quantity}`);
+                                console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
+                                console.log(`  - Cantidad adicional a validar: ${quantityToValidate}`);
+                            }
+                        }
+                        
+                        const stockDisponible = await this.inventoryService.getProductStock(
+                            itemDto.product_id,
+                            BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                            prismaTx,
                         );
                         
-                        if (productQuota && productQuota.covered_by_subscription > 0) {
-                            // Producto está en suscripción - solo validar la cantidad adicional
-                            quantityToValidate = productQuota.additional_quantity;
-                            console.log(`🆕 STOCK VALIDATION - Producto ${itemDto.product_id} (${productDetails.description}):`);
-                            console.log(`  - Cantidad total pedida: ${itemDto.quantity}`);
-                            console.log(`  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`);
-                            console.log(`  - Cantidad adicional a validar: ${quantityToValidate}`);
+                        if (quantityToValidate > 0 && stockDisponible < quantityToValidate) {
+                            throw new BadRequestException(
+                                `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
+                            );
                         }
-                    }
-                    
-                    const stockDisponible = await this.inventoryService.getProductStock(
-                        itemDto.product_id,
-                        BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                        prismaTx,
-                    );
-                    
-                    if (quantityToValidate > 0 && stockDisponible < quantityToValidate) {
-                        throw new BadRequestException(
-                            `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
-                        );
-                    }
-                    
-                    if (productDetails.is_returnable) {
-                        console.log(`🔄 Producto retornable ${productDetails.description} - Stock validado para préstamo: ${quantityToValidate} unidades`);
+                        
+                        console.log(`✅ Stock validado para producto NO retornable: ${productDetails.description} (Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate})`);
+                    } else {
+                        console.log(`🔄 Producto retornable ${productDetails.description} - No se valida stock porque no se descuenta del inventario`);
                     }
                 }
 
@@ -588,8 +632,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         console.log(`  - Abono: ${finalPaidAmount.toString()}`);
                     }
                     
-                    // Crear movimiento de stock para todos los productos
-                    if (quantityForStockMovement > 0) {
+                    // 🆕 CORRECCIÓN: Crear movimiento de stock SOLO para productos NO retornables
+                    if (quantityForStockMovement > 0 && !createdItem.product.is_returnable) {
                         const stockMovementDto: CreateStockMovementDto = {
                             movement_type_id: saleMovementTypeId,
                             product_id: createdItem.product_id,
@@ -597,10 +641,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                             source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                             destination_warehouse_id: null,
                             movement_date: new Date(), 
-                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id})${createdItem.product.is_returnable ? ' - PRÉSTAMO' : ''} - Abono: $${finalPaidAmount.toString()}`,
+                            remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id}) NO retornable - Abono: $${finalPaidAmount.toString()}`,
                         };
                         await this.inventoryService.createStockMovement(stockMovementDto, prismaTx);
-                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc}${createdItem.product.is_returnable ? ' (PRÉSTAMO)' : ''} - Abono: $${finalPaidAmount.toString()}`);
+                        console.log(`✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc} (NO retornable) - Abono: $${finalPaidAmount.toString()}`);
+                    } else if (quantityForStockMovement > 0 && createdItem.product.is_returnable) {
+                        console.log(`⏭️ No se crea movimiento de stock para ${productDesc} - producto RETORNABLE (préstamo)`);
                     } else {
                         console.log(`⏭️ No se crea movimiento de stock para ${productDesc} - cantidad: ${quantityForStockMovement}`);
                     }
@@ -1173,19 +1219,23 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                         
                         console.log(`  - Cantidad a devolver al stock: ${quantityToReturn}`);
                         
-                        // 🔧 CORRECCIÓN: Crear movimiento de devolución para TODOS los productos
-                        // Tanto retornables como no retornables deben devolver el stock al cancelar
-                        await this.inventoryService.createStockMovement({
-                            movement_type_id: returnMovementTypeId,
-                            product_id: item.product_id,
-                            quantity: quantityToReturn,
-                            source_warehouse_id: null,
-                            destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                            movement_date: new Date(),
-                            remarks: `${this.entityName} #${id} CANCELADO - Devolución ${item.product.is_returnable ? 'producto retornable (PRÉSTAMO)' : 'producto no retornable'} ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`
-                        }, tx);
-                        
-                        console.log(`✅ Stock devuelto: ${quantityToReturn} unidades de ${item.product.description}${item.product.is_returnable ? ' (PRÉSTAMO)' : ''} - Abono original: $${orderToDelete.paid_amount}`);
+                        // 🔧 CORRECCIÓN: Crear movimiento de devolución SOLO para productos NO retornables
+                        // Los productos retornables nunca tuvieron stock descontado, por lo que no necesitan devolución
+                        if (!item.product.is_returnable) {
+                            await this.inventoryService.createStockMovement({
+                                movement_type_id: returnMovementTypeId,
+                                product_id: item.product_id,
+                                quantity: quantityToReturn,
+                                source_warehouse_id: null,
+                                destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                                movement_date: new Date(),
+                                remarks: `${this.entityName} #${id} CANCELADO - Devolución producto no retornable ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`
+                            }, tx);
+                            
+                            console.log(`✅ Stock devuelto: ${quantityToReturn} unidades de ${item.product.description} (NO retornable) - Abono original: $${orderToDelete.paid_amount}`);
+                        } else {
+                            console.log(`⏭️ No se devuelve stock para ${item.product.description} - producto RETORNABLE (nunca se descontó stock)`);
+                        }
                     }
                 }
 

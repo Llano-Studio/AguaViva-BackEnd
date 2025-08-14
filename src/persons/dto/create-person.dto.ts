@@ -23,6 +23,11 @@ export class CreatePersonDto {
   @IsString() @IsNotEmpty()
   phone: string;
 
+  @ApiPropertyOptional({ example: '3412345679, 3412345680', description: 'Teléfonos adicionales separados por comas' })
+  @IsString()
+  @IsOptional()
+  additionalPhones?: string;
+
   @ApiPropertyOptional({ example: 'Av. Siempre Viva 123' })
   @IsString() 
   @IsOptional()
