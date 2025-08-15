@@ -698,6 +698,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             orderId,
             zoneId,
             zoneIds,
+            vehicleId,
+            vehicleIds,
             page = 1,
             limit = 10,
             sortBy
@@ -752,6 +754,27 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         
         if (customerConditions.length > 0) {
             where.customer = { OR: customerConditions.length > 1 ? customerConditions : undefined, AND: customerConditions.length === 1 ? customerConditions[0] : undefined };
+        }
+        
+        // Manejar filtrado por vehículos (múltiples o único)
+        if (vehicleIds && vehicleIds.length > 0) {
+            // Si se proporcionan múltiples vehículos, usar operador IN
+            where.route_sheet_detail = {
+                some: {
+                    route_sheet: {
+                        vehicle_id: { in: vehicleIds }
+                    }
+                }
+            };
+        } else if (vehicleId) {
+            // Si solo se proporciona un vehículo (compatibilidad), usar equality
+            where.route_sheet_detail = {
+                some: {
+                    route_sheet: {
+                        vehicle_id: vehicleId
+                    }
+                }
+            };
         }
         
         if (search) {

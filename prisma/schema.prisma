@@ -107,6 +107,7 @@ model product {
   order_item                order_item[]
   payment_line              payment_line[]
   price_list_item           price_list_item[]
+  comodatos                 comodato[]
   product_category          product_category            @relation(fields: [category_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product_category")
   stock_movement            stock_movement[]
   subscription_cycle_detail subscription_cycle_detail[]
@@ -222,6 +223,7 @@ model person {
   one_off_purchase_headers one_off_purchase_header[]
   orders                   order_header[]            @relation("OrderHeaderToPerson")
   paymentInstallments      payment_installment[]     @relation("PaymentInstallmentToPerson")
+  comodatos                comodato[]
   locality                 locality?                 @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
   zone                     zone?                     @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
 
@@ -750,4 +752,35 @@ enum ContractStatus {
   EXPIRED
   PENDING_ACTIVATION
   ON_HOLD
+}
+
+enum ComodatoStatus {
+  ACTIVE
+  INACTIVE
+  RETURNED
+  DAMAGED
+  LOST
+}
+
+model comodato {
+  comodato_id          Int            @id @default(autoincrement())
+  person_id            Int
+  product_id           Int
+  quantity             Int
+  delivery_date        DateTime       @db.Date
+  return_date          DateTime?      @db.Date
+  expected_return_date DateTime?      @db.Date
+  status               ComodatoStatus @default(ACTIVE)
+  notes                String?
+  deposit_amount       Decimal?       @db.Decimal(10, 2)
+  monthly_fee          Decimal?       @db.Decimal(10, 2)
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
+  
+  person               person         @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  product              product        @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  
+  @@index([person_id])
+  @@index([status])
+  @@index([delivery_date])
 }

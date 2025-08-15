@@ -99,4 +99,31 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   @IsOptional()
   @Type(() => Boolean)
   requires_delivery?: boolean;
+
+  @ApiPropertyOptional({ description: 'ID del vehículo (para compatibilidad)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  vehicleId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por múltiples IDs de vehículos. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    example: [1, 2, 3],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return undefined;
+    
+    if (typeof value === 'string') {
+      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    if (Array.isArray(value)) {
+      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    return undefined;
+  })
+  vehicleIds?: number[];
 }

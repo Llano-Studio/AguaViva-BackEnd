@@ -7,7 +7,7 @@ import {
   InternalServerErrorException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, ContractStatus, person, locality, zone, province, country, PersonType as PrismaPersonType } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, ContractStatus, person, locality, zone, province, country, PersonType as PrismaPersonType, ComodatoStatus, comodato, product } from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -15,6 +15,9 @@ import { LoanedProductDetailDto, PersonResponseDto } from './dto/person-response
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
+import { CreateComodatoDto, UpdateComodatoDto, FilterComodatosDto, ComodatoResponseDto, CreateSubscriptionWithComodatoDto } from './dto';
+import { CustomerSubscriptionService } from '../customer-subscription/customer-subscription.service';
+import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
@@ -24,7 +27,10 @@ import { PaymentSemaphoreService } from '../common/services/payment-semaphore.se
 export class PersonsService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Persona';
 
-  constructor(private readonly paymentSemaphoreService: PaymentSemaphoreService) {
+  constructor(
+    private readonly paymentSemaphoreService: PaymentSemaphoreService,
+    private readonly customerSubscriptionService: CustomerSubscriptionService
+  ) {
     super();
   }
 
@@ -779,5 +785,553 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   async getPublicLoanedProductsDetailByPerson(personId: number): Promise<LoanedProductDetailDto[]> {
     await this.findPersonById(personId);
     return this.getLoanedProductsDetail(personId);
+  }
+  // Métodos de Comodato
+  private mapToComodatoResponseDto(
+    comodatoEntity: comodato & {
+      person?: {
+        person_id: number;
+        name: string | null;
+        phone: string;
+        address: string | null;
+        zone?: {
+          zone_id: number;
+          name: string;
+        } | null;
+      };
+      product?: {
+        product_id: number;
+        description: string;
+      };
+    }
+  ): ComodatoResponseDto {
+    return {
+      comodato_id: comodatoEntity.comodato_id,
+      person_id: comodatoEntity.person_id,
+      product_id: comodatoEntity.product_id,
+      quantity: comodatoEntity.quantity,
+      delivery_date: comodatoEntity.delivery_date,
+      expected_return_date: comodatoEntity.expected_return_date || undefined,
+      actual_return_date: comodatoEntity.return_date || undefined,
+      status: comodatoEntity.status,
+      notes: comodatoEntity.notes || undefined,
+      deposit_amount: comodatoEntity.deposit_amount ? Number(comodatoEntity.deposit_amount) : undefined,
+      monthly_fee: comodatoEntity.monthly_fee ? Number(comodatoEntity.monthly_fee) : undefined,
+      created_at: comodatoEntity.created_at,
+      updated_at: comodatoEntity.updated_at,
+      person: comodatoEntity.person ? {
+        person_id: comodatoEntity.person.person_id,
+        name: comodatoEntity.person.name || '',
+        phone: comodatoEntity.person.phone,
+        address: comodatoEntity.person.address || undefined,
+        zone: comodatoEntity.person.zone || undefined
+      } : undefined,
+      product: comodatoEntity.product ? {
+        product_id: comodatoEntity.product.product_id,
+        name: comodatoEntity.product.description,
+        description: comodatoEntity.product.description
+      } : undefined,
+    };
+  }
+
+  async createComodato(dto: CreateComodatoDto): Promise<ComodatoResponseDto> {
+    try {
+      // Verificar que la persona existe
+      const person = await this.person.findUnique({
+        where: { person_id: dto.person_id },
+      });
+      if (!person) {
+        throw new NotFoundException(`Persona con ID ${dto.person_id} no encontrada`);
+      }
+
+      // Verificar que el producto existe
+      const product = await this.product.findUnique({
+        where: { product_id: dto.product_id },
+      });
+      if (!product) {
+        throw new NotFoundException(`Producto con ID ${dto.product_id} no encontrado`);
+      }
+
+      const comodato = await this.comodato.create({
+        data: {
+          person_id: dto.person_id,
+          product_id: dto.product_id,
+          quantity: dto.quantity,
+          delivery_date: new Date(dto.delivery_date),
+          expected_return_date: dto.expected_return_date ? new Date(dto.expected_return_date) : null,
+          status: dto.status,
+          notes: dto.notes,
+          deposit_amount: dto.deposit_amount,
+          monthly_fee: dto.monthly_fee,
+        },
+        include: {
+          person: {
+            select: {
+              person_id: true,
+              name: true,
+              phone: true,
+              address: true,
+              zone: {
+                select: {
+                  zone_id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              description: true,
+            },
+          },
+        },
+      });
+
+      return this.mapToComodatoResponseDto(comodato);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async getComodatosByPerson(personId: number, filters: FilterComodatosDto): Promise<ComodatoResponseDto[]> {
+    try {
+      // Verificar que la persona existe
+      const person = await this.person.findUnique({
+        where: { person_id: personId },
+      });
+      if (!person) {
+        throw new NotFoundException(`Persona con ID ${personId} no encontrada`);
+      }
+
+      const whereConditions: Prisma.comodatoWhereInput = {
+        person_id: personId,
+      };
+
+      // Aplicar filtros
+      if (filters.product_id) {
+        whereConditions.product_id = filters.product_id;
+      }
+
+      if (filters.status) {
+        whereConditions.status = filters.status;
+      }
+
+      if (filters.delivery_date_from || filters.delivery_date_to) {
+        whereConditions.delivery_date = {};
+        if (filters.delivery_date_from) {
+          whereConditions.delivery_date.gte = new Date(filters.delivery_date_from);
+        }
+        if (filters.delivery_date_to) {
+          whereConditions.delivery_date.lte = new Date(filters.delivery_date_to);
+        }
+      }
+
+      const comodatos = await this.comodato.findMany({
+        where: whereConditions,
+        include: {
+          person: {
+            select: {
+              person_id: true,
+              name: true,
+              phone: true,
+              address: true,
+              zone: {
+                select: {
+                  zone_id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              description: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      return comodatos.map(comodato => this.mapToComodatoResponseDto(comodato));
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async getAllComodatos(filters: FilterComodatosDto): Promise<ComodatoResponseDto[]> {
+    try {
+      const whereConditions: Prisma.comodatoWhereInput = {};
+
+      // Aplicar filtros
+      if (filters.person_id) {
+        whereConditions.person_id = filters.person_id;
+      }
+
+      if (filters.product_id) {
+        whereConditions.product_id = filters.product_id;
+      }
+
+      if (filters.status) {
+        whereConditions.status = filters.status;
+      }
+
+      // Construir filtros para person de manera correcta
+      const personFilters: any = {};
+      if (filters.zone_id) {
+        personFilters.zone_id = filters.zone_id;
+      }
+      if (filters.customer_name) {
+        personFilters.name = {
+          contains: filters.customer_name,
+          mode: 'insensitive',
+        };
+      }
+      if (Object.keys(personFilters).length > 0) {
+        whereConditions.person = personFilters;
+      }
+
+      if (filters.product_name) {
+        whereConditions.product = {
+          description: {
+            contains: filters.product_name,
+            mode: 'insensitive',
+          },
+        };
+      }
+
+      if (filters.search) {
+        whereConditions.OR = [
+          {
+            person: {
+              name: {
+                contains: filters.search,
+                mode: 'insensitive',
+              },
+            },
+          },
+          {
+            product: {
+              description: {
+                contains: filters.search,
+                mode: 'insensitive',
+              },
+            },
+          },
+          {
+            notes: {
+              contains: filters.search,
+              mode: 'insensitive',
+            },
+          },
+        ];
+      }
+
+      if (filters.delivery_date_from || filters.delivery_date_to) {
+        whereConditions.delivery_date = {};
+        if (filters.delivery_date_from) {
+          whereConditions.delivery_date.gte = new Date(filters.delivery_date_from);
+        }
+        if (filters.delivery_date_to) {
+          whereConditions.delivery_date.lte = new Date(filters.delivery_date_to);
+        }
+      }
+
+      if (filters.expected_return_date_from || filters.expected_return_date_to) {
+        whereConditions.expected_return_date = {};
+        if (filters.expected_return_date_from) {
+          whereConditions.expected_return_date.gte = new Date(filters.expected_return_date_from);
+        }
+        if (filters.expected_return_date_to) {
+          whereConditions.expected_return_date.lte = new Date(filters.expected_return_date_to);
+        }
+      }
+
+      if (filters.actual_return_date_from || filters.actual_return_date_to) {
+        whereConditions.return_date = {};
+        if (filters.actual_return_date_from) {
+          whereConditions.return_date.gte = new Date(filters.actual_return_date_from);
+        }
+        if (filters.actual_return_date_to) {
+          whereConditions.return_date.lte = new Date(filters.actual_return_date_to);
+        }
+      }
+
+      const comodatos = await this.comodato.findMany({
+        where: whereConditions,
+        include: {
+          person: {
+            select: {
+              person_id: true,
+              name: true,
+              phone: true,
+              address: true,
+              zone: {
+                select: {
+                  zone_id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              description: true,
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      return comodatos.map(comodato => this.mapToComodatoResponseDto(comodato));
+    } catch (error) {
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async getComodatoById(personId: number, comodatoId: number): Promise<ComodatoResponseDto> {
+    try {
+      const comodato = await this.comodato.findFirst({
+        where: {
+          comodato_id: comodatoId,
+          person_id: personId,
+        },
+        include: {
+          person: {
+            select: {
+              person_id: true,
+              name: true,
+              phone: true,
+              address: true,
+              zone: {
+                select: {
+                  zone_id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              description: true,
+            },
+          },
+        },
+      });
+
+      if (!comodato) {
+        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+      }
+
+      return this.mapToComodatoResponseDto(comodato);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async updateComodato(personId: number, comodatoId: number, dto: UpdateComodatoDto): Promise<ComodatoResponseDto> {
+    try {
+      // Verificar que el comodato existe y pertenece a la persona
+      const existingComodato = await this.comodato.findFirst({
+        where: {
+          comodato_id: comodatoId,
+          person_id: personId,
+        },
+      });
+
+      if (!existingComodato) {
+        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+      }
+
+      const updateData: Prisma.comodatoUpdateInput = {};
+
+      if (dto.quantity !== undefined) {
+        updateData.quantity = dto.quantity;
+      }
+
+      if (dto.delivery_date !== undefined) {
+        updateData.delivery_date = new Date(dto.delivery_date);
+      }
+
+      if (dto.expected_return_date !== undefined) {
+        updateData.expected_return_date = dto.expected_return_date ? new Date(dto.expected_return_date) : null;
+      }
+
+      if (dto.actual_return_date !== undefined) {
+        updateData.return_date = dto.actual_return_date ? new Date(dto.actual_return_date) : null;
+      }
+
+      if (dto.status !== undefined) {
+        updateData.status = dto.status;
+      }
+
+      if (dto.notes !== undefined) {
+        updateData.notes = dto.notes;
+      }
+
+      if (dto.deposit_amount !== undefined) {
+        updateData.deposit_amount = dto.deposit_amount;
+      }
+
+      if (dto.monthly_fee !== undefined) {
+        updateData.monthly_fee = dto.monthly_fee;
+      }
+
+      const updatedComodato = await this.comodato.update({
+        where: {
+          comodato_id: comodatoId,
+        },
+        data: updateData,
+        include: {
+          person: {
+            select: {
+              person_id: true,
+              name: true,
+              phone: true,
+              address: true,
+              zone: {
+                select: {
+                  zone_id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          product: {
+            select: {
+              product_id: true,
+              description: true,
+            },
+          },
+        },
+      });
+
+      return this.mapToComodatoResponseDto(updatedComodato);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async deleteComodato(personId: number, comodatoId: number): Promise<{ message: string; deleted: boolean }> {
+    try {
+      // Verificar que el comodato existe y pertenece a la persona
+      const existingComodato = await this.comodato.findFirst({
+        where: {
+          comodato_id: comodatoId,
+          person_id: personId,
+        },
+      });
+
+      if (!existingComodato) {
+        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+      }
+
+      await this.comodato.delete({
+        where: {
+          comodato_id: comodatoId,
+        },
+      });
+
+      return {
+        message: 'Comodato eliminado exitosamente',
+        deleted: true,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw handlePrismaError(error, this.entityName);
+    }
+  }
+
+  async createSubscriptionWithComodato(dto: CreateSubscriptionWithComodatoDto): Promise<{ subscription: any; comodato: ComodatoResponseDto }> {
+    try {
+      // Verificar que la persona existe
+      const person = await this.person.findUnique({
+        where: { person_id: dto.customer_id }
+      });
+
+      if (!person) {
+        throw new NotFoundException(`Persona con ID ${dto.customer_id} no encontrada`);
+      }
+
+      // Verificar que el producto para el comodato existe
+      if (dto.comodato_product_id) {
+        const product = await this.product.findUnique({
+          where: { product_id: dto.comodato_product_id }
+        });
+
+        if (!product) {
+          throw new NotFoundException(`Producto con ID ${dto.comodato_product_id} no encontrado`);
+        }
+      }
+
+      // Crear el DTO para la suscripción
+      const subscriptionDto: CreateCustomerSubscriptionDto = {
+        customer_id: dto.customer_id,
+        subscription_plan_id: dto.subscription_plan_id,
+        start_date: dto.start_date,
+        end_date: dto.end_date,
+        status: dto.status,
+        notes: dto.notes,
+        delivery_preferences: dto.delivery_preferences
+      };
+
+      // Crear la suscripción usando el servicio de suscripciones
+      const subscription = await this.customerSubscriptionService.create(subscriptionDto);
+
+      // Crear el comodato si se proporcionaron los datos
+      let comodato: ComodatoResponseDto | null = null;
+      if (dto.comodato_product_id) {
+        const comodatoDto: CreateComodatoDto = {
+          person_id: dto.customer_id,
+          product_id: dto.comodato_product_id,
+          quantity: dto.comodato_quantity || 1,
+          delivery_date: dto.comodato_delivery_date || new Date().toISOString().split('T')[0],
+          expected_return_date: dto.comodato_expected_return_date,
+          status: dto.comodato_status || ComodatoStatus.ACTIVE,
+          notes: dto.comodato_notes,
+          deposit_amount: dto.comodato_deposit_amount,
+          monthly_fee: dto.comodato_monthly_fee
+        };
+
+        comodato = await this.createComodato(comodatoDto);
+      }
+
+      return {
+        subscription,
+        comodato: comodato!
+      };
+
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof PrismaClientKnownRequestError) {
+        handlePrismaError(error, this.entityName);
+      }
+      throw new InternalServerErrorException(
+        `Error al crear suscripción con comodato: ${error.message}`
+      );
+    }
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, InternalServerErrorException, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma, price_list as PrismaPriceList, product as ProductPrisma, price_list_item as PriceListItemPrisma, price_list_history as PriceListHistoryPrisma } from '@prisma/client';
-import { CreatePriceListDto, UpdatePriceListDto, ApplyPercentageWithReasonDto, PriceHistoryResponseDto, FilterPriceListDto } from './dto';
+import { CreatePriceListDto, UpdatePriceListDto, ApplyPercentageWithReasonDto, PriceHistoryResponseDto, FilterPriceListDto, UndoPriceUpdateDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
@@ -365,6 +365,95 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
         }
     }
 
+    async undoPriceUpdate(dto: UndoPriceUpdateDto): Promise<{reverted_count: number, message: string}> {
+        const { history_ids, reason, created_by } = dto;
+
+        if (!history_ids || history_ids.length === 0) {
+            throw new BadRequestException('Debe proporcionar al menos un ID de historial para deshacer.');
+        }
+
+        let revertedCount = 0;
+        const isGeneralPriceList = (priceListId: number) => priceListId === BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+
+        try {
+            await this.$transaction(async (prisma) => {
+                // Obtener los registros de historial a deshacer
+                const historyRecords = await prisma.price_list_history.findMany({
+                    where: { history_id: { in: history_ids } },
+                    include: {
+                        price_list_item: {
+                            include: {
+                                product: true,
+                                price_list: true
+                            }
+                        }
+                    },
+                    orderBy: { change_date: 'desc' } // Más recientes primero
+                });
+
+                if (historyRecords.length === 0) {
+                    throw new NotFoundException('No se encontraron registros de historial con los IDs proporcionados.');
+                }
+
+                // Validar que todos los registros existen
+                if (historyRecords.length !== history_ids.length) {
+                    throw new BadRequestException('Algunos IDs de historial no existen.');
+                }
+
+                for (const historyRecord of historyRecords) {
+                    const priceListItem = historyRecord.price_list_item;
+                    const previousPrice = new Decimal(historyRecord.previous_price);
+                    const currentPrice = new Decimal(priceListItem.unit_price);
+
+                    // Verificar que el precio actual coincide con el new_price del historial
+                    if (!currentPrice.equals(new Decimal(historyRecord.new_price))) {
+                        throw new BadRequestException(
+                            `El precio actual del producto "${priceListItem.product.description}" ha cambiado desde la actualización registrada. No se puede deshacer.`
+                        );
+                    }
+
+                    // Crear nuevo registro de historial para la reversión
+                    await prisma.price_list_history.create({
+                        data: {
+                            price_list_item_id: priceListItem.price_list_item_id,
+                            previous_price: currentPrice,
+                            new_price: previousPrice,
+                            change_percentage: historyRecord.change_percentage ? 
+                                new Decimal(historyRecord.change_percentage).negated() : null,
+                            change_reason: reason || `Reversión de cambio: ${historyRecord.change_reason || 'Sin razón especificada'}`,
+                            created_by: created_by
+                        }
+                    });
+
+                    // Actualizar precio en la lista
+                    await prisma.price_list_item.update({
+                        where: { price_list_item_id: priceListItem.price_list_item_id },
+                        data: { unit_price: previousPrice }
+                    });
+
+                    // Si es la lista general, actualizar también el precio del producto individual
+                    if (isGeneralPriceList(priceListItem.price_list_id)) {
+                        await prisma.product.update({
+                            where: { product_id: priceListItem.product_id },
+                            data: { price: previousPrice }
+                        });
+                    }
+
+                    revertedCount++;
+                }
+            });
+
+            return {
+                reverted_count: revertedCount,
+                message: `Se deshicieron ${revertedCount} cambios de precios exitosamente.`
+            };
+        } catch (error) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+            handlePrismaError(error, this.entityName);
+            throw new InternalServerErrorException(`Error no manejado al deshacer cambios de precios.`);
+        }
+    }
+
     private toPriceHistoryResponseDto(historyItem: PriceListHistoryWithProduct): PriceHistoryResponseDto {
         return {
             history_id: historyItem.history_id,
@@ -379,4 +468,4 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             created_by: historyItem.created_by || undefined,
         };
     }
-} 
+}
