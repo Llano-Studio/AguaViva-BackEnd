@@ -477,7 +477,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             zone_id,
             status,
             statuses,
-            requires_delivery } = filters;
+            requires_delivery,
+            vehicleId,
+            vehicleIds } = filters;
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
         const take = Math.max(1, limit);
         const where: Prisma.one_off_purchaseWhereInput = {};
@@ -487,6 +489,21 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
         if (sale_channel_id) where.sale_channel_id = sale_channel_id;
         if (locality_id) where.locality_id = locality_id;
         if (zone_id) where.zone_id = zone_id;
+        
+        // Filtro por vehículo a través de route_sheet_detail
+        if (vehicleId || (vehicleIds && vehicleIds.length > 0)) {
+            const vehicleFilter = vehicleId 
+                ? { equals: vehicleId }
+                : { in: vehicleIds };
+                
+            where.route_sheet_detail = {
+                some: {
+                    route_sheet: {
+                        vehicle_id: vehicleFilter
+                    }
+                }
+            };
+        }
         
         // Manejar filtrado por estados (múltiples o único)
         if (statuses && statuses.length > 0) {
@@ -1205,7 +1222,9 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
                 zone_id,
                 status,
                 statuses,
-                requires_delivery 
+                requires_delivery,
+                vehicleId,
+                vehicleIds 
             } = filters;
 
             const where: Prisma.one_off_purchase_headerWhereInput = {};
@@ -1214,6 +1233,21 @@ export class OneOffPurchaseService extends PrismaClient implements OnModuleInit 
             if (sale_channel_id) where.sale_channel_id = sale_channel_id;
             if (locality_id) where.locality_id = locality_id;
             if (zone_id) where.zone_id = zone_id;
+            
+            // Filtro por vehículo a través de route_sheet_detail
+            if (vehicleId || (vehicleIds && vehicleIds.length > 0)) {
+                const vehicleFilter = vehicleId 
+                    ? { equals: vehicleId }
+                    : { in: vehicleIds };
+                    
+                where.route_sheet_detail = {
+                    some: {
+                        route_sheet: {
+                            vehicle_id: vehicleFilter
+                        }
+                    }
+                };
+            }
             
             // Manejar filtrado por estados (múltiples o único)
             if (statuses && statuses.length > 0) {

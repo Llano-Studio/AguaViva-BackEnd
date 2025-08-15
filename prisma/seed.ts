@@ -1,10 +1,48 @@
 import { PrismaClient } from '@prisma/client';
 import { BUSINESS_CONFIG } from '../src/common/config/business.config';
+import * as bcrypt from 'bcrypt';
+
+/**
+ * BACKUP AUTOMÁTICO PARA MIGRACIONES EN PRODUCCIÓN
+ * 
+ * Para implementar backup automático antes de migraciones que requieren reset:
+ * 
+ * 1. Crear script de backup en package.json:
+ *    "backup:db": "pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql"
+ * 
+ * 2. Modificar scripts de migración:
+ *    "migrate:reset:prod": "npm run backup:db && npx prisma migrate reset --force && npm run seed"
+ *    "migrate:deploy:prod": "npm run backup:db && npx prisma migrate deploy"
+ * 
+ * 3. Para restaurar backup si es necesario:
+ *    "restore:db": "psql $DATABASE_URL < backup_file.sql"
+ * 
+ * 4. Variables de entorno requeridas:
+ *    DATABASE_URL=postgresql://user:password@host:port/database
+ * 
+ * IMPORTANTE: Siempre probar en ambiente de desarrollo antes de producción
+ */
 
 const prisma = new PrismaClient();
 
+// Función auxiliar para verificar si estamos en producción
+const isProduction = () => process.env.NODE_ENV === 'production';
+
+// Función para mostrar advertencia en producción
+const showProductionWarning = () => {
+  if (isProduction()) {
+    console.log('⚠️  ADVERTENCIA: Ejecutando seed en PRODUCCIÓN');
+    console.log('⚠️  Asegúrate de haber hecho backup de la base de datos');
+    console.log('⚠️  Comando sugerido: npm run backup:db');
+    console.log('');
+  }
+};
+
 async function main() {
   console.log('🌱 Iniciando seed de la base de datos...');
+  
+  // Mostrar advertencia si estamos en producción
+  showProductionWarning();
 
   // 1. Crear tipos de movimiento
   console.log('📋 Creando tipos de movimiento...');
@@ -193,41 +231,24 @@ async function main() {
   });
   console.log(`  ✅ Almacén: ${warehouse.name}`);
 
-  // 5. Crear categoría de productos por defecto
-  console.log('\n📦 Creando categoría de productos por defecto...');
-  const category = await prisma.product_category.upsert({
-    where: { category_id: 1 },
+  // 5. Crear usuario administrador general
+  console.log('\n👤 Creando usuario administrador general...');
+  const hashedPassword = await bcrypt.hash('admiN2025.', 10);
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@gmail.com' },
     update: {},
     create: {
-      category_id: 1,
-      name: 'Bidones'
+      email: 'admin@gmail.com',
+      password: hashedPassword,
+      role: 'SUPERADMIN',
+      name: 'Administrador General'
     }
   });
-  console.log(`  ✅ Categoría: ${category.name}`);
+  console.log(`  ✅ Usuario administrador: ${adminUser.email}`);
 
-  // 6. Crear productos de ejemplo
-  console.log('\n🧴 Creando productos de ejemplo...');
-  const products = [
-    {
-      product_id: 1,
-      description: 'Bidón 20L Retornable',
-      volume_liters: 20.00,
-      price: 1500.00,
-      is_returnable: true,
-      category_id: category.category_id
-    }
-  ];
 
-  for (const product of products) {
-    await prisma.product.upsert({
-      where: { product_id: product.product_id },
-      update: {},
-      create: product
-    });
-    console.log(`  ✅ Producto: ${product.description}`);
-  }
 
-  // 7. Crear lista de precios por defecto
+  // 6. Crear lista de precios por defecto
   console.log('\n💰 Creando lista de precios por defecto...');
   const defaultPriceList = await prisma.price_list.upsert({
     where: { price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID },
@@ -243,54 +264,43 @@ async function main() {
   });
   console.log(`  ✅ Lista de precios: ${defaultPriceList.name}`);
 
-  // 8. Crear canales de venta
-  console.log('\n📱 Creando canales de venta...');
-  const saleChannels = [
-    {
-      sale_channel_id: 1,
-      code: 'WEB',
-      description: 'Whatsapp'
-    },
-    {
-      sale_channel_id: 2,
-      code: 'WHATSAPP',
-      description: 'Local'
-    }
+  // 7. Crear canales de venta por defecto
+  console.log('\n🛒 Creando canales de venta por defecto...');
+  const channels = [
+    { sale_channel_id: 1, code: 'WEB', description: 'Ventas a través de la página web' },
+    { sale_channel_id: 2, code: 'WHATSAPP', description: 'Ventas a través de WhatsApp' }
   ];
 
-  for (const saleChannel of saleChannels) {
+  for (const channel of channels) {
     await prisma.sale_channel.upsert({
-      where: { sale_channel_id: saleChannel.sale_channel_id },
-      update: {
-        code: saleChannel.code,
-        description: saleChannel.description
-      },
-      create: saleChannel
+      where: { sale_channel_id: channel.sale_channel_id },
+      update: {},
+      create: channel
     });
-    console.log(`  ✅ Canal de venta: ${saleChannel.description}`);
+    console.log(`  ✅ Canal: ${channel.code}`);
   }
 
-  // 9. Crear inventario inicial
-  console.log('\n📊 Creando inventario inicial...');
-  for (const product of products) {
-    await prisma.inventory.upsert({
-      where: {
-        warehouse_id_product_id: {
-          warehouse_id: warehouse.warehouse_id,
-          product_id: product.product_id
-        }
-      },
-      update: {},
-      create: {
-        product_id: product.product_id,
-        warehouse_id: warehouse.warehouse_id,
-        quantity: 100 // Stock inicial de 100 unidades
-      }
-    });
-    console.log(`  ✅ Stock inicial para ${product.description}: 100 unidades`);
-  }
+  // NOTA: Inventario inicial eliminado del seed
+  // El inventario se creará automáticamente cuando se agreguen productos manualmente
 
   console.log('\n✅ Seed completado exitosamente!');
+  console.log('\n📋 Datos creados:');
+  console.log('  - Usuario administrador general (admin@gmail.com)');
+  console.log('  - Tipos de movimiento de stock');
+  console.log('  - Provincias y localidades de Argentina');
+  console.log('  - Zona por defecto en Resistencia');
+  console.log('  - Almacén principal');
+  console.log('  - Lista de precios por defecto');
+  console.log('  - Canales de venta (WEB, WHATSAPP)');
+  console.log('\n📝 NOTA: Categorías, productos e inventario deben crearse manualmente');
+  console.log('\n🚀 La aplicación está lista para usar!');
+  
+  if (isProduction()) {
+    console.log('\n💾 RECORDATORIO: Para futuras migraciones en producción:');
+    console.log('   1. Ejecutar: npm run backup:db');
+    console.log('   2. Luego ejecutar la migración');
+    console.log('   3. Si hay problemas: npm run restore:db');
+  }
 }
 
 main()

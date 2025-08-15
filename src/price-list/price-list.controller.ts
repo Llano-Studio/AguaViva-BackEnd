@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
 import { PriceListService } from './price-list.service';
-import { CreatePriceListDto, UpdatePriceListDto, ApplyPercentageDto, ApplyPercentageWithReasonDto, PriceHistoryResponseDto, FilterPriceListDto } from './dto';
+import { CreatePriceListDto, UpdatePriceListDto, FilterPriceListDto, ApplyPercentageWithReasonDto, UndoPriceUpdateDto } from './dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiBody, ApiQuery, ApiProperty } from '@nestjs/swagger';
 import { Role } from '@prisma/client'; 
 import { Auth } from '../auth/decorators/auth.decorator'; 
@@ -318,6 +318,74 @@ export class PriceListController {
     return this.priceListService.applyPercentageChange(id, applyPercentageDto);
   }
 
+  @Post('undo-price-update')
+  @Auth(Role.SUPERADMIN)
+  @ApiOperation({
+    summary: 'Deshacer actualizaciones de precios',
+    description: `Permite deshacer una o múltiples actualizaciones de precios previamente aplicadas, restaurando los precios anteriores.
+
+## Funcionalidad de Deshacer
+
+**Características:**
+- Revierte cambios de precios específicos usando IDs del historial
+- Valida que el precio actual coincida con el registrado en el historial
+- Crea un nuevo registro de historial para la reversión
+- Si es la Lista General (ID=1), también actualiza los precios de los productos individuales
+
+**Casos de Uso:**
+- Corrección de errores en actualizaciones masivas
+- Reversión de cambios aplicados incorrectamente
+- Restauración de precios después de promociones temporales
+
+**⚠️ IMPORTANTE:**
+- Solo se pueden deshacer cambios si el precio actual coincide con el registrado
+- La reversión crea un nuevo registro de historial para mantener trazabilidad`
+  })
+  @ApiBody({
+    description: 'Datos para deshacer actualizaciones de precios',
+    type: UndoPriceUpdateDto,
+    examples: {
+      undoSingle: {
+        summary: 'Deshacer un cambio específico',
+        description: 'Revierte un cambio de precio específico',
+        value: {
+          history_ids: [123],
+          reason: 'Corrección de error en actualización masiva',
+          created_by: 'admin@aguaviva.com'
+        }
+      },
+      undoMultiple: {
+        summary: 'Deshacer múltiples cambios',
+        description: 'Revierte varios cambios de precios de una vez',
+        value: {
+          history_ids: [123, 124, 125],
+          reason: 'Reversión de promoción temporal finalizada',
+          created_by: 'admin@aguaviva.com'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Actualizaciones de precios deshechas exitosamente.',
+    schema: {
+      properties: {
+        message: { type: 'string', example: 'Actualizaciones de precios deshechas correctamente' },
+        reverted_items: { type: 'number', example: 3 },
+        history_ids: { type: 'array', items: { type: 'number' }, example: [123, 124, 125] }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'IDs de historial inválidos o precios no coinciden.' })
+  @ApiResponse({ status: 404, description: 'Registros de historial no encontrados.' })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  undoPriceUpdate(
+    @Body(ValidationPipe) undoPriceUpdateDto: UndoPriceUpdateDto,
+  ) {
+    return this.priceListService.undoPriceUpdate(undoPriceUpdateDto);
+  }
+
   @Get(':id/history')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
@@ -389,4 +457,4 @@ export class PriceListController {
   ) {
     return this.priceListService.getPriceHistoryByItemId(itemId, paginationDto);
   }
-} 
+}

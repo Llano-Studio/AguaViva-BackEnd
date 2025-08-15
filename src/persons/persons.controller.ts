@@ -15,6 +15,13 @@ import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
 import { LoanedProductDetailDto } from './dto/person-response.dto';
+import {
+  CreateComodatoDto,
+  UpdateComodatoDto,
+  FilterComodatosDto,
+  ComodatoResponseDto,
+  CreateSubscriptionWithComodatoDto,
+} from './dto';
 
 class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
@@ -269,5 +276,134 @@ export class PersonsController {
     @Param('id', ParseIntPipe) id: number
   ): Promise<LoanedProductDetailDto[]> {
     return this.personsService.getPublicLoanedProductsDetailByPerson(id);
+  }
+
+  // Endpoints de Comodato
+  @Post(':personId/comodatos')
+  @ApiOperation({ 
+    summary: 'Crear un nuevo comodato para una persona',
+    description: 'Registra un nuevo comodato de productos para el cliente especificado'
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente' })
+  @ApiResponse({ status: 201, description: 'Comodato creado exitosamente', type: ComodatoResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o error de validación' })
+  @ApiResponse({ status: 404, description: 'Persona o producto no encontrado' })
+  async createComodato(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Body(ValidationPipe) createComodatoDto: CreateComodatoDto
+  ): Promise<ComodatoResponseDto> {
+    return this.personsService.createComodato({ ...createComodatoDto, person_id: personId });
+  }
+
+  @Get(':personId/comodatos')
+  @ApiOperation({ 
+    summary: 'Obtener comodatos de una persona con filtros',
+    description: 'Lista todos los comodatos asociados a una persona con opciones de filtrado'
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente' })
+  @ApiQuery({ name: 'product_id', required: false, type: Number, description: 'Filtrar por ID de producto' })
+  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'RETURNED', 'OVERDUE', 'CANCELLED'], description: 'Filtrar por estado' })
+  @ApiQuery({ name: 'delivery_date_from', required: false, type: String, description: 'Fecha de entrega desde (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'delivery_date_to', required: false, type: String, description: 'Fecha de entrega hasta (YYYY-MM-DD)' })
+  @ApiResponse({ status: 200, description: 'Lista de comodatos obtenida', type: [ComodatoResponseDto] })
+  @ApiResponse({ status: 404, description: 'Persona no encontrada' })
+  async getComodatosByPerson(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) filters: FilterComodatosDto
+  ): Promise<ComodatoResponseDto[]> {
+    return this.personsService.getComodatosByPerson(personId, filters);
+  }
+
+  @Get('comodatos')
+  @ApiOperation({ 
+    summary: 'Obtener todos los comodatos con filtros',
+    description: 'Lista todos los comodatos del sistema con opciones de filtrado avanzado'
+  })
+  @ApiQuery({ name: 'person_id', required: false, type: Number, description: 'Filtrar por ID de persona' })
+  @ApiQuery({ name: 'product_id', required: false, type: Number, description: 'Filtrar por ID de producto' })
+  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'RETURNED', 'OVERDUE', 'CANCELLED'], description: 'Filtrar por estado' })
+  @ApiQuery({ name: 'zone_id', required: false, type: Number, description: 'Filtrar por zona' })
+  @ApiQuery({ name: 'customer_name', required: false, type: String, description: 'Buscar por nombre de cliente' })
+  @ApiQuery({ name: 'product_name', required: false, type: String, description: 'Buscar por nombre de producto' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general' })
+  @ApiResponse({ status: 200, description: 'Lista de comodatos obtenida', type: [ComodatoResponseDto] })
+  async getAllComodatos(
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) filters: FilterComodatosDto
+  ): Promise<ComodatoResponseDto[]> {
+    return this.personsService.getAllComodatos(filters);
+  }
+
+  @Get(':personId/comodatos/:comodatoId')
+  @ApiOperation({ 
+    summary: 'Obtener un comodato específico',
+    description: 'Obtiene los detalles de un comodato específico'
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente' })
+  @ApiParam({ name: 'comodatoId', type: Number, description: 'ID del comodato' })
+  @ApiResponse({ status: 200, description: 'Comodato obtenido', type: ComodatoResponseDto })
+  @ApiResponse({ status: 404, description: 'Persona o comodato no encontrado' })
+  async getComodatoById(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Param('comodatoId', ParseIntPipe) comodatoId: number
+  ): Promise<ComodatoResponseDto> {
+    return this.personsService.getComodatoById(personId, comodatoId);
+  }
+
+  @Patch(':personId/comodatos/:comodatoId')
+  @ApiOperation({ 
+    summary: 'Actualizar un comodato',
+    description: 'Actualiza los datos de un comodato existente'
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente' })
+  @ApiParam({ name: 'comodatoId', type: Number, description: 'ID del comodato' })
+  @ApiResponse({ status: 200, description: 'Comodato actualizado', type: ComodatoResponseDto })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  @ApiResponse({ status: 404, description: 'Persona o comodato no encontrado' })
+  async updateComodato(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Param('comodatoId', ParseIntPipe) comodatoId: number,
+    @Body(ValidationPipe) updateComodatoDto: UpdateComodatoDto
+  ): Promise<ComodatoResponseDto> {
+    return this.personsService.updateComodato(personId, comodatoId, updateComodatoDto);
+  }
+
+  @Delete(':personId/comodatos/:comodatoId')
+  @ApiOperation({ 
+    summary: 'Eliminar un comodato',
+    description: 'Elimina un comodato del sistema'
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente' })
+  @ApiParam({ name: 'comodatoId', type: Number, description: 'ID del comodato' })
+  @ApiResponse({ status: 200, description: 'Comodato eliminado', schema: { properties: { message: { type: 'string' }, deleted: { type: 'boolean' } } } })
+  @ApiResponse({ status: 404, description: 'Persona o comodato no encontrado' })
+  async deleteComodato(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Param('comodatoId', ParseIntPipe) comodatoId: number
+  ) {
+    return this.personsService.deleteComodato(personId, comodatoId);
+  }
+
+  @Post('subscriptions-with-comodato')
+  @ApiOperation({ 
+    summary: 'Crear suscripción con comodato integrado',
+    description: 'Crea una nueva suscripción de cliente junto con un comodato asociado en una sola operación'
+  })
+  @ApiBody({ type: CreateSubscriptionWithComodatoDto })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Suscripción y comodato creados exitosamente',
+    schema: {
+      properties: {
+        subscription: { type: 'object', description: 'Datos de la suscripción creada' },
+        comodato: { type: 'object', description: 'Datos del comodato creado' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o error de validación' })
+  @ApiResponse({ status: 404, description: 'Cliente, plan de suscripción o producto no encontrado' })
+  async createSubscriptionWithComodato(
+    @Body(ValidationPipe) createDto: CreateSubscriptionWithComodatoDto
+  ) {
+    return this.personsService.createSubscriptionWithComodato(createDto);
   }
 }
