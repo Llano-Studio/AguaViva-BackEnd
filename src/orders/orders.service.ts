@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit, InternalServerErrorException, ConflictException, BadRequestException } from '@nestjs/common';
-import { PrismaClient, Prisma, order_header as PrismaOrderHeader, order_item as PrismaOrderItem, OrderStatus as PrismaOrderStatus, OrderType as PrismaOrderType, product as PrismaProduct, person as PrismaPerson, sale_channel as PrismaSaleChannel, client_contract as PrismaClientContract } from '@prisma/client';
+import { PrismaClient, Prisma, order_header as PrismaOrderHeader, order_item as PrismaOrderItem, OrderStatus as PrismaOrderStatus, OrderType as PrismaOrderType, product as PrismaProduct, person as PrismaPerson, sale_channel as PrismaSaleChannel, client_contract as PrismaClientContract, Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto} from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
@@ -131,7 +131,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         };
     }
 
-    private async validateOrderData(createOrderDto: CreateOrderDto, tx: Prisma.TransactionClient) {
+    private async validateOrderData(createOrderDto: CreateOrderDto, tx: Prisma.TransactionClient, user?: any) {
         const prisma = tx || this;
         const customer = await prisma.person.findUnique({ where: { person_id: createOrderDto.customer_id } });
         if (!customer) throw new NotFoundException(`Cliente con ID ${createOrderDto.customer_id} no encontrado.`);
@@ -200,10 +200,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const orderDate = new Date(createOrderDto.order_date);
             const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
             
+            // Permitir fechas pasadas solo para SUPERADMIN
+            const allowPastDates = user?.role === Role.SUPERADMIN;
+            
             const scheduleResult = this.scheduleService.validateOrderSchedule(
                 orderDate, 
                 deliveryDate, 
-                createOrderDto.delivery_time
+                createOrderDto.delivery_time,
+                allowPastDates
             );
             
             if (!scheduleResult.isValid) {
@@ -212,10 +216,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         }
     }
 
-    async create(createOrderDto: CreateOrderDto): Promise<OrderResponseDto> {
+    async create(createOrderDto: CreateOrderDto, user?: any): Promise<OrderResponseDto> {
         try {
             return await this.$transaction(async (prismaTx) => {
-                await this.validateOrderData(createOrderDto, prismaTx);
+                await this.validateOrderData(createOrderDto, prismaTx, user);
 
                 const { customer_id, sale_channel_id, items, subscription_id, contract_id, total_amount: dtoTotalAmountStr, paid_amount: dtoPaidAmountStr, ...restOfDto } = createOrderDto;
 

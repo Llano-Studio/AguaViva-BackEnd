@@ -128,6 +128,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
           subscription_plan_id: createDto.subscription_plan_id,
           start_date: new Date(createDto.start_date),
           end_date: createDto.end_date ? new Date(createDto.end_date) : null,
+          collection_date: createDto.collection_date ? new Date(createDto.collection_date) : null,
           status: createDto.status || SubscriptionStatus.ACTIVE,
           notes,
         },
@@ -313,6 +314,9 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       }
       if (updateDto.end_date !== undefined) {
         updateData.end_date = updateDto.end_date ? new Date(updateDto.end_date) : null;
+      }
+      if (updateDto.collection_date !== undefined) {
+        updateData.collection_date = updateDto.collection_date ? new Date(updateDto.collection_date) : null;
       }
       if (updateDto.status !== undefined) {
         updateData.status = updateDto.status;
@@ -559,6 +563,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       subscription_plan_id: subscription.subscription_plan_id,
       start_date: subscription.start_date.toISOString().split('T')[0],
       end_date: subscription.end_date ? subscription.end_date.toISOString().split('T')[0] : null,
+      collection_date: subscription.collection_date ? subscription.collection_date.toISOString().split('T')[0] : null,
       status: subscription.status,
       notes: this.parseClientNotes(subscription.notes),
       customer: {

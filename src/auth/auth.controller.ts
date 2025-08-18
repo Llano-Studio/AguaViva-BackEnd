@@ -434,6 +434,63 @@ export class AuthController {
     return this.authService.resetPassword(dto.token, dto.password);
   }
 
+  @Post('confirm-email')
+  @ApiOperation({ 
+    summary: 'Confirmar email del usuario',
+    description: 'Confirma el email del usuario utilizando el token enviado por correo electrónico.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Email confirmado exitosamente', 
+    schema: { properties: { message: { type: 'string' } } } 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Token inválido, expirado o email ya confirmado' 
+  })
+  @ApiBody({
+    description: 'Token de confirmación de email',
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', description: 'Token de confirmación recibido por email' }
+      },
+      required: ['token']
+    }
+  })
+  confirmEmail(
+    @Body('token') token: string
+  ) {
+    return this.authService.confirmEmail(token);
+  }
+
+  @Post('resend-confirmation')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Reenviar email de confirmación',
+    description: 'Reenvía el email de confirmación al usuario logueado si aún no ha confirmado su email.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Email de confirmación reenviado exitosamente', 
+    schema: { properties: { message: { type: 'string' } } } 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'El email ya está confirmado' 
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado' 
+  })
+  async resendConfirmation(
+    @GetUser() user: User
+  ) {
+    await this.authService.sendEmailConfirmation(user.id);
+    return { message: 'Email de confirmación reenviado exitosamente.' };
+  }
+
   @Get('check')
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE) 
   @ApiBearerAuth()

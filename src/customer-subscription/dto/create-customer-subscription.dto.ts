@@ -43,6 +43,14 @@ export class CreateCustomerSubscriptionDto {
   @IsDateString()
   end_date?: string;
 
+  @ApiPropertyOptional({
+    description: 'Fecha de recolección de bidones (YYYY-MM-DD), opcional',
+    example: '2024-01-15'
+  })
+  @IsOptional()
+  @IsDateString()
+  collection_date?: string;
+
   @ApiProperty({
     description: 'Estado inicial de la suscripción',
     enum: SubscriptionStatus,
@@ -69,4 +77,4 @@ export class CreateCustomerSubscriptionDto {
   @ValidateNested()
   @Type(() => DeliveryPreferences)
   delivery_preferences?: DeliveryPreferences;
-} 
+}

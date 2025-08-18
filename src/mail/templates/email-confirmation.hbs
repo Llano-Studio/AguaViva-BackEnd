@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirma tu cuenta - Agua Rica</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        .title {
+            color: #2c5aa0;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2c5aa0;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #1e3d6f;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .highlight {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-left: 4px solid #2c5aa0;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">💧 Agua Rica</div>
+            <p>Sistema de Gestión de Agua Rica</p>
+        </div>
+        
+        <h1 class="title">¡Confirma tu cuenta!</h1>
+        
+        <div class="content">
+            <p>Hola <strong>{{name}}</strong>,</p>
+            
+            <p>¡Gracias por registrarte en Agua Rica! Para completar tu registro y activar tu cuenta, necesitamos que confirmes tu dirección de correo electrónico.</p>
+            
+            <div class="highlight">
+                <p><strong>¿Por qué necesitamos confirmar tu email?</strong></p>
+                <p>Esto nos ayuda a mantener la seguridad de tu cuenta y asegurar que puedas recibir notificaciones importantes sobre tu servicio de agua.</p>
+            </div>
+            
+            <p>Haz clic en el siguiente botón para confirmar tu cuenta:</p>
+            
+            <div style="text-align: center;">
+                <a href="{{confirmationUrl}}" class="button">Confirmar mi cuenta</a>
+            </div>
+            
+            <p>Si el botón no funciona, también puedes copiar y pegar el siguiente enlace en tu navegador:</p>
+            <p style="word-break: break-all; color: #2c5aa0;">{{confirmationUrl}}</p>
+            
+            <div class="highlight">
+                <p><strong>⚠️ Importante:</strong> Este enlace expirará en 24 horas por motivos de seguridad.</p>
+            </div>
+            
+            <p>Si no creaste esta cuenta, puedes ignorar este correo electrónico.</p>
+            
+            <p>¡Gracias por confiar en nosotros!</p>
+            <p><strong>El equipo de Agua Rica</strong></p>
+        </div>
+        
+        <div class="footer">
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p>© {{currentYear}} Agua Rica. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

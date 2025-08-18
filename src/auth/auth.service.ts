@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, OnModuleInit, UnauthorizedException, I
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -100,6 +101,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       const user = await this.user.create({ data: userData });
 
+      // Enviar email de confirmación automáticamente
+      try {
+        await this.sendEmailConfirmation(user.id);
+      } catch (emailError) {
+        console.warn('Error enviando email de confirmación:', emailError.message);
+        // No fallar el registro si el email no se puede enviar
+      }
+
       const accessTokenExpiresIn = this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') || '4h';
       const accessToken = this.generateJwtToken({ id: user.id }, accessTokenExpiresIn);
       const refreshToken = await this.generateAndStoreRefreshToken(user.id);
@@ -117,6 +126,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         }),
         accessToken,
         refreshToken,
+        message: 'Usuario registrado exitosamente. Se ha enviado un email de confirmación.',
       };
     } catch (error) {
       if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
@@ -711,6 +721,80 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         role: userVehicle.user.role
       }
     };
+  }
+
+  private generateEmailConfirmationToken(): string {
+    return crypto.randomBytes(32).toString('hex');
+  }
+
+  async sendEmailConfirmation(userId: number): Promise<void> {
+    try {
+      const user = await this.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado.');
+      }
+
+      if (user.isEmailConfirmed) {
+        throw new BadRequestException('El email ya está confirmado.');
+      }
+
+      const confirmationToken = this.generateEmailConfirmationToken();
+      const tokenExpires = new Date();
+      tokenExpires.setHours(tokenExpires.getHours() + 24); // Token válido por 24 horas
+
+      await this.user.update({
+        where: { id: userId },
+        data: {
+          emailConfirmationToken: confirmationToken,
+          emailTokenExpires: tokenExpires,
+        },
+      });
+
+      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+      const confirmationUrl = `${frontendUrl}/confirm-email?token=${confirmationToken}`;
+
+      await this.mailService.sendConfirmationEmail(user.email, user.name, confirmationToken);
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Error enviando email de confirmación.');
+    }
+  }
+
+  async confirmEmail(token: string): Promise<{ message: string }> {
+    try {
+      const user = await this.user.findUnique({
+        where: { emailConfirmationToken: token },
+      });
+
+      if (!user) {
+        throw new BadRequestException('Token de confirmación inválido.');
+      }
+
+      if (user.emailTokenExpires && user.emailTokenExpires < new Date()) {
+        throw new BadRequestException('Token de confirmación expirado.');
+      }
+
+      if (user.isEmailConfirmed) {
+        throw new BadRequestException('El email ya está confirmado.');
+      }
+
+      await this.user.update({
+        where: { id: user.id },
+        data: {
+          isEmailConfirmed: true,
+          emailConfirmationToken: null,
+          emailTokenExpires: null,
+        },
+      });
+
+      // Enviar email de bienvenida
+      await this.mailService.sendWelcomeEmail(user.email, user.name);
+
+      return { message: 'Email confirmado exitosamente.' };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Error confirmando email.');
+    }
   }
 }
 
