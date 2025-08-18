@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { 
@@ -220,12 +219,13 @@ export class MobileInventoryService extends PrismaClient {
              } else if (detail.one_off_purchase_header && detail.one_off_purchase_header.purchase_items.length > 0) {
                const purchaseItem = detail.one_off_purchase_header.purchase_items[0];
                
-               await tx.one_off_purchase_item.update({
-                 where: { purchase_item_id: purchaseItem.purchase_item_id },
-                 data: {
-                   delivered_quantity: (purchaseItem.delivered_quantity || 0) + Math.abs(quantity)
-                 }
-               });
+               // Los purchase_items no tienen delivered_quantity, se maneja a nivel de header
+               // await tx.one_off_purchase_item.update({
+               //   where: { purchase_item_id: purchaseItem.purchase_item_id },
+               //   data: {
+               //      delivered_quantity: (purchaseItem.delivered_quantity || 0) + Math.abs(quantity)
+               //   }
+               // });
             }
           }
         }
@@ -338,7 +338,7 @@ export class MobileInventoryService extends PrismaClient {
              } else if (detail.one_off_purchase_header) {
                const purchaseItems = detail.one_off_purchase_header.purchase_items.filter(oi => oi.product_id === item.product_id);
                for (const purchaseItem of purchaseItems) {
-                 requiredQuantity += purchaseItem.quantity - (purchaseItem.delivered_quantity || 0);
+                 requiredQuantity += purchaseItem.quantity; // Los purchase_items no tienen delivered_quantity
                }
             }
           }

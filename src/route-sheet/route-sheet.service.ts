@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { 

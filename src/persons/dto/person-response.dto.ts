@@ -65,4 +65,34 @@ export class PersonResponseDto extends CreatePersonDto {
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED']
   })
   payment_semaphore_status: PaymentSemaphoreStatus;
+
+  @ApiProperty({ 
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'number', example: 1 },
+        product_description: { type: 'string', example: 'Bidón de Agua 20L' },
+        planned_quantity: { type: 'number', example: 6 },
+        delivered_quantity: { type: 'number', example: 4 },
+        remaining_balance: { type: 'number', example: 2 }
+      }
+    },
+    description: 'Créditos disponibles (bidones a favor) por suscripción activa',
+    example: [{
+      product_id: 1,
+      product_description: 'Bidón de Agua 20L',
+      planned_quantity: 6,
+      delivered_quantity: 4,
+      remaining_balance: 2
+    }],
+    required: false
+  })
+  available_credits?: {
+    product_id: number;
+    product_description: string;
+    planned_quantity: number;
+    delivered_quantity: number;
+    remaining_balance: number;
+  }[];
 }

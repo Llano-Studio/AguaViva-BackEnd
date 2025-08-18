@@ -48,6 +48,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FailedOrderReassignmentService } from '../common/services/failed-order-reassignment.service';
 
 @ApiTags('Hojas de Ruta')
 @ApiBearerAuth()
@@ -56,7 +57,8 @@ export class RouteSheetController {
   constructor(
     private readonly routeSheetService: RouteSheetService,
     private readonly routeOptimizationService: RouteOptimizationService,
-    private readonly mobileInventoryService: MobileInventoryService
+    private readonly mobileInventoryService: MobileInventoryService,
+    private readonly failedOrderReassignmentService: FailedOrderReassignmentService
   ) {}
 
   @Post()
@@ -475,4 +477,46 @@ export class RouteSheetController {
   ) {
     return this.routeSheetService.updateDeliveryTime(detailId, updateDeliveryTimeDto);
   }
-} 
+
+  @Post('failed-orders/reassign')
+  @Auth(Role.SUPERADMIN)
+  @ApiOperation({ summary: 'Ejecutar manualmente la reasignación de pedidos fallidos' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Reasignación ejecutada exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        reassignedCount: { type: 'number' }
+      }
+    }
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async forceReassignFailedOrders() {
+    const result = await this.failedOrderReassignmentService.reassignFailedOrders();
+    return {
+      message: 'Reasignación de pedidos fallidos ejecutada exitosamente',
+      reassignedCount: result
+    };
+  }
+
+  @Get('failed-orders/stats')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @ApiOperation({ summary: 'Obtener estadísticas de pedidos fallidos' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Estadísticas de pedidos fallidos',
+    schema: {
+      type: 'object',
+      properties: {
+        totalFailed: { type: 'number' },
+        pendingReassignment: { type: 'number' },
+        reassignedToday: { type: 'number' }
+      }
+    }
+  })
+  async getFailedOrderStats() {
+    return this.failedOrderReassignmentService.getFailedOrdersStats();
+  }
+}

@@ -22,6 +22,7 @@ import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
+import { SubscriptionQuotaService } from '../orders/services/subscription-quota.service';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -29,7 +30,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
   constructor(
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
-    private readonly customerSubscriptionService: CustomerSubscriptionService
+    private readonly customerSubscriptionService: CustomerSubscriptionService,
+    private readonly subscriptionQuotaService: SubscriptionQuotaService
   ) {
     super();
   }
@@ -42,6 +44,53 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     return this.paymentSemaphoreService.getPaymentSemaphoreStatus(personId);
   }
 
+  private async getAvailableCredits(personId: number): Promise<{
+    product_id: number;
+    product_description: string;
+    planned_quantity: number;
+    delivered_quantity: number;
+    remaining_balance: number;
+  }[]> {
+    try {
+      // Buscar suscripciones activas del cliente
+      const activeSubscriptions = await this.customer_subscription.findMany({
+        where: {
+          customer_id: personId,
+          status: SubscriptionStatus.ACTIVE
+        }
+      });
+
+      if (activeSubscriptions.length === 0) {
+        return [];
+      }
+
+      // Obtener créditos de todas las suscripciones activas
+      const allCredits: {
+        product_id: number;
+        product_description: string;
+        planned_quantity: number;
+        delivered_quantity: number;
+        remaining_balance: number;
+      }[] = [];
+
+      for (const subscription of activeSubscriptions) {
+        const credits = await this.subscriptionQuotaService.getAvailableCredits(subscription.subscription_id);
+        allCredits.push(...credits.map(credit => ({
+          product_id: credit.product_id,
+          product_description: credit.product_description,
+          planned_quantity: credit.planned_quantity,
+          delivered_quantity: credit.delivered_quantity,
+          remaining_balance: credit.remaining_balance
+        })));
+      }
+
+      return allCredits;
+    } catch (error) {
+      console.error(`Error obteniendo créditos disponibles para persona ${personId}:`, error);
+      return [];
+    }
+  }
+
 
   private mapToPersonResponseDto(
     personEntity: person & {
@@ -49,7 +98,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zone?: zone | null;
     },
     loanedProductsDetail: LoanedProductDetailDto[],
-    paymentSemaphoreStatus: PaymentSemaphoreStatus
+    paymentSemaphoreStatus: PaymentSemaphoreStatus,
+    availableCredits: {
+      product_id: number;
+      product_description: string;
+      planned_quantity: number;
+      delivered_quantity: number;
+      remaining_balance: number;
+    }[]
   ): PersonResponseDto {
     return {
       person_id: personEntity.person_id,
@@ -67,6 +123,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zone: personEntity.zone as any,
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
+      available_credits: availableCredits,
     };
   }
 
@@ -121,8 +178,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(newPerson.person_id);
       const loanedProductsDetail = await this.getLoanedProductsDetail(newPerson.person_id);
+      const availableCredits = await this.getAvailableCredits(newPerson.person_id);
 
-      return this.mapToPersonResponseDto(newPerson, loanedProductsDetail, semaphoreStatus);
+      return this.mapToPersonResponseDto(newPerson, loanedProductsDetail, semaphoreStatus, availableCredits);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`El teléfono '${dto.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
@@ -267,8 +325,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           
         
           const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
+          const availableCredits = await this.getAvailableCredits(person.person_id);
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus)
+            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits)
           );
         }
 
@@ -339,8 +398,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
         
           const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
+          const availableCredits = await this.getAvailableCredits(person.person_id);
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus)
+            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits)
           );
         }
 
@@ -381,8 +441,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     const semaphoreStatus = await this.getPaymentSemaphoreStatus(id);
     
     const loanedProductsDetail = await this.getLoanedProductsDetail(id);
+    const availableCredits = await this.getAvailableCredits(id);
 
-    return this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus);
+    return this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits);
   }
 
   async updatePerson(id: number, dto: UpdatePersonDto): Promise<PersonResponseDto> {
@@ -448,7 +509,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(updatedPerson.person_id);
       const loanedProductsDetail = await this.getLoanedProductsDetail(updatedPerson.person_id);
-      return this.mapToPersonResponseDto(updatedPerson, loanedProductsDetail, semaphoreStatus);
+      const availableCredits = await this.getAvailableCredits(updatedPerson.person_id);
+      return this.mapToPersonResponseDto(updatedPerson, loanedProductsDetail, semaphoreStatus, availableCredits);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`El teléfono '${dto.phone ?? existingPerson.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
@@ -1291,6 +1353,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         subscription_plan_id: dto.subscription_plan_id,
         start_date: dto.start_date,
         end_date: dto.end_date,
+        collection_date: dto.collection_date,
         status: dto.status,
         notes: dto.notes,
         delivery_preferences: dto.delivery_preferences

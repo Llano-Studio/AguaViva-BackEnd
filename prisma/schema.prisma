@@ -8,17 +8,20 @@ datasource db {
 }
 
 model User {
-  id                   Int                   @id @default(autoincrement())
-  email                String                @unique
-  password             String
-  name                 String
-  role                 Role                  @default(SUPERADMIN)
-  isActive             Boolean               @default(true)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime?
-  recoveryToken        String?               @unique
-  recoveryTokenExpires DateTime?
-  profileImageUrl      String?
+  id                     Int                   @id @default(autoincrement())
+  email                  String                @unique
+  password               String
+  name                   String
+  role                   Role                  @default(SUPERADMIN)
+  isActive               Boolean               @default(true)
+  isEmailConfirmed       Boolean               @default(false)
+  emailConfirmationToken String?               @unique
+  emailTokenExpires      DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime?
+  recoveryToken          String?               @unique
+  recoveryTokenExpires   DateTime?
+  profileImageUrl        String?
   refresh_tokens       RefreshToken[]
   incidents_created    delivery_incident[]   @relation("incidentCreator")
   incidents_resolved   delivery_incident[]   @relation("incidentResolver")
@@ -283,6 +286,7 @@ model customer_subscription {
   subscription_plan_id           Int                              @db.SmallInt
   start_date                     DateTime                         @db.Date
   end_date                       DateTime?                        @db.Date
+  collection_date                DateTime?                        @db.Date
   status                         SubscriptionStatus
   notes                          String?
   subscription_plan              subscription_plan                @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")

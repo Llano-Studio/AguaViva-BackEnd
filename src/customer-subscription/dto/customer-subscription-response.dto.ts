@@ -148,6 +148,9 @@ export class CustomerSubscriptionResponseDto {
   @ApiProperty({ example: '2024-12-31', required: false })
   end_date?: string;
 
+  @ApiProperty({ example: '2024-01-15', required: false })
+  collection_date?: string;
+
   @ApiProperty({ enum: SubscriptionStatus, example: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;
 
@@ -222,4 +225,4 @@ export class PaginatedCustomerSubscriptionResponseDto {
     limit: number;
     totalPages: number;
   };
-} 
+}

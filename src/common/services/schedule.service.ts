@@ -128,8 +128,11 @@ export class ScheduleService {
 
   /**
    * Valida si una fecha de entrega cumple con los requisitos mínimos y máximos
+   * @param orderDate Fecha del pedido
+   * @param deliveryDate Fecha de entrega propuesta
+   * @param allowPastDates Si es true, permite fechas pasadas (solo para SUPERADMIN)
    */
-  validateDeliveryDate(orderDate: Date, deliveryDate: Date): DeliveryScheduleValidation {
+  validateDeliveryDate(orderDate: Date, deliveryDate: Date, allowPastDates: boolean = false): DeliveryScheduleValidation {
     const now = new Date();
     const minDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS * 60 * 60 * 1000));
     const maxDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MAXIMUM_ADVANCE_DAYS * 24 * 60 * 60 * 1000));
@@ -151,7 +154,7 @@ export class ScheduleService {
       const deliveryDateOnly = new Date(deliveryDate);
       deliveryDateOnly.setHours(0, 0, 0, 0);
       
-      if (deliveryDateOnly < today) {
+      if (deliveryDateOnly < today && !allowPastDates) {
         return {
           isValid: false,
           message: 'No se pueden programar entregas en fechas pasadas',
@@ -160,7 +163,7 @@ export class ScheduleService {
       }
     } else {
       // Para otros casos, aplicar la validación normal de horas mínimas
-      if (deliveryDate < minDate) {
+      if (deliveryDate < minDate && !allowPastDates) {
         const suggestedDate = this.getNextWorkingDay(minDate);
         const hoursText = `${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`;
         
@@ -209,11 +212,16 @@ export class ScheduleService {
 
   /**
    * Valida un pedido completo (fecha + horario)
+   * @param orderDate Fecha del pedido
+   * @param scheduledDeliveryDate Fecha de entrega programada
+   * @param deliveryTime Horario de entrega
+   * @param allowPastDates Si es true, permite fechas pasadas (solo para SUPERADMIN)
    */
   validateOrderSchedule(
     orderDate: Date, 
     scheduledDeliveryDate?: Date, 
-    deliveryTime?: string
+    deliveryTime?: string,
+    allowPastDates: boolean = false
   ): DeliveryScheduleValidation {
     
     // Si no hay fecha de entrega programada, no validar
@@ -222,7 +230,7 @@ export class ScheduleService {
     }
 
     // Validar fecha de entrega
-    const dateValidation = this.validateDeliveryDate(orderDate, scheduledDeliveryDate);
+    const dateValidation = this.validateDeliveryDate(orderDate, scheduledDeliveryDate, allowPastDates);
     if (!dateValidation.isValid) {
       return dateValidation;
     }

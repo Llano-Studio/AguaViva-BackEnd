@@ -15,6 +15,11 @@ export class UpdateCustomerSubscriptionDto {
   @IsDateString()
   end_date?: string;
 
+  @ApiProperty({ example: '2024-01-15', required: false })
+  @IsOptional()
+  @IsDateString()
+  collection_date?: string;
+
   @ApiProperty({ 
     enum: SubscriptionStatus, 
     example: SubscriptionStatus.ACTIVE, 
@@ -41,4 +46,4 @@ export class UpdateCustomerSubscriptionDto {
   @ValidateNested()
   @Type(() => DeliveryPreferences)
   delivery_preferences?: DeliveryPreferences;
-} 
+}
