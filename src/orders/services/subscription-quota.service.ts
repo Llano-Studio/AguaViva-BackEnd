@@ -1,6 +1,5 @@
 import { Injectable, OnModuleInit, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 
 export interface ProductQuotaInfo {
   product_id: number;

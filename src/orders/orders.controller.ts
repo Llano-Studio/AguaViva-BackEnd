@@ -18,6 +18,7 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { ScheduleService } from '../common/services/schedule.service';
+import { OrderStatus, OrderType } from '../common/constants/enums';
 import { SubscriptionQuotaService } from './services/subscription-quota.service';
 import {
   ApiTags,
@@ -411,6 +412,109 @@ export class OrdersController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<{ message: string }> {
     return this.ordersService.remove(id);
+  }
+
+  @Get('customer/:customerId/history')
+  @ApiOperation({
+    summary: 'Obtener historial completo de pedidos de un cliente',
+    description:
+      'Retorna una lista paginada con todos los pedidos de un cliente específico, ordenados por fecha de pedido descendente.',
+  })
+  @ApiParam({
+    name: 'customerId',
+    description: 'ID del cliente',
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Número de página',
+    type: Number,
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Elementos por página',
+    type: Number,
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filtrar por estado del pedido',
+    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED'],
+  })
+  @ApiQuery({
+    name: 'orderType',
+    required: false,
+    description: 'Filtrar por tipo de pedido',
+    enum: ['SUBSCRIPTION', 'HYBRID', 'ONE_OFF', 'CONTRACT'],
+  })
+  @ApiQuery({
+    name: 'orderDateFrom',
+    required: false,
+    description: 'Filtrar por fecha de pedido desde (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'orderDateTo',
+    required: false,
+    description: 'Filtrar por fecha de pedido hasta (YYYY-MM-DD)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Historial de pedidos del cliente obtenido exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/OrderResponseDto' },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Cliente no encontrado.',
+  })
+  async getCustomerOrderHistory(
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: string = '10',
+    @Query('status') status?: string,
+    @Query('orderType') orderType?: string,
+    @Query('orderDateFrom') orderDateFrom?: string,
+    @Query('orderDateTo') orderDateTo?: string,
+  ): Promise<{
+    data: OrderResponseDto[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
+    // Validar que el cliente existe
+    await this.ordersService.validateCustomerExists(customerId);
+
+    const filterDto = {
+      customerId,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status: status as OrderStatus,
+      orderType: orderType as OrderType,
+      orderDateFrom,
+      orderDateTo,
+      sortBy: 'order_date:desc',
+    };
+
+    return this.ordersService.findAll(filterDto);
   }
 
   /**

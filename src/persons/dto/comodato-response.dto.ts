@@ -39,6 +39,21 @@ export class ComodatoResponseDto {
   @ApiPropertyOptional({ example: 500.00, description: 'Cuota mensual del comodato' })
   monthly_fee?: number;
 
+  @ApiPropertyOptional({ example: 'Dispensador de agua fría/caliente', description: 'Descripción del artículo en comodato' })
+  article_description?: string;
+
+  @ApiPropertyOptional({ example: 'Samsung', description: 'Marca del producto en comodato' })
+  brand?: string;
+
+  @ApiPropertyOptional({ example: 'WD-500X', description: 'Modelo del producto en comodato' })
+  model?: string;
+
+  @ApiPropertyOptional({ example: '/uploads/contracts/comodato_123_contract.jpg', description: 'Ruta de la imagen del contrato' })
+  contract_image_path?: string;
+
+  @ApiProperty({ example: true, description: 'Indica si el comodato está activo' })
+  is_active: boolean;
+
   @ApiProperty({ example: '2025-01-10T10:30:00.000Z', description: 'Fecha de creación del registro' })
   created_at: Date;
 

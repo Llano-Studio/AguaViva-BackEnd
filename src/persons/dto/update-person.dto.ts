@@ -4,6 +4,7 @@ import {
   IsInt,
   IsDateString,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PersonType } from '../../common/constants/enums';
@@ -62,4 +63,12 @@ export class UpdatePersonDto {
   @IsEnum(PersonType)
   @IsOptional()
   type?: PersonType;
+
+  @ApiPropertyOptional({ 
+    example: false, 
+    description: 'Indica si el cliente posee bidones retornables propios' 
+  })
+  @IsBoolean()
+  @IsOptional()
+  owns_returnable_containers?: boolean;
 }

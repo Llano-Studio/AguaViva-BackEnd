@@ -358,7 +358,7 @@ export class RouteSheetController {
   }
 
   @Post('details/:detailId/payments')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Registrar un pago para una entrega específica de una hoja de ruta',
     description: 'Permite al chofer (o un admin) registrar un pago en efectivo o QR para una entrega.'

@@ -43,7 +43,8 @@ export class PersonResponseDto extends CreatePersonDto {
   })
   zone: any;
 
-
+  @ApiProperty({ example: true, description: 'Indica si la persona está activa' })
+  is_active: boolean;
 
   @ApiProperty({ 
     type: [LoanedProductDetailDto], 
@@ -65,6 +66,9 @@ export class PersonResponseDto extends CreatePersonDto {
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED']
   })
   payment_semaphore_status: PaymentSemaphoreStatus;
+
+  @ApiProperty({ example: false, description: 'Indica si el cliente posee bidones retornables propios' })
+  owns_returnable_containers: boolean;
 
   @ApiProperty({ 
     type: 'array',

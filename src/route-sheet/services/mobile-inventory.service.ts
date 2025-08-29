@@ -6,6 +6,7 @@ import {
   VehicleInventoryItemResponseDto,
   InventoryTransactionDto
 } from '../dto/vehicle-inventory.dto';
+import { DeliveryStatus } from '../../common/constants/enums';
 
 interface InventoryItemWithProduct {
   inventory_id: number;
@@ -327,7 +328,7 @@ export class MobileInventoryService extends PrismaClient {
 
         // Sumar las cantidades necesarias de las entregas pendientes
         for (const detail of item.route_sheet.route_sheet_detail) {
-          if (detail.delivery_status === 'PENDING') {
+          if (detail.delivery_status === DeliveryStatus.PENDING) {
             if (detail.order_header) {
               const orderItems = detail.order_header.order_item.filter(oi => oi.product_id === item.product_id);
               for (const orderItem of orderItems) {

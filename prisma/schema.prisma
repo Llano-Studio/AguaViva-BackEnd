@@ -30,6 +30,7 @@ model User {
   route_sheet          route_sheet[]
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
+  comodato_changes     comodato_change[]
 }
 
 model RefreshToken {
@@ -103,6 +104,7 @@ model product {
   serial_number             String?                     @db.VarChar(50)
   notes                     String?
   image_url                 String?                     @db.VarChar(255)
+  is_active                 Boolean                     @default(true)
   inventory                 inventory[]
   inventory_transaction     inventory_transaction[]
   one_off_purchase          one_off_purchase[]
@@ -128,6 +130,7 @@ model price_list {
   description                       String?                   @db.VarChar(255)
   is_default                        Boolean                   @default(false)
   updated_at                        DateTime                  @updatedAt
+  is_active                         Boolean                   @default(true)
   client_contract                   client_contract[]
   one_off_purchases                 one_off_purchase[]
   one_off_purchase_headers          one_off_purchase_header[]
@@ -212,6 +215,7 @@ model person {
   person_id                Int                       @id @default(autoincrement())
   phone                    String                    @unique @db.VarChar(20)
   additional_phones        String?                   @db.VarChar(200)
+  secondary_phone          String?                   @db.VarChar(20)
   name                     String?                   @db.VarChar(100)
   tax_id                   String?                   @db.VarChar(20)
   address                  String?                   @db.VarChar(200)
@@ -220,6 +224,9 @@ model person {
   registration_date        DateTime                  @default(dbgenerated("CURRENT_DATE")) @db.Date
   type                     PersonType
   alias                    String?                   @db.VarChar(100)
+  notes                    String?                   @db.Text
+  is_active                Boolean                   @default(true)
+  owns_returnable_containers Boolean                 @default(false)
   client_contract          client_contract[]
   customer_subscription    customer_subscription[]
   one_off_purchase         one_off_purchase[]
@@ -285,15 +292,20 @@ model customer_subscription {
   customer_id                    Int
   subscription_plan_id           Int                              @db.SmallInt
   start_date                     DateTime                         @db.Date
-  end_date                       DateTime?                        @db.Date
   collection_date                DateTime?                        @db.Date
   status                         SubscriptionStatus
   notes                          String?
+  cancellation_reason            String?                          @db.Text
+  cancellation_date              DateTime?                        @db.Date
+  collection_scheduled_date      DateTime?                        @db.Date
+  collection_completed           Boolean                          @default(false)
+  is_active                      Boolean                          @default(true)
   subscription_plan              subscription_plan                @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
   person                         person                           @relation(fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_subscription_person")
   order_header                   order_header[]
   subscription_cycle             subscription_cycle[]
   subscription_delivery_schedule subscription_delivery_schedule[]
+  cancellation_orders            cancellation_order[]
 
   @@index([status])
 }
@@ -308,8 +320,14 @@ model subscription_cycle {
   late_fee_applied          Boolean                     @default(false)
   late_fee_percentage       Decimal?                    @db.Decimal(5,2)
   notes                     String?
+  total_amount              Decimal?                    @db.Decimal(10, 2)
+  paid_amount               Decimal                     @default(0) @db.Decimal(10, 2)
+  pending_balance           Decimal                     @default(0) @db.Decimal(10, 2)
+  credit_balance            Decimal                     @default(0) @db.Decimal(10, 2)
+  payment_status            PaymentStatus               @default(PENDING)
   customer_subscription     customer_subscription       @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_subscription")
   subscription_cycle_detail subscription_cycle_detail[]
+  cycle_payments            cycle_payment[]
 }
 
 model subscription_cycle_detail {
@@ -355,6 +373,7 @@ model order_header {
   notes                   String?
   subscription_id         Int?
   zone_id                 Int?                     @db.SmallInt
+  is_active               Boolean                  @default(true)
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
@@ -417,7 +436,7 @@ model one_off_purchase {
   product                 product                @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
   sale_channel            sale_channel           @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
   zone                    zone?                  @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
-  route_sheet_detail      route_sheet_detail[]   // Nueva relación inversa
+  route_sheet_detail      route_sheet_detail[]   
 
   @@index([status])
   @@index([requires_delivery])
@@ -447,7 +466,7 @@ model one_off_purchase_header {
   sale_channel            sale_channel            @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
   zone                    zone?                   @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
   purchase_items          one_off_purchase_item[]
-  route_sheet_detail      route_sheet_detail[]    // Nueva relación inversa
+  route_sheet_detail      route_sheet_detail[]    
 
   @@index([purchase_date])
   @@index([scheduled_delivery_date])
@@ -494,6 +513,7 @@ model payment_transaction {
   payment_method_id  Int            @default(1) @db.SmallInt
   notes              String?
   user_id            Int?
+  is_active          Boolean        @default(true)
   payment_line       payment_line[]
   order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
   payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
@@ -603,14 +623,15 @@ model route_sheet {
   vehicle                              vehicle                   @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_vehicle")
   route_sheet_detail                   route_sheet_detail[]
   vehicle_route_inventory              vehicle_route_inventory[]
+  cancellation_order cancellation_order[]
 }
 
 model route_sheet_detail {
   route_sheet_detail_id      Int                      @id @default(autoincrement())
   route_sheet_id             Int
-  order_id                   Int?                     // Ahora opcional para permitir one-off purchases
-  one_off_purchase_id        Int?                     // Nueva relación para compras one-off individuales
-  one_off_purchase_header_id Int?                     // Nueva relación para headers de compras one-off
+  order_id                   Int?                    
+  one_off_purchase_id        Int?                     
+  one_off_purchase_header_id Int?                     
   delivery_status            String                   @db.VarChar(20)
   delivery_time              String?                  @db.VarChar(50)
   comments                   String?
@@ -717,6 +738,7 @@ enum Role {
   DRIVERS
   ADMINISTRATIVE
   SUPERADMIN
+  BOSSADMINISTRATIVE
 }
 
 enum OrderType {
@@ -733,8 +755,10 @@ enum OrderStatus {
   READY_FOR_DELIVERY
   IN_DELIVERY
   DELIVERED
+  RETIRADO
   CANCELLED
   REFUNDED
+  OVERDUE
 }
 
 enum SubscriptionStatus {
@@ -766,6 +790,57 @@ enum ComodatoStatus {
   LOST
 }
 
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CREDITED
+}
+
+model cycle_payment {
+  payment_id      Int                 @id @default(autoincrement())
+  cycle_id        Int
+  payment_date    DateTime            @default(now())
+  amount          Decimal             @db.Decimal(10, 2)
+  payment_method  String              @db.VarChar(50)
+  reference       String?             @db.VarChar(100)
+  notes           String?
+  created_by      Int?
+  subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: Cascade, onUpdate: NoAction)
+  
+  @@index([cycle_id])
+  @@index([payment_date])
+}
+
+model cancellation_order {
+  cancellation_order_id    Int                   @id @default(autoincrement())
+  subscription_id          Int
+  scheduled_collection_date DateTime             @db.Date
+  actual_collection_date   DateTime?            @db.Date
+  status                   CancellationOrderStatus @default(PENDING)
+  route_sheet_id           Int?
+  notes                    String?              @db.Text
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  rescheduled_count        Int                  @default(0)
+  customer_subscription    customer_subscription @relation(fields: [subscription_id], references: [subscription_id], onDelete: Cascade, onUpdate: NoAction)
+  route_sheet              route_sheet?         @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: SetNull, onUpdate: NoAction)
+  
+  @@index([subscription_id])
+  @@index([scheduled_collection_date])
+  @@index([status])
+}
+
+enum CancellationOrderStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
 model comodato {
   comodato_id          Int            @id @default(autoincrement())
   person_id            Int
@@ -775,16 +850,38 @@ model comodato {
   return_date          DateTime?      @db.Date
   expected_return_date DateTime?      @db.Date
   status               ComodatoStatus @default(ACTIVE)
-  notes                String?
+  notes                String?        @db.Text
   deposit_amount       Decimal?       @db.Decimal(10, 2)
   monthly_fee          Decimal?       @db.Decimal(10, 2)
+  article_description  String?        @db.VarChar(255)
+  brand                String?        @db.VarChar(100)
+  model                String?        @db.VarChar(100)
+  contract_image_path  String?        @db.VarChar(500)
   created_at           DateTime       @default(now())
   updated_at           DateTime       @updatedAt
-  
+  is_active            Boolean        @default(true)
   person               person         @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   product              product        @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  comodato_changes     comodato_change[]
   
   @@index([person_id])
   @@index([status])
   @@index([delivery_date])
+  @@index([is_active])
+}
+
+model comodato_change {
+  change_id     Int      @id @default(autoincrement())
+  comodato_id   Int
+  change_date   DateTime @default(now())
+  change_reason String   @db.Text
+  old_status    ComodatoStatus?
+  new_status    ComodatoStatus?
+  changed_by    Int?
+  notes         String?  @db.Text
+  comodato      comodato @relation(fields: [comodato_id], references: [comodato_id], onDelete: Cascade, onUpdate: NoAction)
+  user          User?    @relation(fields: [changed_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  
+  @@index([comodato_id])
+  @@index([change_date])
 }

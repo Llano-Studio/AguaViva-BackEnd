@@ -52,7 +52,7 @@ export class CustomerSubscriptionController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Crear nueva suscripción de cliente',
     description: 'Crea una nueva suscripción asociando un cliente con un plan de suscripción'
@@ -72,7 +72,7 @@ export class CustomerSubscriptionController {
     description: 'Cliente o plan de suscripción no encontrado'
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN o BOSSADMINISTRATIVE.' })
   async create(@Body(ValidationPipe) createDto: CreateCustomerSubscriptionDto): Promise<CustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.create(createDto);
   }
@@ -407,7 +407,7 @@ export class CustomerSubscriptionController {
    }
 
   @Post('admin/force-cycle-renewal')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
     summary: 'Forzar renovación de ciclos',

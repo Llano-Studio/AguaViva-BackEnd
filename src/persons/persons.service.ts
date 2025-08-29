@@ -7,15 +7,38 @@ import {
   InternalServerErrorException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, ContractStatus, person, locality, zone, province, country, PersonType as PrismaPersonType, ComodatoStatus, comodato, product } from '@prisma/client';
+import {
+  PrismaClient,
+  Prisma,
+  SubscriptionStatus,
+  OrderStatus as PrismaOrderStatus,
+  ContractStatus,
+  person,
+  locality,
+  zone,
+  province,
+  country,
+  PersonType as PrismaPersonType,
+  ComodatoStatus,
+  comodato,
+} from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { LoanedProductDetailDto, PersonResponseDto } from './dto/person-response.dto';
+import {
+  LoanedProductDetailDto,
+  PersonResponseDto,
+} from './dto/person-response.dto';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
-import { CreateComodatoDto, UpdateComodatoDto, FilterComodatosDto, ComodatoResponseDto, CreateSubscriptionWithComodatoDto } from './dto';
+import {
+  CreateComodatoDto,
+  UpdateComodatoDto,
+  FilterComodatosDto,
+  ComodatoResponseDto,
+  CreateSubscriptionWithComodatoDto,
+} from './dto';
 import { CustomerSubscriptionService } from '../customer-subscription/customer-subscription.service';
 import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
@@ -23,6 +46,9 @@ import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { SubscriptionQuotaService } from '../orders/services/subscription-quota.service';
+import { CancellationOrderService } from '../orders/cancellation-order.service';
+import { InventoryService } from '../inventory/inventory.service';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -31,7 +57,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   constructor(
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
     private readonly customerSubscriptionService: CustomerSubscriptionService,
-    private readonly subscriptionQuotaService: SubscriptionQuotaService
+    private readonly subscriptionQuotaService: SubscriptionQuotaService,
+    private readonly cancellationOrderService: CancellationOrderService,
+    private readonly inventoryService: InventoryService,
   ) {
     super();
   }
@@ -40,24 +68,28 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     await this.$connect();
   }
 
-  private async getPaymentSemaphoreStatus(personId: number): Promise<PaymentSemaphoreStatus> {
+  private async getPaymentSemaphoreStatus(
+    personId: number,
+  ): Promise<PaymentSemaphoreStatus> {
     return this.paymentSemaphoreService.getPaymentSemaphoreStatus(personId);
   }
 
-  private async getAvailableCredits(personId: number): Promise<{
-    product_id: number;
-    product_description: string;
-    planned_quantity: number;
-    delivered_quantity: number;
-    remaining_balance: number;
-  }[]> {
+  private async getAvailableCredits(personId: number): Promise<
+    {
+      product_id: number;
+      product_description: string;
+      planned_quantity: number;
+      delivered_quantity: number;
+      remaining_balance: number;
+    }[]
+  > {
     try {
       // Buscar suscripciones activas del cliente
       const activeSubscriptions = await this.customer_subscription.findMany({
         where: {
           customer_id: personId,
-          status: SubscriptionStatus.ACTIVE
-        }
+          status: SubscriptionStatus.ACTIVE,
+        },
       });
 
       if (activeSubscriptions.length === 0) {
@@ -74,27 +106,35 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }[] = [];
 
       for (const subscription of activeSubscriptions) {
-        const credits = await this.subscriptionQuotaService.getAvailableCredits(subscription.subscription_id);
-        allCredits.push(...credits.map(credit => ({
-          product_id: credit.product_id,
-          product_description: credit.product_description,
-          planned_quantity: credit.planned_quantity,
-          delivered_quantity: credit.delivered_quantity,
-          remaining_balance: credit.remaining_balance
-        })));
+        const credits = await this.subscriptionQuotaService.getAvailableCredits(
+          subscription.subscription_id,
+        );
+        allCredits.push(
+          ...credits.map((credit) => ({
+            product_id: credit.product_id,
+            product_description: credit.product_description,
+            planned_quantity: credit.planned_quantity,
+            delivered_quantity: credit.delivered_quantity,
+            remaining_balance: credit.remaining_balance,
+          })),
+        );
       }
 
       return allCredits;
     } catch (error) {
-      console.error(`Error obteniendo créditos disponibles para persona ${personId}:`, error);
+      console.error(
+        `Error obteniendo créditos disponibles para persona ${personId}:`,
+        error,
+      );
       return [];
     }
   }
 
-
   private mapToPersonResponseDto(
     personEntity: person & {
-      locality?: (locality & { province?: (province & { country?: country }) }) | null;
+      locality?:
+        | (locality & { province?: province & { country?: country } })
+        | null;
       zone?: zone | null;
     },
     loanedProductsDetail: LoanedProductDetailDto[],
@@ -105,7 +145,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       planned_quantity: number;
       delivered_quantity: number;
       remaining_balance: number;
-    }[]
+    }[],
   ): PersonResponseDto {
     return {
       person_id: personEntity.person_id,
@@ -114,13 +154,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       phone: personEntity.phone,
       additionalPhones: personEntity.additional_phones || '',
       address: personEntity.address || '',
-      localityId: personEntity.locality_id === null ? 0 : personEntity.locality_id,
+      localityId:
+        personEntity.locality_id === null ? 0 : personEntity.locality_id,
       zoneId: personEntity.zone_id === null ? 0 : personEntity.zone_id,
       taxId: personEntity.tax_id || '',
       type: personEntity.type as any,
       registration_date: personEntity.registration_date,
       locality: personEntity.locality as any,
       zone: personEntity.zone as any,
+      is_active: personEntity.is_active,
+      owns_returnable_containers: personEntity.owns_returnable_containers,
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
       available_credits: availableCredits,
@@ -129,20 +172,32 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
   async createPerson(dto: CreatePersonDto): Promise<PersonResponseDto> {
     if (dto.localityId) {
-      const localityExists = await this.locality.findUnique({ where: { locality_id: dto.localityId } });
-      if (!localityExists) throw new BadRequestException(`Localidad con ID ${dto.localityId} no encontrada.`);
+      const localityExists = await this.locality.findUnique({
+        where: { locality_id: dto.localityId },
+      });
+      if (!localityExists)
+        throw new BadRequestException(
+          `Localidad con ID ${dto.localityId} no encontrada.`,
+        );
     }
 
     if (dto.zoneId) {
-      const zoneExists = await this.zone.findUnique({ where: { zone_id: dto.zoneId } });
-      if (!zoneExists) throw new BadRequestException(`Zona con ID ${dto.zoneId} no encontrada.`);
+      const zoneExists = await this.zone.findUnique({
+        where: { zone_id: dto.zoneId },
+      });
+      if (!zoneExists)
+        throw new BadRequestException(
+          `Zona con ID ${dto.zoneId} no encontrada.`,
+        );
     }
 
     let registration_date_for_prisma: Date | undefined = undefined;
     if (dto.registrationDate) {
       const parsedDate = new Date(dto.registrationDate);
       if (isNaN(parsedDate.getTime())) {
-        throw new BadRequestException('registrationDate inválido: formato incorrecto.');
+        throw new BadRequestException(
+          'registrationDate inválido: formato incorrecto.',
+        );
       }
       registration_date_for_prisma = parsedDate;
     }
@@ -157,40 +212,62 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       registration_date: registration_date_for_prisma,
       type: dto.type as PrismaPersonType,
     };
-    if (dto.localityId) data.locality = { connect: { locality_id: dto.localityId } };
+    if (dto.localityId)
+      data.locality = { connect: { locality_id: dto.localityId } };
     if (dto.zoneId) data.zone = { connect: { zone_id: dto.zoneId } };
 
     try {
       const newPerson = await this.person.create({
         data,
         include: {
-          locality: { 
-            include: { 
-              province: { 
-                include: { 
-                  country: true 
-                } 
-              } 
-            } 
+          locality: {
+            include: {
+              province: {
+                include: {
+                  country: true,
+                },
+              },
+            },
           },
-          zone: true
-        }
+          zone: true,
+        },
       });
-      const semaphoreStatus = await this.getPaymentSemaphoreStatus(newPerson.person_id);
-      const loanedProductsDetail = await this.getLoanedProductsDetail(newPerson.person_id);
-      const availableCredits = await this.getAvailableCredits(newPerson.person_id);
+      const semaphoreStatus = await this.getPaymentSemaphoreStatus(
+        newPerson.person_id,
+      );
+      const loanedProductsDetail = await this.getLoanedProductsDetail(
+        newPerson.person_id,
+      );
+      const availableCredits = await this.getAvailableCredits(
+        newPerson.person_id,
+      );
 
-      return this.mapToPersonResponseDto(newPerson, loanedProductsDetail, semaphoreStatus, availableCredits);
+      return this.mapToPersonResponseDto(
+        newPerson,
+        loanedProductsDetail,
+        semaphoreStatus,
+        availableCredits,
+      );
     } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(`El teléfono '${dto.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `El teléfono '${dto.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`,
+        );
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
-  async findAllPersons(filters: FilterPersonsDto): Promise<{ data: PersonResponseDto[], meta: { total: number, page: number, limit: number, totalPages: number } }> {
+  async findAllPersons(filters: FilterPersonsDto): Promise<{
+    data: PersonResponseDto[];
+    meta: { total: number; page: number; limit: number; totalPages: number };
+  }> {
     const {
       page = 1,
       limit = 10,
@@ -209,10 +286,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zoneIds,
       payment_semaphore_status,
       payment_semaphore_statuses,
-      sortBy
+      sortBy,
     } = filters;
 
-    const where: Prisma.personWhereInput = {};
+    const where: Prisma.personWhereInput = {
+      is_active: true, // Filtrar solo personas activas
+    };
 
     // Búsqueda general en múltiples campos (como en auth.service.ts)
     if (search) {
@@ -221,7 +300,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         { alias: { contains: search, mode: 'insensitive' } },
         { address: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
-        { tax_id: { contains: search, mode: 'insensitive' } }
+        { tax_id: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -240,7 +319,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Si solo se proporciona un tipo (compatibilidad), usar equality
       where.type = type as PrismaPersonType;
     }
-    
+
     // Manejar filtrado por localidades (múltiples o única)
     if (localityIds && localityIds.length > 0) {
       // Si se proporcionan múltiples localidades, usar operador IN
@@ -249,7 +328,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Si solo se proporciona una localidad (compatibilidad), usar equality
       where.locality_id = localityId;
     }
-    
+
     // Manejar filtrado por zonas (múltiples o única)
     if (zoneIds && zoneIds.length > 0) {
       // Si se proporcionan múltiples zonas, usar operador IN
@@ -260,74 +339,100 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
 
     // Verificar si se debe ordenar por semáforo
-    const shouldSortBySemaphore = sortBy && sortBy.includes('payment_semaphore_status');
-    
+    const shouldSortBySemaphore =
+      sortBy && sortBy.includes('payment_semaphore_status');
+
     // Separar campos de ordenamiento del semáforo y otros campos
     let semaphoreSortDirection: 'asc' | 'desc' = 'asc';
     let otherSortFields = sortBy;
-    
+
     if (shouldSortBySemaphore && sortBy) {
-      const sortFields = sortBy.split(',').map(field => field.trim());
+      const sortFields = sortBy.split(',').map((field) => field.trim());
       const nonSemaphoreFields: string[] = [];
-      
+
       for (const field of sortFields) {
-        if (field === 'payment_semaphore_status' || field === '-payment_semaphore_status') {
+        if (
+          field === 'payment_semaphore_status' ||
+          field === '-payment_semaphore_status'
+        ) {
           semaphoreSortDirection = field.startsWith('-') ? 'desc' : 'asc';
         } else {
           nonSemaphoreFields.push(field);
         }
       }
-      
-      otherSortFields = nonSemaphoreFields.length > 0 ? nonSemaphoreFields.join(',') : undefined;
+
+      otherSortFields =
+        nonSemaphoreFields.length > 0
+          ? nonSemaphoreFields.join(',')
+          : undefined;
     }
 
     const orderByClause = parseSortByString(otherSortFields, [{ name: 'asc' }]);
 
     try {
       // Si se filtra por semáforo O se ordena por semáforo, necesitamos obtener todas las personas para calcular el semáforo
-      if (payment_semaphore_status || payment_semaphore_statuses || shouldSortBySemaphore) {
+      if (
+        payment_semaphore_status ||
+        payment_semaphore_statuses ||
+        shouldSortBySemaphore
+      ) {
         const allPersonsFromDb = await this.person.findMany({
           where,
           include: {
-            locality: { 
-              include: { 
-                province: { 
-                  include: { 
-                    country: true 
-                  } 
-                } 
-              } 
+            locality: {
+              include: {
+                province: {
+                  include: {
+                    country: true,
+                  },
+                },
+              },
             },
-            zone: true
+            zone: true,
           },
-          orderBy: orderByClause 
+          orderBy: orderByClause,
         });
 
         // Pre-calcular semáforos en lotes para mejor rendimiento
-        const personIds = allPersonsFromDb.map(p => p.person_id);
-        const semaphoreMap = await this.paymentSemaphoreService.preCalculateForPersons(personIds);
+        const personIds = allPersonsFromDb.map((p) => p.person_id);
+        const semaphoreMap =
+          await this.paymentSemaphoreService.preCalculateForPersons(personIds);
 
         // Procesar todas las personas con semáforos
         let processedPersons: PersonResponseDto[] = [];
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
-          
+
           // Si hay filtro por semáforo (múltiples o único), aplicar filtro
-          if (payment_semaphore_statuses && payment_semaphore_statuses.length > 0) {
+          if (
+            payment_semaphore_statuses &&
+            payment_semaphore_statuses.length > 0
+          ) {
             // Filtro múltiple: verificar si el estado está en la lista
             if (!payment_semaphore_statuses.includes(semaphoreStatus)) {
               continue;
             }
-          } else if (payment_semaphore_status && semaphoreStatus !== payment_semaphore_status) {
+          } else if (
+            payment_semaphore_status &&
+            semaphoreStatus !== payment_semaphore_status
+          ) {
             // Filtro único (compatibilidad)
             continue;
           }
-          
-        
-          const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
-          const availableCredits = await this.getAvailableCredits(person.person_id);
+
+          const loanedProductsDetail = await this.getLoanedProductsDetail(
+            person.person_id,
+          );
+          const availableCredits = await this.getAvailableCredits(
+            person.person_id,
+          );
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits)
+            this.mapToPersonResponseDto(
+              person,
+              loanedProductsDetail,
+              semaphoreStatus,
+              availableCredits,
+            ),
           );
         }
 
@@ -337,11 +442,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           processedPersons.sort((a, b) => {
             const aIndex = semaphoreOrder.indexOf(a.payment_semaphore_status);
             const bIndex = semaphoreOrder.indexOf(b.payment_semaphore_status);
-            
-            const result = semaphoreSortDirection === 'asc' 
-              ? aIndex - bIndex 
-              : bIndex - aIndex;
-            
+
+            const result =
+              semaphoreSortDirection === 'asc'
+                ? aIndex - bIndex
+                : bIndex - aIndex;
+
             // Si los semáforos son iguales, mantener el orden existente (por nombre u otros campos)
             return result !== 0 ? result : 0;
           });
@@ -352,14 +458,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const take = Math.max(1, limit);
         const paginatedData = processedPersons.slice(skip, skip + take);
 
-        return { 
-          data: paginatedData, 
+        return {
+          data: paginatedData,
           meta: {
-            total: totalFiltered, 
-            page, 
-            limit: take, 
-            totalPages: Math.ceil(totalFiltered / take)
-          }
+            total: totalFiltered,
+            page,
+            limit: take,
+            totalPages: Math.ceil(totalFiltered / take),
+          },
         };
       } else {
         // Sin filtro de semáforo ni ordenamiento por semáforo, podemos aplicar paginación directamente en la BD
@@ -371,92 +477,136 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           this.person.findMany({
             where,
             include: {
-              locality: { 
-                include: { 
-                  province: { 
-                    include: { 
-                      country: true 
-                    } 
-                  } 
-                } 
+              locality: {
+                include: {
+                  province: {
+                    include: {
+                      country: true,
+                    },
+                  },
+                },
               },
-              zone: true
+              zone: true,
             },
             orderBy: orderByClause,
             skip,
-            take
-          })
+            take,
+          }),
         ]);
 
         // Pre-calcular semáforos en lotes para mejor rendimiento
-        const personIds = personsFromDb.map(p => p.person_id);
-        const semaphoreMap = await this.paymentSemaphoreService.preCalculateForPersons(personIds);
+        const personIds = personsFromDb.map((p) => p.person_id);
+        const semaphoreMap =
+          await this.paymentSemaphoreService.preCalculateForPersons(personIds);
 
         // Procesar personas con semáforos pre-calculados
         const processedPersons: PersonResponseDto[] = [];
         for (const person of personsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
-        
-          const loanedProductsDetail = await this.getLoanedProductsDetail(person.person_id);
-          const availableCredits = await this.getAvailableCredits(person.person_id);
+
+          const loanedProductsDetail = await this.getLoanedProductsDetail(
+            person.person_id,
+          );
+          const availableCredits = await this.getAvailableCredits(
+            person.person_id,
+          );
           processedPersons.push(
-            this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits)
+            this.mapToPersonResponseDto(
+              person,
+              loanedProductsDetail,
+              semaphoreStatus,
+              availableCredits,
+            ),
           );
         }
 
-        return { 
-          data: processedPersons, 
+        return {
+          data: processedPersons,
           meta: {
-            total: totalCount, 
-            page, 
-            limit: take, 
-            totalPages: Math.ceil(totalCount / take)
-          }
+            total: totalCount,
+            page,
+            limit: take,
+            totalPages: Math.ceil(totalCount / take),
+          },
         };
       }
     } catch (error) {
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException(`Error obteniendo listado de ${this.entityName.toLowerCase()}s.`);
+      throw new InternalServerErrorException(
+        `Error obteniendo listado de ${this.entityName.toLowerCase()}s.`,
+      );
     }
   }
 
   async findPersonById(id: number): Promise<PersonResponseDto> {
     const person = await this.person.findUnique({
-      where: { person_id: id },
+      where: {
+        person_id: id,
+        is_active: true, // Solo buscar personas activas
+      },
       include: {
-        locality: { 
-          include: { 
-            province: { 
-              include: { 
-                country: true 
-              } 
-            } 
-          } 
+        locality: {
+          include: {
+            province: {
+              include: {
+                country: true,
+              },
+            },
+          },
         },
-        zone: true
-      }
+        zone: true,
+      },
     });
-    if (!person) throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`);
+    if (!person)
+      throw new NotFoundException(
+        `${this.entityName} con ID ${id} no encontrada.`,
+      );
 
     const semaphoreStatus = await this.getPaymentSemaphoreStatus(id);
-    
+
     const loanedProductsDetail = await this.getLoanedProductsDetail(id);
     const availableCredits = await this.getAvailableCredits(id);
 
-    return this.mapToPersonResponseDto(person, loanedProductsDetail, semaphoreStatus, availableCredits);
+    return this.mapToPersonResponseDto(
+      person,
+      loanedProductsDetail,
+      semaphoreStatus,
+      availableCredits,
+    );
   }
 
-  async updatePerson(id: number, dto: UpdatePersonDto): Promise<PersonResponseDto> {
-    const existingPerson = await this.person.findUnique({ where: { person_id: id } });
-    if (!existingPerson) throw new NotFoundException(`${this.entityName} con ID ${id} no encontrada.`);
+  async updatePerson(
+    id: number,
+    dto: UpdatePersonDto,
+  ): Promise<PersonResponseDto> {
+    const existingPerson = await this.person.findUnique({
+      where: {
+        person_id: id,
+        is_active: true, // Solo permitir actualizar personas activas
+      },
+    });
+    if (!existingPerson)
+      throw new NotFoundException(
+        `${this.entityName} con ID ${id} no encontrada.`,
+      );
 
     if (dto.localityId) {
-      const localityExists = await this.locality.findUnique({ where: { locality_id: dto.localityId } });
-      if (!localityExists) throw new BadRequestException(`Localidad con ID ${dto.localityId} no encontrada.`);
+      const localityExists = await this.locality.findUnique({
+        where: { locality_id: dto.localityId },
+      });
+      if (!localityExists)
+        throw new BadRequestException(
+          `Localidad con ID ${dto.localityId} no encontrada.`,
+        );
     }
     if (dto.zoneId) {
-      const zoneExists = await this.zone.findUnique({ where: { zone_id: dto.zoneId } });
-      if (!zoneExists) throw new BadRequestException(`Zona con ID ${dto.zoneId} no encontrada.`);
+      const zoneExists = await this.zone.findUnique({
+        where: { zone_id: dto.zoneId },
+      });
+      if (!zoneExists)
+        throw new BadRequestException(
+          `Zona con ID ${dto.zoneId} no encontrada.`,
+        );
     }
 
     let registration_date_obj: Date | undefined = undefined;
@@ -472,21 +622,24 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (dto.name !== undefined) dataToUpdate.name = dto.name;
     if (dto.alias !== undefined) dataToUpdate.alias = dto.alias;
     if (dto.phone !== undefined) dataToUpdate.phone = dto.phone;
-    if (dto.additionalPhones !== undefined) dataToUpdate.additional_phones = dto.additionalPhones;
+    if (dto.additionalPhones !== undefined)
+      dataToUpdate.additional_phones = dto.additionalPhones;
     if (dto.address !== undefined) dataToUpdate.address = dto.address;
     if (dto.taxId !== undefined) dataToUpdate.tax_id = dto.taxId;
-    if (dto.type !== undefined) dataToUpdate.type = dto.type as PrismaPersonType; 
-    dataToUpdate.registration_date = registration_date_obj ?? existingPerson.registration_date;
+    if (dto.type !== undefined)
+      dataToUpdate.type = dto.type as PrismaPersonType;
+    dataToUpdate.registration_date =
+      registration_date_obj ?? existingPerson.registration_date;
 
     if (dto.localityId !== undefined) {
       dataToUpdate.locality = { connect: { locality_id: dto.localityId } };
-    } else if (dto.hasOwnProperty('localityId') && dto.localityId === null) { 
+    } else if (dto.hasOwnProperty('localityId') && dto.localityId === null) {
       dataToUpdate.locality = { disconnect: true };
     }
 
     if (dto.zoneId !== undefined) {
       dataToUpdate.zone = { connect: { zone_id: dto.zoneId } };
-    } else if (dto.hasOwnProperty('zoneId') && dto.zoneId === null) { 
+    } else if (dto.hasOwnProperty('zoneId') && dto.zoneId === null) {
       dataToUpdate.zone = { disconnect: true };
     }
 
@@ -494,69 +647,125 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const updatedPerson = await this.person.update({
         where: { person_id: id },
         data: dataToUpdate,
-        include: { 
-          locality: { 
-            include: { 
-              province: { 
-                include: { 
-                  country: true 
-                } 
-              } 
-            } 
-          }, 
-          zone: true 
-        }
+        include: {
+          locality: {
+            include: {
+              province: {
+                include: {
+                  country: true,
+                },
+              },
+            },
+          },
+          zone: true,
+        },
       });
-      const semaphoreStatus = await this.getPaymentSemaphoreStatus(updatedPerson.person_id);
-      const loanedProductsDetail = await this.getLoanedProductsDetail(updatedPerson.person_id);
-      const availableCredits = await this.getAvailableCredits(updatedPerson.person_id);
-      return this.mapToPersonResponseDto(updatedPerson, loanedProductsDetail, semaphoreStatus, availableCredits);
+      const semaphoreStatus = await this.getPaymentSemaphoreStatus(
+        updatedPerson.person_id,
+      );
+      const loanedProductsDetail = await this.getLoanedProductsDetail(
+        updatedPerson.person_id,
+      );
+      const availableCredits = await this.getAvailableCredits(
+        updatedPerson.person_id,
+      );
+      return this.mapToPersonResponseDto(
+        updatedPerson,
+        loanedProductsDetail,
+        semaphoreStatus,
+        availableCredits,
+      );
     } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(`El teléfono '${dto.phone ?? existingPerson.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`);
+      if (
+        error instanceof PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `El teléfono '${dto.phone ?? existingPerson.phone}' ya está registrado para otra ${this.entityName.toLowerCase()}.`,
+        );
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
-  async deletePerson(id: number): Promise<{ message: string; deleted: boolean }> {
+  async deletePerson(
+    id: number,
+  ): Promise<{ message: string; deleted: boolean }> {
     await this.findPersonById(id);
     try {
-      await this.person.delete({ where: { person_id: id } });
-      return { message: `${this.entityName} con ID ${id} eliminada correctamente.`, deleted: true };
+      // Implementar borrado lógico en lugar de físico
+      await this.person.update({
+        where: { person_id: id },
+        data: { is_active: false },
+      });
+      return {
+        message: `${this.entityName} con ID ${id} desactivada correctamente (borrado lógico).`,
+        deleted: true,
+      };
     } catch (error) {
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
-  async cancelSubscription(personId: number, subscriptionId: number): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
+  async cancelSubscription(
+    personId: number,
+    subscriptionId: number,
+  ): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const subscription = await tx.customer_subscription.findUnique({
         where: { subscription_id: subscriptionId },
         include: {
           subscription_cycle: {
             orderBy: { cycle_end: 'desc' },
-            take: 1, 
+            take: 1,
+          },
+          subscription_plan: {
+            include: {
+              subscription_plan_product: {
+                include: {
+                  product: true,
+                },
+              },
+            },
           },
         },
       });
 
       if (!subscription) {
-        throw new NotFoundException(`Suscripción con ID ${subscriptionId} no encontrada.`);
+        throw new NotFoundException(
+          `Suscripción con ID ${subscriptionId} no encontrada.`,
+        );
       }
       if (subscription.customer_id !== personId) {
-        throw new ForbiddenException(`No tienes permiso para cancelar la suscripción ID ${subscriptionId} de otra persona.`);
+        throw new ForbiddenException(
+          `No tienes permiso para cancelar la suscripción ID ${subscriptionId} de otra persona.`,
+        );
       }
-      if (subscription.status === SubscriptionStatus.CANCELLED || subscription.status === SubscriptionStatus.EXPIRED) {
-        throw new BadRequestException('La suscripción ya está cancelada o expirada.');
+      if (
+        subscription.status === SubscriptionStatus.CANCELLED ||
+        subscription.status === SubscriptionStatus.EXPIRED
+      ) {
+        throw new BadRequestException(
+          'La suscripción ya está cancelada o expirada.',
+        );
       }
-      if (subscription.status !== SubscriptionStatus.ACTIVE && subscription.status !== SubscriptionStatus.PAUSED) {
-        throw new BadRequestException(`La suscripción está en estado ${subscription.status} y no se puede cancelar desde este estado.`);
+      if (
+        subscription.status !== SubscriptionStatus.ACTIVE &&
+        subscription.status !== SubscriptionStatus.PAUSED
+      ) {
+        throw new BadRequestException(
+          `La suscripción está en estado ${subscription.status} y no se puede cancelar desde este estado.`,
+        );
       }
 
-      let effectiveEndDate = subscription.subscription_cycle?.[0]?.cycle_end || new Date();
+      let effectiveEndDate =
+        subscription.subscription_cycle?.[0]?.cycle_end || new Date();
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (effectiveEndDate < today) effectiveEndDate = today;
@@ -565,27 +774,106 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { subscription_id: subscriptionId },
         data: {
           status: SubscriptionStatus.CANCELLED,
-          end_date: effectiveEndDate,
+          cancellation_date: effectiveEndDate,
         },
       });
 
       await tx.order_header.updateMany({
         where: {
           subscription_id: subscriptionId,
-          scheduled_delivery_date: { gt: effectiveEndDate }, 
+          scheduled_delivery_date: { gt: effectiveEndDate },
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
+            in: [
+              PrismaOrderStatus.PENDING,
+              PrismaOrderStatus.CONFIRMED,
+              PrismaOrderStatus.IN_PREPARATION,
+              PrismaOrderStatus.READY_FOR_DELIVERY,
+              PrismaOrderStatus.IN_DELIVERY,
+            ],
           },
         },
         data: {
           status: PrismaOrderStatus.CANCELLED,
         },
       });
+
+      // Verificar si hay productos retornables en la suscripción
+      const hasReturnableProducts =
+        subscription.subscription_plan?.subscription_plan_product?.some(
+          (item) => item.product?.is_returnable === true,
+        );
+
+      // Crear orden de cancelación solo si hay productos retornables
+      if (hasReturnableProducts) {
+        try {
+          // Calcular fecha de recolección (7 días después de la cancelación)
+          const scheduledCollectionDate = new Date();
+          scheduledCollectionDate.setDate(
+            scheduledCollectionDate.getDate() + 7,
+          );
+
+          await this.cancellationOrderService.createCancellationOrder({
+            subscription_id: subscriptionId,
+            scheduled_collection_date: scheduledCollectionDate,
+            notes: `Orden de cancelación generada automáticamente para suscripción ${subscriptionId}`,
+          });
+        } catch (error) {
+          // Log del error pero no fallar la cancelación de la suscripción
+          console.error(
+            `Error al crear orden de cancelación para suscripción ${subscriptionId}:`,
+            error,
+          );
+        }
+      }
+
+      // Control de stock: devolver productos no retornables al inventario
+      const nonReturnableProducts =
+        subscription.subscription_plan?.subscription_plan_product?.filter(
+          (item) => item.product && !item.product.is_returnable,
+        ) || [];
+
+      if (nonReturnableProducts.length > 0) {
+        try {
+          const returnMovementTypeId =
+            await this.inventoryService.getMovementTypeIdByCode(
+              BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_COMODATO,
+              tx,
+            );
+
+          for (const planItem of nonReturnableProducts) {
+            if (planItem.product_quantity > 0) {
+              await this.inventoryService.createStockMovement(
+                {
+                  movement_type_id: returnMovementTypeId,
+                  product_id: planItem.product_id,
+                  quantity: planItem.product_quantity,
+                  source_warehouse_id: null,
+                  destination_warehouse_id:
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                  movement_date: new Date(),
+                  remarks: `Devolución por cancelación de suscripción ${subscriptionId} - Producto no retornable: ${planItem.product?.description} (ID ${planItem.product_id})`,
+                },
+                tx,
+              );
+            }
+          }
+        } catch (error) {
+          // Log del error pero no fallar la cancelación de la suscripción
+          console.error(
+            `Error al devolver stock de productos no retornables para suscripción ${subscriptionId}:`,
+            error,
+          );
+        }
+      }
+
       return updatedSubscription;
     });
   }
 
-  async changeSubscriptionPlan(personId: number, dto: ChangeSubscriptionPlanDto): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
+  async changeSubscriptionPlan(
+    personId: number,
+    dto: ChangeSubscriptionPlanDto,
+  ): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const currentSubscription = await tx.customer_subscription.findUnique({
         where: { subscription_id: dto.current_subscription_id },
@@ -595,12 +883,19 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       });
 
       if (!currentSubscription) {
-        throw new NotFoundException(`Suscripción actual con ID ${dto.current_subscription_id} no encontrada.`);
+        throw new NotFoundException(
+          `Suscripción actual con ID ${dto.current_subscription_id} no encontrada.`,
+        );
       }
       if (currentSubscription.customer_id !== personId) {
-        throw new ForbiddenException('No tienes permiso para modificar esta suscripción.');
+        throw new ForbiddenException(
+          'No tienes permiso para modificar esta suscripción.',
+        );
       }
-      if (currentSubscription.status !== SubscriptionStatus.ACTIVE && currentSubscription.status !== SubscriptionStatus.PAUSED) {
+      if (
+        currentSubscription.status !== SubscriptionStatus.ACTIVE &&
+        currentSubscription.status !== SubscriptionStatus.PAUSED
+      ) {
         throw new BadRequestException(
           `La suscripción actual está en estado ${currentSubscription.status} y no se puede cambiar. Solo se pueden cambiar suscripciones ACTIVAS o PAUSADAS.`,
         );
@@ -610,14 +905,20 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { subscription_plan_id: dto.new_plan_id },
       });
       if (!newPlan) {
-        throw new NotFoundException(`Nuevo plan de suscripción con ID ${dto.new_plan_id} no encontrado.`);
+        throw new NotFoundException(
+          `Nuevo plan de suscripción con ID ${dto.new_plan_id} no encontrado.`,
+        );
       }
       if (currentSubscription.subscription_plan_id === dto.new_plan_id) {
-        throw new BadRequestException('La suscripción actual ya tiene el plan seleccionado.');
+        throw new BadRequestException(
+          'La suscripción actual ya tiene el plan seleccionado.',
+        );
       }
 
-      let oldSubscriptionEndDate = currentSubscription.subscription_cycle?.[0]?.cycle_end || new Date();
-      const today = new Date(); today.setHours(0, 0, 0, 0);
+      let oldSubscriptionEndDate =
+        currentSubscription.subscription_cycle?.[0]?.cycle_end || new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       if (oldSubscriptionEndDate < today) oldSubscriptionEndDate = today;
 
       const newSubscriptionStartDate = new Date(oldSubscriptionEndDate);
@@ -628,8 +929,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { subscription_id: dto.current_subscription_id },
         data: {
           status: SubscriptionStatus.CANCELLED,
-          end_date: oldSubscriptionEndDate,
-          notes: `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${new Date().toISOString()}`.trim(),
+          cancellation_date: oldSubscriptionEndDate,
+          notes:
+            `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${new Date().toISOString()}`.trim(),
         },
       });
 
@@ -637,7 +939,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: {
           subscription_id: dto.current_subscription_id,
           scheduled_delivery_date: { gt: oldSubscriptionEndDate },
-          status: { in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY] },
+          status: {
+            in: [
+              PrismaOrderStatus.PENDING,
+              PrismaOrderStatus.CONFIRMED,
+              PrismaOrderStatus.IN_PREPARATION,
+              PrismaOrderStatus.READY_FOR_DELIVERY,
+              PrismaOrderStatus.IN_DELIVERY,
+            ],
+          },
         },
         data: { status: PrismaOrderStatus.CANCELLED },
       });
@@ -654,8 +964,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       const firstCycleStartDate = new Date(newSubscriptionStartDate);
       const firstCycleEndDate = new Date(firstCycleStartDate);
-      firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1); 
-      firstCycleEndDate.setDate(firstCycleStartDate.getDate() -1);
+      firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1);
+      firstCycleEndDate.setDate(firstCycleStartDate.getDate() - 1);
       firstCycleEndDate.setHours(23, 59, 59, 999);
 
       await tx.subscription_cycle.create({
@@ -670,23 +980,40 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  async cancelContract(personId: number, contractId: number): Promise<Prisma.client_contractGetPayload<{}>> {
+  async cancelContract(
+    personId: number,
+    contractId: number,
+  ): Promise<Prisma.client_contractGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const contract = await tx.client_contract.findUnique({
         where: { contract_id: contractId },
       });
 
       if (!contract) {
-        throw new NotFoundException(`Contrato con ID ${contractId} no encontrado.`);
+        throw new NotFoundException(
+          `Contrato con ID ${contractId} no encontrado.`,
+        );
       }
       if (contract.person_id !== personId) {
-        throw new ForbiddenException('No tienes permiso para cancelar este contrato.');
+        throw new ForbiddenException(
+          'No tienes permiso para cancelar este contrato.',
+        );
       }
-      if (contract.status === ContractStatus.CANCELLED || contract.status === ContractStatus.EXPIRED) {
-        throw new BadRequestException('El contrato ya está cancelado o expirado.');
+      if (
+        contract.status === ContractStatus.CANCELLED ||
+        contract.status === ContractStatus.EXPIRED
+      ) {
+        throw new BadRequestException(
+          'El contrato ya está cancelado o expirado.',
+        );
       }
-      if (contract.status !== ContractStatus.ACTIVE && contract.status !== ContractStatus.PENDING_ACTIVATION) {
-        throw new BadRequestException(`El contrato está en estado ${contract.status} y no se puede cancelar desde este estado.`);
+      if (
+        contract.status !== ContractStatus.ACTIVE &&
+        contract.status !== ContractStatus.PENDING_ACTIVATION
+      ) {
+        throw new BadRequestException(
+          `El contrato está en estado ${contract.status} y no se puede cancelar desde este estado.`,
+        );
       }
 
       const effectiveEndDate = new Date();
@@ -704,7 +1031,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           contract_id: contractId,
           scheduled_delivery_date: { gt: effectiveEndDate },
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
+            in: [
+              PrismaOrderStatus.PENDING,
+              PrismaOrderStatus.CONFIRMED,
+              PrismaOrderStatus.IN_PREPARATION,
+              PrismaOrderStatus.READY_FOR_DELIVERY,
+              PrismaOrderStatus.IN_DELIVERY,
+            ],
           },
         },
         data: {
@@ -715,17 +1048,24 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  async changeContractPriceList(personId: number, dto: ChangeContractPriceListDto): Promise<Prisma.client_contractGetPayload<{}>> {
+  async changeContractPriceList(
+    personId: number,
+    dto: ChangeContractPriceListDto,
+  ): Promise<Prisma.client_contractGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const currentContract = await tx.client_contract.findUnique({
         where: { contract_id: dto.current_contract_id },
       });
 
       if (!currentContract) {
-        throw new NotFoundException(`Contrato actual con ID ${dto.current_contract_id} no encontrado.`);
+        throw new NotFoundException(
+          `Contrato actual con ID ${dto.current_contract_id} no encontrado.`,
+        );
       }
       if (currentContract.person_id !== personId) {
-        throw new ForbiddenException('No tienes permiso para modificar este contrato.');
+        throw new ForbiddenException(
+          'No tienes permiso para modificar este contrato.',
+        );
       }
       if (currentContract.status !== ContractStatus.ACTIVE) {
         throw new BadRequestException(
@@ -737,10 +1077,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { price_list_id: dto.new_price_list_id },
       });
       if (!newPriceList) {
-        throw new NotFoundException(`Nueva lista de precios con ID ${dto.new_price_list_id} no encontrada.`);
+        throw new NotFoundException(
+          `Nueva lista de precios con ID ${dto.new_price_list_id} no encontrada.`,
+        );
       }
       if (currentContract.price_list_id === dto.new_price_list_id) {
-        throw new BadRequestException('El contrato actual ya utiliza esta lista de precios.');
+        throw new BadRequestException(
+          'El contrato actual ya utiliza esta lista de precios.',
+        );
       }
 
       const oldContractEffectiveEndDate = new Date();
@@ -760,7 +1104,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         data: {
           status: ContractStatus.CANCELLED,
           end_date: oldContractEffectiveEndDate,
-          notes: `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${new Date().toISOString()}`.trim(),
+          notes:
+            `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${new Date().toISOString()}`.trim(),
         },
       });
 
@@ -769,7 +1114,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           contract_id: dto.current_contract_id,
           scheduled_delivery_date: { gt: oldContractEffectiveEndDate },
           status: {
-            in: [PrismaOrderStatus.PENDING, PrismaOrderStatus.CONFIRMED, PrismaOrderStatus.IN_PREPARATION, PrismaOrderStatus.READY_FOR_DELIVERY, PrismaOrderStatus.IN_DELIVERY],
+            in: [
+              PrismaOrderStatus.PENDING,
+              PrismaOrderStatus.CONFIRMED,
+              PrismaOrderStatus.IN_PREPARATION,
+              PrismaOrderStatus.READY_FOR_DELIVERY,
+              PrismaOrderStatus.IN_DELIVERY,
+            ],
           },
         },
         data: { status: PrismaOrderStatus.CANCELLED },
@@ -780,7 +1131,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           person_id: personId,
           price_list_id: dto.new_price_list_id,
           start_date: newContractStartDate,
-          end_date: newContractEndDate, 
+          end_date: newContractEndDate,
           status: ContractStatus.ACTIVE,
           notes: `Iniciado por cambio desde contrato ID ${dto.current_contract_id}`,
         },
@@ -789,34 +1140,36 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     });
   }
 
-  private async getLoanedProductsDetail(personId: number): Promise<LoanedProductDetailDto[]> {
+  private async getLoanedProductsDetail(
+    personId: number,
+  ): Promise<LoanedProductDetailDto[]> {
     // Buscar todos los pedidos del cliente que estén en estados donde los productos ya fueron entregados
     const orders = await this.order_header.findMany({
       where: {
         customer_id: personId,
-        status: { 
+        status: {
           in: [
             PrismaOrderStatus.IN_DELIVERY,
             PrismaOrderStatus.DELIVERED,
-            PrismaOrderStatus.REFUNDED
-          ]
-        }
+            PrismaOrderStatus.REFUNDED,
+          ],
+        },
       },
       include: {
         order_item: {
           where: {
             product: {
-              is_returnable: true
-            }
+              is_returnable: true,
+            },
           },
-          include: { 
-            product: true 
+          include: {
+            product: true,
           },
         },
       },
       orderBy: {
-        order_date: 'desc'
-      }
+        order_date: 'desc',
+      },
     });
 
     const loanedProductsDetail: LoanedProductDetailDto[] = [];
@@ -826,7 +1179,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const delivered = item.delivered_quantity ?? 0;
         const returned = item.returned_quantity ?? 0;
         const netLoanedForItem = delivered - returned;
-        
+
         // Solo considerar productos que realmente fueron entregados
         if (delivered > 0 && netLoanedForItem > 0) {
           loanedProductsDetail.push({
@@ -835,7 +1188,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             loaned_quantity: netLoanedForItem,
             acquisition_date: order.order_date.toISOString().split('T')[0], // Solo la fecha
             order_id: order.order_id,
-            order_status: order.status
+            order_status: order.status,
           });
         }
       }
@@ -844,7 +1197,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     return loanedProductsDetail;
   }
 
-  async getPublicLoanedProductsDetailByPerson(personId: number): Promise<LoanedProductDetailDto[]> {
+  async getPublicLoanedProductsDetailByPerson(
+    personId: number,
+  ): Promise<LoanedProductDetailDto[]> {
     await this.findPersonById(personId);
     return this.getLoanedProductsDetail(personId);
   }
@@ -865,7 +1220,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         product_id: number;
         description: string;
       };
-    }
+    },
   ): ComodatoResponseDto {
     return {
       comodato_id: comodatoEntity.comodato_id,
@@ -877,33 +1232,51 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       actual_return_date: comodatoEntity.return_date || undefined,
       status: comodatoEntity.status,
       notes: comodatoEntity.notes || undefined,
-      deposit_amount: comodatoEntity.deposit_amount ? Number(comodatoEntity.deposit_amount) : undefined,
-      monthly_fee: comodatoEntity.monthly_fee ? Number(comodatoEntity.monthly_fee) : undefined,
+      deposit_amount: comodatoEntity.deposit_amount
+        ? Number(comodatoEntity.deposit_amount)
+        : undefined,
+      monthly_fee: comodatoEntity.monthly_fee
+        ? Number(comodatoEntity.monthly_fee)
+        : undefined,
+      article_description: comodatoEntity.article_description || undefined,
+      brand: comodatoEntity.brand || undefined,
+      model: comodatoEntity.model || undefined,
+      contract_image_path: comodatoEntity.contract_image_path || undefined,
+      is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
       updated_at: comodatoEntity.updated_at,
-      person: comodatoEntity.person ? {
-        person_id: comodatoEntity.person.person_id,
-        name: comodatoEntity.person.name || '',
-        phone: comodatoEntity.person.phone,
-        address: comodatoEntity.person.address || undefined,
-        zone: comodatoEntity.person.zone || undefined
-      } : undefined,
-      product: comodatoEntity.product ? {
-        product_id: comodatoEntity.product.product_id,
-        name: comodatoEntity.product.description,
-        description: comodatoEntity.product.description
-      } : undefined,
+      person: comodatoEntity.person
+        ? {
+            person_id: comodatoEntity.person.person_id,
+            name: comodatoEntity.person.name || '',
+            phone: comodatoEntity.person.phone,
+            address: comodatoEntity.person.address || undefined,
+            zone: comodatoEntity.person.zone || undefined,
+          }
+        : undefined,
+      product: comodatoEntity.product
+        ? {
+            product_id: comodatoEntity.product.product_id,
+            name: comodatoEntity.product.description,
+            description: comodatoEntity.product.description,
+          }
+        : undefined,
     };
   }
 
   async createComodato(dto: CreateComodatoDto): Promise<ComodatoResponseDto> {
     try {
-      // Verificar que la persona existe
+      // Verificar que la persona existe y está activa
       const person = await this.person.findUnique({
-        where: { person_id: dto.person_id },
+        where: {
+          person_id: dto.person_id,
+          is_active: true, // Solo permitir comodatos para personas activas
+        },
       });
       if (!person) {
-        throw new NotFoundException(`Persona con ID ${dto.person_id} no encontrada`);
+        throw new NotFoundException(
+          `Persona con ID ${dto.person_id} no encontrada`,
+        );
       }
 
       // Verificar que el producto existe
@@ -911,7 +1284,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { product_id: dto.product_id },
       });
       if (!product) {
-        throw new NotFoundException(`Producto con ID ${dto.product_id} no encontrado`);
+        throw new NotFoundException(
+          `Producto con ID ${dto.product_id} no encontrado`,
+        );
+      }
+
+      // Verificar si el cliente posee bidones propios para productos retornables
+      if (person.owns_returnable_containers && product.is_returnable) {
+        throw new BadRequestException(
+          `No se puede crear comodato para ${product.description} porque el cliente posee bidones retornables propios`,
+        );
       }
 
       const comodato = await this.comodato.create({
@@ -920,11 +1302,17 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           product_id: dto.product_id,
           quantity: dto.quantity,
           delivery_date: new Date(dto.delivery_date),
-          expected_return_date: dto.expected_return_date ? new Date(dto.expected_return_date) : null,
+          expected_return_date: dto.expected_return_date
+            ? new Date(dto.expected_return_date)
+            : null,
           status: dto.status,
           notes: dto.notes,
           deposit_amount: dto.deposit_amount,
           monthly_fee: dto.monthly_fee,
+          article_description: dto.article_description,
+          brand: dto.brand,
+          model: dto.model,
+          contract_image_path: dto.contract_image_path,
         },
         include: {
           person: {
@@ -959,11 +1347,17 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getComodatosByPerson(personId: number, filters: FilterComodatosDto): Promise<ComodatoResponseDto[]> {
+  async getComodatosByPerson(
+    personId: number,
+    filters: FilterComodatosDto,
+  ): Promise<ComodatoResponseDto[]> {
     try {
-      // Verificar que la persona existe
+      // Verificar que la persona existe y está activa
       const person = await this.person.findUnique({
-        where: { person_id: personId },
+        where: {
+          person_id: personId,
+          is_active: true, // Solo buscar comodatos de personas activas
+        },
       });
       if (!person) {
         throw new NotFoundException(`Persona con ID ${personId} no encontrada`);
@@ -985,10 +1379,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (filters.delivery_date_from || filters.delivery_date_to) {
         whereConditions.delivery_date = {};
         if (filters.delivery_date_from) {
-          whereConditions.delivery_date.gte = new Date(filters.delivery_date_from);
+          whereConditions.delivery_date.gte = new Date(
+            filters.delivery_date_from,
+          );
         }
         if (filters.delivery_date_to) {
-          whereConditions.delivery_date.lte = new Date(filters.delivery_date_to);
+          whereConditions.delivery_date.lte = new Date(
+            filters.delivery_date_to,
+          );
         }
       }
 
@@ -1021,7 +1419,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      return comodatos.map(comodato => this.mapToComodatoResponseDto(comodato));
+      return comodatos.map((comodato) =>
+        this.mapToComodatoResponseDto(comodato),
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -1030,7 +1430,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getAllComodatos(filters: FilterComodatosDto): Promise<ComodatoResponseDto[]> {
+  async getAllComodatos(
+    filters: FilterComodatosDto,
+  ): Promise<ComodatoResponseDto[]> {
     try {
       const whereConditions: Prisma.comodatoWhereInput = {};
 
@@ -1048,7 +1450,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       // Construir filtros para person de manera correcta
-      const personFilters: any = {};
+      const personFilters: any = {
+        is_active: true, // Solo mostrar comodatos de personas activas
+      };
       if (filters.zone_id) {
         personFilters.zone_id = filters.zone_id;
       }
@@ -1058,9 +1462,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           mode: 'insensitive',
         };
       }
-      if (Object.keys(personFilters).length > 0) {
-        whereConditions.person = personFilters;
-      }
+      // Siempre aplicar el filtro de persona (al menos is_active)
+      whereConditions.person = personFilters;
 
       if (filters.product_name) {
         whereConditions.product = {
@@ -1101,30 +1504,45 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (filters.delivery_date_from || filters.delivery_date_to) {
         whereConditions.delivery_date = {};
         if (filters.delivery_date_from) {
-          whereConditions.delivery_date.gte = new Date(filters.delivery_date_from);
+          whereConditions.delivery_date.gte = new Date(
+            filters.delivery_date_from,
+          );
         }
         if (filters.delivery_date_to) {
-          whereConditions.delivery_date.lte = new Date(filters.delivery_date_to);
+          whereConditions.delivery_date.lte = new Date(
+            filters.delivery_date_to,
+          );
         }
       }
 
-      if (filters.expected_return_date_from || filters.expected_return_date_to) {
+      if (
+        filters.expected_return_date_from ||
+        filters.expected_return_date_to
+      ) {
         whereConditions.expected_return_date = {};
         if (filters.expected_return_date_from) {
-          whereConditions.expected_return_date.gte = new Date(filters.expected_return_date_from);
+          whereConditions.expected_return_date.gte = new Date(
+            filters.expected_return_date_from,
+          );
         }
         if (filters.expected_return_date_to) {
-          whereConditions.expected_return_date.lte = new Date(filters.expected_return_date_to);
+          whereConditions.expected_return_date.lte = new Date(
+            filters.expected_return_date_to,
+          );
         }
       }
 
       if (filters.actual_return_date_from || filters.actual_return_date_to) {
         whereConditions.return_date = {};
         if (filters.actual_return_date_from) {
-          whereConditions.return_date.gte = new Date(filters.actual_return_date_from);
+          whereConditions.return_date.gte = new Date(
+            filters.actual_return_date_from,
+          );
         }
         if (filters.actual_return_date_to) {
-          whereConditions.return_date.lte = new Date(filters.actual_return_date_to);
+          whereConditions.return_date.lte = new Date(
+            filters.actual_return_date_to,
+          );
         }
       }
 
@@ -1157,18 +1575,26 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      return comodatos.map(comodato => this.mapToComodatoResponseDto(comodato));
+      return comodatos.map((comodato) =>
+        this.mapToComodatoResponseDto(comodato),
+      );
     } catch (error) {
       throw handlePrismaError(error, this.entityName);
     }
   }
 
-  async getComodatoById(personId: number, comodatoId: number): Promise<ComodatoResponseDto> {
+  async getComodatoById(
+    personId: number,
+    comodatoId: number,
+  ): Promise<ComodatoResponseDto> {
     try {
       const comodato = await this.comodato.findFirst({
         where: {
           comodato_id: comodatoId,
           person_id: personId,
+          person: {
+            is_active: true, // Solo buscar comodatos de personas activas
+          },
         },
         include: {
           person: {
@@ -1195,7 +1621,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       });
 
       if (!comodato) {
-        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+        throw new NotFoundException(
+          `Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`,
+        );
       }
 
       return this.mapToComodatoResponseDto(comodato);
@@ -1207,18 +1635,27 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async updateComodato(personId: number, comodatoId: number, dto: UpdateComodatoDto): Promise<ComodatoResponseDto> {
+  async updateComodato(
+    personId: number,
+    comodatoId: number,
+    dto: UpdateComodatoDto,
+  ): Promise<ComodatoResponseDto> {
     try {
-      // Verificar que el comodato existe y pertenece a la persona
+      // Verificar que el comodato existe y pertenece a una persona activa
       const existingComodato = await this.comodato.findFirst({
         where: {
           comodato_id: comodatoId,
           person_id: personId,
+          person: {
+            is_active: true, // Solo permitir actualizar comodatos de personas activas
+          },
         },
       });
 
       if (!existingComodato) {
-        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+        throw new NotFoundException(
+          `Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`,
+        );
       }
 
       const updateData: Prisma.comodatoUpdateInput = {};
@@ -1232,11 +1669,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       if (dto.expected_return_date !== undefined) {
-        updateData.expected_return_date = dto.expected_return_date ? new Date(dto.expected_return_date) : null;
+        updateData.expected_return_date = dto.expected_return_date
+          ? new Date(dto.expected_return_date)
+          : null;
       }
 
       if (dto.actual_return_date !== undefined) {
-        updateData.return_date = dto.actual_return_date ? new Date(dto.actual_return_date) : null;
+        updateData.return_date = dto.actual_return_date
+          ? new Date(dto.actual_return_date)
+          : null;
       }
 
       if (dto.status !== undefined) {
@@ -1253,6 +1694,22 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       if (dto.monthly_fee !== undefined) {
         updateData.monthly_fee = dto.monthly_fee;
+      }
+
+      if (dto.article_description !== undefined) {
+        updateData.article_description = dto.article_description;
+      }
+
+      if (dto.brand !== undefined) {
+        updateData.brand = dto.brand;
+      }
+
+      if (dto.model !== undefined) {
+        updateData.model = dto.model;
+      }
+
+      if (dto.contract_image_path !== undefined) {
+        updateData.contract_image_path = dto.contract_image_path;
       }
 
       const updatedComodato = await this.comodato.update({
@@ -1293,7 +1750,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async deleteComodato(personId: number, comodatoId: number): Promise<{ message: string; deleted: boolean }> {
+  async deleteComodato(
+    personId: number,
+    comodatoId: number,
+  ): Promise<{ message: string; deleted: boolean }> {
     try {
       // Verificar que el comodato existe y pertenece a la persona
       const existingComodato = await this.comodato.findFirst({
@@ -1304,7 +1764,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       });
 
       if (!existingComodato) {
-        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`);
+        throw new NotFoundException(
+          `Comodato con ID ${comodatoId} no encontrado para la persona ${personId}`,
+        );
       }
 
       await this.comodato.delete({
@@ -1325,25 +1787,34 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async createSubscriptionWithComodato(dto: CreateSubscriptionWithComodatoDto): Promise<{ subscription: any; comodato: ComodatoResponseDto }> {
+  async createSubscriptionWithComodato(
+    dto: CreateSubscriptionWithComodatoDto,
+  ): Promise<{ subscription: any; comodato: ComodatoResponseDto }> {
     try {
-      // Verificar que la persona existe
+      // Verificar que la persona existe y está activa
       const person = await this.person.findUnique({
-        where: { person_id: dto.customer_id }
+        where: {
+          person_id: dto.customer_id,
+          is_active: true,
+        },
       });
 
       if (!person) {
-        throw new NotFoundException(`Persona con ID ${dto.customer_id} no encontrada`);
+        throw new NotFoundException(
+          `Persona con ID ${dto.customer_id} no encontrada`,
+        );
       }
 
       // Verificar que el producto para el comodato existe
       if (dto.comodato_product_id) {
         const product = await this.product.findUnique({
-          where: { product_id: dto.comodato_product_id }
+          where: { product_id: dto.comodato_product_id },
         });
 
         if (!product) {
-          throw new NotFoundException(`Producto con ID ${dto.comodato_product_id} no encontrado`);
+          throw new NotFoundException(
+            `Producto con ID ${dto.comodato_product_id} no encontrado`,
+          );
         }
       }
 
@@ -1352,15 +1823,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         customer_id: dto.customer_id,
         subscription_plan_id: dto.subscription_plan_id,
         start_date: dto.start_date,
-        end_date: dto.end_date,
         collection_date: dto.collection_date,
         status: dto.status,
         notes: dto.notes,
-        delivery_preferences: dto.delivery_preferences
+        delivery_preferences: dto.delivery_preferences,
       };
 
       // Crear la suscripción usando el servicio de suscripciones
-      const subscription = await this.customerSubscriptionService.create(subscriptionDto);
+      const subscription =
+        await this.customerSubscriptionService.create(subscriptionDto);
 
       // Crear el comodato si se proporcionaron los datos
       let comodato: ComodatoResponseDto | null = null;
@@ -1369,12 +1840,18 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           person_id: dto.customer_id,
           product_id: dto.comodato_product_id,
           quantity: dto.comodato_quantity || 1,
-          delivery_date: dto.comodato_delivery_date || new Date().toISOString().split('T')[0],
+          delivery_date:
+            dto.comodato_delivery_date ||
+            new Date().toISOString().split('T')[0],
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
           notes: dto.comodato_notes,
           deposit_amount: dto.comodato_deposit_amount,
-          monthly_fee: dto.comodato_monthly_fee
+          monthly_fee: dto.comodato_monthly_fee,
+          article_description: dto.comodato_article_description,
+          brand: dto.comodato_brand,
+          model: dto.comodato_model,
+          contract_image_path: dto.comodato_contract_image_path,
         };
 
         comodato = await this.createComodato(comodatoDto);
@@ -1382,18 +1859,20 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       return {
         subscription,
-        comodato: comodato!
+        comodato: comodato!,
       };
-
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       if (error instanceof PrismaClientKnownRequestError) {
         handlePrismaError(error, this.entityName);
       }
       throw new InternalServerErrorException(
-        `Error al crear suscripción con comodato: ${error.message}`
+        `Error al crear suscripción con comodato: ${error.message}`,
       );
     }
   }

@@ -145,8 +145,7 @@ export class CustomerSubscriptionResponseDto {
   @ApiProperty({ example: '2024-01-01' })
   start_date: string;
 
-  @ApiProperty({ example: '2024-12-31', required: false })
-  end_date?: string;
+  // end_date field removed - not present in schema
 
   @ApiProperty({ example: '2024-01-15', required: false })
   collection_date?: string;
@@ -189,17 +188,13 @@ export class CustomerSubscriptionResponseDto {
     if (partial.start_date instanceof Date) {
       this.start_date = partial.start_date.toISOString().split('T')[0];
     }
-    if (partial.end_date instanceof Date) {
-      this.end_date = partial.end_date.toISOString().split('T')[0];
-    }
+    // end_date field removed - not present in schema
     
     // Handle null values
     if (partial.notes === null) {
       this.notes = undefined;
     }
-    if (partial.end_date === null) {
-      this.end_date = undefined;
-    }
+    // end_date field removed - not present in schema
   }
 }
 
