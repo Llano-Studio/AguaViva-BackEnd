@@ -282,6 +282,8 @@ export class PdfGeneratorService {
         return 'CANCELADO';
       case 'in_route':
         return 'EN RUTA';
+      case 'overdue':
+        return 'ATRASADO';
       case 'pendiente':
         return 'PENDIENTE';
       case 'entregado':
@@ -290,6 +292,8 @@ export class PdfGeneratorService {
         return 'CANCELADO';
       case 'en_ruta':
         return 'EN RUTA';
+      case 'atrasado':
+        return 'ATRASADO';
       default:
         return status.toUpperCase();
     }

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString, Matches, ValidatorConstraint, ValidatorConstraintInterface, Validate } from 'class-validator';
 import { Type } from 'class-transformer';
+import { DeliveryStatus } from '../../common/constants/enums';
 
 @ValidatorConstraint({ name: 'atLeastOneOrderId', async: false })
 export class AtLeastOneOrderIdConstraint implements ValidatorConstraintInterface {
@@ -47,7 +48,7 @@ export class CreateRouteSheetDetailDto {
   })
   @IsString()
   @IsOptional()
-  delivery_status?: string = 'PENDING';
+  delivery_status?: string = DeliveryStatus.PENDING;
 
   @ApiPropertyOptional({
     description: 'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',

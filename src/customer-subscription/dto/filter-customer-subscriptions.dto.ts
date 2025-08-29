@@ -122,21 +122,7 @@ export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   @IsDateString()
   start_date_to?: string;
 
-  @ApiPropertyOptional({
-    description: 'Filtrar por fecha de fin desde (YYYY-MM-DD)',
-    example: '2024-01-01',
-  })
-  @IsOptional()
-  @IsDateString()
-  end_date_from?: string;
-
-  @ApiPropertyOptional({
-    description: 'Filtrar por fecha de fin hasta (YYYY-MM-DD)',
-    example: '2024-12-31',
-  })
-  @IsOptional()
-  @IsDateString()
-  end_date_to?: string;
+  // end_date filtering fields removed - not present in schema
 
   @ApiPropertyOptional({
     description: 'Filtrar por nombre del cliente (búsqueda parcial)',

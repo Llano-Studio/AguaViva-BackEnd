@@ -57,4 +57,24 @@ export class UpdateComodatoDto {
   @IsOptional()
   @Min(0)
   monthly_fee?: number;
+
+  @ApiPropertyOptional({ example: 'Dispensador de agua fría/caliente actualizado', description: 'Nueva descripción del artículo' })
+  @IsString()
+  @IsOptional()
+  article_description?: string;
+
+  @ApiPropertyOptional({ example: 'LG', description: 'Nueva marca del producto' })
+  @IsString()
+  @IsOptional()
+  brand?: string;
+
+  @ApiPropertyOptional({ example: 'WD-600Y', description: 'Nuevo modelo del producto' })
+  @IsString()
+  @IsOptional()
+  model?: string;
+
+  @ApiPropertyOptional({ example: '/uploads/contracts/comodato_123_contract_updated.jpg', description: 'Nueva ruta de imagen del contrato' })
+  @IsString()
+  @IsOptional()
+  contract_image_path?: string;
 }

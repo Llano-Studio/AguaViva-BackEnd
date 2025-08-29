@@ -35,13 +35,7 @@ export class CreateCustomerSubscriptionDto {
   @IsNotEmpty()
   start_date: string;
 
-  @ApiPropertyOptional({
-    description: 'Fecha de fin de la suscripción (YYYY-MM-DD), opcional',
-    example: '2024-12-31'
-  })
-  @IsOptional()
-  @IsDateString()
-  end_date?: string;
+  // end_date field removed - not present in schema
 
   @ApiPropertyOptional({
     description: 'Fecha de recolección de bidones (YYYY-MM-DD), opcional',

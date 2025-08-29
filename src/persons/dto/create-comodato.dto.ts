@@ -62,4 +62,24 @@ export class CreateComodatoDto {
   @IsOptional()
   @Min(0)
   monthly_fee?: number;
+
+  @ApiPropertyOptional({ example: 'Dispensador de agua fría/caliente', description: 'Descripción del artículo en comodato' })
+  @IsString()
+  @IsOptional()
+  article_description?: string;
+
+  @ApiPropertyOptional({ example: 'Samsung', description: 'Marca del producto en comodato' })
+  @IsString()
+  @IsOptional()
+  brand?: string;
+
+  @ApiPropertyOptional({ example: 'WD-500X', description: 'Modelo del producto en comodato' })
+  @IsString()
+  @IsOptional()
+  model?: string;
+
+  @ApiPropertyOptional({ example: '/uploads/contracts/comodato_123_contract.jpg', description: 'Ruta de la imagen del contrato' })
+  @IsString()
+  @IsOptional()
+  contract_image_path?: string;
 }

@@ -38,7 +38,7 @@ export const BUSINESS_CONFIG = {
     INGRESO_DEVOLUCION_CLIENTE: 'ING_DEV_CL', // Ingreso por devolución de cliente
     INGRESO_DEVOLUCION_VENTA_UNICA: 'ING_DV_VU', // Ingreso por devolución de venta única
     INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA: 'ING_DV_VUC', // Ingreso por devolución de venta única cancelada
-    
+    INGRESO_DEVOLUCION_CANCELACION_SUSCRIPCION: 'ING_DEV_C_S', // Ingreso por devolución de cancelación de suscripción
     // Tipos adicionales con códigos de base de datos
     INGRESO_PRODUCCION: 'ING_PROD',
     INGRESO_COMPRA_EXTERNA: 'ING_COMP_EXT',

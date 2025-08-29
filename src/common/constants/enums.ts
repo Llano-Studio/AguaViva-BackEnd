@@ -21,7 +21,8 @@ export enum OrderStatus {
   DELIVERED = 'DELIVERED',
   RETIRADO = 'RETIRADO',
   CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED'
+  REFUNDED = 'REFUNDED',
+  OVERDUE = 'OVERDUE'
 }
 
 export enum SubscriptionStatus {
@@ -35,7 +36,8 @@ export enum PaymentStatus {
   PENDING = 'PENDING',
   PARTIALLY_PAID = 'PARTIALLY_PAID',
   PAID = 'PAID',
-  REFUNDED = 'REFUNDED'
+  REFUNDED = 'REFUNDED',
+  PARTIAL = 'PARTIAL'
 }
 
 export enum PaymentMethod {
@@ -62,4 +64,4 @@ export enum DeliveryPriority {
 }
 
 // Re-exportamos Role para tenerlo todo centralizado
-export { Role }; 
+export { Role };

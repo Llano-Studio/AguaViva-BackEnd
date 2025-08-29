@@ -11,10 +11,15 @@ import {
   UpdateSubscriptionDeliveryScheduleDto,
   SubscriptionDeliveryScheduleResponseDto
 } from './dto';
+import { FirstCycleComodatoService } from '../orders/services/first-cycle-comodato.service';
 
 @Injectable()
 export class CustomerSubscriptionService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger(CustomerSubscriptionService.name);
+
+  constructor(private readonly firstCycleComodatoService: FirstCycleComodatoService) {
+    super();
+  }
 
   async onModuleInit() {
     await this.$connect();
@@ -127,7 +132,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
           customer_id: createDto.customer_id,
           subscription_plan_id: createDto.subscription_plan_id,
           start_date: new Date(createDto.start_date),
-          end_date: createDto.end_date ? new Date(createDto.end_date) : null,
+          // end_date field removed - not present in schema
           collection_date: createDto.collection_date ? new Date(createDto.collection_date) : null,
           status: createDto.status || SubscriptionStatus.ACTIVE,
           notes,
@@ -179,6 +184,32 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       }
 
       this.logger.log(`Created first cycle for subscription ${subscription.subscription_id} from ${firstCycleStartDate.toISOString().split('T')[0]} to ${firstCycleEndDate.toISOString().split('T')[0]}`);
+
+      // Procesar comodatos automáticos para el primer ciclo
+      try {
+        const comodatoResult = await this.firstCycleComodatoService.processFirstCycleComodato(
+          subscription.subscription_id,
+          firstCycleStartDate
+        );
+        
+        if (comodatoResult.comodatos_created.length > 0) {
+          this.logger.log(
+            `✅ Comodatos automáticos creados para suscripción ${subscription.subscription_id}: ` +
+            `${comodatoResult.total_comodatos} comodatos para productos retornables`
+          );
+        } else {
+          this.logger.log(
+            `ℹ️ No se crearon comodatos para suscripción ${subscription.subscription_id}: ` +
+            `no hay productos retornables en el plan o ya existen comodatos activos`
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `❌ Error procesando comodatos automáticos para suscripción ${subscription.subscription_id}:`,
+          error
+        );
+        // No fallar la creación de la suscripción por errores en comodatos
+      }
 
       // Crear horarios de entrega según delivery_preferences
       if (createDto.delivery_preferences?.preferred_days && createDto.delivery_preferences.preferred_time_range) {
@@ -312,9 +343,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       if (updateDto.subscription_plan_id !== undefined) {
         updateData.subscription_plan_id = updateDto.subscription_plan_id;
       }
-      if (updateDto.end_date !== undefined) {
-        updateData.end_date = updateDto.end_date ? new Date(updateDto.end_date) : null;
-      }
+      // end_date field removed - not present in schema
       if (updateDto.collection_date !== undefined) {
         updateData.collection_date = updateDto.collection_date ? new Date(updateDto.collection_date) : null;
       }
@@ -491,19 +520,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       }
     }
 
-    if (filters.end_date_from || filters.end_date_to) {
-      where.end_date = {};
-      if (filters.end_date_from) {
-        const fromDate = new Date(filters.end_date_from);
-        fromDate.setHours(0, 0, 0, 0);
-        where.end_date.gte = fromDate;
-      }
-      if (filters.end_date_to) {
-        const toDate = new Date(filters.end_date_to);
-        toDate.setHours(23, 59, 59, 999);
-        where.end_date.lte = toDate;
-      }
-    }
+    // end_date filtering removed - field not present in schema
 
     if (filters.search) {
       where.OR = [
@@ -526,8 +543,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
         },
         {
           OR: [
-            { end_date: null },
-            { end_date: { gt: new Date() } },
+            // end_date conditions removed - field not present in schema
           ],
         },
       ];
@@ -543,9 +559,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       case 'start_date':
         orderBy.start_date = sortOrder;
         break;
-      case 'end_date':
-        orderBy.end_date = sortOrder;
-        break;
+      // end_date sorting removed - field not present in schema
       case 'status':
         orderBy.status = sortOrder;
         break;
@@ -562,7 +576,7 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       customer_id: subscription.customer_id,
       subscription_plan_id: subscription.subscription_plan_id,
       start_date: subscription.start_date.toISOString().split('T')[0],
-      end_date: subscription.end_date ? subscription.end_date.toISOString().split('T')[0] : null,
+      // end_date removed - field not present in schema
       collection_date: subscription.collection_date ? subscription.collection_date.toISOString().split('T')[0] : null,
       status: subscription.status,
       notes: this.parseClientNotes(subscription.notes),

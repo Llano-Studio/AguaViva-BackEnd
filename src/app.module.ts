@@ -20,6 +20,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
 import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
 import { CustomerSubscriptionModule } from './customer-subscription/customer-subscription.module';
+import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
 import { CommonModule } from './common/common.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
@@ -48,6 +49,7 @@ import environmentConfig from './common/config/environment.config';
     RouteSheetModule,
     SubscriptionPlansModule,
     CustomerSubscriptionModule,
+    CyclePaymentsModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 60,

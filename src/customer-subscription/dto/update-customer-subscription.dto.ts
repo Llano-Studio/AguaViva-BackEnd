@@ -10,10 +10,7 @@ export class UpdateCustomerSubscriptionDto {
   @IsInt()
   subscription_plan_id?: number;
 
-  @ApiProperty({ example: '2024-12-31', required: false })
-  @IsOptional()
-  @IsDateString()
-  end_date?: string;
+  // end_date field removed - not present in schema
 
   @ApiProperty({ example: '2024-01-15', required: false })
   @IsOptional()

@@ -23,6 +23,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PdfGeneratorService, RouteSheetPdfData } from '../common/services/pdf-generator.service';
+import { DeliveryStatus } from '../common/constants/enums';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -881,7 +882,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       }
 
       let isCurrent = false;
-      if (!currentDeliveryFound && detail.delivery_status === 'PENDING') {
+      if (!currentDeliveryFound && detail.delivery_status === DeliveryStatus.PENDING) {
         isCurrent = true;
         currentDeliveryFound = true;
       }
@@ -1104,7 +1105,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     //   throw new ForbiddenException('No tienes permiso para modificar esta entrega.');
     // }
 
-    if (routeSheetDetail.delivery_status !== 'PENDING') {
+    if (routeSheetDetail.delivery_status !== DeliveryStatus.PENDING) {
       throw new BadRequestException(
         `Solo se pueden pasar entregas que estén en estado PENDING. Estado actual: ${routeSheetDetail.delivery_status}`
       );
