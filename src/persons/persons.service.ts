@@ -211,6 +211,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       tax_id: dto.taxId,
       registration_date: registration_date_for_prisma,
       type: dto.type as PrismaPersonType,
+      is_active: dto.is_active !== undefined ? dto.is_active : true,
     };
     if (dto.localityId)
       data.locality = { connect: { locality_id: dto.localityId } };
@@ -628,6 +629,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (dto.taxId !== undefined) dataToUpdate.tax_id = dto.taxId;
     if (dto.type !== undefined)
       dataToUpdate.type = dto.type as PrismaPersonType;
+    if (dto.is_active !== undefined) dataToUpdate.is_active = dto.is_active;
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 
