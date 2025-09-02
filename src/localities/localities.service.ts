@@ -77,7 +77,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       });
       
       if (existingLocality) {
-        throw new ConflictException('Ya existe una localidad con este código.');
+        throw new ConflictException(`Ya existe una localidad con el código '${dto.code}'. Por favor, utilice un código diferente.`);
       }
 
       const newLocality = await this.locality.create({

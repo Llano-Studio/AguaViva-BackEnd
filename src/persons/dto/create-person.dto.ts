@@ -68,4 +68,12 @@ export class CreatePersonDto {
   @IsBoolean()
   @IsOptional()
   owns_returnable_containers?: boolean;
+
+  @ApiPropertyOptional({ 
+    example: true, 
+    description: 'Indica si la persona está activa' 
+  })
+  @IsBoolean()
+  @IsOptional()
+  is_active?: boolean;
 }

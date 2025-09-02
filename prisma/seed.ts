@@ -283,6 +283,37 @@ async function main() {
   // NOTA: Inventario inicial eliminado del seed
   // El inventario se creará automáticamente cuando se agreguen productos manualmente
 
+  // 8. Resetear secuencias de autoincrement
+  console.log('\n🔄 Reseteando secuencias de autoincrement...');
+  
+  // Resetear secuencia de country
+  await prisma.$executeRaw`SELECT setval('country_country_id_seq', (SELECT MAX(country_id) FROM country));`;
+  console.log('  ✅ Secuencia de country reseteada');
+  
+  // Resetear secuencia de province
+  await prisma.$executeRaw`SELECT setval('province_province_id_seq', (SELECT MAX(province_id) FROM province));`;
+  console.log('  ✅ Secuencia de province reseteada');
+  
+  // Resetear secuencia de locality
+  await prisma.$executeRaw`SELECT setval('locality_locality_id_seq', (SELECT MAX(locality_id) FROM locality));`;
+  console.log('  ✅ Secuencia de locality reseteada');
+  
+  // Resetear secuencia de zone
+  await prisma.$executeRaw`SELECT setval('zone_zone_id_seq', (SELECT MAX(zone_id) FROM zone));`;
+  console.log('  ✅ Secuencia de zone reseteada');
+  
+  // Resetear secuencia de warehouse
+  await prisma.$executeRaw`SELECT setval('warehouse_warehouse_id_seq', (SELECT MAX(warehouse_id) FROM warehouse));`;
+  console.log('  ✅ Secuencia de warehouse reseteada');
+  
+  // Resetear secuencia de price_list
+  await prisma.$executeRaw`SELECT setval('price_list_price_list_id_seq', (SELECT MAX(price_list_id) FROM price_list));`;
+  console.log('  ✅ Secuencia de price_list reseteada');
+  
+  // Resetear secuencia de sale_channel
+  await prisma.$executeRaw`SELECT setval('sale_channel_sale_channel_id_seq', (SELECT MAX(sale_channel_id) FROM sale_channel));`;
+  console.log('  ✅ Secuencia de sale_channel reseteada');
+
   console.log('\n✅ Seed completado exitosamente!');
   console.log('\n📋 Datos creados:');
   console.log('  - Usuario administrador general (admin@gmail.com)');
@@ -292,6 +323,7 @@ async function main() {
   console.log('  - Almacén principal');
   console.log('  - Lista de precios por defecto');
   console.log('  - Canales de venta (WEB, WHATSAPP)');
+  console.log('  - Secuencias de autoincrement reseteadas');
   console.log('\n📝 NOTA: Categorías, productos e inventario deben crearse manualmente');
   console.log('\n🚀 La aplicación está lista para usar!');
   
