@@ -460,6 +460,7 @@ model one_off_purchase_header {
   created_at              DateTime                @default(now())
   updated_at              DateTime                @updatedAt
   scheduled_delivery_date DateTime?               @db.Timestamp(6)
+  delivery_time           String?                 @db.VarChar(50)
   locality                locality?               @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
   person                  person                  @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   price_list              price_list?             @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)

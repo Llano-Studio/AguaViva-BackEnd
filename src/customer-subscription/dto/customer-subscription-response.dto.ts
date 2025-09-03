@@ -66,6 +66,47 @@ export class SubscriptionPlanResponseDto {
   price?: string;
 }
 
+export class SubscriptionCycleDetailResponseDto {
+  @ApiProperty({
+    description: 'ID del detalle del ciclo',
+    example: 1
+  })
+  cycle_detail_id: number;
+
+  @ApiProperty({
+    description: 'ID del producto',
+    example: 1
+  })
+  product_id: number;
+
+  @ApiProperty({
+    description: 'Cantidad planificada',
+    example: 4
+  })
+  planned_quantity: number;
+
+  @ApiProperty({
+    description: 'Cantidad entregada',
+    example: 2
+  })
+  delivered_quantity: number;
+
+  @ApiProperty({
+    description: 'Saldo restante',
+    example: 2
+  })
+  remaining_balance: number;
+
+  @ApiPropertyOptional({
+    description: 'Información del producto'
+  })
+  product?: {
+    product_id: number;
+    description: string;
+    price?: number;
+  };
+}
+
 export class SubscriptionCycleResponseDto {
   @ApiProperty({
     description: 'ID del ciclo',
@@ -90,6 +131,12 @@ export class SubscriptionCycleResponseDto {
     example: 'Primer ciclo de la suscripción'
   })
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detalles de productos del ciclo',
+    type: [SubscriptionCycleDetailResponseDto]
+  })
+  subscription_cycle_detail?: SubscriptionCycleDetailResponseDto[];
 }
 
 export class DeliveryPreferences {
@@ -180,6 +227,20 @@ export class CustomerSubscriptionResponseDto {
     phone: string;
     address?: string;
   };
+
+  @ApiProperty({ 
+    type: [SubscriptionCycleResponseDto],
+    description: 'Ciclos de suscripción con detalles de productos',
+    required: false 
+  })
+  subscription_cycle?: SubscriptionCycleResponseDto[];
+
+  @ApiProperty({ 
+    description: 'Número total de órdenes',
+    example: 5,
+    required: false 
+  })
+  orders_count?: number;
 
   constructor(partial: Partial<any>) {
     Object.assign(this, partial);
