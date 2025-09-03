@@ -469,6 +469,19 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
       subscription_cycle: {
         orderBy: { cycle_start: 'desc' as const },
         take: 5,
+        include: {
+          subscription_cycle_detail: {
+              include: {
+                product: {
+                  select: {
+                    product_id: true,
+                    description: true,
+                    price: true
+                  }
+                }
+              }
+            },
+        },
       },
       _count: {
         select: { order_header: true },
@@ -605,6 +618,18 @@ export class CustomerSubscriptionService extends PrismaClient implements OnModul
         cycle_start: cycle.cycle_start.toISOString().split('T')[0],
         cycle_end: cycle.cycle_end.toISOString().split('T')[0],
         notes: cycle.notes,
+        subscription_cycle_detail: cycle.subscription_cycle_detail?.map((detail: any) => ({
+          cycle_detail_id: detail.cycle_detail_id,
+          product_id: detail.product_id,
+          planned_quantity: detail.planned_quantity,
+          delivered_quantity: detail.delivered_quantity,
+          remaining_balance: detail.remaining_balance,
+          product: detail.product ? {
+            product_id: detail.product.product_id,
+            description: detail.product.description,
+            price: detail.product.price ? parseFloat(detail.product.price.toString()) : undefined,
+          } : undefined,
+        })) || [],
       })),
       orders_count: subscription._count?.order_header || 0,
     });
