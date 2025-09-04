@@ -43,7 +43,11 @@ export class MailService {
   }
 
   private async loadTemplate(templateName: string): Promise<handlebars.TemplateDelegate> {
-    const templatePath = path.join(__dirname, 'templates', `${templateName}.hbs`);
+    // En desarrollo: src/mail/templates, en producción: dist/mail/templates
+    const templatePath = process.env.NODE_ENV === 'production' 
+      ? path.join(process.cwd(), 'dist', 'mail', 'templates', `${templateName}.hbs`)
+      : path.join(__dirname, '..', '..', 'mail', 'templates', `${templateName}.hbs`);
+    
     try {
       const content = await fs.promises.readFile(templatePath, 'utf-8');
       return handlebars.compile(content);
