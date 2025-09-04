@@ -22,6 +22,7 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
+import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { ScheduleService } from '../common/services/schedule.service';
 import { SubscriptionQuotaService } from './services/subscription-quota.service';
@@ -83,30 +84,44 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         order_item: { include: { product: true } };
         customer: { include: { locality: true; zone: true } };
         sale_channel: true;
-        customer_subscription: true;
+        customer_subscription: { include: { subscription_plan: true } };
         client_contract: true;
         zone: true;
       };
     }>,
   ): OrderResponseDto {
     const items =
-      order.order_item?.map((item) => ({
-        order_item_id: item.order_item_id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price.toString(),
-        subtotal: item.subtotal.toString(),
-        delivered_quantity: item.delivered_quantity || undefined,
-        returned_quantity: item.returned_quantity || undefined,
-        price_list_id: item.price_list_id || undefined,
-        notes: item.notes || undefined,
-        product: {
-          product_id: item.product.product_id,
-          description: item.product.description,
-          price: item.product.price.toString(),
-          is_returnable: item.product.is_returnable,
-        },
-      })) || [];
+      order.order_item?.map((item) => {
+        // Para órdenes híbridas, verificar si el producto está en el plan de suscripción
+        let abono_id: number | undefined;
+        let abono_name: string | undefined;
+        
+        if (order.order_type === 'HYBRID' && order.customer_subscription?.subscription_plan) {
+          const subscriptionPlan = order.customer_subscription.subscription_plan;
+          abono_id = subscriptionPlan.subscription_plan_id;
+          abono_name = subscriptionPlan.name;
+        }
+        
+        return {
+          order_item_id: item.order_item_id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price.toString(),
+          subtotal: item.subtotal.toString(),
+          delivered_quantity: item.delivered_quantity || undefined,
+          returned_quantity: item.returned_quantity || undefined,
+          price_list_id: item.price_list_id || undefined,
+          notes: item.notes || undefined,
+          abono_id,
+          abono_name,
+          product: {
+            product_id: item.product.product_id,
+            description: item.product.description,
+            price: item.product.price.toString(),
+            is_returnable: item.product.is_returnable,
+          },
+        };
+      }) || [];
 
     const customerPayload: CustomerPayload = order.customer;
     const saleChannelPayload: SaleChannelPayload = order.sale_channel;
@@ -818,7 +833,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_item: { include: { product: true } },
             customer: { include: { locality: true, zone: true } },
             sale_channel: true,
-            customer_subscription: true,
+            customer_subscription: { include: { subscription_plan: true } },
             client_contract: true,
             zone: true,
           },
@@ -1134,7 +1149,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             },
           },
           sale_channel: true,
-          customer_subscription: true,
+          customer_subscription: { include: { subscription_plan: true } },
           client_contract: true,
           zone: true,
         },
@@ -1168,7 +1183,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           order_item: { include: { product: true } },
           customer: { include: { locality: true, zone: true } },
           sale_channel: true,
-          customer_subscription: true,
+          customer_subscription: { include: { subscription_plan: true } },
           client_contract: true,
           zone: true,
         },
@@ -1495,7 +1510,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_item: { include: { product: true } },
             customer: { include: { locality: true, zone: true } },
             sale_channel: true,
-            customer_subscription: true,
+            customer_subscription: { include: { subscription_plan: true } },
             client_contract: true,
             zone: true,
           },
@@ -1530,7 +1545,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           where: { order_id: id },
           include: {
             order_item: { include: { product: true } },
-            customer_subscription: true,
+            customer_subscription: { include: { subscription_plan: true } },
           },
         });
 
@@ -1741,6 +1756,109 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       ) {
         throw new InternalServerErrorException(
           'Error no manejado después de handlePrismaError en remove order.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Procesa un pago para una orden híbrida
+   */
+  async processPayment(
+    orderId: number,
+    processPaymentDto: ProcessPaymentDto,
+    userId: number,
+  ): Promise<Prisma.payment_transactionGetPayload<{}>> {
+    try {
+      const order = await this.order_header.findUnique({
+        where: { order_id: orderId },
+        include: {
+          customer: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException(`Orden con ID ${orderId} no encontrada.`);
+      }
+
+      // Validar método de pago
+      const paymentMethod = await this.payment_method.findUnique({
+        where: { payment_method_id: processPaymentDto.payment_method_id },
+      });
+
+      if (!paymentMethod) {
+        throw new BadRequestException(
+          `Método de pago con ID ${processPaymentDto.payment_method_id} no es válido.`,
+        );
+      }
+
+      const paymentAmount = new Decimal(processPaymentDto.amount);
+      if (paymentAmount.isNegative() || paymentAmount.isZero()) {
+        throw new BadRequestException('El monto del pago debe ser positivo.');
+      }
+
+      const paymentTransactionResult = await this.$transaction(async (tx) => {
+        const orderCurrentPaidAmount = new Decimal(order.paid_amount);
+        const orderTotalAmount = new Decimal(order.total_amount);
+        const remainingBalance = orderTotalAmount.minus(orderCurrentPaidAmount);
+
+        if (paymentAmount.greaterThan(remainingBalance.plus(0.001))) {
+          throw new BadRequestException(
+            `El monto del pago (${paymentAmount}) excede el saldo pendiente (${remainingBalance.toFixed(2)}) de la orden ${order.order_id}.`,
+          );
+        }
+
+        const paymentTransaction = await tx.payment_transaction.create({
+          data: {
+            transaction_date: processPaymentDto.payment_date
+              ? new Date(processPaymentDto.payment_date)
+              : new Date(),
+            customer_id: order.customer_id,
+            order_id: order.order_id,
+            document_number: `ORD-${order.order_id}`,
+            receipt_number: processPaymentDto.transaction_reference,
+            transaction_type: 'PAYMENT',
+            previous_balance: orderTotalAmount
+              .minus(orderCurrentPaidAmount)
+              .toString(),
+            transaction_amount: paymentAmount.toString(),
+            total: paymentAmount.toString(),
+            payment_method_id: processPaymentDto.payment_method_id,
+            user_id: userId,
+            notes: processPaymentDto.notes,
+          },
+        });
+
+        const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
+        let newOrderStatus = order.status;
+        // Note: Order status remains unchanged when fully paid
+        // Payment completion doesn't automatically change delivery status
+
+        await tx.order_header.update({
+          where: { order_id: order.order_id },
+          data: {
+            paid_amount: newPaidAmount.toString(),
+            status: newOrderStatus,
+          },
+        });
+
+        return paymentTransaction;
+      });
+
+      return paymentTransactionResult;
+    } catch (error) {
+      handlePrismaError(error, this.entityName);
+      if (
+        !(
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException ||
+          error instanceof ConflictException ||
+          error instanceof InternalServerErrorException
+        )
+      ) {
+        throw new InternalServerErrorException(
+          'Error no manejado al procesar el pago.',
         );
       }
       throw error;

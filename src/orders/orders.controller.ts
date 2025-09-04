@@ -16,6 +16,7 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
+import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { ScheduleService } from '../common/services/schedule.service';
 import { OrderStatus, OrderType } from '../common/constants/enums';
@@ -631,5 +632,37 @@ export class OrdersController {
       delivered_quantity: credit.delivered_quantity,
       remaining_balance: credit.remaining_balance,
     }));
+  }
+
+  @Post(':id/payments')
+  @ApiOperation({
+    summary: 'Procesar pago para una orden híbrida',
+    description: 'Registra un pago para una orden híbrida, actualizando el monto pagado y el estado de la orden si es necesario.'
+  })
+  @ApiParam({ name: 'id', description: 'ID de la orden' })
+  @ApiResponse({
+    status: 201,
+    description: 'Pago procesado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        payment_transaction_id: { type: 'number' },
+        transaction_date: { type: 'string', format: 'date-time' },
+        customer_id: { type: 'number' },
+        order_id: { type: 'number' },
+        transaction_amount: { type: 'string' },
+        payment_method_id: { type: 'number' },
+        notes: { type: 'string' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Datos de pago inválidos' })
+  @ApiResponse({ status: 404, description: 'Orden no encontrada' })
+  async processPayment(
+    @Param('id', ParseIntPipe) orderId: number,
+    @Body() processPaymentDto: ProcessPaymentDto,
+    @GetUser() user: User,
+  ) {
+    return this.ordersService.processPayment(orderId, processPaymentDto, user.id);
   }
 }

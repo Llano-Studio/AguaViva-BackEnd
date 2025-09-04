@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { OrderType } from '../../common/constants/enums';
 
 
 
@@ -98,6 +99,13 @@ export class OneOffPurchaseResponseDto {
 
     @ApiProperty({ example: 'PENDING', description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)' })
     status: string;
+
+    @ApiProperty({ 
+        description: 'Tipo de orden',
+        enum: OrderType,
+        example: OrderType.ONE_OFF
+    })
+    order_type: OrderType;
 
     @ApiProperty({ example: 'green', description: 'Sistema de semáforos: green (<5 días), yellow (5-10 días), red (>10 días)' })
     traffic_light_status: string;

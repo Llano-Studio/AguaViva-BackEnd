@@ -61,7 +61,7 @@ model province {
 model locality {
   locality_id              Int                       @id @default(autoincrement()) @db.SmallInt
   province_id              Int                       @db.SmallInt
-  code                     String                    @db.VarChar(10)
+  code                     String                    @unique @db.VarChar(10)
   name                     String                    @db.VarChar(100)
   province                 province                  @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
   one_off_purchase         one_off_purchase[]

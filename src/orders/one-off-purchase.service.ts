@@ -7,7 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { PersonType } from '../common/constants/enums';
+import { PersonType, OrderType } from '../common/constants/enums';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
 import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
@@ -1388,6 +1388,7 @@ export class OneOffPurchaseService
               name: basePurchase.zone.name,
             }
           : undefined,
+      order_type: OrderType.ONE_OFF,
     };
   }
 
@@ -1421,6 +1422,7 @@ export class OneOffPurchaseService
       total_amount: purchase.total_amount.toString(),
       paid_amount: purchase.paid_amount.toString(),
       status: purchase.status,
+      order_type: OrderType.ONE_OFF,
       traffic_light_status: this.calculateTrafficLightStatus(
         purchase.purchase_date,
       ),
@@ -1477,6 +1479,7 @@ export class OneOffPurchaseService
       total_amount: purchaseHeader.total_amount.toString(),
       paid_amount: purchaseHeader.paid_amount.toString(),
       status: purchaseHeader.status,
+      order_type: OrderType.ONE_OFF,
       traffic_light_status: this.calculateTrafficLightStatus(
         purchaseHeader.purchase_date,
       ),

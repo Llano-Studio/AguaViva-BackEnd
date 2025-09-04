@@ -79,4 +79,12 @@ export class UpdatePersonDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
+
+  @ApiPropertyOptional({ 
+    example: 'Cliente preferencial, entregar en horario de mañana', 
+    description: 'Notas adicionales sobre el cliente' 
+  })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

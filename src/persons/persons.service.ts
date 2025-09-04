@@ -164,6 +164,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zone: personEntity.zone as any,
       is_active: personEntity.is_active,
       owns_returnable_containers: personEntity.owns_returnable_containers,
+      notes: personEntity.notes || '',
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
       available_credits: availableCredits,
@@ -212,6 +213,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       registration_date: registration_date_for_prisma,
       type: dto.type as PrismaPersonType,
       is_active: dto.is_active !== undefined ? dto.is_active : true,
+      notes: dto.notes,
+      owns_returnable_containers: dto.owns_returnable_containers !== undefined ? dto.owns_returnable_containers : false,
     };
     if (dto.localityId)
       data.locality = { connect: { locality_id: dto.localityId } };
@@ -630,6 +633,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     if (dto.type !== undefined)
       dataToUpdate.type = dto.type as PrismaPersonType;
     if (dto.is_active !== undefined) dataToUpdate.is_active = dto.is_active;
+    if (dto.notes !== undefined) dataToUpdate.notes = dto.notes;
+    if (dto.owns_returnable_containers !== undefined) dataToUpdate.owns_returnable_containers = dto.owns_returnable_containers;
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 

@@ -158,55 +158,63 @@ async function main() {
   // Localidades
   const localities = [
     // Chaco
-    { locality_id: 1, province_id: 1, code: 'RES', name: 'Resistencia' },
-    { locality_id: 2, province_id: 1, code: 'PRS_SAENZ', name: 'Presidencia Roque Sáenz Peña' },
-    { locality_id: 3, province_id: 1, code: 'JJC', name: 'Juan José Castelli' },
-    { locality_id: 4, province_id: 1, code: 'VANGELA', name: 'Villa Ángela' },
-    { locality_id: 5, province_id: 1, code: 'CHARATA', name: 'Charata' },
+    { province_id: 1, code: 'RES', name: 'Resistencia' },
+    { province_id: 1, code: 'PRS_SAENZ', name: 'Presidencia Roque Sáenz Peña' },
+    { province_id: 1, code: 'JJC', name: 'Juan José Castelli' },
+    { province_id: 1, code: 'VANGELA', name: 'Villa Ángela' },
+    { province_id: 1, code: 'CHARATA', name: 'Charata' },
     // Corrientes
-    { locality_id: 6, province_id: 2, code: 'CORRIENTES', name: 'Corrientes' },
-    { locality_id: 7, province_id: 2, code: 'GOYA', name: 'Goya' },
-    { locality_id: 8, province_id: 2, code: 'PAS_LIBRES', name: 'Paso de los Libres' },
-    { locality_id: 9, province_id: 2, code: 'CURUZUCUAT', name: 'Curuzú Cuatiá' },
-    { locality_id: 10, province_id: 2, code: 'MERCEDES', name: 'Mercedes' },
+    { province_id: 2, code: 'CORRIENTES', name: 'Corrientes' },
+    { province_id: 2, code: 'GOYA', name: 'Goya' },
+    { province_id: 2, code: 'PAS_LIBRES', name: 'Paso de los Libres' },
+    { province_id: 2, code: 'CURUZUCUAT', name: 'Curuzú Cuatiá' },
+    { province_id: 2, code: 'MERCEDES', name: 'Mercedes' },
     // Formosa
-    { locality_id: 11, province_id: 3, code: 'FORMOSA', name: 'Formosa' },
-    { locality_id: 12, province_id: 3, code: 'CLORINDA', name: 'Clorinda' },
-    { locality_id: 13, province_id: 3, code: 'PIRANE', name: 'Pirané' },
+    { province_id: 3, code: 'FORMOSA', name: 'Formosa' },
+    { province_id: 3, code: 'CLORINDA', name: 'Clorinda' },
+    { province_id: 3, code: 'PIRANE', name: 'Pirané' },
     // Misiones
-    { locality_id: 14, province_id: 4, code: 'POSADAS', name: 'Posadas' },
-    { locality_id: 15, province_id: 4, code: 'OBERA', name: 'Oberá' },
-    { locality_id: 16, province_id: 4, code: 'ELDORADO', name: 'Eldorado' },
-    { locality_id: 17, province_id: 4, code: 'GARUPA', name: 'Garupá' },
-    { locality_id: 18, province_id: 4, code: 'PT_IGUAZU', name: 'Puerto Iguazú' },
+    { province_id: 4, code: 'POSADAS', name: 'Posadas' },
+    { province_id: 4, code: 'OBERA', name: 'Oberá' },
+    { province_id: 4, code: 'ELDORADO', name: 'Eldorado' },
+    { province_id: 4, code: 'GARUPA', name: 'Garupá' },
+    { province_id: 4, code: 'PT_IGUAZU', name: 'Puerto Iguazú' },
     // Santa Fe
-    { locality_id: 19, province_id: 5, code: 'SANTAFE', name: 'Santa Fe de la Vera Cruz' },
-    { locality_id: 20, province_id: 5, code: 'ROSARIO', name: 'Rosario' },
-    { locality_id: 21, province_id: 5, code: 'RAFAELA', name: 'Rafaela' },
-    { locality_id: 22, province_id: 5, code: 'RECONQUIST', name: 'Reconquista' },
-    { locality_id: 23, province_id: 5, code: 'VILLACONS', name: 'Villa Constitución' },
+    { province_id: 5, code: 'SANTAFE', name: 'Santa Fe de la Vera Cruz' },
+    { province_id: 5, code: 'ROSARIO', name: 'Rosario' },
+    { province_id: 5, code: 'RAFAELA', name: 'Rafaela' },
+    { province_id: 5, code: 'RECONQUIST', name: 'Reconquista' },
+    { province_id: 5, code: 'VILLACONS', name: 'Villa Constitución' },
     // Paraguay - Distrito Capital
-    { locality_id: 24, province_id: 6, code: 'ASUNCION', name: 'Asunción' },
-    { locality_id: 25, province_id: 6, code: 'SANLORENZ', name: 'San Lorenzo' },
-    { locality_id: 26, province_id: 6, code: 'FEDMORA', name: 'Fernando de la Mora' },
-    { locality_id: 27, province_id: 6, code: 'LAMBARA', name: 'Lambaré' },
-    { locality_id: 28, province_id: 6, code: 'LUQUE', name: 'Luque' },
-    { locality_id: 29, province_id: 6, code: 'MROQALON', name: 'Mariano Roque Alonso' }
+    { province_id: 6, code: 'ASUNCION', name: 'Asunción' },
+    { province_id: 6, code: 'SANLORENZ', name: 'San Lorenzo' },
+    { province_id: 6, code: 'FEDMORA', name: 'Fernando de la Mora' },
+    { province_id: 6, code: 'LAMBARA', name: 'Lambaré' },
+    { province_id: 6, code: 'LUQUE', name: 'Luque' },
+    { province_id: 6, code: 'MROQALON', name: 'Mariano Roque Alonso' }
   ];
   
   for (const localityData of localities) {
     await prisma.locality.upsert({
-      where: { locality_id: localityData.locality_id },
+      where: { code: localityData.code },
       update: {},
       create: localityData
     });
   }
 
   // 3. Crear zona por defecto en Resistencia
+  const resistenciaLocality = await prisma.locality.findUnique({
+    where: { code: 'RES' }
+  });
+  
+  if (!resistenciaLocality) {
+    throw new Error('No se encontró la localidad de Resistencia');
+  }
+  
   const zone = await prisma.zone.upsert({
     where: {
       unique_zone_code_per_locality: {
-        locality_id: 1, // Resistencia
+        locality_id: resistenciaLocality.locality_id,
         code: 'CENTRO'
       }
     },
@@ -214,7 +222,7 @@ async function main() {
     create: {
       code: 'CENTRO',
       name: 'Centro',
-      locality_id: 1
+      locality_id: resistenciaLocality.locality_id
     }
   });
 
@@ -226,7 +234,7 @@ async function main() {
     create: {
       warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
       name: 'Almacén Principal',
-      locality_id: 1 // Resistencia
+      locality_id: resistenciaLocality.locality_id
     }
   });
   console.log(`  ✅ Almacén: ${warehouse.name}`);
@@ -294,9 +302,7 @@ async function main() {
   await prisma.$executeRaw`SELECT setval('province_province_id_seq', (SELECT MAX(province_id) FROM province));`;
   console.log('  ✅ Secuencia de province reseteada');
   
-  // Resetear secuencia de locality
-  await prisma.$executeRaw`SELECT setval('locality_locality_id_seq', (SELECT MAX(locality_id) FROM locality));`;
-  console.log('  ✅ Secuencia de locality reseteada');
+  // Nota: No reseteamos la secuencia de locality porque ahora usa autoincrement correctamente
   
   // Resetear secuencia de zone
   await prisma.$executeRaw`SELECT setval('zone_zone_id_seq', (SELECT MAX(zone_id) FROM zone));`;
@@ -318,12 +324,12 @@ async function main() {
   console.log('\n📋 Datos creados:');
   console.log('  - Usuario administrador general (admin@gmail.com)');
   console.log('  - Tipos de movimiento de stock');
-  console.log('  - Provincias y localidades de Argentina');
+  console.log('  - Provincias y localidades de Argentina (con autoincrement correcto)');
   console.log('  - Zona por defecto en Resistencia');
   console.log('  - Almacén principal');
   console.log('  - Lista de precios por defecto');
   console.log('  - Canales de venta (WEB, WHATSAPP)');
-  console.log('  - Secuencias de autoincrement reseteadas');
+  console.log('  - Secuencias de autoincrement reseteadas (excepto localities)');
   console.log('\n📝 NOTA: Categorías, productos e inventario deben crearse manualmente');
   console.log('\n🚀 La aplicación está lista para usar!');
   

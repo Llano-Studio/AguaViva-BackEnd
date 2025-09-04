@@ -61,6 +61,20 @@ export class OrderItemResponseDto {
     notes?: string;
 
     @ApiProperty({
+        description: '🆕 ID del plan de suscripción (abono) asociado al producto en órdenes híbridas',
+        example: 1,
+        nullable: true
+    })
+    abono_id?: number;
+
+    @ApiProperty({
+        description: '🆕 Nombre del plan de suscripción (abono) asociado al producto en órdenes híbridas',
+        example: 'Plan Familiar Mensual',
+        nullable: true
+    })
+    abono_name?: string;
+
+    @ApiProperty({
         description: 'Detalles del producto',
         type: 'object',
         properties: {
