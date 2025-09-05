@@ -1,6 +1,82 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsDateString, IsString, IsInt, IsArray, ValidateNested, IsNotEmpty, Min } from 'class-validator';
+import { IsOptional, IsDateString, IsString, IsInt, IsArray, ValidateNested, IsNotEmpty, Min, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PersonType } from '../../common/constants/enums';
+
+export class UpdateOneOffPurchaseCustomerDto {
+  @ApiPropertyOptional({
+    description: 'Nombre completo del cliente',
+    example: 'Juan Pérez'
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Número de teléfono del cliente',
+    example: '3412345678'
+  })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Teléfonos adicionales separados por comas',
+    example: '3412345679, 3412345680'
+  })
+  @IsOptional()
+  @IsString()
+  additionalPhones?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias o apodo del cliente',
+    example: 'Juan'
+  })
+  @IsOptional()
+  @IsString()
+  alias?: string;
+
+  @ApiPropertyOptional({
+    description: 'Dirección del cliente',
+    example: 'Av. Principal 123'
+  })
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({
+    description: 'RUC o documento de identidad',
+    example: '12345678-9'
+  })
+  @IsOptional()
+  @IsString()
+  taxId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID de la localidad del cliente',
+    example: 1
+  })
+  @IsOptional()
+  @IsInt()
+  localityId?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la zona del cliente',
+    example: 1
+  })
+  @IsOptional()
+  @IsInt()
+  zoneId?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tipo de cliente',
+    example: 'INDIVIDUAL',
+    enum: ['INDIVIDUAL', 'CORPORATE']
+  })
+  @IsOptional()
+  @IsEnum(['INDIVIDUAL', 'CORPORATE'])
+  type?: string;
+}
 
 export class UpdateOneOffPurchaseItemDto {
   @ApiProperty({
@@ -31,16 +107,25 @@ export class UpdateOneOffPurchaseItemDto {
 }
 
 export class UpdateOneOffPurchaseDto {
-    @ApiProperty({
+    @ApiPropertyOptional({
+        description: 'Datos del cliente a actualizar',
+        type: UpdateOneOffPurchaseCustomerDto
+    })
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => UpdateOneOffPurchaseCustomerDto)
+    customer?: UpdateOneOffPurchaseCustomerDto;
+
+    @ApiPropertyOptional({
         description: 'Lista de productos a actualizar. Estructura simplificada con product_id y quantity.',
         type: [UpdateOneOffPurchaseItemDto],
         example: [{ product_id: 1, quantity: 2 }]
     })
+    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => UpdateOneOffPurchaseItemDto)
-    @IsNotEmpty()
-    items: UpdateOneOffPurchaseItemDto[];
+    items?: UpdateOneOffPurchaseItemDto[];
 
     @ApiPropertyOptional({
         description: 'ID del canal de venta',
@@ -122,4 +207,19 @@ export class UpdateOneOffPurchaseDto {
     @IsOptional()
     @IsString()
     status?: string;
+
+    @ApiPropertyOptional({
+        description: 'Si requiere entrega a domicilio',
+        example: true
+    })
+    @IsOptional()
+    requires_delivery?: boolean;
+
+    @ApiPropertyOptional({
+        description: 'Monto total de la compra',
+        example: '1500.00'
+    })
+    @IsOptional()
+    @IsString()
+    total_amount?: string;
 }
