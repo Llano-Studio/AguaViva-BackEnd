@@ -290,11 +290,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       zoneIds,
       payment_semaphore_status,
       payment_semaphore_statuses,
+      is_active,
       sortBy,
     } = filters;
 
     const where: Prisma.personWhereInput = {
-      is_active: true, // Filtrar solo personas activas
+      is_active: is_active !== undefined ? is_active : true, // Por defecto solo personas activas, pero permite filtrar inactivas
     };
 
     // Búsqueda general en múltiples campos (como en auth.service.ts)

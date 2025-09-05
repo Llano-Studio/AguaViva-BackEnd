@@ -260,21 +260,28 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const now = new Date();
             const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-            // Extraer hora de inicio del rango de entrega
-            let deliveryStartTime = createOrderDto.delivery_time;
+            // Para órdenes híbridas, validar el horario final del rango
+            // Para otros tipos, validar el horario inicial
+            let timeToValidate = createOrderDto.delivery_time;
             if (createOrderDto.delivery_time.includes('-')) {
-              deliveryStartTime = createOrderDto.delivery_time
-                .split('-')[0]
-                .trim();
+              const [startTime, endTime] = createOrderDto.delivery_time.split('-').map(t => t.trim());
+              
+              // Si es orden híbrida, usar horario final; si no, usar horario inicial
+              if (createOrderDto.order_type === 'HYBRID') {
+                timeToValidate = endTime;
+              } else {
+                timeToValidate = startTime;
+              }
             }
 
             // Convertir a minutos para comparar
             const currentMinutes = this.timeToMinutes(currentTime);
-            const deliveryMinutes = this.timeToMinutes(deliveryStartTime);
+            const deliveryMinutes = this.timeToMinutes(timeToValidate);
 
             if (deliveryMinutes <= currentMinutes) {
+              const validationType = createOrderDto.order_type === 'HYBRID' ? 'final' : 'inicial';
               throw new BadRequestException(
-                'Para entregas el mismo día, el horario de entrega debe ser posterior al horario actual.',
+                `Para entregas el mismo día, el horario ${validationType} de entrega debe ser posterior al horario actual.`,
               );
             }
           }

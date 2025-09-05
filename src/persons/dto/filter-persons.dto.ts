@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsEnum, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsEnum, IsArray, IsBoolean } from 'class-validator';
 import { PersonType } from '../../common/constants/enums';
 import { Type, Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -198,4 +198,13 @@ export class FilterPersonsDto extends PaginationQueryDto {
     return undefined;
   })
   payment_semaphore_statuses?: string[];
-} 
+
+  @ApiPropertyOptional({
+    description: 'Filtrar por estado activo/inactivo de la persona. Por defecto solo muestra activos (true)',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  is_active?: boolean;
+}

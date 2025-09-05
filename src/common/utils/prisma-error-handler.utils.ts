@@ -46,7 +46,7 @@ export function handlePrismaError(error: any, entityName: string = 'registro') {
         
         // Mensajes específicos para diferentes entidades y campos
         if (entityName.toLowerCase().includes('localidad') && fieldMessage.includes('code')) {
-          conflictMessage = `Ya existe una localidad con el código '${fieldMessage.replace('code', '')}'. Por favor, utilice un código diferente.`;
+          conflictMessage = `Ya existe una localidad con este código. Por favor, utilice un código diferente.`;
         } else if (entityName.toLowerCase().includes('zona') && fieldMessage.includes('code')) {
           conflictMessage = `Ya existe una zona con este código en la localidad especificada.`;
         } else {
