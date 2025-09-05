@@ -483,6 +483,10 @@ export class OneOffPurchaseService
                 createDto.scheduled_delivery_date.trim() !== ''
                   ? new Date(createDto.scheduled_delivery_date)
                   : null,
+              delivery_time:
+                createDto.delivery_time && createDto.delivery_time.trim() !== ''
+                  ? createDto.delivery_time
+                  : null,
               purchase_items: {
                 createMany: {
                   data: purchaseItems,
@@ -953,42 +957,113 @@ export class OneOffPurchaseService
 
         await this.validateOneOffPurchaseData(updateDto, prismaTx);
 
-        // Tomar el primer item (limitación actual del sistema)
-        if (!updateDto.items || updateDto.items.length === 0) {
-          throw new BadRequestException(
-            'Debe especificar al menos un producto en la actualización.',
-          );
+        // Manejar actualización del cliente si se proporciona
+        let updatedPersonId = existingPurchase.person_id;
+        if (updateDto.customer) {
+          // Buscar cliente existente por teléfono
+          let existingPerson = null;
+          if (updateDto.customer.phone) {
+            existingPerson = await prismaTx.person.findFirst({
+              where: { phone: updateDto.customer.phone },
+            });
+          }
+
+          if (existingPerson) {
+            // Actualizar cliente existente
+            const updatedPerson = await prismaTx.person.update({
+              where: { person_id: existingPerson.person_id },
+              data: {
+                ...(updateDto.customer.name && { name: updateDto.customer.name }),
+                ...(updateDto.customer.alias && { alias: updateDto.customer.alias }),
+                ...(updateDto.customer.address && { address: updateDto.customer.address }),
+                ...(updateDto.customer.taxId && { tax_id: updateDto.customer.taxId }),
+                ...(updateDto.customer.type && { type: updateDto.customer.type as PersonType }),
+                ...(updateDto.customer.additionalPhones && { additional_phones: updateDto.customer.additionalPhones }),
+                ...(updateDto.customer.localityId !== undefined && {
+                  locality: updateDto.customer.localityId === null || updateDto.customer.localityId === 0
+                    ? { disconnect: true }
+                    : { connect: { locality_id: updateDto.customer.localityId } }
+                }),
+                ...(updateDto.customer.zoneId !== undefined && {
+                  zone: updateDto.customer.zoneId === null || updateDto.customer.zoneId === 0
+                    ? { disconnect: true }
+                    : { connect: { zone_id: updateDto.customer.zoneId } }
+                }),
+              },
+            });
+            updatedPersonId = updatedPerson.person_id;
+          } else if (updateDto.customer.phone && updateDto.customer.name) {
+            // Crear nuevo cliente
+            const newPerson = await prismaTx.person.create({
+              data: {
+                name: updateDto.customer.name,
+                phone: updateDto.customer.phone,
+                alias: updateDto.customer.alias || '',
+                address: updateDto.customer.address || '',
+                tax_id: updateDto.customer.taxId || '',
+                type: (updateDto.customer.type as PersonType) || PersonType.INDIVIDUAL,
+                additional_phones: updateDto.customer.additionalPhones || '',
+                ...(updateDto.customer.localityId && {
+                  locality: { connect: { locality_id: updateDto.customer.localityId } }
+                }),
+                ...(updateDto.customer.zoneId && {
+                  zone: { connect: { zone_id: updateDto.customer.zoneId } }
+                }),
+              },
+            });
+            updatedPersonId = newPerson.person_id;
+          }
         }
-        const firstItem = updateDto.items[0];
-        const productForUpdate = await prismaTx.product.findUniqueOrThrow({
-          where: { product_id: firstItem.product_id },
-        });
 
-        const newQuantity = firstItem.quantity;
+        // Variables para manejo de productos (opcional en actualización)
+        let newQuantity = existingPurchase.quantity;
+        let newTotalAmount = existingPurchase.total_amount;
+        let quantityChange = 0;
+        let productForUpdate = null;
+        let priceListId = existingPurchase.price_list_id;
 
-        // Determinar la lista de precios a usar
-        const priceListId =
-          firstItem.price_list_id ||
-          BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+        // Solo procesar items si se proporcionan
+        if (updateDto.items && updateDto.items.length > 0) {
+          // Tomar el primer item (limitación actual del sistema)
+          const firstItem = updateDto.items[0];
+          productForUpdate = await prismaTx.product.findUniqueOrThrow({
+            where: { product_id: firstItem.product_id },
+          });
 
-        // Buscar precio en la lista seleccionada, si no existe usar precio base
-        let itemPrice = new Decimal(productForUpdate.price); // Precio base como fallback
+          newQuantity = firstItem.quantity;
+          quantityChange = newQuantity - existingPurchase.quantity;
 
-        const priceItem = await prismaTx.price_list_item.findFirst({
-          where: {
-            price_list_id: priceListId,
-            product_id: productForUpdate.product_id,
-          },
-        });
+          // Determinar la lista de precios a usar
+          priceListId =
+            firstItem.price_list_id ||
+            existingPurchase.price_list_id ||
+            BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
 
-        if (priceItem) {
-          itemPrice = new Decimal(priceItem.unit_price);
+          // Buscar precio en la lista seleccionada, si no existe usar precio base
+          let itemPrice = new Decimal(productForUpdate.price); // Precio base como fallback
+
+          const priceItem = await prismaTx.price_list_item.findFirst({
+            where: {
+              price_list_id: priceListId,
+              product_id: productForUpdate.product_id,
+            },
+          });
+
+          if (priceItem) {
+            itemPrice = new Decimal(priceItem.unit_price);
+          }
+
+          // Calcular el total amount basado en el producto
+          newTotalAmount = itemPrice.mul(newQuantity);
+        }
+        
+        // Si se proporciona total_amount en el DTO, usarlo en su lugar
+        if (updateDto.total_amount) {
+          newTotalAmount = new Decimal(updateDto.total_amount);
         }
 
-        const newTotalAmount = itemPrice.mul(newQuantity);
-        const quantityChange = newQuantity - existingPurchase.quantity;
-
-        if (!productForUpdate.is_returnable && quantityChange !== 0) {
+        // Validar stock solo si hay cambio de cantidad y producto no retornable
+        if (productForUpdate && !productForUpdate.is_returnable && quantityChange !== 0) {
           const stockDisponible = await this.inventoryService.getProductStock(
             productForUpdate.product_id,
             BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
@@ -1002,10 +1077,20 @@ export class OneOffPurchaseService
         }
 
         const dataToUpdate: Prisma.one_off_purchaseUpdateInput = {
-          product: { connect: { product_id: firstItem.product_id } },
+          ...(productForUpdate && {
+            product: { connect: { product_id: productForUpdate.product_id } },
+          }),
           quantity: newQuantity,
           price_list: { connect: { price_list_id: priceListId } },
-          // person_id ya no se actualiza en este flujo
+          ...(updatedPersonId !== existingPurchase.person_id && {
+            person: { connect: { person_id: updatedPersonId } },
+          }),
+          ...(updateDto.requires_delivery !== undefined && {
+            requires_delivery: updateDto.requires_delivery,
+          }),
+          ...(updateDto.delivery_address !== undefined && {
+            delivery_address: updateDto.delivery_address,
+          }),
           ...(updateDto.sale_channel_id && {
             sale_channel: {
               connect: { sale_channel_id: updateDto.sale_channel_id },
@@ -1066,7 +1151,8 @@ export class OneOffPurchaseService
           },
         });
 
-        if (!productForUpdate.is_returnable && quantityChange !== 0) {
+        // Crear movimiento de stock solo si hay producto actualizado y cambio de cantidad
+        if (productForUpdate && !productForUpdate.is_returnable && quantityChange !== 0) {
           const movementTypeId =
             quantityChange > 0
               ? await this.inventoryService.getMovementTypeIdByCode(
