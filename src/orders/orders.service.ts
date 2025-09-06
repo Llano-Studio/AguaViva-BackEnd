@@ -1212,6 +1212,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     updateOrderDto: UpdateOrderDto,
   ): Promise<OrderResponseDto> {
     const {
+      items,
       items_to_update_or_create,
       item_ids_to_delete,
       ...orderHeaderDataToUpdateInput
@@ -1252,7 +1253,87 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
           });
 
-        if (items_to_update_or_create && items_to_update_or_create.length > 0) {
+        // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
+        if (items && items.length > 0) {
+          // Eliminar todos los items existentes y crear los nuevos
+          await tx.order_item.deleteMany({
+            where: { order_id: id },
+          });
+          
+          const saleMovementTypeId =
+            await this.inventoryService.getMovementTypeIdByCode(
+              BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
+              tx,
+            );
+            
+          // Procesar cada item del campo 'items'
+          for (const itemDto of items) {
+            const productDetails = await tx.product.findUniqueOrThrow({
+              where: { product_id: itemDto.product_id },
+            });
+
+            let itemPrice = new Decimal(productDetails.price);
+            
+            // Aplicar lógica de precios similar a items_to_update_or_create
+            if (itemDto.price_list_id) {
+              const priceItem = await tx.price_list_item.findFirst({
+                where: {
+                  price_list_id: itemDto.price_list_id,
+                  product_id: itemDto.product_id,
+                },
+              });
+              if (priceItem) {
+                itemPrice = new Decimal(priceItem.unit_price);
+              }
+            }
+
+            const quantityDecimal = new Decimal(itemDto.quantity);
+            const subtotal = itemPrice.mul(quantityDecimal);
+
+            // Validar stock para productos no retornables
+            if (!productDetails.is_returnable) {
+              const stockDisponible =
+                await this.inventoryService.getProductStock(
+                  itemDto.product_id,
+                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                  tx,
+                );
+              if (stockDisponible < itemDto.quantity) {
+                throw new BadRequestException(
+                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Necesario: ${itemDto.quantity}, disponible: ${stockDisponible}.`,
+                );
+              }
+            }
+
+            // Crear el nuevo item
+            await tx.order_item.create({
+              data: {
+                order_id: id,
+                product_id: itemDto.product_id,
+                quantity: itemDto.quantity,
+                unit_price: itemPrice.toString(),
+                subtotal: subtotal.toString(),
+              },
+            });
+
+            // Crear movimiento de stock
+            if (!productDetails.is_returnable) {
+              await this.inventoryService.createStockMovement(
+                {
+                  movement_type_id: saleMovementTypeId,
+                  product_id: itemDto.product_id,
+                  quantity: itemDto.quantity,
+                  source_warehouse_id:
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                  destination_warehouse_id: null,
+                  movement_date: new Date(),
+                  remarks: `${this.entityName} #${id} - ${productDetails.description}`,
+                },
+                tx,
+              );
+            }
+          }
+        } else if (items_to_update_or_create && items_to_update_or_create.length > 0) {
           const saleMovementTypeId =
             await this.inventoryService.getMovementTypeIdByCode(
               BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
