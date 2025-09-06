@@ -944,16 +944,39 @@ export class OneOffPurchaseService
   ): Promise<OneOffPurchaseResponseDto> {
     try {
       return await this.$transaction(async (prismaTx) => {
-        const existingPurchase = await prismaTx.one_off_purchase
-          .findUniqueOrThrow({
-            where: { purchase_id: id },
-            include: { product: true },
-          })
-          .catch(() => {
-            throw new NotFoundException(
-              `Compra One-Off con ID ${id} no encontrada.`,
-            );
-          });
+        // 🆕 BÚSQUEDA PARALELA: Buscar en ambas estructuras como en findOneOneOff
+        const [legacyPurchase, headerPurchase] = await Promise.all([
+          // Buscar en estructura legacy
+          prismaTx.one_off_purchase
+            .findUnique({
+              where: { purchase_id: id },
+              include: { product: true },
+            })
+            .catch(() => null),
+
+          // Buscar en estructura header
+          prismaTx.one_off_purchase_header
+            .findUnique({
+              where: { purchase_header_id: id },
+              include: {
+                purchase_items: {
+                  include: {
+                    product: true,
+                  },
+                },
+              },
+            })
+            .catch(() => null),
+        ]);
+
+        // Verificar que existe en alguna de las dos estructuras
+        if (!legacyPurchase && !headerPurchase) {
+          throw new NotFoundException(
+            `Compra One-Off con ID ${id} no encontrada en ninguna de las estructuras disponibles.`,
+          );
+        }
+
+        const existingPurchase = legacyPurchase || headerPurchase;
 
         await this.validateOneOffPurchaseData(updateDto, prismaTx);
 
@@ -1016,11 +1039,15 @@ export class OneOffPurchaseService
         }
 
         // Variables para manejo de productos (opcional en actualización)
-        let newQuantity = existingPurchase.quantity;
-        let newTotalAmount = existingPurchase.total_amount;
+        // Determinar si estamos trabajando con estructura legacy o header
+        const isLegacyStructure = !!legacyPurchase;
+        const isHeaderStructure = !!headerPurchase;
+        
+        let newQuantity = existingPurchase.quantity || (headerPurchase ? headerPurchase.purchase_items[0]?.quantity : 0);
+        let newTotalAmount = existingPurchase.total_amount || headerPurchase?.total_amount;
         let quantityChange = 0;
         let productForUpdate = null;
-        let priceListId = existingPurchase.price_list_id;
+        let priceListId = existingPurchase.price_list_id || (headerPurchase ? headerPurchase.purchase_items[0]?.price_list_id : null);
 
         // Solo procesar items si se proporcionan
         if (updateDto.items && updateDto.items.length > 0) {
@@ -1138,18 +1165,106 @@ export class OneOffPurchaseService
             delete (dataToUpdate as any)[key],
         );
 
-        const updatedPurchase = await prismaTx.one_off_purchase.update({
-          where: { purchase_id: id },
-          data: dataToUpdate,
-          include: {
-            product: true,
-            person: true,
-            sale_channel: true,
-            locality: true,
-            zone: true,
-            price_list: true,
-          },
-        });
+        let updatedPurchase;
+        
+        if (isLegacyStructure) {
+          // Actualizar estructura legacy
+          updatedPurchase = await prismaTx.one_off_purchase.update({
+            where: { purchase_id: id },
+            data: dataToUpdate,
+            include: {
+              product: true,
+              person: true,
+              sale_channel: true,
+              locality: true,
+              zone: true,
+              price_list: true,
+            },
+          });
+        } else if (isHeaderStructure) {
+          // Para estructura header, necesitamos actualizar tanto el header como los items
+          // Primero actualizar el header
+          const headerDataToUpdate: Prisma.one_off_purchase_headerUpdateInput = {
+            ...(updatedPersonId !== headerPurchase.person_id && {
+              person: { connect: { person_id: updatedPersonId } },
+            }),
+            ...(updateDto.requires_delivery !== undefined && {
+              requires_delivery: updateDto.requires_delivery,
+            }),
+            ...(updateDto.delivery_address !== undefined && {
+              delivery_address: updateDto.delivery_address,
+            }),
+            ...(updateDto.sale_channel_id && {
+              sale_channel: {
+                connect: { sale_channel_id: updateDto.sale_channel_id },
+              },
+            }),
+            ...(updateDto.locality_id !== undefined && {
+              locality:
+                updateDto.locality_id === null || updateDto.locality_id === 0
+                  ? { disconnect: true }
+                  : { connect: { locality_id: updateDto.locality_id } },
+            }),
+            ...(updateDto.zone_id !== undefined && {
+              zone:
+                updateDto.zone_id === null || updateDto.zone_id === 0
+                  ? { disconnect: true }
+                  : { connect: { zone_id: updateDto.zone_id } },
+            }),
+            purchase_date: updateDto.purchase_date
+              ? new Date(updateDto.purchase_date)
+              : headerPurchase.purchase_date,
+            ...(updateDto.scheduled_delivery_date !== undefined && {
+              scheduled_delivery_date:
+                updateDto.scheduled_delivery_date &&
+                updateDto.scheduled_delivery_date.trim() !== ''
+                  ? new Date(updateDto.scheduled_delivery_date)
+                  : null,
+            }),
+            ...(updateDto.delivery_time !== undefined && {
+              delivery_time: updateDto.delivery_time,
+            }),
+            ...(updateDto.paid_amount !== undefined && {
+              paid_amount: updateDto.paid_amount
+                ? new Decimal(updateDto.paid_amount)
+                : new Decimal(0),
+            }),
+            ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
+            ...(updateDto.status !== undefined && { status: updateDto.status }),
+            total_amount: newTotalAmount,
+          };
+
+          updatedPurchase = await prismaTx.one_off_purchase_header.update({
+            where: { purchase_header_id: id },
+            data: headerDataToUpdate,
+            include: {
+              purchase_items: {
+                include: {
+                  product: true,
+                },
+              },
+              person: true,
+              sale_channel: true,
+              locality: true,
+              zone: true,
+            },
+          });
+
+          // Si hay items para actualizar, actualizar el primer item
+          if (updateDto.items && updateDto.items.length > 0 && headerPurchase.purchase_items.length > 0) {
+            const firstItem = updateDto.items[0];
+            await prismaTx.one_off_purchase_item.update({
+              where: { purchase_item_id: headerPurchase.purchase_items[0].purchase_item_id },
+              data: {
+                ...(productForUpdate && {
+                  product: { connect: { product_id: productForUpdate.product_id } },
+                }),
+                quantity: newQuantity,
+                price_list: { connect: { price_list_id: priceListId } },
+              },
+            });
+          }
+        }
 
         // Crear movimiento de stock solo si hay producto actualizado y cambio de cantidad
         if (productForUpdate && !productForUpdate.is_returnable && quantityChange !== 0) {
@@ -1187,7 +1302,12 @@ export class OneOffPurchaseService
           );
         }
 
-        return this.mapToOneOffPurchaseResponseDto(updatedPurchase);
+        // Retornar el resultado mapeado según la estructura
+        if (isLegacyStructure) {
+          return this.mapToOneOffPurchaseResponseDto(updatedPurchase);
+        } else {
+          return this.mapToHeaderItemsOneOffPurchaseResponseDto(updatedPurchase);
+        }
       });
     } catch (error) {
       handlePrismaError(error, 'Compra One-Off');

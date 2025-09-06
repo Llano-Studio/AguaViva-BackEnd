@@ -50,14 +50,39 @@ export class UpdateOrderDto extends PartialType(
 ) {
   // Hereda campos opcionales de CreateOrderDto (ej. notes, status, etc.), excluyendo la lista original de 'items'.
 
+  @ApiPropertyOptional({
+    description: '🆕 Lista de ítems para órdenes híbridas (compatibilidad con estructura legacy)',
+    type: [CreateOrderItemDto],
+    example: [
+      {
+        product_id: 1,
+        quantity: 4,
+        price_list_id: 1
+      }
+    ]
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderItemDto)
+  items?: CreateOrderItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Lista de ítems para actualizar o crear (estructura nueva)',
+    type: [UpdateOrderItemDto]
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UpdateOrderItemDto)
   items_to_update_or_create?: UpdateOrderItemDto[];
 
+  @ApiPropertyOptional({
+    description: 'Lista de IDs de ítems a eliminar',
+    type: [Number]
+  })
   @IsOptional()
   @IsArray()
   @IsInt({ each: true })
   item_ids_to_delete?: number[];
-} 
+}
