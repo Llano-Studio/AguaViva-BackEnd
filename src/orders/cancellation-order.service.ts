@@ -9,6 +9,11 @@ import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
 import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
+import { 
+  CancellationOrderWithProductsDto,
+  CancellationOrderCustomerDto,
+  CancellationOrderProductDto 
+} from './dto/cancellation-order-with-products.dto';
 
 export interface CancellationOrderResponseDto {
   cancellation_order_id: number;
@@ -453,6 +458,127 @@ export class CancellationOrderService extends PrismaClient {
       scheduled_date_from: startOfDay,
       scheduled_date_to: endOfDay,
     });
+  }
+
+  /**
+   * Obtener todas las órdenes de cancelación con información de productos
+   */
+  async findAllWithProducts(filters?: {
+    status?: CancellationOrderStatus;
+    subscription_id?: number;
+    scheduled_date_from?: Date;
+    scheduled_date_to?: Date;
+  }): Promise<CancellationOrderWithProductsDto[]> {
+    const where: Prisma.cancellation_orderWhereInput = {};
+
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    if (filters?.subscription_id) {
+      where.subscription_id = filters.subscription_id;
+    }
+
+    if (filters?.scheduled_date_from || filters?.scheduled_date_to) {
+      where.scheduled_collection_date = {};
+      if (filters.scheduled_date_from) {
+        where.scheduled_collection_date.gte = filters.scheduled_date_from;
+      }
+      if (filters.scheduled_date_to) {
+        where.scheduled_collection_date.lte = filters.scheduled_date_to;
+      }
+    }
+
+    const orders = await this.cancellation_order.findMany({
+      where,
+      include: {
+        customer_subscription: {
+          include: {
+            person: {
+              select: {
+                person_id: true,
+                name: true,
+                phone: true,
+                address: true,
+              },
+            },
+            subscription_plan: {
+              include: {
+                subscription_plan_product: {
+                  include: {
+                    product: {
+                      select: {
+                        product_id: true,
+                        description: true,
+                        is_returnable: true,
+                        price: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        route_sheet: {
+          select: {
+            route_sheet_id: true,
+            delivery_date: true,
+            driver_id: true,
+            vehicle_id: true,
+          },
+        },
+      },
+      orderBy: {
+        scheduled_collection_date: 'asc',
+      },
+    });
+
+    return orders.map((order) => this.mapToResponseWithProductsDto(order));
+  }
+
+  /**
+   * Mapear entidad a DTO de respuesta con productos
+   */
+  private mapToResponseWithProductsDto(order: any): CancellationOrderWithProductsDto {
+    const customer: CancellationOrderCustomerDto = {
+      customer_id: order.customer_subscription.person.person_id,
+      full_name: order.customer_subscription.person.name || 'Sin nombre',
+      phone: order.customer_subscription.person.phone || '',
+      address: order.customer_subscription.person.address || '',
+    };
+
+    const products: CancellationOrderProductDto[] = order.customer_subscription.subscription_plan.subscription_plan_product.map((planProduct: any) => ({
+      product_id: planProduct.product.product_id,
+      name: planProduct.product.description,
+      description: planProduct.product.description,
+      quantity: planProduct.product_quantity,
+      is_returnable: planProduct.product.is_returnable,
+      unit_price: planProduct.product.price,
+    }));
+
+    return {
+      cancellation_order_id: order.cancellation_order_id,
+      subscription_id: order.subscription_id,
+      scheduled_collection_date: order.scheduled_collection_date,
+      actual_collection_date: order.actual_collection_date,
+      status: order.status,
+      route_sheet_id: order.route_sheet_id,
+      notes: order.notes,
+      created_at: order.created_at,
+      updated_at: order.updated_at,
+      rescheduled_count: order.rescheduled_count,
+      customer,
+      products,
+      route_sheet: order.route_sheet
+        ? {
+            route_sheet_id: order.route_sheet.route_sheet_id,
+            delivery_date: order.route_sheet.delivery_date,
+            driver_id: order.route_sheet.driver_id,
+            vehicle_id: order.route_sheet.vehicle_id,
+          }
+        : undefined,
+    };
   }
 
   /**
