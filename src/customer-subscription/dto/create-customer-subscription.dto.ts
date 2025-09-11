@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsDateString, IsEnum, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { SubscriptionStatus } from '@prisma/client';
 import { DeliveryPreferences } from './customer-subscription-response.dto';
@@ -7,7 +16,7 @@ import { DeliveryPreferences } from './customer-subscription-response.dto';
 export class CreateCustomerSubscriptionDto {
   @ApiProperty({
     description: 'ID del cliente que se suscribe',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -17,7 +26,7 @@ export class CreateCustomerSubscriptionDto {
 
   @ApiProperty({
     description: 'ID del plan de suscripción',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -25,11 +34,9 @@ export class CreateCustomerSubscriptionDto {
   @Type(() => Number)
   subscription_plan_id: number;
 
-
-
   @ApiProperty({
     description: 'Fecha de inicio de la suscripción (YYYY-MM-DD)',
-    example: '2024-01-01'
+    example: '2024-01-01',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -39,7 +46,7 @@ export class CreateCustomerSubscriptionDto {
 
   @ApiPropertyOptional({
     description: 'Fecha de recolección de bidones (YYYY-MM-DD), opcional',
-    example: '2024-01-15'
+    example: '2024-01-15',
   })
   @IsOptional()
   @IsDateString()
@@ -48,7 +55,7 @@ export class CreateCustomerSubscriptionDto {
   @ApiProperty({
     description: 'Estado inicial de la suscripción',
     enum: SubscriptionStatus,
-    example: SubscriptionStatus.ACTIVE
+    example: SubscriptionStatus.ACTIVE,
   })
   @IsEnum(SubscriptionStatus)
   @IsNotEmpty()
@@ -56,16 +63,16 @@ export class CreateCustomerSubscriptionDto {
 
   @ApiPropertyOptional({
     description: 'Notas adicionales sobre la suscripción',
-    example: 'Suscripción creada por promoción especial'
+    example: 'Suscripción creada por promoción especial',
   })
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: DeliveryPreferences,
     description: 'Preferencias de horario de entrega',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @ValidateNested()

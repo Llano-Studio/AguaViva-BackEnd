@@ -4,16 +4,18 @@ import { Type } from 'class-transformer';
 
 export class CreateZoneDto {
   @ApiProperty({ example: 'Z001' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   code: string;
 
   @ApiProperty({ example: 'Zona Centro' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: 1,
-    description: 'ID de la localidad a la que pertenece esta zona'
+    description: 'ID de la localidad a la que pertenece esta zona',
   })
   @IsInt()
   @Type(() => Number)

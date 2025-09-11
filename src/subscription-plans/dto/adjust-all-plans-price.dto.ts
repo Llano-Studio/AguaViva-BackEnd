@@ -4,7 +4,8 @@ import { Type } from 'class-transformer';
 
 export class AdjustAllPlansPriceDto {
   @ApiPropertyOptional({
-    description: 'Porcentaje de cambio a aplicar. Positivo para aumento, negativo para disminución. No usar si se especifica fixedAmount.',
+    description:
+      'Porcentaje de cambio a aplicar. Positivo para aumento, negativo para disminución. No usar si se especifica fixedAmount.',
     example: 10.5,
   })
   @IsOptional()
@@ -13,7 +14,8 @@ export class AdjustAllPlansPriceDto {
   percentage?: number;
 
   @ApiPropertyOptional({
-    description: 'Monto fijo a sumar (o restar si es negativo) al precio actual. No usar si se especifica percentage.',
+    description:
+      'Monto fijo a sumar (o restar si es negativo) al precio actual. No usar si se especifica percentage.',
     example: 500,
   })
   @IsOptional()
@@ -28,4 +30,4 @@ export class AdjustAllPlansPriceDto {
   @IsOptional()
   @IsString()
   reason?: string;
-} 
+}

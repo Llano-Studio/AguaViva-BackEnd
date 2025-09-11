@@ -5,7 +5,8 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterInventoryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'ID del almacén para filtrar el inventario (para compatibilidad)',
+    description:
+      'ID del almacén para filtrar el inventario (para compatibilidad)',
     example: 1,
   })
   @IsOptional()
@@ -14,20 +15,24 @@ export class FilterInventoryDto extends PaginationQueryDto {
   warehouse_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples IDs de almacenes. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por múltiples IDs de almacenes. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -35,7 +40,8 @@ export class FilterInventoryDto extends PaginationQueryDto {
   warehouse_ids?: number[];
 
   @ApiPropertyOptional({
-    description: 'ID del producto para filtrar el inventario (para compatibilidad)',
+    description:
+      'ID del producto para filtrar el inventario (para compatibilidad)',
     example: 101,
   })
   @IsOptional()
@@ -44,20 +50,24 @@ export class FilterInventoryDto extends PaginationQueryDto {
   product_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples IDs de productos. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por múltiples IDs de productos. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [101, 102, 103],
     type: [Number],
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -65,7 +75,8 @@ export class FilterInventoryDto extends PaginationQueryDto {
   product_ids?: number[];
 
   @ApiPropertyOptional({
-    description: 'Texto para buscar en la descripción del producto (búsqueda parcial insensible a mayúsculas)',
+    description:
+      'Texto para buscar en la descripción del producto (búsqueda parcial insensible a mayúsculas)',
     example: 'Agua Bidón',
   })
   @IsOptional()
@@ -73,7 +84,8 @@ export class FilterInventoryDto extends PaginationQueryDto {
   product_description?: string;
 
   @ApiPropertyOptional({
-    description: 'ID de la categoría del producto para filtrar (para compatibilidad)',
+    description:
+      'ID de la categoría del producto para filtrar (para compatibilidad)',
     example: 1,
   })
   @IsOptional()
@@ -82,20 +94,24 @@ export class FilterInventoryDto extends PaginationQueryDto {
   category_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples IDs de categorías. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por múltiples IDs de categorías. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;

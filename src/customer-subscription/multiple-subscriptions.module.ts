@@ -5,12 +5,9 @@ import { MultipleSubscriptionsController } from './controllers/multiple-subscrip
 import { CyclePaymentsModule } from '../cycle-payments/cycle-payments.module';
 
 @Module({
-  imports: [
-    AuthModule,
-    CyclePaymentsModule
-  ],
+  imports: [AuthModule, CyclePaymentsModule],
   controllers: [MultipleSubscriptionsController],
   providers: [MultipleSubscriptionsService],
-  exports: [MultipleSubscriptionsService]
+  exports: [MultipleSubscriptionsService],
 })
 export class MultipleSubscriptionsModule {}

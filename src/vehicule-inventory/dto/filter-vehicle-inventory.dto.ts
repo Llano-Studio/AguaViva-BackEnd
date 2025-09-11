@@ -23,4 +23,4 @@ export class FilterVehicleInventoryDto extends PaginationQueryDto {
   @Type(() => Number)
   @Min(1)
   product_id?: number;
-} 
+}

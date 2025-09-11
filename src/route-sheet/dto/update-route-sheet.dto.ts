@@ -1,12 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateRouteSheetDetailDto } from './create-route-sheet.dto';
 
 export class UpdateRouteSheetDetailDto extends CreateRouteSheetDetailDto {
   @ApiPropertyOptional({
     description: 'ID del detalle de hoja de ruta a actualizar',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -16,7 +23,7 @@ export class UpdateRouteSheetDetailDto extends CreateRouteSheetDetailDto {
 export class UpdateRouteSheetDto {
   @ApiPropertyOptional({
     description: 'ID del conductor asignado',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -24,7 +31,7 @@ export class UpdateRouteSheetDto {
 
   @ApiPropertyOptional({
     description: 'ID del vehículo asignado',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -32,7 +39,7 @@ export class UpdateRouteSheetDto {
 
   @ApiPropertyOptional({
     description: 'Fecha de entrega programada (YYYY-MM-DD)',
-    example: '2023-07-15'
+    example: '2023-07-15',
   })
   @IsDateString()
   @IsOptional()
@@ -40,7 +47,7 @@ export class UpdateRouteSheetDto {
 
   @ApiPropertyOptional({
     description: 'Notas sobre la ruta',
-    example: 'Ruta por zona norte'
+    example: 'Ruta por zona norte',
   })
   @IsString()
   @IsOptional()
@@ -48,11 +55,11 @@ export class UpdateRouteSheetDto {
 
   @ApiPropertyOptional({
     description: 'Detalles de los pedidos a entregar',
-    type: [UpdateRouteSheetDetailDto]
+    type: [UpdateRouteSheetDetailDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UpdateRouteSheetDetailDto)
   @IsOptional()
   details?: UpdateRouteSheetDetailDto[];
-} 
+}

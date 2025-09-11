@@ -23,7 +23,7 @@ export class RolesService {
         const controllers = module.controllers as Map<string, InstanceWrapper>;
         for (const controller of controllers.values()) {
           const metatype = controller.metatype;
-          
+
           if (!metatype || typeof metatype !== 'function') {
             this.logger.warn(`Controlador inválido en módulo ${moduleName}`);
             continue;
@@ -31,25 +31,30 @@ export class RolesService {
 
           const controllerName = metatype.name;
           // Intenta obtener los roles del controlador
-          const controllerRoles = this.reflector.get<Role[]>(ROLES_KEY, metatype) || [];
+          const controllerRoles =
+            this.reflector.get<Role[]>(ROLES_KEY, metatype) || [];
           // Intenta obtener el path del controlador de varias formas
-          const path = Reflect.getMetadata('path', metatype) || 
-                      this.reflector.get('path', metatype);
+          const path =
+            Reflect.getMetadata('path', metatype) ||
+            this.reflector.get('path', metatype);
 
           if (path) {
             if (controllerRoles.includes(role)) {
               modules.add(path);
             }
           } else {
-            this.logger.warn(`No se encontró path para el controlador ${controllerName}`);
+            this.logger.warn(
+              `No se encontró path para el controlador ${controllerName}`,
+            );
           }
         }
       }
 
       const result = Array.from(modules);
-      this.logger.log(`Módulos finales para rol ${role}: [${result.join(', ')}]`);
+      this.logger.log(
+        `Módulos finales para rol ${role}: [${result.join(', ')}]`,
+      );
       return result;
-
     } catch (error) {
       this.logger.error('Error al obtener módulos:', error);
       return [];

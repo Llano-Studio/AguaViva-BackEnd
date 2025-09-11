@@ -1,5 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsDateString, IsEnum, IsOptional, IsString, Min, ValidateNested, IsNumber, IsPositive } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+  IsNumber,
+  IsPositive,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { SubscriptionStatus, ComodatoStatus } from '@prisma/client';
 import { DeliveryPreferences } from '../../customer-subscription/dto/customer-subscription-response.dto';
@@ -7,7 +18,7 @@ import { DeliveryPreferences } from '../../customer-subscription/dto/customer-su
 export class CreateSubscriptionWithComodatoDto {
   @ApiProperty({
     description: 'ID del cliente que se suscribe',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -17,7 +28,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiProperty({
     description: 'ID del plan de suscripción',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -27,7 +38,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiProperty({
     description: 'Fecha de inicio de la suscripción (YYYY-MM-DD)',
-    example: '2024-01-01'
+    example: '2024-01-01',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -37,7 +48,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Fecha de recolección de bidones (YYYY-MM-DD), opcional',
-    example: '2024-01-15'
+    example: '2024-01-15',
   })
   @IsOptional()
   @IsDateString()
@@ -46,7 +57,7 @@ export class CreateSubscriptionWithComodatoDto {
   @ApiProperty({
     description: 'Estado inicial de la suscripción',
     enum: SubscriptionStatus,
-    example: SubscriptionStatus.ACTIVE
+    example: SubscriptionStatus.ACTIVE,
   })
   @IsEnum(SubscriptionStatus)
   @IsNotEmpty()
@@ -54,16 +65,16 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Notas adicionales sobre la suscripción',
-    example: 'Suscripción creada por promoción especial'
+    example: 'Suscripción creada por promoción especial',
   })
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: DeliveryPreferences,
     description: 'Preferencias de horario de entrega',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @ValidateNested()
@@ -73,7 +84,7 @@ export class CreateSubscriptionWithComodatoDto {
   // Campos específicos del comodato
   @ApiProperty({
     description: 'ID del producto en comodato',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -84,7 +95,7 @@ export class CreateSubscriptionWithComodatoDto {
   @ApiProperty({
     description: 'Cantidad de productos en comodato',
     example: 2,
-    minimum: 1
+    minimum: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -94,7 +105,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiProperty({
     description: 'Fecha de entrega del comodato (YYYY-MM-DD)',
-    example: '2024-01-01'
+    example: '2024-01-01',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -102,7 +113,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Fecha esperada de devolución del comodato (YYYY-MM-DD)',
-    example: '2024-12-31'
+    example: '2024-12-31',
   })
   @IsOptional()
   @IsDateString()
@@ -111,7 +122,7 @@ export class CreateSubscriptionWithComodatoDto {
   @ApiProperty({
     description: 'Estado inicial del comodato',
     enum: ComodatoStatus,
-    example: ComodatoStatus.ACTIVE
+    example: ComodatoStatus.ACTIVE,
   })
   @IsEnum(ComodatoStatus)
   @IsNotEmpty()
@@ -119,7 +130,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Notas adicionales sobre el comodato',
-    example: 'Dispensador entregado en buen estado'
+    example: 'Dispensador entregado en buen estado',
   })
   @IsOptional()
   @IsString()
@@ -127,8 +138,8 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Monto del depósito del comodato',
-    example: 50000.00,
-    minimum: 0
+    example: 50000.0,
+    minimum: 0,
   })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -138,8 +149,8 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Cuota mensual del comodato',
-    example: 5000.00,
-    minimum: 0
+    example: 5000.0,
+    minimum: 0,
   })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -149,7 +160,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Descripción del artículo en comodato',
-    example: 'Dispensador de agua fría y caliente'
+    example: 'Dispensador de agua fría y caliente',
   })
   @IsOptional()
   @IsString()
@@ -157,7 +168,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Marca del artículo en comodato',
-    example: 'Samsung'
+    example: 'Samsung',
   })
   @IsOptional()
   @IsString()
@@ -165,7 +176,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Modelo del artículo en comodato',
-    example: 'WD-500X'
+    example: 'WD-500X',
   })
   @IsOptional()
   @IsString()
@@ -173,7 +184,7 @@ export class CreateSubscriptionWithComodatoDto {
 
   @ApiPropertyOptional({
     description: 'Ruta de la imagen del contrato del comodato',
-    example: '/uploads/contracts/comodato_123.pdf'
+    example: '/uploads/contracts/comodato_123.pdf',
   })
   @IsOptional()
   @IsString()

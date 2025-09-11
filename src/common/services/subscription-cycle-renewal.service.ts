@@ -4,7 +4,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
-export class SubscriptionCycleRenewalService extends PrismaClient implements OnModuleInit {
+export class SubscriptionCycleRenewalService
+  extends PrismaClient
+  implements OnModuleInit
+{
   private readonly logger = new Logger(SubscriptionCycleRenewalService.name);
 
   async onModuleInit() {
@@ -18,44 +21,53 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async renewExpiredCycles() {
     await this.checkAndApplyLateFees();
-    this.logger.log('🔄 Iniciando renovación automática de ciclos de suscripción...');
-    
+    this.logger.log(
+      '🔄 Iniciando renovación automática de ciclos de suscripción...',
+    );
+
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // Buscar suscripciones activas cuyos ciclos actuales han expirado
       const expiredCycles = await this.subscription_cycle.findMany({
         where: {
           cycle_end: {
-            lt: today // Ciclos que terminaron antes de hoy
+            lt: today, // Ciclos que terminaron antes de hoy
           },
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE
-          }
+            status: SubscriptionStatus.ACTIVE,
+          },
         },
         include: {
           customer_subscription: {
             include: {
               subscription_plan: {
                 include: {
-                  subscription_plan_product: true
-                }
-              }
-            }
-          }
-        }
+                  subscription_plan_product: true,
+                },
+              },
+            },
+          },
+        },
       });
 
-      this.logger.log(`📊 Encontrados ${expiredCycles.length} ciclos expirados para renovar`);
+      this.logger.log(
+        `📊 Encontrados ${expiredCycles.length} ciclos expirados para renovar`,
+      );
 
       for (const expiredCycle of expiredCycles) {
-        await this.createNewCycleForSubscription(expiredCycle.customer_subscription);
+        await this.createNewCycleForSubscription(
+          expiredCycle.customer_subscription,
+        );
       }
 
       this.logger.log('✅ Renovación automática de ciclos completada');
     } catch (error) {
-      this.logger.error('❌ Error durante la renovación automática de ciclos:', error);
+      this.logger.error(
+        '❌ Error durante la renovación automática de ciclos:',
+        error,
+      );
     }
   }
 
@@ -67,7 +79,7 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
       // Calcular fechas del nuevo ciclo (un mes desde hoy)
       const cycleStartDate = new Date();
       cycleStartDate.setHours(0, 0, 0, 0);
-      
+
       const cycleEndDate = new Date(cycleStartDate);
       cycleEndDate.setMonth(cycleStartDate.getMonth() + 1);
       cycleEndDate.setDate(cycleStartDate.getDate() - 1);
@@ -86,33 +98,33 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
           payment_due_date: paymentDueDate,
           is_overdue: false,
           late_fee_applied: false,
-          late_fee_percentage: new Decimal(20.00), // 20% de recargo
-          notes: 'Ciclo renovado automáticamente'
-        }
+          late_fee_percentage: new Decimal(20.0), // 20% de recargo
+          notes: 'Ciclo renovado automáticamente',
+        },
       });
 
       // Crear los detalles del ciclo basados en el plan de suscripción
-      for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
+      for (const planProduct of subscription.subscription_plan
+        .subscription_plan_product) {
         await this.subscription_cycle_detail.create({
           data: {
             cycle_id: newCycle.cycle_id,
             product_id: planProduct.product_id,
             planned_quantity: planProduct.product_quantity,
             delivered_quantity: 0,
-            remaining_balance: planProduct.product_quantity
-          }
+            remaining_balance: planProduct.product_quantity,
+          },
         });
       }
 
       this.logger.log(
         `✅ Nuevo ciclo creado para suscripción ${subscription.subscription_id}: ` +
-        `${cycleStartDate.toISOString().split('T')[0]} - ${cycleEndDate.toISOString().split('T')[0]}`
+          `${cycleStartDate.toISOString().split('T')[0]} - ${cycleEndDate.toISOString().split('T')[0]}`,
       );
-
     } catch (error) {
       this.logger.error(
         `❌ Error creando nuevo ciclo para suscripción ${subscription.subscription_id}:`,
-        error
+        error,
       );
     }
   }
@@ -121,8 +133,10 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
    * Verifica y aplica recargos por mora a ciclos vencidos
    */
   async checkAndApplyLateFees() {
-    this.logger.log('💰 Verificando ciclos vencidos para aplicar recargos por mora...');
-    
+    this.logger.log(
+      '💰 Verificando ciclos vencidos para aplicar recargos por mora...',
+    );
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -131,23 +145,25 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
           payment_due_date: {
-            lt: today
+            lt: today,
           },
           late_fee_applied: false,
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE
-          }
+            status: SubscriptionStatus.ACTIVE,
+          },
         },
         include: {
           customer_subscription: {
             include: {
-              subscription_plan: true
-            }
-          }
-        }
+              subscription_plan: true,
+            },
+          },
+        },
       });
 
-      this.logger.log(`📋 Encontrados ${overdueCycles.length} ciclos vencidos sin recargo aplicado`);
+      this.logger.log(
+        `📋 Encontrados ${overdueCycles.length} ciclos vencidos sin recargo aplicado`,
+      );
 
       for (const cycle of overdueCycles) {
         try {
@@ -156,24 +172,25 @@ export class SubscriptionCycleRenewalService extends PrismaClient implements OnM
             where: { cycle_id: cycle.cycle_id },
             data: {
               is_overdue: true,
-              late_fee_applied: true
-            }
+              late_fee_applied: true,
+            },
           });
 
           this.logger.log(
-            `✅ Recargo del 20% aplicado al ciclo ${cycle.cycle_id} de la suscripción ${cycle.subscription_id}`
+            `✅ Recargo del 20% aplicado al ciclo ${cycle.cycle_id} de la suscripción ${cycle.subscription_id}`,
           );
-
         } catch (error) {
           this.logger.error(
             `❌ Error aplicando recargo al ciclo ${cycle.cycle_id}:`,
-            error
+            error,
           );
         }
       }
-
     } catch (error) {
-      this.logger.error('❌ Error en verificación de recargos por mora:', error);
+      this.logger.error(
+        '❌ Error en verificación de recargos por mora:',
+        error,
+      );
     }
   }
 

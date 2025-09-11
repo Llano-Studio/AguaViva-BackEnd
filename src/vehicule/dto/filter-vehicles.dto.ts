@@ -18,4 +18,4 @@ export class FilterVehiclesDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   code?: string;
-} 
+}

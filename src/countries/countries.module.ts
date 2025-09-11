@@ -7,4 +7,4 @@ import { CountriesController } from './countries.controller';
   providers: [CountriesService],
   exports: [CountriesService],
 })
-export class CountriesModule {} 
+export class CountriesModule {}

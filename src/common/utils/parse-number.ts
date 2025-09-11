@@ -8,24 +8,27 @@
  * @param kind - Tipo de número: 'int' para enteros, 'float' para decimales
  * @returns El número convertido o el valor original si no es válido
  */
-export function parseNumber<T extends 'int' | 'float'>(value: unknown, kind: T): unknown {
+export function parseNumber<T extends 'int' | 'float'>(
+  value: unknown,
+  kind: T,
+): unknown {
   if (typeof value !== 'string') return value;
-  
+
   const trimmed = value.trim();
-  
+
   // Verificar que es un número válido según el tipo
-  const regex = kind === 'int' 
-    ? /^-?\d+$/ // Solo enteros (con signo opcional)
-    : /^-?\d*\.?\d+$/; // Enteros o decimales (con signo opcional)
-  
+  const regex =
+    kind === 'int'
+      ? /^-?\d+$/ // Solo enteros (con signo opcional)
+      : /^-?\d*\.?\d+$/; // Enteros o decimales (con signo opcional)
+
   if (!regex.test(trimmed)) {
     return value; // Devolver valor original para que falle la validación
   }
-  
-  const num = kind === 'int' 
-    ? parseInt(trimmed, 10) 
-    : globalThis.parseFloat(trimmed);
-    
+
+  const num =
+    kind === 'int' ? parseInt(trimmed, 10) : globalThis.parseFloat(trimmed);
+
   return isNaN(num) ? value : num;
 }
 
@@ -41,4 +44,4 @@ export function parseInteger(value: unknown): unknown {
  */
 export function parseDecimal(value: unknown): unknown {
   return parseNumber(value, 'float');
-} 
+}

@@ -16,7 +16,6 @@ export interface DeliveryScheduleValidation {
 
 @Injectable()
 export class ScheduleService {
-  
   /**
    * Convierte un horario en formato "HH:MM" a minutos desde medianoche
    */
@@ -39,7 +38,7 @@ export class ScheduleService {
    */
   parseTimeSlot(timeString: string): TimeSlot | null {
     if (!timeString) return null;
-    
+
     // Formato de rango: "14:00-16:00"
     if (timeString.includes('-')) {
       const [start, end] = timeString.split('-');
@@ -47,20 +46,20 @@ export class ScheduleService {
         return {
           start: start.trim(),
           end: end.trim(),
-          label: timeString
+          label: timeString,
         };
       }
     }
-    
+
     // Formato simple: "14:00"
     if (this.isValidTime(timeString)) {
       return {
         start: timeString.trim(),
         end: this.addHours(timeString.trim(), 2), // Asume 2 horas de ventana
-        label: timeString
+        label: timeString,
       };
     }
-    
+
     return null;
   }
 
@@ -80,7 +79,7 @@ export class ScheduleService {
     const date = new Date();
     date.setHours(h, m, 0, 0);
     date.setHours(date.getHours() + hours);
-    
+
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   }
 
@@ -88,10 +87,12 @@ export class ScheduleService {
    * Obtiene todos los horarios disponibles para entrega
    */
   getAvailableTimeSlots(): TimeSlot[] {
-    return BUSINESS_CONFIG.DELIVERY_SCHEDULE.AVAILABLE_TIME_SLOTS.map(slot => {
-      const parsed = this.parseTimeSlot(slot);
-      return parsed || { start: '08:00', end: '10:00', label: slot };
-    });
+    return BUSINESS_CONFIG.DELIVERY_SCHEDULE.AVAILABLE_TIME_SLOTS.map(
+      (slot) => {
+        const parsed = this.parseTimeSlot(slot);
+        return parsed || { start: '08:00', end: '10:00', label: slot };
+      },
+    );
   }
 
   /**
@@ -103,18 +104,21 @@ export class ScheduleService {
     if (!requestedSlot) return false;
 
     const availableSlots = this.getAvailableTimeSlots();
-    
+
     // Convertir horarios a minutos para facilitar comparaciones
     const requestedStartMinutes = this.timeToMinutes(requestedSlot.start);
     const requestedEndMinutes = this.timeToMinutes(requestedSlot.end);
-    
+
     // Verificar si el horario solicitado está completamente dentro de la franja disponible
-    return availableSlots.some(slot => {
+    return availableSlots.some((slot) => {
       const slotStartMinutes = this.timeToMinutes(slot.start);
       const slotEndMinutes = this.timeToMinutes(slot.end);
-      
+
       // El horario solicitado debe estar completamente dentro de la franja disponible
-      return requestedStartMinutes >= slotStartMinutes && requestedEndMinutes <= slotEndMinutes;
+      return (
+        requestedStartMinutes >= slotStartMinutes &&
+        requestedEndMinutes <= slotEndMinutes
+      );
     });
   }
 
@@ -123,7 +127,9 @@ export class ScheduleService {
    */
   isWorkingDay(date: Date): boolean {
     const dayOfWeek = date.getDay();
-    return BUSINESS_CONFIG.DELIVERY_SCHEDULE.WORKING_DAYS.includes(dayOfWeek as any);
+    return BUSINESS_CONFIG.DELIVERY_SCHEDULE.WORKING_DAYS.includes(
+      dayOfWeek as any,
+    );
   }
 
   /**
@@ -132,16 +138,34 @@ export class ScheduleService {
    * @param deliveryDate Fecha de entrega propuesta
    * @param allowPastDates Si es true, permite fechas pasadas (solo para SUPERADMIN)
    */
-  validateDeliveryDate(orderDate: Date, deliveryDate: Date, allowPastDates: boolean = false): DeliveryScheduleValidation {
+  validateDeliveryDate(
+    orderDate: Date,
+    deliveryDate: Date,
+    allowPastDates: boolean = false,
+  ): DeliveryScheduleValidation {
     const now = new Date();
-    const minDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS * 60 * 60 * 1000));
-    const maxDate = new Date(now.getTime() + (BUSINESS_CONFIG.DELIVERY_SCHEDULE.MAXIMUM_ADVANCE_DAYS * 24 * 60 * 60 * 1000));
+    const minDate = new Date(
+      now.getTime() +
+        BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS *
+          60 *
+          60 *
+          1000,
+    );
+    const maxDate = new Date(
+      now.getTime() +
+        BUSINESS_CONFIG.DELIVERY_SCHEDULE.MAXIMUM_ADVANCE_DAYS *
+          24 *
+          60 *
+          60 *
+          1000,
+    );
 
     // Validar que la fecha de entrega sea igual o posterior a la fecha del pedido
     if (deliveryDate < orderDate) {
       return {
         isValid: false,
-        message: 'La fecha de entrega debe ser igual o posterior a la fecha del pedido'
+        message:
+          'La fecha de entrega debe ser igual o posterior a la fecha del pedido',
       };
     }
 
@@ -153,12 +177,12 @@ export class ScheduleService {
       today.setHours(0, 0, 0, 0);
       const deliveryDateOnly = new Date(deliveryDate);
       deliveryDateOnly.setHours(0, 0, 0, 0);
-      
+
       if (deliveryDateOnly < today && !allowPastDates) {
         return {
           isValid: false,
           message: 'No se pueden programar entregas en fechas pasadas',
-          suggestedDate: this.getNextWorkingDay(new Date())
+          suggestedDate: this.getNextWorkingDay(new Date()),
         };
       }
     } else {
@@ -166,11 +190,11 @@ export class ScheduleService {
       if (deliveryDate < minDate && !allowPastDates) {
         const suggestedDate = this.getNextWorkingDay(minDate);
         const hoursText = `${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MINIMUM_ADVANCE_HOURS} horas de anticipación`;
-        
+
         return {
           isValid: false,
           message: `Se requiere al menos ${hoursText}`,
-          suggestedDate
+          suggestedDate,
         };
       }
     }
@@ -180,7 +204,7 @@ export class ScheduleService {
       return {
         isValid: false,
         message: `No se pueden programar entregas con más de ${BUSINESS_CONFIG.DELIVERY_SCHEDULE.MAXIMUM_ADVANCE_DAYS} días de anticipación`,
-        suggestedDate: maxDate
+        suggestedDate: maxDate,
       };
     }
 
@@ -190,7 +214,7 @@ export class ScheduleService {
       return {
         isValid: false,
         message: 'Solo se realizan entregas en días hábiles',
-        suggestedDate
+        suggestedDate,
       };
     }
 
@@ -202,11 +226,11 @@ export class ScheduleService {
    */
   getNextWorkingDay(fromDate: Date): Date {
     const date = new Date(fromDate);
-    
+
     while (!this.isWorkingDay(date)) {
       date.setDate(date.getDate() + 1);
     }
-    
+
     return date;
   }
 
@@ -218,19 +242,22 @@ export class ScheduleService {
    * @param allowPastDates Si es true, permite fechas pasadas (solo para SUPERADMIN)
    */
   validateOrderSchedule(
-    orderDate: Date, 
-    scheduledDeliveryDate?: Date, 
+    orderDate: Date,
+    scheduledDeliveryDate?: Date,
     deliveryTime?: string,
-    allowPastDates: boolean = false
+    allowPastDates: boolean = false,
   ): DeliveryScheduleValidation {
-    
     // Si no hay fecha de entrega programada, no validar
     if (!scheduledDeliveryDate) {
       return { isValid: true };
     }
 
     // Validar fecha de entrega
-    const dateValidation = this.validateDeliveryDate(orderDate, scheduledDeliveryDate, allowPastDates);
+    const dateValidation = this.validateDeliveryDate(
+      orderDate,
+      scheduledDeliveryDate,
+      allowPastDates,
+    );
     if (!dateValidation.isValid) {
       return dateValidation;
     }
@@ -240,8 +267,8 @@ export class ScheduleService {
       const availableSlots = this.getAvailableTimeSlots();
       return {
         isValid: false,
-        message: `Horario no disponible. Horarios disponibles: ${availableSlots.map(s => s.label).join(', ')}`,
-        suggestedTimeSlot: availableSlots[0]?.label
+        message: `Horario no disponible. Horarios disponibles: ${availableSlots.map((s) => s.label).join(', ')}`,
+        suggestedTimeSlot: availableSlots[0]?.label,
       };
     }
 
@@ -251,15 +278,18 @@ export class ScheduleService {
   /**
    * Obtiene el horario predeterminado para un contrato en un día específico
    */
-  getContractScheduleForDay(contractSchedules: any[], dayOfWeek: number): string | null {
-    const schedule = contractSchedules.find(s => s.day_of_week === dayOfWeek);
+  getContractScheduleForDay(
+    contractSchedules: any[],
+    dayOfWeek: number,
+  ): string | null {
+    const schedule = contractSchedules.find((s) => s.day_of_week === dayOfWeek);
     if (!schedule) return null;
 
     // Convertir el time de la BD a string
     if (schedule.scheduled_time instanceof Date) {
       return schedule.scheduled_time.toTimeString().slice(0, 5); // "HH:MM"
     }
-    
+
     return schedule.scheduled_time;
   }
 
@@ -269,22 +299,25 @@ export class ScheduleService {
   generateContractDeliverySchedule(
     contractSchedules: any[],
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ): Array<{ date: Date; time: string }> {
     const deliveries: Array<{ date: Date; time: string }> = [];
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
-      const timeForDay = this.getContractScheduleForDay(contractSchedules, dayOfWeek);
-      
+      const timeForDay = this.getContractScheduleForDay(
+        contractSchedules,
+        dayOfWeek,
+      );
+
       if (timeForDay && this.isWorkingDay(currentDate)) {
         deliveries.push({
           date: new Date(currentDate),
-          time: timeForDay
+          time: timeForDay,
         });
       }
-      
+
       currentDate.setDate(currentDate.getDate() + 1);
     }
 

@@ -27,58 +27,85 @@ export class CreateComodatoDto {
   @Min(1)
   quantity: number;
 
-  @ApiProperty({ example: '2025-01-15', description: 'Fecha de entrega del comodato' })
+  @ApiProperty({
+    example: '2025-01-15',
+    description: 'Fecha de entrega del comodato',
+  })
   @IsDateString()
   @IsNotEmpty()
   delivery_date: string;
 
-  @ApiPropertyOptional({ example: '2025-12-15', description: 'Fecha esperada de devolución' })
+  @ApiPropertyOptional({
+    example: '2025-12-15',
+    description: 'Fecha esperada de devolución',
+  })
   @IsDateString()
   @IsOptional()
   expected_return_date?: string;
 
-  @ApiProperty({ 
-    example: 'ACTIVE', 
-    enum: ComodatoStatus, 
-    description: 'Estado del comodato' 
+  @ApiProperty({
+    example: 'ACTIVE',
+    enum: ComodatoStatus,
+    description: 'Estado del comodato',
   })
   @IsEnum(ComodatoStatus)
   @IsNotEmpty()
   status: ComodatoStatus;
 
-  @ApiPropertyOptional({ example: 'Comodato de bidones para cliente nuevo', description: 'Notas adicionales' })
+  @ApiPropertyOptional({
+    example: 'Comodato de bidones para cliente nuevo',
+    description: 'Notas adicionales',
+  })
   @IsString()
   @IsOptional()
   notes?: string;
 
-  @ApiPropertyOptional({ example: 5000.00, description: 'Monto del depósito en garantía' })
+  @ApiPropertyOptional({
+    example: 5000.0,
+    description: 'Monto del depósito en garantía',
+  })
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
   deposit_amount?: number;
 
-  @ApiPropertyOptional({ example: 500.00, description: 'Cuota mensual del comodato' })
+  @ApiPropertyOptional({
+    example: 500.0,
+    description: 'Cuota mensual del comodato',
+  })
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsOptional()
   @Min(0)
   monthly_fee?: number;
 
-  @ApiPropertyOptional({ example: 'Dispensador de agua fría/caliente', description: 'Descripción del artículo en comodato' })
+  @ApiPropertyOptional({
+    example: 'Dispensador de agua fría/caliente',
+    description: 'Descripción del artículo en comodato',
+  })
   @IsString()
   @IsOptional()
   article_description?: string;
 
-  @ApiPropertyOptional({ example: 'Samsung', description: 'Marca del producto en comodato' })
+  @ApiPropertyOptional({
+    example: 'Samsung',
+    description: 'Marca del producto en comodato',
+  })
   @IsString()
   @IsOptional()
   brand?: string;
 
-  @ApiPropertyOptional({ example: 'WD-500X', description: 'Modelo del producto en comodato' })
+  @ApiPropertyOptional({
+    example: 'WD-500X',
+    description: 'Modelo del producto en comodato',
+  })
   @IsString()
   @IsOptional()
   model?: string;
 
-  @ApiPropertyOptional({ example: '/uploads/contracts/comodato_123_contract.jpg', description: 'Ruta de la imagen del contrato' })
+  @ApiPropertyOptional({
+    example: '/uploads/contracts/comodato_123_contract.jpg',
+    description: 'Ruta de la imagen del contrato',
+  })
   @IsString()
   @IsOptional()
   contract_image_path?: string;

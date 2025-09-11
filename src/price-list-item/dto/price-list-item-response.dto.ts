@@ -44,15 +44,15 @@ export class PaginatedPriceListItemResponseDto {
   @ApiProperty({ type: [PriceListItemResponseDto] })
   data: PriceListItemResponseDto[];
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: 'object',
     properties: {
       total: { type: 'number', example: 100 },
       page: { type: 'number', example: 1 },
       limit: { type: 'number', example: 10 },
-      totalPages: { type: 'number', example: 10 }
+      totalPages: { type: 'number', example: 10 },
     },
-    description: 'Metadatos de paginación'
+    description: 'Metadatos de paginación',
   })
   meta: {
     total: number;
@@ -60,4 +60,4 @@ export class PaginatedPriceListItemResponseDto {
     limit: number;
     totalPages: number;
   };
-} 
+}

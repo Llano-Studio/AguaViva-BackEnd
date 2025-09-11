@@ -7,6 +7,6 @@ import { AuthModule } from '../auth/auth.module';
   imports: [AuthModule],
   controllers: [CyclePaymentsController],
   providers: [CyclePaymentsService],
-  exports: [CyclePaymentsService]
+  exports: [CyclePaymentsService],
 })
 export class CyclePaymentsModule {}

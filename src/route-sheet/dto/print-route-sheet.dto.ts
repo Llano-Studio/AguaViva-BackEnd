@@ -1,11 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PrintRouteSheetDto {
   @ApiProperty({
     description: 'ID de la hoja de ruta',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -15,7 +21,7 @@ export class PrintRouteSheetDto {
   @ApiPropertyOptional({
     description: 'Formato de salida (pdf o html)',
     example: 'pdf',
-    default: 'pdf'
+    default: 'pdf',
   })
   @IsString()
   @IsOptional()
@@ -24,7 +30,7 @@ export class PrintRouteSheetDto {
   @ApiPropertyOptional({
     description: 'Incluir mapa de la ruta',
     example: true,
-    default: false
+    default: false,
   })
   @IsBoolean()
   @IsOptional()
@@ -34,7 +40,7 @@ export class PrintRouteSheetDto {
   @ApiPropertyOptional({
     description: 'Incluir sección para firma',
     example: true,
-    default: true
+    default: true,
   })
   @IsBoolean()
   @IsOptional()
@@ -44,10 +50,10 @@ export class PrintRouteSheetDto {
   @ApiPropertyOptional({
     description: 'Incluir detalles de productos',
     example: true,
-    default: true
+    default: true,
   })
   @IsBoolean()
   @IsOptional()
   @Type(() => Boolean)
   include_product_details?: boolean = true;
-} 
+}

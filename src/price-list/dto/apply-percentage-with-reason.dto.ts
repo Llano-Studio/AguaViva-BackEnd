@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, IsOptional, Min, Max } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsOptional,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ApplyPercentageWithReasonDto {
@@ -7,7 +14,7 @@ export class ApplyPercentageWithReasonDto {
     description: 'Porcentaje de aumento o disminución a aplicar',
     example: 10,
     minimum: -100,
-    maximum: 1000
+    maximum: 1000,
   })
   @IsNotEmpty()
   @IsNumber()
@@ -18,7 +25,7 @@ export class ApplyPercentageWithReasonDto {
 
   @ApiPropertyOptional({
     description: 'Razón o motivo del cambio de precios',
-    example: 'Ajuste por inflación'
+    example: 'Ajuste por inflación',
   })
   @IsOptional()
   @IsString()
@@ -26,9 +33,9 @@ export class ApplyPercentageWithReasonDto {
 
   @ApiPropertyOptional({
     description: 'Usuario que realiza el cambio',
-    example: 'admin@example.com'
+    example: 'admin@example.com',
   })
   @IsOptional()
   @IsString()
   createdBy?: string;
-} 
+}

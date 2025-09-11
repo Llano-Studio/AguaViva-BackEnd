@@ -4,63 +4,63 @@ import { Role } from '@prisma/client';
 export class UserResponseDto {
   @ApiProperty({
     description: 'ID del usuario',
-    example: 1
+    example: 1,
   })
   id: number;
 
   @ApiProperty({
     description: 'Correo electrónico del usuario',
-    example: 'usuario@example.com'
+    example: 'usuario@example.com',
   })
   email: string;
 
   @ApiProperty({
     description: 'Nombre completo del usuario',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   name: string;
 
   @ApiProperty({
     description: 'Rol del usuario',
     enum: Role,
-    example: Role.ADMINISTRATIVE
+    example: Role.ADMINISTRATIVE,
   })
   role: Role;
 
   @ApiProperty({
     description: 'Estado activo/inactivo del usuario',
-    example: true
+    example: true,
   })
   isActive: boolean;
 
   @ApiProperty({
     description: 'Fecha de creación',
-    example: '2023-01-01T12:00:00Z'
+    example: '2023-01-01T12:00:00Z',
   })
   createdAt: string;
 
   @ApiProperty({
     description: 'Fecha de última actualización',
     example: '2023-01-10T15:30:00Z',
-    required: false
+    required: false,
   })
   updatedAt?: string;
 
   @ApiProperty({
     description: 'Notas sobre el usuario',
     example: 'Operador de ventas zona sur',
-    required: false
+    required: false,
   })
   notes?: string;
 
   @ApiProperty({
     description: 'URL de la imagen de perfil del usuario',
     example: 'http://localhost:3000/uploads/profile-images/user-default.png',
-    required: false
+    required: false,
   })
   profileImageUrl?: string;
 
   constructor(partial: Partial<UserResponseDto>) {
     Object.assign(this, partial);
   }
-} 
+}

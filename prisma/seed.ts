@@ -249,7 +249,9 @@ async function main() {
       email: 'admin@gmail.com',
       password: hashedPassword,
       role: 'SUPERADMIN',
-      name: 'Administrador General'
+      name: 'Administrador General',
+      isActive: true,
+      isEmailConfirmed: true
     }
   });
   console.log(`  ✅ Usuario administrador: ${adminUser.email}`);

@@ -6,16 +6,9 @@ import { OrdersModule } from '../orders/orders.module';
 import { MultipleSubscriptionsModule } from './multiple-subscriptions.module';
 
 @Module({
-  imports: [
-    CommonModule,
-    OrdersModule,
-    MultipleSubscriptionsModule
-  ],
+  imports: [CommonModule, OrdersModule, MultipleSubscriptionsModule],
   controllers: [CustomerSubscriptionController],
   providers: [CustomerSubscriptionService],
-  exports: [
-    CustomerSubscriptionService,
-    MultipleSubscriptionsModule
-  ],
+  exports: [CustomerSubscriptionService, MultipleSubscriptionsModule],
 })
 export class CustomerSubscriptionModule {}

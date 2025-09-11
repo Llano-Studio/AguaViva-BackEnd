@@ -14,7 +14,7 @@ export const BUSINESS_CONFIG = {
   DELIVERY_SCHEDULE: {
     // Horarios disponibles de entrega - Cualquier franja permitida
     AVAILABLE_TIME_SLOTS: [
-      '08:00-20:00'  // Franja completa de trabajo
+      '08:00-20:00', // Franja completa de trabajo
     ],
     // Días de la semana (0=Domingo, 6=Sábado)
     WORKING_DAYS: [1, 2, 3, 4, 5, 6], // Lunes a Sábado
@@ -32,7 +32,7 @@ export const BUSINESS_CONFIG = {
     EGRESO_ENTREGA_COMODATO: 'EGR_COMOD', // Egreso por entrega en comodato
     AJUSTE_NEGATIVO: 'AJ_NEG', // Ajuste negativo de inventario
     TRANSFERENCIA_SALIDA: 'TRANS_SAL', // Transferencia de salida
-    
+
     // Ingresos (Entradas de inventario)
     INGRESO_DEVOLUCION_PEDIDO_CANCELADO: 'ING_DEV_PC', // Ingreso por devolución de pedido cancelado
     INGRESO_DEVOLUCION_CLIENTE: 'ING_DEV_CL', // Ingreso por devolución de cliente
@@ -50,7 +50,7 @@ export const BUSINESS_CONFIG = {
   // Configuración de semáforo de pagos
   PAYMENT_SEMAPHORE: {
     YELLOW_THRESHOLD_DAYS: 5, // Días para estado amarillo
-    RED_THRESHOLD_DAYS: 7,    // Días para estado rojo
+    RED_THRESHOLD_DAYS: 7, // Días para estado rojo
   },
 
   // Configuración de paginación por defecto

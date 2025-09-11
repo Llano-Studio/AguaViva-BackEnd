@@ -1,26 +1,26 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
-  Delete, 
-  Query, 
-  ParseIntPipe, 
-  HttpCode, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  ParseIntPipe,
+  HttpCode,
   HttpStatus,
   ValidationPipe,
-  UseGuards
+  UseGuards,
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiParam, 
-  ApiBearerAuth, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
   ApiQuery,
-  ApiBody 
+  ApiBody,
 } from '@nestjs/swagger';
 import { CustomerSubscriptionService } from './customer-subscription.service';
 import {
@@ -32,7 +32,7 @@ import {
   DeliveryPreferences,
   CreateSubscriptionDeliveryScheduleDto,
   UpdateSubscriptionDeliveryScheduleDto,
-  SubscriptionDeliveryScheduleResponseDto
+  SubscriptionDeliveryScheduleResponseDto,
 } from './dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
@@ -48,14 +48,15 @@ import { SubscriptionCycleRenewalService } from '../common/services/subscription
 export class CustomerSubscriptionController {
   constructor(
     private readonly customerSubscriptionService: CustomerSubscriptionService,
-    private readonly subscriptionCycleRenewalService: SubscriptionCycleRenewalService
+    private readonly subscriptionCycleRenewalService: SubscriptionCycleRenewalService,
   ) {}
 
   @Post()
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear nueva suscripción de cliente',
-    description: 'Crea una nueva suscripción asociando un cliente con un plan de suscripción'
+    description:
+      'Crea una nueva suscripción asociando un cliente con un plan de suscripción',
   })
   @ApiBody({ type: CreateCustomerSubscriptionDto })
   @ApiResponse({
@@ -65,35 +66,102 @@ export class CustomerSubscriptionController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos o el cliente ya tiene una suscripción activa para este plan'
+    description:
+      'Datos inválidos o el cliente ya tiene una suscripción activa para este plan',
   })
   @ApiResponse({
     status: 404,
-    description: 'Cliente o plan de suscripción no encontrado'
+    description: 'Cliente o plan de suscripción no encontrado',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN o BOSSADMINISTRATIVE.' })
-  async create(@Body(ValidationPipe) createDto: CreateCustomerSubscriptionDto): Promise<CustomerSubscriptionResponseDto> {
+  @ApiResponse({
+    status: 403,
+    description:
+      'Prohibido - El usuario no tiene rol de SUPERADMIN o BOSSADMINISTRATIVE.',
+  })
+  async create(
+    @Body(ValidationPipe) createDto: CreateCustomerSubscriptionDto,
+  ): Promise<CustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.create(createDto);
   }
 
   @Get()
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Listar suscripciones de clientes',
-    description: 'Obtiene una lista paginada de suscripciones con filtros opcionales'
+    description:
+      'Obtiene una lista paginada de suscripciones con filtros opcionales',
   })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Elementos por página', example: 10 })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general' })
-  @ApiQuery({ name: 'customer_id', required: false, type: Number, description: 'Filtrar por ID del cliente' })
-  @ApiQuery({ name: 'subscription_plan_id', required: false, type: Number, description: 'Filtrar por ID del plan' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'], description: 'Filtrar por estado' })
-  @ApiQuery({ name: 'start_date_from', required: false, type: String, description: 'Fecha de inicio desde (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'start_date_to', required: false, type: String, description: 'Fecha de inicio hasta (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'only_active', required: false, type: Boolean, description: 'Solo suscripciones activas/no expiradas' })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campo por el cual ordenar', example: 'subscription_id' })
-  @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], description: 'Orden ascendente o descendente', example: 'asc' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Elementos por página',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Búsqueda general',
+  })
+  @ApiQuery({
+    name: 'customer_id',
+    required: false,
+    type: Number,
+    description: 'Filtrar por ID del cliente',
+  })
+  @ApiQuery({
+    name: 'subscription_plan_id',
+    required: false,
+    type: Number,
+    description: 'Filtrar por ID del plan',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['ACTIVE', 'PAUSED', 'CANCELLED', 'EXPIRED'],
+    description: 'Filtrar por estado',
+  })
+  @ApiQuery({
+    name: 'start_date_from',
+    required: false,
+    type: String,
+    description: 'Fecha de inicio desde (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'start_date_to',
+    required: false,
+    type: String,
+    description: 'Fecha de inicio hasta (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'only_active',
+    required: false,
+    type: Boolean,
+    description: 'Solo suscripciones activas/no expiradas',
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Campo por el cual ordenar',
+    example: 'subscription_id',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: 'Orden ascendente o descendente',
+    example: 'asc',
+  })
   @ApiResponse({
     status: 200,
     description: 'Lista de suscripciones obtenida exitosamente',
@@ -101,19 +169,30 @@ export class CustomerSubscriptionController {
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   async findAll(
-    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) 
-    filters: FilterCustomerSubscriptionsDto
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    filters: FilterCustomerSubscriptionsDto,
   ): Promise<PaginatedCustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.findAll(filters);
   }
 
   @Get(':id')
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener suscripción por ID',
-    description: 'Obtiene los detalles completos de una suscripción específica'
+    description: 'Obtiene los detalles completos de una suscripción específica',
   })
-  @ApiParam({ name: 'id', description: 'ID de la suscripción', type: Number, example: 1 })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la suscripción',
+    type: Number,
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
     description: 'Suscripción encontrada exitosamente',
@@ -121,20 +200,27 @@ export class CustomerSubscriptionController {
   })
   @ApiResponse({
     status: 404,
-    description: 'Suscripción no encontrada'
+    description: 'Suscripción no encontrada',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  async findOne(@Param('id', ParseIntPipe) id: number): Promise<CustomerSubscriptionResponseDto> {
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.findOne(id);
   }
 
   @Patch(':id')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar suscripción',
-    description: 'Actualiza los datos de una suscripción existente'
+    description: 'Actualiza los datos de una suscripción existente',
   })
-  @ApiParam({ name: 'id', description: 'ID de la suscripción', type: Number, example: 1 })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la suscripción',
+    type: Number,
+    example: 1,
+  })
   @ApiBody({ type: UpdateCustomerSubscriptionDto })
   @ApiResponse({
     status: 200,
@@ -143,17 +229,20 @@ export class CustomerSubscriptionController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos'
+    description: 'Datos inválidos',
   })
   @ApiResponse({
     status: 404,
-    description: 'Suscripción no encontrada'
+    description: 'Suscripción no encontrada',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.',
+  })
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @Body(ValidationPipe) updateDto: UpdateCustomerSubscriptionDto
+    @Body(ValidationPipe) updateDto: UpdateCustomerSubscriptionDto,
   ): Promise<CustomerSubscriptionResponseDto> {
     return this.customerSubscriptionService.update(id, updateDto);
   }
@@ -161,36 +250,50 @@ export class CustomerSubscriptionController {
   @Delete(':id')
   @Auth(Role.SUPERADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Eliminar suscripción',
-    description: 'Elimina permanentemente una suscripción del sistema'
+    description: 'Elimina permanentemente una suscripción del sistema',
   })
-  @ApiParam({ name: 'id', description: 'ID de la suscripción', type: Number, example: 1 })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la suscripción',
+    type: Number,
+    example: 1,
+  })
   @ApiResponse({
     status: 204,
-    description: 'Suscripción eliminada exitosamente'
+    description: 'Suscripción eliminada exitosamente',
   })
   @ApiResponse({
     status: 400,
-    description: 'No se puede eliminar la suscripción porque tiene registros relacionados'
+    description:
+      'No se puede eliminar la suscripción porque tiene registros relacionados',
   })
   @ApiResponse({
     status: 404,
-    description: 'Suscripción no encontrada'
+    description: 'Suscripción no encontrada',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.',
+  })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.customerSubscriptionService.remove(id);
   }
 
   @Get('customer/:customerId')
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener suscripciones por cliente',
-    description: 'Obtiene todas las suscripciones de un cliente específico'
+    description: 'Obtiene todas las suscripciones de un cliente específico',
   })
-  @ApiParam({ name: 'customerId', description: 'ID del cliente', type: Number, example: 1 })
+  @ApiParam({
+    name: 'customerId',
+    description: 'ID del cliente',
+    type: Number,
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
     description: 'Suscripciones del cliente obtenidas exitosamente',
@@ -199,8 +302,14 @@ export class CustomerSubscriptionController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   async findByCustomer(
     @Param('customerId', ParseIntPipe) customerId: number,
-    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) 
-    filters: FilterCustomerSubscriptionsDto
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    filters: FilterCustomerSubscriptionsDto,
   ): Promise<PaginatedCustomerSubscriptionResponseDto> {
     const customerFilters = { ...filters, customer_id: customerId };
     return this.customerSubscriptionService.findAll(customerFilters);
@@ -208,11 +317,16 @@ export class CustomerSubscriptionController {
 
   @Get('plan/:planId')
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener suscripciones por plan',
-    description: 'Obtiene todas las suscripciones de un plan específico'
+    description: 'Obtiene todas las suscripciones de un plan específico',
   })
-  @ApiParam({ name: 'planId', description: 'ID del plan de suscripción', type: Number, example: 1 })
+  @ApiParam({
+    name: 'planId',
+    description: 'ID del plan de suscripción',
+    type: Number,
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
     description: 'Suscripciones del plan obtenidas exitosamente',
@@ -221,8 +335,14 @@ export class CustomerSubscriptionController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   async findByPlan(
     @Param('planId', ParseIntPipe) planId: number,
-    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) 
-    filters: FilterCustomerSubscriptionsDto
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    filters: FilterCustomerSubscriptionsDto,
   ): Promise<PaginatedCustomerSubscriptionResponseDto> {
     const planFilters = { ...filters, subscription_plan_id: planId };
     return this.customerSubscriptionService.findAll(planFilters);
@@ -230,9 +350,10 @@ export class CustomerSubscriptionController {
 
   @Patch(':id/delivery-preferences')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar preferencias de horario de entrega',
-    description: 'Actualiza las preferencias de horario de entrega para una suscripción específica'
+    description:
+      'Actualiza las preferencias de horario de entrega para una suscripción específica',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -247,16 +368,17 @@ export class CustomerSubscriptionController {
     @Param('id', ParseIntPipe) id: number,
     @Body() deliveryPreferences: DeliveryPreferences,
   ): Promise<CustomerSubscriptionResponseDto> {
-    return this.customerSubscriptionService.update(id, { 
-      delivery_preferences: deliveryPreferences 
+    return this.customerSubscriptionService.update(id, {
+      delivery_preferences: deliveryPreferences,
     });
   }
 
   @Get(':id/delivery-preferences')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener preferencias de horario de entrega',
-    description: 'Obtiene las preferencias de horario de entrega para una suscripción específica'
+    description:
+      'Obtiene las preferencias de horario de entrega para una suscripción específica',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -280,23 +402,25 @@ export class CustomerSubscriptionController {
 
   @Post(':id/delivery-schedules')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear horario de entrega para suscripción',
-    description: 'Crea un nuevo horario de entrega para una suscripción específica. El campo `scheduled_time` acepta formato puntual `HH:MM` o rango `HH:MM-HH:MM`.'
+    description:
+      'Crea un nuevo horario de entrega para una suscripción específica. El campo `scheduled_time` acepta formato puntual `HH:MM` o rango `HH:MM-HH:MM`.',
   })
   @ApiBody({
-    description: 'Datos para crear un horario de entrega: día de la semana (1=Lunes...7=Domingo) y horario puntual o rango.',
+    description:
+      'Datos para crear un horario de entrega: día de la semana (1=Lunes...7=Domingo) y horario puntual o rango.',
     type: CreateSubscriptionDeliveryScheduleDto,
     examples: {
       puntual: {
         summary: 'Horario puntual',
-        value: { day_of_week: 1, scheduled_time: '09:30' }
+        value: { day_of_week: 1, scheduled_time: '09:30' },
       },
       rango: {
         summary: 'Rango horario',
-        value: { day_of_week: 5, scheduled_time: '14:00-16:00' }
-      }
-    }
+        value: { day_of_week: 5, scheduled_time: '14:00-16:00' },
+      },
+    },
   })
   @ApiParam({ name: 'id', description: 'ID de la suscripción' })
   @ApiResponse({
@@ -314,7 +438,8 @@ export class CustomerSubscriptionController {
   })
   async createDeliverySchedule(
     @Param('id', ParseIntPipe) subscriptionId: number,
-    @Body() createDto: Omit<CreateSubscriptionDeliveryScheduleDto, 'subscription_id'>,
+    @Body()
+    createDto: Omit<CreateSubscriptionDeliveryScheduleDto, 'subscription_id'>,
   ): Promise<SubscriptionDeliveryScheduleResponseDto> {
     return this.customerSubscriptionService.createDeliverySchedule({
       ...createDto,
@@ -324,9 +449,10 @@ export class CustomerSubscriptionController {
 
   @Get(':id/delivery-schedules')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener horarios de entrega de una suscripción',
-    description: 'Obtiene todos los horarios de entrega configurados para una suscripción'
+    description:
+      'Obtiene todos los horarios de entrega configurados para una suscripción',
   })
   @ApiParam({ name: 'id', description: 'ID de la suscripción' })
   @ApiResponse({
@@ -337,14 +463,16 @@ export class CustomerSubscriptionController {
   async getDeliverySchedules(
     @Param('id', ParseIntPipe) subscriptionId: number,
   ): Promise<SubscriptionDeliveryScheduleResponseDto[]> {
-    return this.customerSubscriptionService.findDeliverySchedulesBySubscription(subscriptionId);
+    return this.customerSubscriptionService.findDeliverySchedulesBySubscription(
+      subscriptionId,
+    );
   }
 
   @Patch('delivery-schedules/:scheduleId')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar horario de entrega',
-    description: 'Actualiza un horario de entrega específico'
+    description: 'Actualiza un horario de entrega específico',
   })
   @ApiParam({ name: 'scheduleId', description: 'ID del horario de entrega' })
   @ApiResponse({
@@ -360,14 +488,17 @@ export class CustomerSubscriptionController {
     @Param('scheduleId', ParseIntPipe) scheduleId: number,
     @Body() updateDto: UpdateSubscriptionDeliveryScheduleDto,
   ): Promise<SubscriptionDeliveryScheduleResponseDto> {
-    return this.customerSubscriptionService.updateDeliverySchedule(scheduleId, updateDto);
+    return this.customerSubscriptionService.updateDeliverySchedule(
+      scheduleId,
+      updateDto,
+    );
   }
 
   @Delete('delivery-schedules/:scheduleId')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Eliminar horario de entrega',
-    description: 'Elimina un horario de entrega específico'
+    description: 'Elimina un horario de entrega específico',
   })
   @ApiParam({ name: 'scheduleId', description: 'ID del horario de entrega' })
   @ApiResponse({
@@ -387,13 +518,14 @@ export class CustomerSubscriptionController {
 
   @Get('delivery-schedules/by-day/:dayOfWeek')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener horarios de entrega por día',
-    description: 'Obtiene todos los horarios de entrega configurados para un día específico de la semana'
+    description:
+      'Obtiene todos los horarios de entrega configurados para un día específico de la semana',
   })
-  @ApiParam({ 
-    name: 'dayOfWeek', 
-    description: 'Día de la semana (1=Lunes, 2=Martes, ..., 7=Domingo)' 
+  @ApiParam({
+    name: 'dayOfWeek',
+    description: 'Día de la semana (1=Lunes, 2=Martes, ..., 7=Domingo)',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -401,24 +533,30 @@ export class CustomerSubscriptionController {
     type: [SubscriptionDeliveryScheduleResponseDto],
   })
   async getDeliverySchedulesByDay(
-     @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
-   ): Promise<SubscriptionDeliveryScheduleResponseDto[]> {
-     return this.customerSubscriptionService.findDeliverySchedulesByDay(dayOfWeek);
-   }
+    @Param('dayOfWeek', ParseIntPipe) dayOfWeek: number,
+  ): Promise<SubscriptionDeliveryScheduleResponseDto[]> {
+    return this.customerSubscriptionService.findDeliverySchedulesByDay(
+      dayOfWeek,
+    );
+  }
 
   @Post('admin/force-cycle-renewal')
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Forzar renovación de ciclos',
-    description: 'Ejecuta manualmente la renovación de ciclos de suscripción expirados (solo para administradores)'
+    description:
+      'Ejecuta manualmente la renovación de ciclos de suscripción expirados (solo para administradores)',
   })
   @ApiResponse({
     status: 200,
-    description: 'Renovación de ciclos ejecutada exitosamente'
+    description: 'Renovación de ciclos ejecutada exitosamente',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.',
+  })
   async forceCycleRenewal(): Promise<{ message: string }> {
     await this.subscriptionCycleRenewalService.forceRenewalCheck();
     return { message: 'Renovación de ciclos ejecutada exitosamente' };

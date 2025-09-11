@@ -996,21 +996,41 @@ export class OneOffPurchaseService
             const updatedPerson = await prismaTx.person.update({
               where: { person_id: existingPerson.person_id },
               data: {
-                ...(updateDto.customer.name && { name: updateDto.customer.name }),
-                ...(updateDto.customer.alias && { alias: updateDto.customer.alias }),
-                ...(updateDto.customer.address && { address: updateDto.customer.address }),
-                ...(updateDto.customer.taxId && { tax_id: updateDto.customer.taxId }),
-                ...(updateDto.customer.type && { type: updateDto.customer.type as PersonType }),
-                ...(updateDto.customer.additionalPhones && { additional_phones: updateDto.customer.additionalPhones }),
+                ...(updateDto.customer.name && {
+                  name: updateDto.customer.name,
+                }),
+                ...(updateDto.customer.alias && {
+                  alias: updateDto.customer.alias,
+                }),
+                ...(updateDto.customer.address && {
+                  address: updateDto.customer.address,
+                }),
+                ...(updateDto.customer.taxId && {
+                  tax_id: updateDto.customer.taxId,
+                }),
+                ...(updateDto.customer.type && {
+                  type: updateDto.customer.type as PersonType,
+                }),
+                ...(updateDto.customer.additionalPhones && {
+                  additional_phones: updateDto.customer.additionalPhones,
+                }),
                 ...(updateDto.customer.localityId !== undefined && {
-                  locality: updateDto.customer.localityId === null || updateDto.customer.localityId === 0
-                    ? { disconnect: true }
-                    : { connect: { locality_id: updateDto.customer.localityId } }
+                  locality:
+                    updateDto.customer.localityId === null ||
+                    updateDto.customer.localityId === 0
+                      ? { disconnect: true }
+                      : {
+                          connect: {
+                            locality_id: updateDto.customer.localityId,
+                          },
+                        },
                 }),
                 ...(updateDto.customer.zoneId !== undefined && {
-                  zone: updateDto.customer.zoneId === null || updateDto.customer.zoneId === 0
-                    ? { disconnect: true }
-                    : { connect: { zone_id: updateDto.customer.zoneId } }
+                  zone:
+                    updateDto.customer.zoneId === null ||
+                    updateDto.customer.zoneId === 0
+                      ? { disconnect: true }
+                      : { connect: { zone_id: updateDto.customer.zoneId } },
                 }),
               },
             });
@@ -1024,13 +1044,17 @@ export class OneOffPurchaseService
                 alias: updateDto.customer.alias || '',
                 address: updateDto.customer.address || '',
                 tax_id: updateDto.customer.taxId || '',
-                type: (updateDto.customer.type as PersonType) || PersonType.INDIVIDUAL,
+                type:
+                  (updateDto.customer.type as PersonType) ||
+                  PersonType.INDIVIDUAL,
                 additional_phones: updateDto.customer.additionalPhones || '',
                 ...(updateDto.customer.localityId && {
-                  locality: { connect: { locality_id: updateDto.customer.localityId } }
+                  locality: {
+                    connect: { locality_id: updateDto.customer.localityId },
+                  },
                 }),
                 ...(updateDto.customer.zoneId && {
-                  zone: { connect: { zone_id: updateDto.customer.zoneId } }
+                  zone: { connect: { zone_id: updateDto.customer.zoneId } },
                 }),
               },
             });
@@ -1042,12 +1066,19 @@ export class OneOffPurchaseService
         // Determinar si estamos trabajando con estructura legacy o header
         const isLegacyStructure = !!legacyPurchase;
         const isHeaderStructure = !!headerPurchase;
-        
-        let newQuantity = existingPurchase.quantity || (headerPurchase ? headerPurchase.purchase_items[0]?.quantity : 0);
-        let newTotalAmount = existingPurchase.total_amount || headerPurchase?.total_amount;
+
+        let newQuantity =
+          existingPurchase.quantity ||
+          (headerPurchase ? headerPurchase.purchase_items[0]?.quantity : 0);
+        let newTotalAmount =
+          existingPurchase.total_amount || headerPurchase?.total_amount;
         let quantityChange = 0;
         let productForUpdate = null;
-        let priceListId = existingPurchase.price_list_id || (headerPurchase ? headerPurchase.purchase_items[0]?.price_list_id : null);
+        let priceListId =
+          existingPurchase.price_list_id ||
+          (headerPurchase
+            ? headerPurchase.purchase_items[0]?.price_list_id
+            : null);
 
         // Solo procesar items si se proporcionan
         if (updateDto.items && updateDto.items.length > 0) {
@@ -1083,14 +1114,18 @@ export class OneOffPurchaseService
           // Calcular el total amount basado en el producto
           newTotalAmount = itemPrice.mul(newQuantity);
         }
-        
+
         // Si se proporciona total_amount en el DTO, usarlo en su lugar
         if (updateDto.total_amount) {
           newTotalAmount = new Decimal(updateDto.total_amount);
         }
 
         // Validar stock solo si hay cambio de cantidad y producto no retornable
-        if (productForUpdate && !productForUpdate.is_returnable && quantityChange !== 0) {
+        if (
+          productForUpdate &&
+          !productForUpdate.is_returnable &&
+          quantityChange !== 0
+        ) {
           const stockDisponible = await this.inventoryService.getProductStock(
             productForUpdate.product_id,
             BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
@@ -1166,7 +1201,7 @@ export class OneOffPurchaseService
         );
 
         let updatedPurchase;
-        
+
         if (isLegacyStructure) {
           // Actualizar estructura legacy
           updatedPurchase = await prismaTx.one_off_purchase.update({
@@ -1184,55 +1219,58 @@ export class OneOffPurchaseService
         } else if (isHeaderStructure) {
           // Para estructura header, necesitamos actualizar tanto el header como los items
           // Primero actualizar el header
-          const headerDataToUpdate: Prisma.one_off_purchase_headerUpdateInput = {
-            ...(updatedPersonId !== headerPurchase.person_id && {
-              person: { connect: { person_id: updatedPersonId } },
-            }),
-            ...(updateDto.requires_delivery !== undefined && {
-              requires_delivery: updateDto.requires_delivery,
-            }),
-            ...(updateDto.delivery_address !== undefined && {
-              delivery_address: updateDto.delivery_address,
-            }),
-            ...(updateDto.sale_channel_id && {
-              sale_channel: {
-                connect: { sale_channel_id: updateDto.sale_channel_id },
-              },
-            }),
-            ...(updateDto.locality_id !== undefined && {
-              locality:
-                updateDto.locality_id === null || updateDto.locality_id === 0
-                  ? { disconnect: true }
-                  : { connect: { locality_id: updateDto.locality_id } },
-            }),
-            ...(updateDto.zone_id !== undefined && {
-              zone:
-                updateDto.zone_id === null || updateDto.zone_id === 0
-                  ? { disconnect: true }
-                  : { connect: { zone_id: updateDto.zone_id } },
-            }),
-            purchase_date: updateDto.purchase_date
-              ? new Date(updateDto.purchase_date)
-              : headerPurchase.purchase_date,
-            ...(updateDto.scheduled_delivery_date !== undefined && {
-              scheduled_delivery_date:
-                updateDto.scheduled_delivery_date &&
-                updateDto.scheduled_delivery_date.trim() !== ''
-                  ? new Date(updateDto.scheduled_delivery_date)
-                  : null,
-            }),
-            ...(updateDto.delivery_time !== undefined && {
-              delivery_time: updateDto.delivery_time,
-            }),
-            ...(updateDto.paid_amount !== undefined && {
-              paid_amount: updateDto.paid_amount
-                ? new Decimal(updateDto.paid_amount)
-                : new Decimal(0),
-            }),
-            ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
-            ...(updateDto.status !== undefined && { status: updateDto.status }),
-            total_amount: newTotalAmount,
-          };
+          const headerDataToUpdate: Prisma.one_off_purchase_headerUpdateInput =
+            {
+              ...(updatedPersonId !== headerPurchase.person_id && {
+                person: { connect: { person_id: updatedPersonId } },
+              }),
+              ...(updateDto.requires_delivery !== undefined && {
+                requires_delivery: updateDto.requires_delivery,
+              }),
+              ...(updateDto.delivery_address !== undefined && {
+                delivery_address: updateDto.delivery_address,
+              }),
+              ...(updateDto.sale_channel_id && {
+                sale_channel: {
+                  connect: { sale_channel_id: updateDto.sale_channel_id },
+                },
+              }),
+              ...(updateDto.locality_id !== undefined && {
+                locality:
+                  updateDto.locality_id === null || updateDto.locality_id === 0
+                    ? { disconnect: true }
+                    : { connect: { locality_id: updateDto.locality_id } },
+              }),
+              ...(updateDto.zone_id !== undefined && {
+                zone:
+                  updateDto.zone_id === null || updateDto.zone_id === 0
+                    ? { disconnect: true }
+                    : { connect: { zone_id: updateDto.zone_id } },
+              }),
+              purchase_date: updateDto.purchase_date
+                ? new Date(updateDto.purchase_date)
+                : headerPurchase.purchase_date,
+              ...(updateDto.scheduled_delivery_date !== undefined && {
+                scheduled_delivery_date:
+                  updateDto.scheduled_delivery_date &&
+                  updateDto.scheduled_delivery_date.trim() !== ''
+                    ? new Date(updateDto.scheduled_delivery_date)
+                    : null,
+              }),
+              ...(updateDto.delivery_time !== undefined && {
+                delivery_time: updateDto.delivery_time,
+              }),
+              ...(updateDto.paid_amount !== undefined && {
+                paid_amount: updateDto.paid_amount
+                  ? new Decimal(updateDto.paid_amount)
+                  : new Decimal(0),
+              }),
+              ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
+              ...(updateDto.status !== undefined && {
+                status: updateDto.status,
+              }),
+              total_amount: newTotalAmount,
+            };
 
           updatedPurchase = await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
@@ -1251,13 +1289,22 @@ export class OneOffPurchaseService
           });
 
           // Si hay items para actualizar, actualizar el primer item
-          if (updateDto.items && updateDto.items.length > 0 && headerPurchase.purchase_items.length > 0) {
+          if (
+            updateDto.items &&
+            updateDto.items.length > 0 &&
+            headerPurchase.purchase_items.length > 0
+          ) {
             const firstItem = updateDto.items[0];
             await prismaTx.one_off_purchase_item.update({
-              where: { purchase_item_id: headerPurchase.purchase_items[0].purchase_item_id },
+              where: {
+                purchase_item_id:
+                  headerPurchase.purchase_items[0].purchase_item_id,
+              },
               data: {
                 ...(productForUpdate && {
-                  product: { connect: { product_id: productForUpdate.product_id } },
+                  product: {
+                    connect: { product_id: productForUpdate.product_id },
+                  },
                 }),
                 quantity: newQuantity,
                 price_list: { connect: { price_list_id: priceListId } },
@@ -1267,7 +1314,11 @@ export class OneOffPurchaseService
         }
 
         // Crear movimiento de stock solo si hay producto actualizado y cambio de cantidad
-        if (productForUpdate && !productForUpdate.is_returnable && quantityChange !== 0) {
+        if (
+          productForUpdate &&
+          !productForUpdate.is_returnable &&
+          quantityChange !== 0
+        ) {
           const movementTypeId =
             quantityChange > 0
               ? await this.inventoryService.getMovementTypeIdByCode(
@@ -1306,7 +1357,9 @@ export class OneOffPurchaseService
         if (isLegacyStructure) {
           return this.mapToOneOffPurchaseResponseDto(updatedPurchase);
         } else {
-          return this.mapToHeaderItemsOneOffPurchaseResponseDto(updatedPurchase);
+          return this.mapToHeaderItemsOneOffPurchaseResponseDto(
+            updatedPurchase,
+          );
         }
       });
     } catch (error) {
@@ -1517,7 +1570,7 @@ export class OneOffPurchaseService
       if (!grouped.has(groupKey)) {
         grouped.set(groupKey, []);
       }
-      grouped.get(groupKey)!.push(purchase);
+      grouped.get(groupKey).push(purchase);
     }
 
     return grouped;

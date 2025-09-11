@@ -15,7 +15,7 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'ID de categoría para filtrar productos (para compatibilidad)',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -23,7 +23,8 @@ export class FilterProductsDto extends PaginationQueryDto {
   categoryId?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por IDs de categorías múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por IDs de categorías múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
@@ -31,15 +32,18 @@ export class FilterProductsDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, asegurar que sean números
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -48,7 +52,7 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filtrar por descripción del producto (búsqueda parcial)',
-    example: 'Botella'
+    example: 'Botella',
   })
   @IsOptional()
   @IsString()
@@ -56,7 +60,7 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filtrar por productos retornables',
-    example: true
+    example: true,
   })
   @IsOptional()
   @IsBoolean()
@@ -70,7 +74,7 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Número de serie del producto',
-    example: 'SN123456'
+    example: 'SN123456',
   })
   @IsOptional()
   @IsString()
@@ -78,7 +82,7 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Incluir información detallada del inventario por almacén',
-    example: true
+    example: true,
   })
   @IsOptional()
   @IsBoolean()
@@ -89,4 +93,4 @@ export class FilterProductsDto extends PaginationQueryDto {
     return value;
   })
   includeInventory?: boolean;
-} 
+}

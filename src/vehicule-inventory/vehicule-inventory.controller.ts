@@ -1,7 +1,28 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+  Query,
+  ValidationPipe,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { VehicleInventoryService } from './vehicule-inventory.service';
-import { UpdateVehicleInventoryDto, CreateVehicleInventoryDto, FilterVehicleInventoryDto } from './dto';
+import {
+  UpdateVehicleInventoryDto,
+  CreateVehicleInventoryDto,
+  FilterVehicleInventoryDto,
+} from './dto';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 
@@ -13,10 +34,15 @@ export class VehicleInventoryController {
 
   @Post()
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Crear o actualizar un registro de inventario de vehículo' })
-  @ApiResponse({ status: 201, description: 'Inventario de vehículo creado/actualizado.' })
+  @ApiOperation({
+    summary: 'Crear o actualizar un registro de inventario de vehículo',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Inventario de vehículo creado/actualizado.',
+  })
   createOrUpdateVehicleInventory(
-    @Body(ValidationPipe) dto: CreateVehicleInventoryDto
+    @Body(ValidationPipe) dto: CreateVehicleInventoryDto,
   ) {
     return this.service.createOrUpdateVehicleInventory(dto);
   }
@@ -24,13 +50,20 @@ export class VehicleInventoryController {
   @Get()
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Listar todos los inventarios de vehiculos' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lista de inventarios de vehículos.',
     // Schema idealmente un DTO paginado específico
   })
   getAllVehicleInventory(
-    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, forbidNonWhitelisted: true })) 
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
     filterDto: FilterVehicleInventoryDto,
   ) {
     return this.service.getAllVehicleInventory(filterDto);
@@ -38,9 +71,19 @@ export class VehicleInventoryController {
 
   @Get(':vehicleId/:productId')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
-  @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
-  @ApiOperation({ summary: 'Obtener un inventario específico por ID de vehículo y producto' })
+  @ApiParam({
+    name: 'vehicleId',
+    type: 'integer',
+    description: 'ID del Vehículo',
+  })
+  @ApiParam({
+    name: 'productId',
+    type: 'integer',
+    description: 'ID del Producto',
+  })
+  @ApiOperation({
+    summary: 'Obtener un inventario específico por ID de vehículo y producto',
+  })
   @ApiResponse({ status: 200, description: 'Inventario encontrado.' })
   getVehicleInventoryById(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
@@ -51,22 +94,44 @@ export class VehicleInventoryController {
 
   @Patch(':vehicleId/:productId')
   @Auth(Role.SUPERADMIN)
-  @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
-  @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
-  @ApiOperation({ summary: 'Actualizar cantidades en un inventario de vehículo' })
+  @ApiParam({
+    name: 'vehicleId',
+    type: 'integer',
+    description: 'ID del Vehículo',
+  })
+  @ApiParam({
+    name: 'productId',
+    type: 'integer',
+    description: 'ID del Producto',
+  })
+  @ApiOperation({
+    summary: 'Actualizar cantidades en un inventario de vehículo',
+  })
   @ApiResponse({ status: 200, description: 'Inventario actualizado.' })
   updateVehicleInventoryQuantities(
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
     @Param('productId', ParseIntPipe) productId: number,
     @Body(ValidationPipe) dto: UpdateVehicleInventoryDto,
   ) {
-    return this.service.updateVehicleInventoryQuantities(vehicleId, productId, dto);
+    return this.service.updateVehicleInventoryQuantities(
+      vehicleId,
+      productId,
+      dto,
+    );
   }
 
   @Delete(':vehicleId/:productId')
-@Auth(Role.SUPERADMIN)
-  @ApiParam({ name: 'vehicleId', type: 'integer', description: 'ID del Vehículo' })
-  @ApiParam({ name: 'productId', type: 'integer', description: 'ID del Producto' })
+  @Auth(Role.SUPERADMIN)
+  @ApiParam({
+    name: 'vehicleId',
+    type: 'integer',
+    description: 'ID del Vehículo',
+  })
+  @ApiParam({
+    name: 'productId',
+    type: 'integer',
+    description: 'ID del Producto',
+  })
   @ApiOperation({ summary: 'Eliminar un registro de inventario de vehículo' })
   @ApiResponse({ status: 200, description: 'Inventario eliminado.' })
   deleteVehicleInventoryById(

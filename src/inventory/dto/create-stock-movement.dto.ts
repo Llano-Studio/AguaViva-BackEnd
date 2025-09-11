@@ -1,11 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsPositive, IsDate, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
+import {
+  IsInt,
+  IsPositive,
+  IsDate,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateStockMovementDto {
   @ApiProperty({
     example: '2024-07-30T10:00:00.000Z',
-    description: 'Fecha y hora del movimiento (opcional, por defecto es la fecha actual)',
+    description:
+      'Fecha y hora del movimiento (opcional, por defecto es la fecha actual)',
     required: false,
   })
   @IsOptional()
@@ -21,14 +30,18 @@ export class CreateStockMovementDto {
   @IsInt()
   product_id: number;
 
-  @ApiProperty({ example: 10, description: 'Cantidad del movimiento (debe ser positiva)' })
+  @ApiProperty({
+    example: 10,
+    description: 'Cantidad del movimiento (debe ser positiva)',
+  })
   @IsInt()
   @IsPositive()
   quantity: number;
 
   @ApiProperty({
     example: 1,
-    description: 'ID del almacén de origen (requerido para salidas o transferencias)',
+    description:
+      'ID del almacén de origen (requerido para salidas o transferencias)',
     required: false,
     nullable: true,
   })
@@ -39,7 +52,8 @@ export class CreateStockMovementDto {
 
   @ApiProperty({
     example: 2,
-    description: 'ID del almacén de destino (requerido para entradas o transferencias)',
+    description:
+      'ID del almacén de destino (requerido para entradas o transferencias)',
     required: false,
     nullable: true,
   })
@@ -59,4 +73,4 @@ export class CreateStockMovementDto {
   @MinLength(1)
   @ValidateIf((o, v) => v !== null)
   remarks?: string | null;
-} 
+}

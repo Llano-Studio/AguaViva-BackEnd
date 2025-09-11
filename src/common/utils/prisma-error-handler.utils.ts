@@ -37,22 +37,28 @@ export function handlePrismaError(error: any, entityName: string = 'registro') {
         const target = error.meta?.target as string[] | string | undefined;
         let fieldMessage = 'algún campo único';
         let conflictMessage = '';
-        
+
         if (Array.isArray(target) && target.length > 0) {
           fieldMessage = target.join(', ');
         } else if (typeof target === 'string') {
           fieldMessage = target;
         }
-        
+
         // Mensajes específicos para diferentes entidades y campos
-        if (entityName.toLowerCase().includes('localidad') && fieldMessage.includes('code')) {
+        if (
+          entityName.toLowerCase().includes('localidad') &&
+          fieldMessage.includes('code')
+        ) {
           conflictMessage = `Ya existe una localidad con este código. Por favor, utilice un código diferente.`;
-        } else if (entityName.toLowerCase().includes('zona') && fieldMessage.includes('code')) {
+        } else if (
+          entityName.toLowerCase().includes('zona') &&
+          fieldMessage.includes('code')
+        ) {
           conflictMessage = `Ya existe una zona con este código en la localidad especificada.`;
         } else {
           conflictMessage = `El ${entityName} con este valor para '${fieldMessage}' ya existe.`;
         }
-        
+
         throw new ConflictException(conflictMessage);
       case 'P2003':
         const fieldName = error.meta?.field_name as string | undefined;

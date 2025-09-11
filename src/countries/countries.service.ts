@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaClient, country } from '@prisma/client';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
@@ -16,17 +21,19 @@ export class CountriesService extends PrismaClient implements OnModuleInit {
         include: {
           province: {
             include: {
-              locality: true
-            }
-          }
+              locality: true,
+            },
+          },
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: 'asc',
+        },
       });
     } catch (error) {
       handlePrismaError(error, this.entityName + 's');
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
@@ -37,23 +44,25 @@ export class CountriesService extends PrismaClient implements OnModuleInit {
         include: {
           province: {
             include: {
-              locality: true
-            }
-          }
-        }
+              locality: true,
+            },
+          },
+        },
       });
-      
+
       if (!record) {
         throw new NotFoundException(`${this.entityName} no encontrado.`);
       }
-      
+
       return record;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
-} 
+}

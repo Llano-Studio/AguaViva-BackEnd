@@ -1,12 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, IsNotEmpty, IsEnum, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  MinLength,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({
     description: 'Correo electrónico del usuario',
-    example: 'usuario@example.com'
+    example: 'usuario@example.com',
   })
   @IsEmail()
   @IsNotEmpty()
@@ -14,7 +22,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Nombre completo del usuario',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +30,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Contraseña del usuario (mínimo 6 caracteres)',
-    example: 'Password123'
+    example: 'Password123',
   })
   @IsString()
   @MinLength(6)
@@ -32,7 +40,7 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Rol del usuario',
     enum: Role,
-    example: Role.ADMINISTRATIVE
+    example: Role.ADMINISTRATIVE,
   })
   @IsEnum(Role)
   @IsNotEmpty()
@@ -48,7 +56,7 @@ export class CreateUserDto {
     description: 'Estado activo/inactivo del usuario',
     example: true,
     default: true,
-    required: false
+    required: false,
   })
   @IsBoolean()
   @IsOptional()
@@ -63,7 +71,7 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Notas sobre el usuario',
     example: 'Operador de ventas zona sur',
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -73,7 +81,7 @@ export class CreateUserDto {
     description: 'Archivo de imagen de perfil (opcional)',
     type: 'string',
     format: 'binary',
-    required: false
+    required: false,
   })
   @IsOptional()
   profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador

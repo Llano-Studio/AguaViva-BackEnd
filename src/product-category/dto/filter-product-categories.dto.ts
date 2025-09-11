@@ -32,4 +32,4 @@ export class FilterProductCategoriesDto extends PaginationQueryDto {
   @IsBoolean()
   active?: boolean;
   */
-} 
+}

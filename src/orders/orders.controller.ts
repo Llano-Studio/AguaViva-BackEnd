@@ -637,7 +637,8 @@ export class OrdersController {
   @Post(':id/payments')
   @ApiOperation({
     summary: 'Procesar pago para una orden híbrida',
-    description: 'Registra un pago para una orden híbrida, actualizando el monto pagado y el estado de la orden si es necesario.'
+    description:
+      'Registra un pago para una orden híbrida, actualizando el monto pagado y el estado de la orden si es necesario.',
   })
   @ApiParam({ name: 'id', description: 'ID de la orden' })
   @ApiResponse({
@@ -652,9 +653,9 @@ export class OrdersController {
         order_id: { type: 'number' },
         transaction_amount: { type: 'string' },
         payment_method_id: { type: 'number' },
-        notes: { type: 'string' }
-      }
-    }
+        notes: { type: 'string' },
+      },
+    },
   })
   @ApiResponse({ status: 400, description: 'Datos de pago inválidos' })
   @ApiResponse({ status: 404, description: 'Orden no encontrada' })
@@ -663,6 +664,10 @@ export class OrdersController {
     @Body() processPaymentDto: ProcessPaymentDto,
     @GetUser() user: User,
   ) {
-    return this.ordersService.processPayment(orderId, processPaymentDto, user.id);
+    return this.ordersService.processPayment(
+      orderId,
+      processPaymentDto,
+      user.id,
+    );
   }
 }
