@@ -134,4 +134,16 @@ export class ComodatoResponseDto {
     name: string;
     description?: string;
   };
+
+  @ApiPropertyOptional({
+    description: 'Información de la suscripción asociada',
+    example: {
+      subscription_id: 1,
+      name: 'Plan Básico',
+    },
+  })
+  subscription?: {
+    subscription_id: number;
+    name: string;
+  };
 }

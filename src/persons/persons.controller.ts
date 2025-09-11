@@ -24,7 +24,6 @@ import {
 } from './dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { fileUploadConfigs, buildImageUrl } from '../common/utils/file-upload.util';
-import { Express } from 'express';
 
 class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
@@ -315,73 +314,6 @@ export class PersonsController {
     @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, skipMissingProperties: true })) filters: FilterComodatosDto
   ): Promise<ComodatoResponseDto[]> {
     return this.personsService.getComodatosByPerson(personId, filters);
-  }
-
-  @Get('comodatos')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ 
-    summary: 'Obtener todos los comodatos con filtros',
-    description: 'Lista todos los comodatos del sistema con opciones de filtrado avanzado'
-  })
-  @ApiQuery({ name: 'person_id', required: false, type: Number, description: 'Filtrar por ID de persona' })
-  @ApiQuery({ name: 'product_id', required: false, type: Number, description: 'Filtrar por ID de producto' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'RETURNED', 'OVERDUE', 'CANCELLED'], description: 'Filtrar por estado' })
-  @ApiQuery({ name: 'zone_id', required: false, type: Number, description: 'Filtrar por zona' })
-  @ApiQuery({ name: 'customer_name', required: false, type: String, description: 'Buscar por nombre de cliente' })
-  @ApiQuery({ name: 'product_name', required: false, type: String, description: 'Buscar por nombre de producto' })
-  @ApiQuery({ name: 'delivery_date_from', required: false, type: String, description: 'Fecha de entrega desde (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'delivery_date_to', required: false, type: String, description: 'Fecha de entrega hasta (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'expected_return_date_from', required: false, type: String, description: 'Fecha de devolución esperada desde (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'expected_return_date_to', required: false, type: String, description: 'Fecha de devolución esperada hasta (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'actual_return_date_from', required: false, type: String, description: 'Fecha de devolución real desde (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'actual_return_date_to', required: false, type: String, description: 'Fecha de devolución real hasta (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Límite de resultados por página' })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar' })
-  @ApiResponse({ status: 200, description: 'Lista de comodatos obtenida exitosamente', type: [ComodatoResponseDto] })
-  async getAllComodatos(
-    @Query() filters: any,
-  ): Promise<ComodatoResponseDto[]> {
-    // Manual parameter processing to avoid ValidationPipe issues
-    const processedFilters: FilterComodatosDto = {
-      page: filters.page ? parseInt(filters.page) : undefined,
-      limit: filters.limit ? parseInt(filters.limit) : undefined,
-      sortBy: filters.sortBy || undefined,
-      person_id: filters.person_id ? parseInt(filters.person_id) : undefined,
-      product_id: filters.product_id ? parseInt(filters.product_id) : undefined,
-      status: filters.status || undefined,
-      zone_id: filters.zone_id ? parseInt(filters.zone_id) : undefined,
-      customer_name: filters.customer_name || undefined,
-      product_name: filters.product_name || undefined,
-      delivery_date_from: filters.delivery_date_from || undefined,
-      delivery_date_to: filters.delivery_date_to || undefined,
-      expected_return_date_from: filters.expected_return_date_from || undefined,
-      expected_return_date_to: filters.expected_return_date_to || undefined,
-      actual_return_date_from: filters.actual_return_date_from || undefined,
-      actual_return_date_to: filters.actual_return_date_to || undefined,
-      search: filters.search || undefined,
-    };
-    return this.personsService.getAllComodatos(processedFilters);
-  }
-
-  @Get('all-comodatos')
-  @ApiOperation({ 
-    summary: 'Obtener todos los comodatos con filtros (público para testing)',
-    description: 'Lista todos los comodatos del sistema con opciones de filtrado avanzado - endpoint público para pruebas'
-  })
-  @ApiQuery({ name: 'person_id', required: false, type: Number, description: 'Filtrar por ID de persona' })
-  @ApiQuery({ name: 'product_id', required: false, type: Number, description: 'Filtrar por ID de producto' })
-  @ApiQuery({ name: 'status', required: false, enum: ['ACTIVE', 'RETURNED', 'OVERDUE', 'CANCELLED'], description: 'Filtrar por estado' })
-  @ApiQuery({ name: 'zone_id', required: false, type: Number, description: 'Filtrar por zona' })
-  @ApiQuery({ name: 'customer_name', required: false, type: String, description: 'Buscar por nombre de cliente' })
-  @ApiQuery({ name: 'product_name', required: false, type: String, description: 'Buscar por nombre de producto' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general' })
-  @ApiResponse({ status: 200, description: 'Lista de comodatos obtenida', type: [ComodatoResponseDto] })
-  async getAllComodatosPublic(
-    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, skipMissingProperties: true })) filters: FilterComodatosDto,
-  ): Promise<ComodatoResponseDto[]> {
-    return this.personsService.getAllComodatos(filters);
   }
 
   @Get(':personId/comodatos/:comodatoId')
