@@ -97,7 +97,20 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix, {
     exclude: ['/', '/health'] 
   });
-  // ValidationPipe removed to fix optional parameter issues
+  
+  // Configurar ValidationPipe global con opciones flexibles
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      skipMissingProperties: false,
+      disableErrorMessages: false,
+    })
+  );
 
   // Aplicar el interceptor global para manejar errores de base de datos
   app.useGlobalInterceptors(new DatabaseErrorInterceptor());

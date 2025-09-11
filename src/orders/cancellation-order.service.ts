@@ -7,20 +7,8 @@ import {
 import { PrismaClient, CancellationOrderStatus, Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-
-export interface CreateCancellationOrderDto {
-  subscription_id: number;
-  scheduled_collection_date: Date;
-  notes?: string;
-}
-
-export interface UpdateCancellationOrderDto {
-  scheduled_collection_date?: Date;
-  actual_collection_date?: Date;
-  status?: CancellationOrderStatus;
-  route_sheet_id?: number;
-  notes?: string;
-}
+import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
+import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
 
 export interface CancellationOrderResponseDto {
   cancellation_order_id: number;
@@ -120,10 +108,25 @@ export class CancellationOrderService extends PrismaClient {
       );
     }
 
+    // Validar y convertir la fecha
+    let scheduledDate: Date;
+    try {
+      scheduledDate = new Date(dto.scheduled_collection_date);
+      if (isNaN(scheduledDate.getTime())) {
+        throw new BadRequestException(
+          'scheduled_collection_date must be a valid date string',
+        );
+      }
+    } catch (error) {
+      throw new BadRequestException(
+        'scheduled_collection_date must be a valid date string',
+      );
+    }
+
     const cancellationOrder = await prisma.cancellation_order.create({
       data: {
         subscription_id: dto.subscription_id,
-        scheduled_collection_date: dto.scheduled_collection_date,
+        scheduled_collection_date: scheduledDate,
         status: CancellationOrderStatus.PENDING,
         notes: dto.notes,
         rescheduled_count: 0,

@@ -17,7 +17,9 @@ import {
   ApiParam,
   ApiQuery,
   ApiBody,
+  ApiProperty,
 } from '@nestjs/swagger';
+import { IsNotEmpty, IsNumber, IsString, IsDateString } from 'class-validator';
 import {
   OrderCollectionEditService,
   CollectionItemDto,
@@ -25,12 +27,68 @@ import {
 } from '../services/order-collection-edit.service';
 
 export class AddCollectionToOrderDto {
+  @ApiProperty({
+    description: 'ID del ciclo de suscripción',
+    example: 45,
+    type: 'number',
+  })
+  @IsNotEmpty()
+  @IsNumber()
   cycle_id: number;
+
+  @ApiProperty({
+    description: 'ID de la suscripción',
+    example: 12,
+    type: 'number',
+  })
+  @IsNotEmpty()
+  @IsNumber()
   subscription_id: number;
+
+  @ApiProperty({
+    description: 'ID del cliente',
+    example: 1,
+    type: 'number',
+  })
+  @IsNotEmpty()
+  @IsNumber()
   customer_id: number;
+
+  @ApiProperty({
+    description: 'Saldo pendiente de pago',
+    example: 250.0,
+    type: 'number',
+  })
+  @IsNotEmpty()
+  @IsNumber()
   pending_balance: number;
-  payment_due_date: string; // ISO string
+
+  @ApiProperty({
+    description: 'Fecha de vencimiento del pago en formato ISO',
+    example: '2024-01-10',
+    type: 'string',
+    format: 'date',
+  })
+  @IsNotEmpty()
+  @IsDateString()
+  payment_due_date: string;
+
+  @ApiProperty({
+    description: 'Nombre del plan de suscripción',
+    example: 'Plan Familiar',
+    type: 'string',
+  })
+  @IsNotEmpty()
+  @IsString()
   subscription_plan_name: string;
+
+  @ApiProperty({
+    description: 'Nombre completo del cliente',
+    example: 'Juan Pérez',
+    type: 'string',
+  })
+  @IsNotEmpty()
+  @IsString()
   customer_name: string;
 }
 

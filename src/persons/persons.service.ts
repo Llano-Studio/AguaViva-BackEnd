@@ -823,7 +823,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
           await this.cancellationOrderService.createCancellationOrder({
             subscription_id: subscriptionId,
-            scheduled_collection_date: scheduledCollectionDate,
+            scheduled_collection_date: scheduledCollectionDate.toISOString().split('T')[0],
             notes: `Orden de cancelación generada automáticamente para suscripción ${subscriptionId}`,
           });
         } catch (error) {
