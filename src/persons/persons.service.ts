@@ -215,10 +215,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       type: dto.type as PrismaPersonType,
       is_active: dto.is_active !== undefined ? dto.is_active : true,
       notes: dto.notes,
-      owns_returnable_containers:
-        dto.owns_returnable_containers !== undefined
-          ? dto.owns_returnable_containers
-          : false,
+      owns_returnable_containers: dto.owns_returnable_containers !== undefined ? dto.owns_returnable_containers : false,
     };
     if (dto.localityId)
       data.locality = { connect: { locality_id: dto.localityId } };
@@ -408,7 +405,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           await this.paymentSemaphoreService.preCalculateForPersons(personIds);
 
         // Procesar todas las personas con semáforos
-        const processedPersons: PersonResponseDto[] = [];
+        let processedPersons: PersonResponseDto[] = [];
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
 
@@ -639,8 +636,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       dataToUpdate.type = dto.type as PrismaPersonType;
     if (dto.is_active !== undefined) dataToUpdate.is_active = dto.is_active;
     if (dto.notes !== undefined) dataToUpdate.notes = dto.notes;
-    if (dto.owns_returnable_containers !== undefined)
-      dataToUpdate.owns_returnable_containers = dto.owns_returnable_containers;
+    if (dto.owns_returnable_containers !== undefined) dataToUpdate.owns_returnable_containers = dto.owns_returnable_containers;
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 
@@ -1254,8 +1250,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       article_description: comodatoEntity.article_description || undefined,
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
-      contract_image_path: comodatoEntity.contract_image_path
-        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts')
+      contract_image_path: comodatoEntity.contract_image_path 
+        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts') 
         : undefined,
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
@@ -1905,7 +1901,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       return {
         subscription,
-        comodato: comodato,
+        comodato: comodato!,
       };
     } catch (error) {
       if (

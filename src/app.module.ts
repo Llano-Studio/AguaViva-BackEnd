@@ -31,7 +31,7 @@ import environmentConfig from './common/config/environment.config';
   imports: [
     ScheduleModule.forRoot(),
     CommonModule,
-    PersonsModule,
+    PersonsModule, 
     AuthModule,
     MailModule,
     ZonesModule,
@@ -60,6 +60,9 @@ import environmentConfig from './common/config/environment.config';
     }),
   ],
   controllers: [AppController],
-  providers: [AppService, DatabaseConnectionService],
+  providers: [
+    AppService,
+    DatabaseConnectionService,
+  ],
 })
 export class AppModule {}
