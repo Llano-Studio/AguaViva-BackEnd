@@ -1,13 +1,27 @@
-import { PartialType, OmitType, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PartialType,
+  OmitType,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
 import { CreateOrderDto, CreateOrderItemDto } from './create-order.dto';
-import { IsOptional, IsInt, IsArray, ValidateNested, IsNotEmpty, Min, IsDecimal } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  IsArray,
+  ValidateNested,
+  IsNotEmpty,
+  Min,
+  IsDecimal,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 // DTO para un ítem individual durante la actualización de un pedido
 export class UpdateOrderItemDto {
   @ApiPropertyOptional({
-    description: 'ID del ítem de orden existente (si se está actualizando un ítem existente)',
-    example: 5
+    description:
+      'ID del ítem de orden existente (si se está actualizando un ítem existente)',
+    example: 5,
   })
   @IsOptional() // Si está presente, es un ítem existente para actualizar
   @IsInt()
@@ -15,7 +29,7 @@ export class UpdateOrderItemDto {
 
   @ApiProperty({
     description: 'ID del producto',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -24,7 +38,7 @@ export class UpdateOrderItemDto {
   @ApiProperty({
     description: 'Cantidad del producto',
     minimum: 1,
-    example: 2
+    example: 2,
   })
   @IsInt()
   @Min(1)
@@ -32,8 +46,9 @@ export class UpdateOrderItemDto {
   quantity: number;
 
   @ApiPropertyOptional({
-    description: '🆕 ID de la lista de precios específica para este producto (opcional)',
-    example: 3
+    description:
+      '🆕 ID de la lista de precios específica para este producto (opcional)',
+    example: 3,
   })
   @IsOptional()
   @IsInt()
@@ -51,15 +66,16 @@ export class UpdateOrderDto extends PartialType(
   // Hereda campos opcionales de CreateOrderDto (ej. notes, status, etc.), excluyendo la lista original de 'items'.
 
   @ApiPropertyOptional({
-    description: '🆕 Lista de ítems para órdenes híbridas (compatibilidad con estructura legacy)',
+    description:
+      '🆕 Lista de ítems para órdenes híbridas (compatibilidad con estructura legacy)',
     type: [CreateOrderItemDto],
     example: [
       {
         product_id: 1,
         quantity: 4,
-        price_list_id: 1
-      }
-    ]
+        price_list_id: 1,
+      },
+    ],
   })
   @IsOptional()
   @IsArray()
@@ -69,7 +85,7 @@ export class UpdateOrderDto extends PartialType(
 
   @ApiPropertyOptional({
     description: 'Lista de ítems para actualizar o crear (estructura nueva)',
-    type: [UpdateOrderItemDto]
+    type: [UpdateOrderItemDto],
   })
   @IsOptional()
   @IsArray()
@@ -79,7 +95,7 @@ export class UpdateOrderDto extends PartialType(
 
   @ApiPropertyOptional({
     description: 'Lista de IDs de ítems a eliminar',
-    type: [Number]
+    type: [Number],
   })
   @IsOptional()
   @IsArray()

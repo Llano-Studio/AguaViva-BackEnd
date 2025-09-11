@@ -95,13 +95,17 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         // Para órdenes híbridas, verificar si el producto está en el plan de suscripción
         let abono_id: number | undefined;
         let abono_name: string | undefined;
-        
-        if (order.order_type === 'HYBRID' && order.customer_subscription?.subscription_plan) {
-          const subscriptionPlan = order.customer_subscription.subscription_plan;
+
+        if (
+          order.order_type === 'HYBRID' &&
+          order.customer_subscription?.subscription_plan
+        ) {
+          const subscriptionPlan =
+            order.customer_subscription.subscription_plan;
           abono_id = subscriptionPlan.subscription_plan_id;
           abono_name = subscriptionPlan.name;
         }
-        
+
         return {
           order_item_id: item.order_item_id,
           product_id: item.product_id,
@@ -264,8 +268,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             // Para otros tipos, validar el horario inicial
             let timeToValidate = createOrderDto.delivery_time;
             if (createOrderDto.delivery_time.includes('-')) {
-              const [startTime, endTime] = createOrderDto.delivery_time.split('-').map(t => t.trim());
-              
+              const [startTime, endTime] = createOrderDto.delivery_time
+                .split('-')
+                .map((t) => t.trim());
+
               // Si es orden híbrida, usar horario final; si no, usar horario inicial
               if (createOrderDto.order_type === 'HYBRID') {
                 timeToValidate = endTime;
@@ -279,7 +285,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const deliveryMinutes = this.timeToMinutes(timeToValidate);
 
             if (deliveryMinutes <= currentMinutes) {
-              const validationType = createOrderDto.order_type === 'HYBRID' ? 'final' : 'inicial';
+              const validationType =
+                createOrderDto.order_type === 'HYBRID' ? 'final' : 'inicial';
               throw new BadRequestException(
                 `Para entregas el mismo día, el horario ${validationType} de entrega debe ser posterior al horario actual.`,
               );
@@ -1043,7 +1050,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.customer_id = customerId;
     }
 
-    let customerConditions: Prisma.personWhereInput[] = [];
+    const customerConditions: Prisma.personWhereInput[] = [];
     if (customerName) {
       customerConditions.push({
         name: { contains: customerName, mode: 'insensitive' },
@@ -1259,13 +1266,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           await tx.order_item.deleteMany({
             where: { order_id: id },
           });
-          
+
           const saleMovementTypeId =
             await this.inventoryService.getMovementTypeIdByCode(
               BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
               tx,
             );
-            
+
           // Procesar cada item del campo 'items'
           for (const itemDto of items) {
             const productDetails = await tx.product.findUniqueOrThrow({
@@ -1273,7 +1280,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             });
 
             let itemPrice = new Decimal(productDetails.price);
-            
+
             // Aplicar lógica de precios similar a items_to_update_or_create
             if (itemDto.price_list_id) {
               const priceItem = await tx.price_list_item.findFirst({
@@ -1333,7 +1340,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             }
           }
-        } else if (items_to_update_or_create && items_to_update_or_create.length > 0) {
+        } else if (
+          items_to_update_or_create &&
+          items_to_update_or_create.length > 0
+        ) {
           const saleMovementTypeId =
             await this.inventoryService.getMovementTypeIdByCode(
               BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
@@ -1760,7 +1770,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             console.log(`  - Monto pagado: $${orderToDelete.paid_amount}`);
 
             // 🔧 CORRECCIÓN: Determinar la cantidad correcta a devolver al stock
-            let quantityToReturn = item.quantity;
+            const quantityToReturn = item.quantity;
 
             // Solo para órdenes SUBSCRIPTION puras, verificar si había cantidad cubierta por suscripción
             if (
@@ -1919,7 +1929,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         });
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
-        let newOrderStatus = order.status;
+        const newOrderStatus = order.status;
         // Note: Order status remains unchanged when fully paid
         // Payment completion doesn't automatically change delivery status
 

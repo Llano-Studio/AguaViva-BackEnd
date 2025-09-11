@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, InternalServerErrorException, OnModuleInit, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  OnModuleInit,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaClient, locality } from '@prisma/client';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { CreateLocalityDto, UpdateLocalityDto } from './dto';
@@ -17,18 +23,20 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         include: {
           province: {
             include: {
-              country: true
-            }
+              country: true,
+            },
           },
-          zones: true
+          zones: true,
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: 'asc',
+        },
       });
     } catch (error) {
       handlePrismaError(error, this.entityName + 'es');
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
@@ -39,24 +47,26 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         include: {
           province: {
             include: {
-              country: true
-            }
+              country: true,
+            },
           },
-          zones: true
-        }
+          zones: true,
+        },
       });
-      
+
       if (!record) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
       }
-      
+
       return record;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
@@ -64,45 +74,52 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     try {
       // Verificar que la provincia existe
       const province = await this.province.findUnique({
-        where: { province_id: dto.provinceId }
+        where: { province_id: dto.provinceId },
       });
-      
+
       if (!province) {
         throw new NotFoundException('Provincia no encontrada.');
       }
 
       // Verificar que no existe otra localidad con el mismo código
       const existingLocality = await this.locality.findFirst({
-        where: { code: dto.code }
+        where: { code: dto.code },
       });
-      
+
       if (existingLocality) {
-        throw new ConflictException(`Ya existe una localidad con el código '${dto.code}'. Por favor, utilice un código diferente.`);
+        throw new ConflictException(
+          `Ya existe una localidad con el código '${dto.code}'. Por favor, utilice un código diferente.`,
+        );
       }
 
       const newLocality = await this.locality.create({
         data: {
           code: dto.code,
           name: dto.name,
-          province_id: dto.provinceId
+          province_id: dto.provinceId,
         },
         include: {
           province: {
             include: {
-              country: true
-            }
+              country: true,
+            },
           },
-          zones: true
-        }
+          zones: true,
+        },
       });
-      
+
       return newLocality;
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
@@ -110,9 +127,9 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     try {
       // Verificar que la localidad existe
       const existingLocality = await this.locality.findUnique({
-        where: { locality_id: id }
+        where: { locality_id: id },
       });
-      
+
       if (!existingLocality) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
       }
@@ -120,9 +137,9 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Si se está actualizando la provincia, verificar que existe
       if (dto.provinceId) {
         const province = await this.province.findUnique({
-          where: { province_id: dto.provinceId }
+          where: { province_id: dto.provinceId },
         });
-        
+
         if (!province) {
           throw new NotFoundException('Provincia no encontrada.');
         }
@@ -131,14 +148,16 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Si se está actualizando el código, verificar que no existe otro con el mismo código
       if (dto.code && dto.code !== existingLocality.code) {
         const duplicateLocality = await this.locality.findFirst({
-          where: { 
+          where: {
             code: dto.code,
-            locality_id: { not: id }
-          }
+            locality_id: { not: id },
+          },
         });
-        
+
         if (duplicateLocality) {
-          throw new ConflictException('Ya existe una localidad con este código.');
+          throw new ConflictException(
+            'Ya existe una localidad con este código.',
+          );
         }
       }
 
@@ -147,25 +166,30 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         data: {
           ...(dto.code && { code: dto.code }),
           ...(dto.name && { name: dto.name }),
-          ...(dto.provinceId && { province_id: dto.provinceId })
+          ...(dto.provinceId && { province_id: dto.provinceId }),
         },
         include: {
           province: {
             include: {
-              country: true
-            }
+              country: true,
+            },
           },
-          zones: true
-        }
+          zones: true,
+        },
       });
-      
+
       return updatedLocality;
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 
@@ -179,16 +203,16 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
           person: true,
           warehouse: true,
           one_off_purchase: true,
-          one_off_purchase_headers: true
-        }
+          one_off_purchase_headers: true,
+        },
       });
-      
+
       if (!existingLocality) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
       }
 
       // Verificar que no tenga registros relacionados
-      const hasRelatedRecords = 
+      const hasRelatedRecords =
         existingLocality.zones.length > 0 ||
         existingLocality.person.length > 0 ||
         existingLocality.warehouse.length > 0 ||
@@ -196,23 +220,30 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         existingLocality.one_off_purchase_headers.length > 0;
 
       if (hasRelatedRecords) {
-        throw new ConflictException('No se puede eliminar la localidad porque tiene registros relacionados (zonas, personas, almacenes, etc.).');
+        throw new ConflictException(
+          'No se puede eliminar la localidad porque tiene registros relacionados (zonas, personas, almacenes, etc.).',
+        );
       }
 
       await this.locality.delete({
-        where: { locality_id: id }
+        where: { locality_id: id },
       });
-      
+
       return {
         message: `${this.entityName} eliminada correctamente`,
-        deleted: true
+        deleted: true,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       handlePrismaError(error, this.entityName);
-      throw new InternalServerErrorException('Error no manejado después de handlePrismaError');
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
     }
   }
 }

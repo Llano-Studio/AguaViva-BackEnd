@@ -1,12 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, IsOptional, IsDateString, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsDateString,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateCyclePaymentDto {
   @ApiProperty({
     description: 'ID del ciclo de suscripción al que se aplica el pago',
     example: 1,
-    type: 'integer'
+    type: 'integer',
   })
   @IsNotEmpty()
   @IsNumber()
@@ -14,9 +21,9 @@ export class CreateCyclePaymentDto {
 
   @ApiProperty({
     description: 'Monto del pago',
-    example: 15000.00,
+    example: 15000.0,
     type: 'number',
-    format: 'float'
+    format: 'float',
   })
   @IsNotEmpty()
   @IsNumber()
@@ -27,26 +34,34 @@ export class CreateCyclePaymentDto {
   @ApiProperty({
     description: 'Método de pago utilizado',
     example: 'EFECTIVO',
-    enum: ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE']
+    enum: [
+      'EFECTIVO',
+      'TRANSFERENCIA',
+      'TARJETA_DEBITO',
+      'TARJETA_CREDITO',
+      'CHEQUE',
+    ],
   })
   @IsNotEmpty()
   @IsString()
   payment_method: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha del pago (si no se proporciona, se usa la fecha actual)',
+    description:
+      'Fecha del pago (si no se proporciona, se usa la fecha actual)',
     example: '2024-01-15T10:30:00.000Z',
     type: 'string',
-    format: 'date-time'
+    format: 'date-time',
   })
   @IsOptional()
   @IsDateString()
   payment_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Referencia del pago (número de comprobante, transferencia, etc.)',
+    description:
+      'Referencia del pago (número de comprobante, transferencia, etc.)',
     example: 'TRANS-001234',
-    maxLength: 100
+    maxLength: 100,
   })
   @IsOptional()
   @IsString()
@@ -54,7 +69,7 @@ export class CreateCyclePaymentDto {
 
   @ApiPropertyOptional({
     description: 'Notas adicionales sobre el pago',
-    example: 'Pago correspondiente al ciclo de enero 2024'
+    example: 'Pago correspondiente al ciclo de enero 2024',
   })
   @IsOptional()
   @IsString()

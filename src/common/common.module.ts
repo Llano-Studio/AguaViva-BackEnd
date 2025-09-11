@@ -6,7 +6,19 @@ import { SubscriptionCycleRenewalService } from './services/subscription-cycle-r
 import { FailedOrderReassignmentService } from './services/failed-order-reassignment.service';
 
 @Module({
-  providers: [PaymentSemaphoreService, ScheduleService, PdfGeneratorService, SubscriptionCycleRenewalService, FailedOrderReassignmentService],
-  exports: [PaymentSemaphoreService, ScheduleService, PdfGeneratorService, SubscriptionCycleRenewalService, FailedOrderReassignmentService],
+  providers: [
+    PaymentSemaphoreService,
+    ScheduleService,
+    PdfGeneratorService,
+    SubscriptionCycleRenewalService,
+    FailedOrderReassignmentService,
+  ],
+  exports: [
+    PaymentSemaphoreService,
+    ScheduleService,
+    PdfGeneratorService,
+    SubscriptionCycleRenewalService,
+    FailedOrderReassignmentService,
+  ],
 })
 export class CommonModule {}

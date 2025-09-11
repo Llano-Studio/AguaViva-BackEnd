@@ -19,11 +19,12 @@ export class ChangeSubscriptionPlanDto {
   new_plan_id: number;
 
   @ApiProperty({
-    description: 'Fecha opcional a partir de la cual el nuevo plan debe entrar en vigor. Si no se provee, se determinará según la lógica de negocio (ej. inicio del próximo ciclo).',
+    description:
+      'Fecha opcional a partir de la cual el nuevo plan debe entrar en vigor. Si no se provee, se determinará según la lógica de negocio (ej. inicio del próximo ciclo).',
     example: '2024-07-01',
     required: false,
   })
   @IsOptional()
   @IsDateString()
-  effective_date?: string; 
-} 
+  effective_date?: string;
+}

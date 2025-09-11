@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsEmail, IsBoolean, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEmail,
+  IsBoolean,
+  IsEnum,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Role } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -6,7 +12,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'Nombre completo del usuario',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   @IsOptional()
   @IsString()
@@ -14,7 +20,7 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({
     description: 'Correo electrónico del usuario',
-    example: 'usuario@example.com'
+    example: 'usuario@example.com',
   })
   @IsOptional()
   @IsEmail()
@@ -23,7 +29,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'Rol del usuario',
     enum: Role,
-    example: Role.ADMINISTRATIVE
+    example: Role.ADMINISTRATIVE,
   })
   @IsOptional()
   @IsEnum(Role)
@@ -38,7 +44,7 @@ export class UpdateUserDto {
   @ApiPropertyOptional({
     description: 'Estado activo/inactivo del usuario',
     example: true,
-    type: Boolean
+    type: Boolean,
   })
   @IsOptional()
   @IsBoolean()
@@ -51,10 +57,11 @@ export class UpdateUserDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Archivo de imagen de perfil (opcional). Enviar para actualizar o reemplazar la imagen existente.',
+    description:
+      'Archivo de imagen de perfil (opcional). Enviar para actualizar o reemplazar la imagen existente.',
     type: 'string',
-    format: 'binary'
+    format: 'binary',
   })
   @IsOptional()
   profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
-} 
+}

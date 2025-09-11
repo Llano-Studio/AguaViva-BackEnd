@@ -1,136 +1,154 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { OrderType } from '../../common/constants/enums';
 
-
-
 export class OneOffPurchaseProductResponseDto {
-    @ApiProperty({ 
-        example: 1,
-        description: 'ID del producto comprado'
-    })
-    product_id: number;
-    
-    @ApiProperty({ 
-        example: 'Agua Bidón 20L',
-        description: 'Descripción del producto'
-    })
-    description: string;
-    
-    @ApiProperty({ 
-        example: 2,
-        description: 'Cantidad del producto comprado'
-    })
-    quantity: number;
+  @ApiProperty({
+    example: 1,
+    description: 'ID del producto comprado',
+  })
+  product_id: number;
 
-    @ApiProperty({ 
-        example: '5000.00',
-        description: 'Precio unitario aplicado al producto'
-    })
-    unit_price: string;
+  @ApiProperty({
+    example: 'Agua Bidón 20L',
+    description: 'Descripción del producto',
+  })
+  description: string;
 
-    @ApiProperty({ 
-        example: '10000.00',
-        description: 'Subtotal del ítem (precio unitario × cantidad)'
-    })
-    subtotal: string;
-    
-    @ApiProperty({ 
-        example: 1,
-        description: 'ID de la lista de precios utilizada',
-        nullable: true
-    })
-    price_list_id?: number;
+  @ApiProperty({
+    example: 2,
+    description: 'Cantidad del producto comprado',
+  })
+  quantity: number;
+
+  @ApiProperty({
+    example: '5000.00',
+    description: 'Precio unitario aplicado al producto',
+  })
+  unit_price: string;
+
+  @ApiProperty({
+    example: '10000.00',
+    description: 'Subtotal del ítem (precio unitario × cantidad)',
+  })
+  subtotal: string;
+
+  @ApiProperty({
+    example: 1,
+    description: 'ID de la lista de precios utilizada',
+    nullable: true,
+  })
+  price_list_id?: number;
 }
 
 export class OneOffPurchasePersonResponseDto {
-    @ApiProperty({ example: 1 })
-    person_id: number;
-    @ApiProperty({ example: 'Cliente Ocasional' })
-    name: string;
-    @ApiProperty({ example: '1234567890', description: 'Teléfono del cliente' })
-    phone: string;
-    @ApiProperty({ example: 'Av. Principal 123, Centro', nullable: true, description: 'Dirección del cliente' })
-    address?: string;
+  @ApiProperty({ example: 1 })
+  person_id: number;
+  @ApiProperty({ example: 'Cliente Ocasional' })
+  name: string;
+  @ApiProperty({ example: '1234567890', description: 'Teléfono del cliente' })
+  phone: string;
+  @ApiProperty({
+    example: 'Av. Principal 123, Centro',
+    nullable: true,
+    description: 'Dirección del cliente',
+  })
+  address?: string;
 }
 
 export class OneOffPurchaseSaleChannelResponseDto {
-    @ApiProperty({ example: 1 })
-    sale_channel_id: number;
-    @ApiProperty({ example: 'Venta Directa' })
-    name: string;
+  @ApiProperty({ example: 1 })
+  sale_channel_id: number;
+  @ApiProperty({ example: 'Venta Directa' })
+  name: string;
 }
 
 export class OneOffPurchaseLocalityResponseDto {
-    @ApiProperty({ example: 1 })
-    locality_id: number;
-    @ApiProperty({ example: 'Centro' })
-    name: string;
+  @ApiProperty({ example: 1 })
+  locality_id: number;
+  @ApiProperty({ example: 'Centro' })
+  name: string;
 }
 
 export class OneOffPurchaseZoneResponseDto {
-    @ApiProperty({ example: 1 })
-    zone_id: number;
-    @ApiProperty({ example: 'Zona 1' })
-    name: string;
+  @ApiProperty({ example: 1 })
+  zone_id: number;
+  @ApiProperty({ example: 'Zona 1' })
+  name: string;
 }
 
 export class OneOffPurchaseResponseDto {
-    @ApiProperty({ example: 1 })
-    purchase_id: number;
+  @ApiProperty({ example: 1 })
+  purchase_id: number;
 
-    @ApiProperty({ example: 1 })
-    person_id: number;
+  @ApiProperty({ example: 1 })
+  person_id: number;
 
+  @ApiProperty({ example: '2024-03-25T10:00:00Z' })
+  purchase_date: string;
 
-    @ApiProperty({ example: '2024-03-25T10:00:00Z' })
-    purchase_date: string;
+  @ApiProperty({ example: '2024-03-26T14:00:00Z', nullable: true })
+  scheduled_delivery_date?: string;
 
-    @ApiProperty({ example: '2024-03-26T14:00:00Z', nullable: true })
-    scheduled_delivery_date?: string;
+  @ApiProperty({ example: '9:00 AM - 12:00 PM', nullable: true })
+  delivery_time?: string;
 
-    @ApiProperty({ example: '9:00 AM - 12:00 PM', nullable: true })
-    delivery_time?: string;
+  @ApiProperty({ example: '1000.00' })
+  total_amount: string;
 
-    @ApiProperty({ example: '1000.00' })
-    total_amount: string;
+  @ApiProperty({ example: '500.00' })
+  paid_amount: string;
 
-    @ApiProperty({ example: '500.00' })
-    paid_amount: string;
+  @ApiProperty({
+    example: 'PENDING',
+    description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)',
+  })
+  status: string;
 
-    @ApiProperty({ example: 'PENDING', description: 'Estado de la orden (PENDING, DELIVERED, CANCELLED)' })
-    status: string;
+  @ApiProperty({
+    description: 'Tipo de orden',
+    enum: OrderType,
+    example: OrderType.ONE_OFF,
+  })
+  order_type: OrderType;
 
-    @ApiProperty({ 
-        description: 'Tipo de orden',
-        enum: OrderType,
-        example: OrderType.ONE_OFF
-    })
-    order_type: OrderType;
+  @ApiProperty({
+    example: 'green',
+    description:
+      'Sistema de semáforos: green (<5 días), yellow (5-10 días), red (>10 días)',
+  })
+  traffic_light_status: string;
 
-    @ApiProperty({ example: 'green', description: 'Sistema de semáforos: green (<5 días), yellow (5-10 días), red (>10 días)' })
-    traffic_light_status: string;
+  @ApiProperty({
+    example: true,
+    description: 'Indica si la orden requiere entrega a domicilio',
+  })
+  requires_delivery: boolean;
 
-    @ApiProperty({ example: true, description: 'Indica si la orden requiere entrega a domicilio' })
-    requires_delivery: boolean;
+  @ApiProperty({
+    example: 'Cliente prefiere entrega por la mañana',
+    nullable: true,
+  })
+  notes?: string;
 
-    @ApiProperty({ example: 'Cliente prefiere entrega por la mañana', nullable: true })
-    notes?: string;
+  @ApiProperty({
+    example: 'Av. Principal 123, Centro',
+    nullable: true,
+    description: 'Dirección de entrega específica para esta compra',
+  })
+  delivery_address?: string;
 
-    @ApiProperty({ example: 'Av. Principal 123, Centro', nullable: true, description: 'Dirección de entrega específica para esta compra' })
-    delivery_address?: string;
+  @ApiProperty({ type: [OneOffPurchaseProductResponseDto] })
+  products: OneOffPurchaseProductResponseDto[];
 
-    @ApiProperty({ type: [OneOffPurchaseProductResponseDto] })
-    products: OneOffPurchaseProductResponseDto[];
+  @ApiProperty({ type: OneOffPurchasePersonResponseDto })
+  person: OneOffPurchasePersonResponseDto;
 
-    @ApiProperty({ type: OneOffPurchasePersonResponseDto })
-    person: OneOffPurchasePersonResponseDto;
+  @ApiProperty({ type: OneOffPurchaseSaleChannelResponseDto })
+  sale_channel: OneOffPurchaseSaleChannelResponseDto;
 
-    @ApiProperty({ type: OneOffPurchaseSaleChannelResponseDto })
-    sale_channel: OneOffPurchaseSaleChannelResponseDto;
+  @ApiProperty({ type: OneOffPurchaseLocalityResponseDto, nullable: true })
+  locality?: OneOffPurchaseLocalityResponseDto;
 
-    @ApiProperty({ type: OneOffPurchaseLocalityResponseDto, nullable: true })
-    locality?: OneOffPurchaseLocalityResponseDto;
-
-    @ApiProperty({ type: OneOffPurchaseZoneResponseDto, nullable: true })
-    zone?: OneOffPurchaseZoneResponseDto;
+  @ApiProperty({ type: OneOffPurchaseZoneResponseDto, nullable: true })
+  zone?: OneOffPurchaseZoneResponseDto;
 }

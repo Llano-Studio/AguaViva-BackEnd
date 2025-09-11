@@ -23,7 +23,10 @@ export interface CollectionOrderSummaryDto {
 }
 
 @Injectable()
-export class AutomatedCollectionService extends PrismaClient implements OnModuleInit {
+export class AutomatedCollectionService
+  extends PrismaClient
+  implements OnModuleInit
+{
   private readonly logger = new Logger(AutomatedCollectionService.name);
 
   constructor(

@@ -1,12 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsEnum, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsEnum,
+  IsDateString,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { SubscriptionStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Búsqueda general por nombre del cliente o notas de la suscripción',
+    description:
+      'Búsqueda general por nombre del cliente o notas de la suscripción',
     example: 'juan',
   })
   @IsOptional()
@@ -23,20 +30,24 @@ export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   customer_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples IDs de clientes. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por múltiples IDs de clientes. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -53,20 +64,24 @@ export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   subscription_plan_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples IDs de planes de suscripción. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por múltiples IDs de planes de suscripción. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -83,7 +98,8 @@ export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   status?: SubscriptionStatus;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por múltiples estados de suscripción. Puede ser un array o string separado por comas "ACTIVE,PAUSED,CANCELLED"',
+    description:
+      'Filtrar por múltiples estados de suscripción. Puede ser un array o string separado por comas "ACTIVE,PAUSED,CANCELLED"',
     example: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED],
     enum: SubscriptionStatus,
     isArray: true,
@@ -91,15 +107,20 @@ export class FilterCustomerSubscriptionsDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return undefined;
-    
+
     const validStatuses = Object.values(SubscriptionStatus);
-    
+
     if (typeof value === 'string') {
-      const statuses = value.split(',').map(status => status.trim()).filter(status => validStatuses.includes(status as SubscriptionStatus));
+      const statuses = value
+        .split(',')
+        .map((status) => status.trim())
+        .filter((status) =>
+          validStatuses.includes(status as SubscriptionStatus),
+        );
       return statuses.length > 0 ? statuses : undefined;
     }
     if (Array.isArray(value)) {
-      const statuses = value.filter(status => validStatuses.includes(status));
+      const statuses = value.filter((status) => validStatuses.includes(status));
       return statuses.length > 0 ? statuses : undefined;
     }
     return undefined;

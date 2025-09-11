@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, IsBoolean, IsOptional, IsNumber, ValidateIf, Min } from 'class-validator';
+import {
+  IsInt,
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  ValidateIf,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { parseInteger, parseDecimal } from '../../common/utils/parse-number';
 
@@ -9,11 +17,19 @@ export class CreateProductDto {
   @Transform(({ value }) => parseInteger(value))
   category_id: number;
 
-  @ApiProperty({ example: 'Agua mineral', description: 'Descripción del producto' })
+  @ApiProperty({
+    example: 'Agua mineral',
+    description: 'Descripción del producto',
+  })
   @IsString()
   description: string;
 
-  @ApiProperty({ example: 1.5, description: 'Volumen en litros', required: false, nullable: true })
+  @ApiProperty({
+    example: 1.5,
+    description: 'Volumen en litros',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsNumber()
   @ValidateIf((o, v) => v !== null)
@@ -40,20 +56,30 @@ export class CreateProductDto {
   })
   is_returnable: boolean;
 
-  @ApiProperty({ example: 'SN123456', description: 'Número de serie', required: false, nullable: true })
+  @ApiProperty({
+    example: 'SN123456',
+    description: 'Número de serie',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @ValidateIf((o, v) => v !== null)
   serial_number?: string | null;
 
-  @ApiProperty({ example: 'Producto importado', description: 'Notas adicionales', required: false, nullable: true })
+  @ApiProperty({
+    example: 'Producto importado',
+    description: 'Notas adicionales',
+    required: false,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @ValidateIf((o, v) => v !== null)
   notes?: string | null;
 
-  @ApiProperty({ 
-    example: 100, 
+  @ApiProperty({
+    example: 100,
     description: `Stock inicial del producto en el almacén por defecto. 
 
 **Comportamiento:**
@@ -69,7 +95,7 @@ export class CreateProductDto {
 **Nota para Frontend:** Campo opcional, enviar como number o omitir del payload`,
     required: false,
     minimum: 0,
-    type: 'integer'
+    type: 'integer',
   })
   @IsOptional()
   @IsInt()
@@ -86,8 +112,8 @@ export class CreateProductDto {
     description: 'Archivo de imagen del producto (opcional)',
     type: 'string',
     format: 'binary',
-    required: false
+    required: false,
   })
   @IsOptional()
-  productImage?: any; 
+  productImage?: any;
 }

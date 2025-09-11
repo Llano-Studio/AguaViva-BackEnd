@@ -32,8 +32,10 @@ export interface ActiveCycleSummaryDto {
 }
 
 @Injectable()
-export class MultipleSubscriptionsService extends PrismaClient implements OnModuleInit {
-
+export class MultipleSubscriptionsService
+  extends PrismaClient
+  implements OnModuleInit
+{
   constructor() {
     super();
   }
@@ -45,10 +47,12 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
   /**
    * Obtiene el resumen completo de todas las suscripciones activas de un cliente
    */
-  async getCustomerSubscriptionsSummary(customerId: number): Promise<MultipleSubscriptionSummaryDto> {
+  async getCustomerSubscriptionsSummary(
+    customerId: number,
+  ): Promise<MultipleSubscriptionSummaryDto> {
     // Verificar que el cliente existe
     const customer = await this.person.findUnique({
-      where: { person_id: customerId }
+      where: { person_id: customerId },
     });
 
     if (!customer) {
@@ -59,27 +63,27 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
     const activeSubscriptions = await this.customer_subscription.findMany({
       where: {
         customer_id: customerId,
-        status: SubscriptionStatus.ACTIVE
+        status: SubscriptionStatus.ACTIVE,
       },
       include: {
         subscription_plan: {
           include: {
             subscription_plan_product: {
-              include: { product: true }
-            }
-          }
+              include: { product: true },
+            },
+          },
         },
         subscription_cycle: {
           where: {
-            cycle_end: { gte: new Date() } // Solo ciclos activos o futuros
+            cycle_end: { gte: new Date() }, // Solo ciclos activos o futuros
           },
           orderBy: { cycle_start: 'desc' },
-          take: 1 // Solo el ciclo más reciente
+          take: 1, // Solo el ciclo más reciente
         },
         _count: {
-          select: { order_header: true }
-        }
-      }
+          select: { order_header: true },
+        },
+      },
     });
 
     // Calcular totales
@@ -98,9 +102,15 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
         totalPendingAmount += Number(cycle.pending_balance);
         totalCreditBalance += Number(cycle.credit_balance);
         totalPaid += Number(cycle.paid_amount);
-        
-        if (cycle.payment_status === 'PENDING' || cycle.payment_status === 'PARTIAL') {
-          if (cycle.payment_due_date && new Date(cycle.payment_due_date) < today) {
+
+        if (
+          cycle.payment_status === 'PENDING' ||
+          cycle.payment_status === 'PARTIAL'
+        ) {
+          if (
+            cycle.payment_due_date &&
+            new Date(cycle.payment_due_date) < today
+          ) {
             totalOverdue += Number(cycle.pending_balance);
           } else {
             totalPending += Number(cycle.pending_balance);
@@ -110,35 +120,45 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
     }
 
     // Mapear suscripciones a DTOs
-    const subscriptionDtos: CustomerSubscriptionResponseDto[] = activeSubscriptions.map(subscription => ({
-      subscription_id: subscription.subscription_id,
-      customer_id: subscription.customer_id,
-      customer_name: `${customer.name}`,
-      subscription_plan_id: subscription.subscription_plan_id,
-      start_date: subscription.start_date.toISOString().split('T')[0],
-      // end_date field removed - not present in schema
-      collection_date: subscription.collection_date?.toISOString().split('T')[0] || null,
-      status: subscription.status,
-      notes: subscription.notes,
-      cancellation_reason: subscription.cancellation_reason,
-      cancellation_date: subscription.cancellation_date?.toISOString().split('T')[0] || null,
-      collection_scheduled_date: subscription.collection_scheduled_date?.toISOString().split('T')[0] || null,
-      collection_completed: subscription.collection_completed,
-      is_active: subscription.is_active,
-      subscription_plan: {
-        subscription_plan_id: subscription.subscription_plan.subscription_plan_id,
-        name: subscription.subscription_plan.name,
-        description: subscription.subscription_plan.description,
-        price: parseFloat(subscription.subscription_plan.price?.toString() || '0'),
-      },
-      subscription_cycle: subscription.subscription_cycle?.map((cycle: any) => ({
-        cycle_id: cycle.cycle_id,
-        cycle_start: cycle.cycle_start.toISOString().split('T')[0],
-        cycle_end: cycle.cycle_end.toISOString().split('T')[0],
-        notes: cycle.notes,
-      })),
-      orders_count: subscription._count?.order_header || 0,
-    }));
+    const subscriptionDtos: CustomerSubscriptionResponseDto[] =
+      activeSubscriptions.map((subscription) => ({
+        subscription_id: subscription.subscription_id,
+        customer_id: subscription.customer_id,
+        customer_name: `${customer.name}`,
+        subscription_plan_id: subscription.subscription_plan_id,
+        start_date: subscription.start_date.toISOString().split('T')[0],
+        // end_date field removed - not present in schema
+        collection_date:
+          subscription.collection_date?.toISOString().split('T')[0] || null,
+        status: subscription.status,
+        notes: subscription.notes,
+        cancellation_reason: subscription.cancellation_reason,
+        cancellation_date:
+          subscription.cancellation_date?.toISOString().split('T')[0] || null,
+        collection_scheduled_date:
+          subscription.collection_scheduled_date?.toISOString().split('T')[0] ||
+          null,
+        collection_completed: subscription.collection_completed,
+        is_active: subscription.is_active,
+        subscription_plan: {
+          subscription_plan_id:
+            subscription.subscription_plan.subscription_plan_id,
+          name: subscription.subscription_plan.name,
+          description: subscription.subscription_plan.description,
+          price: parseFloat(
+            subscription.subscription_plan.price?.toString() || '0',
+          ),
+        },
+        subscription_cycle: subscription.subscription_cycle?.map(
+          (cycle: any) => ({
+            cycle_id: cycle.cycle_id,
+            cycle_start: cycle.cycle_start.toISOString().split('T')[0],
+            cycle_end: cycle.cycle_end.toISOString().split('T')[0],
+            notes: cycle.notes,
+          }),
+        ),
+        orders_count: subscription._count?.order_header || 0,
+      }));
 
     return {
       customer_id: customerId,
@@ -150,54 +170,59 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
       payment_summary: {
         total_paid: totalPaid,
         total_pending: totalPending,
-        total_overdue: totalOverdue
-      }
+        total_overdue: totalOverdue,
+      },
     };
   }
 
   /**
    * Obtiene todos los ciclos activos de un cliente con información detallada
    */
-  async getCustomerActiveCycles(customerId: number): Promise<ActiveCycleSummaryDto[]> {
+  async getCustomerActiveCycles(
+    customerId: number,
+  ): Promise<ActiveCycleSummaryDto[]> {
     const today = new Date();
-    
+
     const activeCycles = await this.subscription_cycle.findMany({
       where: {
         customer_subscription: {
           customer_id: customerId,
-          status: SubscriptionStatus.ACTIVE
+          status: SubscriptionStatus.ACTIVE,
         },
-        cycle_end: { gte: today } // Solo ciclos que no han terminado
+        cycle_end: { gte: today }, // Solo ciclos que no han terminado
       },
       include: {
         customer_subscription: {
           include: {
-            subscription_plan: true
-          }
-        }
+            subscription_plan: true,
+          },
+        },
       },
       orderBy: [
         { cycle_start: 'asc' },
-        { customer_subscription: { subscription_plan: { name: 'asc' } } }
-      ]
+        { customer_subscription: { subscription_plan: { name: 'asc' } } },
+      ],
     });
 
-    return activeCycles.map(cycle => {
-      const isOverdue = cycle.payment_due_date && new Date(cycle.payment_due_date) < today;
-      
+    return activeCycles.map((cycle) => {
+      const isOverdue =
+        cycle.payment_due_date && new Date(cycle.payment_due_date) < today;
+
       return {
         cycle_id: cycle.cycle_id,
         subscription_id: cycle.subscription_id,
-        subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+        subscription_plan_name:
+          cycle.customer_subscription.subscription_plan.name,
         cycle_start: cycle.cycle_start.toISOString().split('T')[0],
         cycle_end: cycle.cycle_end.toISOString().split('T')[0],
-        payment_due_date: cycle.payment_due_date?.toISOString().split('T')[0] || '',
+        payment_due_date:
+          cycle.payment_due_date?.toISOString().split('T')[0] || '',
         total_amount: Number(cycle.total_amount || 0),
         paid_amount: Number(cycle.paid_amount),
         pending_balance: Number(cycle.pending_balance),
         credit_balance: Number(cycle.credit_balance),
         payment_status: cycle.payment_status,
-        is_overdue: !!isOverdue
+        is_overdue: !!isOverdue,
       };
     });
   }
@@ -219,28 +244,29 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
     };
   }> {
     // Contar clientes con múltiples suscripciones activas
-    const customersWithMultipleSubscriptions = await this.customer_subscription.groupBy({
-      by: ['customer_id'],
-      where: {
-        status: SubscriptionStatus.ACTIVE
-      },
-      _count: {
-        subscription_id: true
-      },
-      having: {
-        subscription_id: {
-          _count: {
-            gt: 1
-          }
-        }
-      }
-    });
+    const customersWithMultipleSubscriptions =
+      await this.customer_subscription.groupBy({
+        by: ['customer_id'],
+        where: {
+          status: SubscriptionStatus.ACTIVE,
+        },
+        _count: {
+          subscription_id: true,
+        },
+        having: {
+          subscription_id: {
+            _count: {
+              gt: 1,
+            },
+          },
+        },
+      });
 
     // Contar total de suscripciones activas
     const totalActiveSubscriptions = await this.customer_subscription.count({
       where: {
-        status: SubscriptionStatus.ACTIVE
-      }
+        status: SubscriptionStatus.ACTIVE,
+      },
     });
 
     // Contar total de ciclos activos
@@ -248,10 +274,10 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
     const totalActiveCycles = await this.subscription_cycle.count({
       where: {
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE
+          status: SubscriptionStatus.ACTIVE,
         },
-        cycle_end: { gte: today }
-      }
+        cycle_end: { gte: today },
+      },
     });
 
     // Distribución de estados de pago
@@ -259,13 +285,13 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
       by: ['payment_status'],
       where: {
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE
+          status: SubscriptionStatus.ACTIVE,
         },
-        cycle_end: { gte: today }
+        cycle_end: { gte: today },
       },
       _count: {
-        cycle_id: true
-      }
+        cycle_id: true,
+      },
     });
 
     const statusCounts = {
@@ -273,112 +299,122 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
       partial: 0,
       paid: 0,
       overdue: 0,
-      credited: 0
+      credited: 0,
     };
 
-    paymentStatusDistribution.forEach(status => {
-      const statusKey = status.payment_status.toLowerCase() as keyof typeof statusCounts;
+    paymentStatusDistribution.forEach((status) => {
+      const statusKey =
+        status.payment_status.toLowerCase() as keyof typeof statusCounts;
       if (statusKey in statusCounts) {
         statusCounts[statusKey] = status._count.cycle_id;
       }
     });
 
-    const totalCustomersWithSubscriptions = await this.customer_subscription.groupBy({
-      by: ['customer_id'],
-      where: {
-        status: SubscriptionStatus.ACTIVE
-      }
-    });
+    const totalCustomersWithSubscriptions =
+      await this.customer_subscription.groupBy({
+        by: ['customer_id'],
+        where: {
+          status: SubscriptionStatus.ACTIVE,
+        },
+      });
 
-    const averageSubscriptionsPerCustomer = totalCustomersWithSubscriptions.length > 0 
-      ? totalActiveSubscriptions / totalCustomersWithSubscriptions.length 
-      : 0;
+    const averageSubscriptionsPerCustomer =
+      totalCustomersWithSubscriptions.length > 0
+        ? totalActiveSubscriptions / totalCustomersWithSubscriptions.length
+        : 0;
 
     return {
-      total_customers_with_multiple_subscriptions: customersWithMultipleSubscriptions.length,
+      total_customers_with_multiple_subscriptions:
+        customersWithMultipleSubscriptions.length,
       total_active_subscriptions: totalActiveSubscriptions,
       total_active_cycles: totalActiveCycles,
-      average_subscriptions_per_customer: Math.round(averageSubscriptionsPerCustomer * 100) / 100,
-      payment_status_distribution: statusCounts
+      average_subscriptions_per_customer:
+        Math.round(averageSubscriptionsPerCustomer * 100) / 100,
+      payment_status_distribution: statusCounts,
     };
   }
 
   /**
    * Obtiene todos los clientes que tienen múltiples suscripciones activas
    */
-  async getCustomersWithMultipleSubscriptions(): Promise<{
-    customer_id: number;
-    customer_name: string;
-    subscription_count: number;
-    total_pending_amount: number;
-    total_credit_balance: number;
-  }[]> {
+  async getCustomersWithMultipleSubscriptions(): Promise<
+    {
+      customer_id: number;
+      customer_name: string;
+      subscription_count: number;
+      total_pending_amount: number;
+      total_credit_balance: number;
+    }[]
+  > {
     // Obtener clientes con múltiples suscripciones activas
-    const customersWithMultipleSubscriptions = await this.customer_subscription.groupBy({
-      by: ['customer_id'],
-      where: {
-        status: SubscriptionStatus.ACTIVE
-      },
-      _count: {
-        subscription_id: true
-      },
-      having: {
-        subscription_id: {
-          _count: {
-            gt: 1
-          }
-        }
-      }
-    });
+    const customersWithMultipleSubscriptions =
+      await this.customer_subscription.groupBy({
+        by: ['customer_id'],
+        where: {
+          status: SubscriptionStatus.ACTIVE,
+        },
+        _count: {
+          subscription_id: true,
+        },
+        having: {
+          subscription_id: {
+            _count: {
+              gt: 1,
+            },
+          },
+        },
+      });
 
     // Para cada cliente, obtener información detallada
     const result = [];
-    
+
     for (const customerGroup of customersWithMultipleSubscriptions) {
       const customerId = customerGroup.customer_id;
       const subscriptionCount = customerGroup._count.subscription_id;
-      
+
       // Obtener información del cliente
       const customer = await this.person.findUnique({
         where: { person_id: customerId },
-        select: { name: true }
+        select: { name: true },
       });
-      
+
       if (!customer) continue;
-      
+
       // Obtener totales de pending_balance y credit_balance de todos los ciclos activos
       const today = new Date();
       const activeCycles = await this.subscription_cycle.findMany({
         where: {
           customer_subscription: {
             customer_id: customerId,
-            status: SubscriptionStatus.ACTIVE
+            status: SubscriptionStatus.ACTIVE,
           },
-          cycle_end: { gte: today }
+          cycle_end: { gte: today },
         },
         select: {
           pending_balance: true,
-          credit_balance: true
-        }
+          credit_balance: true,
+        },
       });
-      
-      const totalPendingAmount = activeCycles.reduce((sum, cycle) => 
-        sum + Number(cycle.pending_balance || 0), 0
+
+      const totalPendingAmount = activeCycles.reduce(
+        (sum, cycle) => sum + Number(cycle.pending_balance || 0),
+        0,
       );
-      
-      const totalCreditBalance = activeCycles.reduce((sum, cycle) => 
-        sum + Number(cycle.credit_balance || 0), 0
+
+      const totalCreditBalance = activeCycles.reduce(
+        (sum, cycle) => sum + Number(cycle.credit_balance || 0),
+        0,
       );
-      
+
       result.push({
         customer_id: customerId,
         customer_name: customer.name,
         subscription_count: subscriptionCount,
         total_pending_amount: totalPendingAmount,
-        total_credit_balance: totalCreditBalance
+        total_credit_balance: totalCreditBalance,
       });
     }
-    
+
     // Ordenar por cantidad de suscripciones descendente
     return result.sort((a, b) => b.subscription_count - a.subscription_count);
   }
@@ -394,12 +430,22 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
     cycles_with_credit: ActiveCycleSummaryDto[];
   }> {
     const activeCycles = await this.getCustomerActiveCycles(customerId);
-    
-    const cyclesWithDebt = activeCycles.filter(cycle => cycle.pending_balance > 0);
-    const cyclesWithCredit = activeCycles.filter(cycle => cycle.credit_balance > 0);
-    
-    const totalAmountDue = cyclesWithDebt.reduce((sum, cycle) => sum + cycle.pending_balance, 0);
-    const totalCreditAvailable = cyclesWithCredit.reduce((sum, cycle) => sum + cycle.credit_balance, 0);
+
+    const cyclesWithDebt = activeCycles.filter(
+      (cycle) => cycle.pending_balance > 0,
+    );
+    const cyclesWithCredit = activeCycles.filter(
+      (cycle) => cycle.credit_balance > 0,
+    );
+
+    const totalAmountDue = cyclesWithDebt.reduce(
+      (sum, cycle) => sum + cycle.pending_balance,
+      0,
+    );
+    const totalCreditAvailable = cyclesWithCredit.reduce(
+      (sum, cycle) => sum + cycle.credit_balance,
+      0,
+    );
     const netAmountDue = Math.max(0, totalAmountDue - totalCreditAvailable);
 
     return {
@@ -407,7 +453,7 @@ export class MultipleSubscriptionsService extends PrismaClient implements OnModu
       total_credit_available: totalCreditAvailable,
       net_amount_due: netAmountDue,
       cycles_with_debt: cyclesWithDebt,
-      cycles_with_credit: cyclesWithCredit
+      cycles_with_credit: cyclesWithCredit,
     };
   }
 }

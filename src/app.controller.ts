@@ -16,25 +16,25 @@ export class AppController {
 
   @Get('health')
   @ApiOperation({ summary: 'Verificar el estado de salud de la API' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Estado de salud de la API', 
+  @ApiResponse({
+    status: 200,
+    description: 'Estado de salud de la API',
     schema: {
       type: 'object',
       properties: {
         status: { type: 'string', example: 'ok' },
         timestamp: { type: 'string', example: '2023-07-01T12:00:00Z' },
         database: { type: 'boolean', example: true },
-        uptime: { type: 'number', example: 3600 }
-      }
-    }
+        uptime: { type: 'number', example: 3600 },
+      },
+    },
   })
   async checkHealth() {
     return this.appService.checkHealth();
   }
 
   @Get('pricing-system-docs')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Documentación del Sistema de Precios Diferenciados',
     description: `Documentación completa del sistema de precios diferenciados implementado en la API.
 
@@ -106,29 +106,41 @@ PRICING: {
 2. **Cliente Ocasional**: Compra única usando lista general/pública
 3. **Cliente Suscriptor**: Plan fijo mensual con precio cerrado
 4. **Actualización Estacional**: Aplicar 10% de aumento a lista general por inflación
-5. **Renegociación**: Migrar contrato de lista estándar a lista corporativa`
+5. **Renegociación**: Migrar contrato de lista estándar a lista corporativa`,
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Documentación del sistema de precios',
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Documentación del Sistema de Precios Diferenciados' },
+        message: {
+          type: 'string',
+          example: 'Documentación del Sistema de Precios Diferenciados',
+        },
         version: { type: 'string', example: '1.0' },
         last_updated: { type: 'string', format: 'date' },
         endpoints: {
           type: 'object',
           properties: {
             contracts: { type: 'string', example: 'POST /api/orders' },
-            one_off_purchases: { type: 'string', example: 'POST /api/one-off-purchases/one-off' },
-            subscriptions: { type: 'string', example: 'POST /api/customer-subscriptions' },
+            one_off_purchases: {
+              type: 'string',
+              example: 'POST /api/one-off-purchases/one-off',
+            },
+            subscriptions: {
+              type: 'string',
+              example: 'POST /api/customer-subscriptions',
+            },
             price_lists: { type: 'string', example: 'GET /api/price-list' },
-            price_management: { type: 'string', example: 'POST /api/price-list/:id/apply-percentage' }
-          }
-        }
-      }
-    }
+            price_management: {
+              type: 'string',
+              example: 'POST /api/price-list/:id/apply-percentage',
+            },
+          },
+        },
+      },
+    },
   })
   getPricingSystemDocs() {
     return {
@@ -138,12 +150,14 @@ PRICING: {
       system_overview: {
         contracts: 'Usan listas de precios específicas del contrato',
         one_off_purchases: 'Usan Lista General/Estándar (ID: 1)',
-        subscriptions: 'Usan precio fijo del plan de suscripción'
+        subscriptions: 'Usan precio fijo del plan de suscripción',
       },
       price_flow: {
-        contracts: 'client_contract.price_list_id → price_list_item.unit_price → product.price (fallback)',
-        one_off: 'Lista General (ID: 1) → price_list_item.unit_price → product.price (fallback)',
-        subscriptions: 'subscription_plan.price (precio cerrado)'
+        contracts:
+          'client_contract.price_list_id → price_list_item.unit_price → product.price (fallback)',
+        one_off:
+          'Lista General (ID: 1) → price_list_item.unit_price → product.price (fallback)',
+        subscriptions: 'subscription_plan.price (precio cerrado)',
       },
       key_endpoints: {
         contracts: 'POST /api/orders',
@@ -151,12 +165,13 @@ PRICING: {
         subscriptions: 'POST /api/customer-subscriptions',
         price_lists: 'GET /api/price-list',
         price_management: 'POST /api/price-list/:id/apply-percentage',
-        contract_price_change: 'POST /api/persons/:personId/contracts/change-price-list'
+        contract_price_change:
+          'POST /api/persons/:personId/contracts/change-price-list',
       },
       configuration: {
         default_price_list_id: 1,
-        standard_price_list_name: 'Lista General/Estándar'
-      }
+        standard_price_list_name: 'Lista General/Estándar',
+      },
     };
   }
 }

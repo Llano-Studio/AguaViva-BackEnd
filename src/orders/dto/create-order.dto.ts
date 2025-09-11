@@ -19,7 +19,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateOrderItemDto {
   @ApiProperty({
     description: 'ID del producto a ordenar',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -28,7 +28,7 @@ export class CreateOrderItemDto {
   @ApiProperty({
     description: 'Cantidad del producto a ordenar',
     minimum: 1,
-    example: 2
+    example: 2,
   })
   @IsInt()
   @Min(1)
@@ -49,7 +49,7 @@ export class CreateOrderItemDto {
 - Productos adicionales en órdenes híbridas con descuentos especiales
 - Productos promocionales con listas temporales
 - Productos con precios diferenciados según cliente`,
-    example: 3
+    example: 3,
   })
   @IsOptional()
   @IsInt()
@@ -58,7 +58,7 @@ export class CreateOrderItemDto {
   @ApiPropertyOptional({
     description: 'Notas específicas para este producto',
     maxLength: 200,
-    example: 'Extra frío, sin gas'
+    example: 'Extra frío, sin gas',
   })
   @IsOptional()
   @IsString()
@@ -69,7 +69,7 @@ export class CreateOrderItemDto {
 export class CreateOrderDto {
   @ApiProperty({
     description: 'ID del cliente que realiza el pedido',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -77,7 +77,7 @@ export class CreateOrderDto {
 
   @ApiPropertyOptional({
     description: 'ID del contrato asociado al pedido (opcional)',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -85,7 +85,7 @@ export class CreateOrderDto {
 
   @ApiProperty({
     description: 'ID del canal de venta',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -93,7 +93,7 @@ export class CreateOrderDto {
 
   @ApiProperty({
     description: 'Fecha del pedido en formato ISO',
-    example: '2024-03-20T10:00:00Z'
+    example: '2024-03-20T10:00:00Z',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -101,7 +101,7 @@ export class CreateOrderDto {
 
   @ApiPropertyOptional({
     description: 'Fecha programada de entrega en formato ISO',
-    example: '2024-03-21T14:00:00Z'
+    example: '2024-03-21T14:00:00Z',
   })
   @IsOptional()
   @IsDateString()
@@ -110,13 +110,13 @@ export class CreateOrderDto {
   @ApiPropertyOptional({
     description: 'Horario de entrega preferido en formato HH:MM-HH:MM o HH:MM',
     example: '14:00-16:00',
-    pattern: '^([0-9]{2}:[0-9]{2}(-[0-9]{2}:[0-9]{2})?|[0-9]{2}:[0-9]{2})$'
+    pattern: '^([0-9]{2}:[0-9]{2}(-[0-9]{2}:[0-9]{2})?|[0-9]{2}:[0-9]{2})$',
   })
   @IsOptional()
   @IsString()
   @MaxLength(50)
   @Matches(/^([0-9]{2}:[0-9]{2}(-[0-9]{2}:[0-9]{2})?|[0-9]{2}:[0-9]{2})$/, {
-    message: 'delivery_time debe estar en formato HH:MM o HH:MM-HH:MM'
+    message: 'delivery_time debe estar en formato HH:MM o HH:MM-HH:MM',
   })
   delivery_time?: string;
 
@@ -130,7 +130,7 @@ export class CreateOrderDto {
 
 **Validación Automática:**
 El sistema valida que el total coincida exactamente con la suma calculada según las listas de precios de cada producto.`,
-    example: '150.00'
+    example: '150.00',
   })
   @IsDecimal({ decimal_digits: '2' })
   @IsNotEmpty()
@@ -138,7 +138,7 @@ El sistema valida que el total coincida exactamente con la suma calculada según
 
   @ApiProperty({
     description: 'Monto pagado con 2 decimales',
-    example: '150.00'
+    example: '150.00',
   })
   @IsDecimal({ decimal_digits: '2' })
   @IsNotEmpty()
@@ -153,7 +153,7 @@ El sistema valida que el total coincida exactamente con la suma calculada según
 - **CONTRACT_DELIVERY**: Entrega según contrato con precios del contrato
 - **ONE_OFF**: Compra única con listas de precios personalizables`,
     enum: OrderType,
-    example: OrderType.HYBRID
+    example: OrderType.HYBRID,
   })
   @IsEnum(OrderType)
   @IsNotEmpty()
@@ -162,7 +162,7 @@ El sistema valida que el total coincida exactamente con la suma calculada según
   @ApiProperty({
     description: 'Estado del pedido',
     enum: OrderStatus,
-    example: OrderStatus.PENDING
+    example: OrderStatus.PENDING,
   })
   @IsEnum(OrderStatus)
   @IsNotEmpty()
@@ -171,7 +171,7 @@ El sistema valida que el total coincida exactamente con la suma calculada según
   @ApiPropertyOptional({
     description: 'Notas adicionales del pedido',
     maxLength: 500,
-    example: 'Entregar en la puerta trasera'
+    example: 'Entregar en la puerta trasera',
   })
   @IsOptional()
   @IsString()
@@ -188,7 +188,7 @@ Cada producto puede tener su propia lista de precios para máxima flexibilidad:
 - Producto de suscripción: \`{ "product_id": 1, "quantity": 2 }\` (sin price_list_id = usa plan)
 - Producto adicional estándar: \`{ "product_id": 3, "quantity": 1 }\` (sin price_list_id = usa lista estándar)  
 - Producto con descuento: \`{ "product_id": 5, "quantity": 1, "price_list_id": 3 }\` (usa lista corporativa)`,
-    type: [CreateOrderItemDto]
+    type: [CreateOrderItemDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -203,9 +203,9 @@ Cada producto puede tener su propia lista de precios para máxima flexibilidad:
 - Productos que estén en el plan de suscripción usan precio del plan
 - Productos adicionales usan sus listas de precios individuales`,
     example: 1,
-    type: Number
+    type: Number,
   })
   @IsOptional()
   @IsInt()
   subscription_id?: number;
-} 
+}

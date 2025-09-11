@@ -1,1 +1,1 @@
-export class PriceListItem {} 
+export class PriceListItem {}

@@ -12,25 +12,33 @@ import { PersonType } from '../../common/constants/enums';
 
 export class CreatePersonDto {
   @ApiProperty({ example: 'Juan Pérez' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   name: string;
 
-  @ApiPropertyOptional({ example: 'Juancho', description: 'Apodo o alias del cliente' })
+  @ApiPropertyOptional({
+    example: 'Juancho',
+    description: 'Apodo o alias del cliente',
+  })
   @IsString()
   @IsOptional()
   alias?: string;
 
   @ApiProperty({ example: '3412345678' })
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   phone: string;
 
-  @ApiPropertyOptional({ example: '3412345679, 3412345680', description: 'Teléfonos adicionales separados por comas' })
+  @ApiPropertyOptional({
+    example: '3412345679, 3412345680',
+    description: 'Teléfonos adicionales separados por comas',
+  })
   @IsString()
   @IsOptional()
   additionalPhones?: string;
 
   @ApiPropertyOptional({ example: 'Av. Siempre Viva 123' })
-  @IsString() 
+  @IsString()
   @IsOptional()
   address?: string;
 
@@ -48,38 +56,38 @@ export class CreatePersonDto {
   zoneId: number;
 
   @ApiPropertyOptional({ example: '2025-04-30', type: String })
-  @IsDateString() 
+  @IsDateString()
   @IsOptional()
   registrationDate?: string;
 
-  @ApiProperty({ 
-    example: 'INDIVIDUAL', 
-    enum: PersonType, 
-    description: 'Tipo de persona (INDIVIDUAL/PLAN)' 
+  @ApiProperty({
+    example: 'INDIVIDUAL',
+    enum: PersonType,
+    description: 'Tipo de persona (INDIVIDUAL/PLAN)',
   })
   @IsEnum(PersonType)
   @IsNotEmpty()
   type: PersonType;
 
-  @ApiPropertyOptional({ 
-    example: false, 
-    description: 'Indica si el cliente posee bidones retornables propios' 
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Indica si el cliente posee bidones retornables propios',
   })
   @IsBoolean()
   @IsOptional()
   owns_returnable_containers?: boolean;
 
-  @ApiPropertyOptional({ 
-    example: true, 
-    description: 'Indica si la persona está activa' 
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Indica si la persona está activa',
   })
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
 
-  @ApiPropertyOptional({ 
-    example: 'Cliente preferencial, entregar en horario de mañana', 
-    description: 'Notas adicionales sobre el cliente' 
+  @ApiPropertyOptional({
+    example: 'Cliente preferencial, entregar en horario de mañana',
+    description: 'Notas adicionales sobre el cliente',
   })
   @IsString()
   @IsOptional()

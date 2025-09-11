@@ -1,5 +1,10 @@
 // @ts-nocheck
-import { Injectable, NotFoundException, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 interface CreateIncidentDto {
@@ -37,13 +42,15 @@ interface IncidentResponseDto {
 
 @Injectable()
 export class IncidentService extends PrismaClient {
-  
   /**
    * Registra una nueva incidencia durante una entrega
    */
-  async reportIncident(createDto: CreateIncidentDto): Promise<IncidentResponseDto> {
-    const { route_sheet_detail_id, incident_type, description, created_by } = createDto;
-    
+  async reportIncident(
+    createDto: CreateIncidentDto,
+  ): Promise<IncidentResponseDto> {
+    const { route_sheet_detail_id, incident_type, description, created_by } =
+      createDto;
+
     try {
       // 1. Verificar que el detalle existe
       const detail = await this.route_sheet_detail.findUnique({
@@ -51,25 +58,29 @@ export class IncidentService extends PrismaClient {
         include: {
           order_header: {
             include: {
-              customer: true
-            }
-          }
-        }
+              customer: true,
+            },
+          },
+        },
       });
-      
+
       if (!detail) {
-        throw new NotFoundException(`Detalle de hoja de ruta con ID ${route_sheet_detail_id} no encontrado`);
+        throw new NotFoundException(
+          `Detalle de hoja de ruta con ID ${route_sheet_detail_id} no encontrado`,
+        );
       }
-      
+
       // 2. Verificar que el usuario existe
       const user = await this.user.findUnique({
-        where: { id: created_by }
+        where: { id: created_by },
       });
-      
+
       if (!user) {
-        throw new NotFoundException(`Usuario con ID ${created_by} no encontrado`);
+        throw new NotFoundException(
+          `Usuario con ID ${created_by} no encontrado`,
+        );
       }
-      
+
       // 3. Crear la incidencia
       const incident = await this.delivery_incident.create({
         data: {
@@ -77,7 +88,7 @@ export class IncidentService extends PrismaClient {
           incident_type,
           description,
           created_by,
-          status: 'PENDING'
+          status: 'PENDING',
         },
         include: {
           creator: true,
@@ -85,35 +96,38 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true
-                }
+                  customer: true,
+                },
               },
               one_off_purchase: {
                 include: {
-                  person: true
-                }
+                  person: true,
+                },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true
-                }
-              }
-            }
-          }
-        }
+                  person: true,
+                },
+              },
+            },
+          },
+        },
       });
-      
+
       // 4. Actualizar el estado del detalle si es necesario
-      if (incident_type === 'CLIENT_ABSENT' || incident_type === 'ACCESS_ISSUE') {
+      if (
+        incident_type === 'CLIENT_ABSENT' ||
+        incident_type === 'ACCESS_ISSUE'
+      ) {
         await this.route_sheet_detail.update({
           where: { route_sheet_detail_id },
           data: {
             delivery_status: 'FAILED',
-            comments: description
-          }
+            comments: description,
+          },
         });
       }
-      
+
       // 5. Retornar la respuesta
       return {
         incident_id: incident.incident_id,
@@ -125,62 +139,78 @@ export class IncidentService extends PrismaClient {
         created_by: incident.created_by,
         creator_name: incident.creator.name,
         order_info: {
-          order_id: incident.route_sheet_detail.order_header?.order_id || 
-                   incident.route_sheet_detail.one_off_purchase?.purchase_id || 
-                   incident.route_sheet_detail.one_off_purchase_header?.purchase_header_id || 
-                   0,
-          customer_name: incident.route_sheet_detail.order_header?.customer?.name || 
-                        incident.route_sheet_detail.one_off_purchase?.person?.name || 
-                        incident.route_sheet_detail.one_off_purchase_header?.person?.name || 
-                        'Sin nombre',
-          customer_address: incident.route_sheet_detail.order_header?.customer?.address || 
-                           incident.route_sheet_detail.one_off_purchase?.person?.address || 
-                           incident.route_sheet_detail.one_off_purchase_header?.person?.address || 
-                           'Sin dirección'
-        }
+          order_id:
+            incident.route_sheet_detail.order_header?.order_id ||
+            incident.route_sheet_detail.one_off_purchase?.purchase_id ||
+            incident.route_sheet_detail.one_off_purchase_header
+              ?.purchase_header_id ||
+            0,
+          customer_name:
+            incident.route_sheet_detail.order_header?.customer?.name ||
+            incident.route_sheet_detail.one_off_purchase?.person?.name ||
+            incident.route_sheet_detail.one_off_purchase_header?.person?.name ||
+            'Sin nombre',
+          customer_address:
+            incident.route_sheet_detail.order_header?.customer?.address ||
+            incident.route_sheet_detail.one_off_purchase?.person?.address ||
+            incident.route_sheet_detail.one_off_purchase_header?.person
+              ?.address ||
+            'Sin dirección',
+        },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       console.error('Error al reportar incidencia:', error);
       throw new InternalServerErrorException('Error al reportar incidencia');
     }
   }
-  
+
   /**
    * Marca una incidencia como resuelta
    */
-  async resolveIncident(resolveDto: ResolveIncidentDto): Promise<IncidentResponseDto> {
+  async resolveIncident(
+    resolveDto: ResolveIncidentDto,
+  ): Promise<IncidentResponseDto> {
     const { incident_id, resolution, resolved_by } = resolveDto;
-    
+
     try {
       // 1. Verificar que la incidencia existe
       const incident = await this.delivery_incident.findUnique({
         where: { incident_id },
         include: {
-          route_sheet_detail: true
-        }
+          route_sheet_detail: true,
+        },
       });
-      
+
       if (!incident) {
-        throw new NotFoundException(`Incidencia con ID ${incident_id} no encontrada`);
+        throw new NotFoundException(
+          `Incidencia con ID ${incident_id} no encontrada`,
+        );
       }
-      
+
       // 2. Verificar que no esté ya resuelta
       if (incident.status === 'RESOLVED') {
-        throw new BadRequestException(`La incidencia con ID ${incident_id} ya está resuelta`);
+        throw new BadRequestException(
+          `La incidencia con ID ${incident_id} ya está resuelta`,
+        );
       }
-      
+
       // 3. Verificar que el usuario resolutor existe
       const user = await this.user.findUnique({
-        where: { id: resolved_by }
+        where: { id: resolved_by },
       });
-      
+
       if (!user) {
-        throw new NotFoundException(`Usuario con ID ${resolved_by} no encontrado`);
+        throw new NotFoundException(
+          `Usuario con ID ${resolved_by} no encontrado`,
+        );
       }
-      
+
       // 4. Actualizar la incidencia
       const updatedIncident = await this.delivery_incident.update({
         where: { incident_id },
@@ -188,7 +218,7 @@ export class IncidentService extends PrismaClient {
           status: 'RESOLVED',
           resolution,
           resolved_by,
-          resolved_at: new Date()
+          resolved_at: new Date(),
         },
         include: {
           creator: true,
@@ -197,24 +227,24 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true
-                }
+                  customer: true,
+                },
               },
               one_off_purchase: {
                 include: {
-                  person: true
-                }
+                  person: true,
+                },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true
-                }
-              }
-            }
-          }
-        }
+                  person: true,
+                },
+              },
+            },
+          },
+        },
       });
-      
+
       // 5. Extraer información del pedido
       const detail = updatedIncident.route_sheet_detail;
       let orderId: number;
@@ -224,15 +254,23 @@ export class IncidentService extends PrismaClient {
       if (detail.order_header) {
         orderId = detail.order_header.order_id;
         customerName = detail.order_header.customer.name || 'Sin nombre';
-        customerAddress = detail.order_header.customer.address || 'Sin dirección';
+        customerAddress =
+          detail.order_header.customer.address || 'Sin dirección';
       } else if (detail.one_off_purchase) {
         orderId = detail.one_off_purchase.purchase_id;
         customerName = detail.one_off_purchase.person.name || 'Sin nombre';
-        customerAddress = detail.one_off_purchase.delivery_address || detail.one_off_purchase.person.address || 'Sin dirección';
+        customerAddress =
+          detail.one_off_purchase.delivery_address ||
+          detail.one_off_purchase.person.address ||
+          'Sin dirección';
       } else if (detail.one_off_purchase_header) {
         orderId = detail.one_off_purchase_header.purchase_header_id;
-        customerName = detail.one_off_purchase_header.person.name || 'Sin nombre';
-        customerAddress = detail.one_off_purchase_header.delivery_address || detail.one_off_purchase_header.person.address || 'Sin dirección';
+        customerName =
+          detail.one_off_purchase_header.person.name || 'Sin nombre';
+        customerAddress =
+          detail.one_off_purchase_header.delivery_address ||
+          detail.one_off_purchase_header.person.address ||
+          'Sin dirección';
       } else {
         orderId = 0;
         customerName = 'Sin nombre';
@@ -256,18 +294,21 @@ export class IncidentService extends PrismaClient {
         order_info: {
           order_id: orderId,
           customer_name: customerName,
-          customer_address: customerAddress
-        }
+          customer_address: customerAddress,
+        },
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       console.error('Error al resolver incidencia:', error);
       throw new InternalServerErrorException('Error al resolver incidencia');
     }
   }
-  
+
   /**
    * Obtiene todas las incidencias pendientes
    */
@@ -292,15 +333,15 @@ export class IncidentService extends PrismaClient {
             customer: { name: string | null; address: string | null };
           } | null;
           one_off_purchase: {
-             purchase_id: number;
-             person: { name: string | null; address: string | null };
-             delivery_address: string | null;
-           } | null;
-           one_off_purchase_header: {
-             purchase_header_id: number;
-             person: { name: string | null; address: string | null };
-             delivery_address: string | null;
-           } | null;
+            purchase_id: number;
+            person: { name: string | null; address: string | null };
+            delivery_address: string | null;
+          } | null;
+          one_off_purchase_header: {
+            purchase_header_id: number;
+            person: { name: string | null; address: string | null };
+            delivery_address: string | null;
+          } | null;
         };
       }> = await this.delivery_incident.findMany({
         where: { status: 'PENDING' },
@@ -311,26 +352,26 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true
-                }
+                  customer: true,
+                },
               },
               one_off_purchase: {
                 include: {
-                  person: true
-                }
+                  person: true,
+                },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true
-                }
-              }
-            }
-          }
+                  person: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: { created_at: 'desc' }
+        orderBy: { created_at: 'desc' },
       });
-      
-      return incidents.map(incident => {
+
+      return incidents.map((incident) => {
         const detail = incident.route_sheet_detail;
         let orderId: number;
         let customerName: string;
@@ -339,15 +380,23 @@ export class IncidentService extends PrismaClient {
         if (detail.order_header) {
           orderId = detail.order_header.order_id;
           customerName = detail.order_header.customer.name || 'Sin nombre';
-          customerAddress = detail.order_header.customer.address || 'Sin dirección';
+          customerAddress =
+            detail.order_header.customer.address || 'Sin dirección';
         } else if (detail.one_off_purchase) {
           orderId = detail.one_off_purchase.purchase_id;
           customerName = detail.one_off_purchase.person.name || 'Sin nombre';
-          customerAddress = detail.one_off_purchase.delivery_address || detail.one_off_purchase.person.address || 'Sin dirección';
+          customerAddress =
+            detail.one_off_purchase.delivery_address ||
+            detail.one_off_purchase.person.address ||
+            'Sin dirección';
         } else if (detail.one_off_purchase_header) {
           orderId = detail.one_off_purchase_header.purchase_header_id;
-          customerName = detail.one_off_purchase_header.person.name || 'Sin nombre';
-          customerAddress = detail.one_off_purchase_header.delivery_address || detail.one_off_purchase_header.person.address || 'Sin dirección';
+          customerName =
+            detail.one_off_purchase_header.person.name || 'Sin nombre';
+          customerAddress =
+            detail.one_off_purchase_header.delivery_address ||
+            detail.one_off_purchase_header.person.address ||
+            'Sin dirección';
         } else {
           orderId = 0;
           customerName = 'Sin nombre';
@@ -367,20 +416,24 @@ export class IncidentService extends PrismaClient {
           order_info: {
             order_id: orderId,
             customer_name: customerName,
-            customer_address: customerAddress
-          }
+            customer_address: customerAddress,
+          },
         };
       });
     } catch (error) {
       console.error('Error al obtener incidencias pendientes:', error);
-      throw new InternalServerErrorException('Error al obtener incidencias pendientes');
+      throw new InternalServerErrorException(
+        'Error al obtener incidencias pendientes',
+      );
     }
   }
-  
+
   /**
    * Obtiene el historial de incidencias de un cliente
    */
-  async getClientIncidentHistory(clientId: number): Promise<IncidentResponseDto[]> {
+  async getClientIncidentHistory(
+    clientId: number,
+  ): Promise<IncidentResponseDto[]> {
     try {
       // Buscar incidencias donde el cliente coincida
       const incidents: Array<{
@@ -418,25 +471,25 @@ export class IncidentService extends PrismaClient {
             {
               route_sheet_detail: {
                 order_header: {
-                  customer_id: clientId
-                }
-              }
+                  customer_id: clientId,
+                },
+              },
             },
             {
               route_sheet_detail: {
                 one_off_purchase: {
-                  person_id: clientId
-                }
-              }
+                  person_id: clientId,
+                },
+              },
             },
             {
               route_sheet_detail: {
                 one_off_purchase_header: {
-                  person_id: clientId
-                }
-              }
-            }
-          ]
+                  person_id: clientId,
+                },
+              },
+            },
+          ],
         },
         include: {
           creator: true,
@@ -445,26 +498,26 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true
-                }
+                  customer: true,
+                },
               },
               one_off_purchase: {
                 include: {
-                  person: true
-                }
+                  person: true,
+                },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true
-                }
-              }
-            }
-          }
+                  person: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: { created_at: 'desc' }
+        orderBy: { created_at: 'desc' },
       });
-      
-      return incidents.map(incident => {
+
+      return incidents.map((incident) => {
         const detail = incident.route_sheet_detail;
         let orderId: number;
         let customerName: string;
@@ -473,15 +526,23 @@ export class IncidentService extends PrismaClient {
         if (detail.order_header) {
           orderId = detail.order_header.order_id;
           customerName = detail.order_header.customer.name || 'Sin nombre';
-          customerAddress = detail.order_header.customer.address || 'Sin dirección';
+          customerAddress =
+            detail.order_header.customer.address || 'Sin dirección';
         } else if (detail.one_off_purchase) {
           orderId = detail.one_off_purchase.purchase_id;
           customerName = detail.one_off_purchase.person.name || 'Sin nombre';
-          customerAddress = detail.one_off_purchase.delivery_address || detail.one_off_purchase.person.address || 'Sin dirección';
+          customerAddress =
+            detail.one_off_purchase.delivery_address ||
+            detail.one_off_purchase.person.address ||
+            'Sin dirección';
         } else if (detail.one_off_purchase_header) {
           orderId = detail.one_off_purchase_header.purchase_header_id;
-          customerName = detail.one_off_purchase_header.person.name || 'Sin nombre';
-          customerAddress = detail.one_off_purchase_header.delivery_address || detail.one_off_purchase_header.person.address || 'Sin dirección';
+          customerName =
+            detail.one_off_purchase_header.person.name || 'Sin nombre';
+          customerAddress =
+            detail.one_off_purchase_header.delivery_address ||
+            detail.one_off_purchase_header.person.address ||
+            'Sin dirección';
         } else {
           orderId = 0;
           customerName = 'Sin nombre';
@@ -504,16 +565,21 @@ export class IncidentService extends PrismaClient {
           order_info: {
             order_id: orderId,
             customer_name: customerName,
-            customer_address: customerAddress
-          }
+            customer_address: customerAddress,
+          },
         };
       });
     } catch (error) {
-      console.error(`Error al obtener historial de incidencias del cliente ${clientId}:`, error);
-      throw new InternalServerErrorException(`Error al obtener historial de incidencias del cliente ${clientId}`);
+      console.error(
+        `Error al obtener historial de incidencias del cliente ${clientId}:`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        `Error al obtener historial de incidencias del cliente ${clientId}`,
+      );
     }
   }
-  
+
   /**
    * Obtiene las estadísticas de incidencias
    */
@@ -523,63 +589,70 @@ export class IncidentService extends PrismaClient {
       const incidentsByType = await this.delivery_incident.groupBy({
         by: ['incident_type'],
         _count: {
-          incident_id: true
-        }
+          incident_id: true,
+        },
       });
-      
+
       // Contar incidencias por estado
       const incidentsByStatus = await this.delivery_incident.groupBy({
         by: ['status'],
         _count: {
-          incident_id: true
-        }
+          incident_id: true,
+        },
       });
-      
+
       // Obtener tiempo promedio de resolución para incidencias resueltas
       const resolvedIncidents = await this.delivery_incident.findMany({
         where: {
           status: 'RESOLVED',
-          resolved_at: { not: null }
+          resolved_at: { not: null },
         },
         select: {
           created_at: true,
-          resolved_at: true
-        }
+          resolved_at: true,
+        },
       });
-      
+
       let avgResolutionTimeHours = 0;
-      
+
       if (resolvedIncidents.length > 0) {
         const totalHours = resolvedIncidents.reduce((sum, incident) => {
           if (incident.resolved_at) {
-            const diffMs = incident.resolved_at.getTime() - incident.created_at.getTime();
+            const diffMs =
+              incident.resolved_at.getTime() - incident.created_at.getTime();
             const diffHours = diffMs / (1000 * 60 * 60);
             return sum + diffHours;
           }
           return sum;
         }, 0);
-        
+
         avgResolutionTimeHours = totalHours / resolvedIncidents.length;
       }
-      
+
       // Retornar estadísticas
       return {
         total_incidents: await this.delivery_incident.count(),
-        pending_incidents: await this.delivery_incident.count({ where: { status: 'PENDING' } }),
-        resolved_incidents: await this.delivery_incident.count({ where: { status: 'RESOLVED' } }),
-        by_type: incidentsByType.map(it => ({
+        pending_incidents: await this.delivery_incident.count({
+          where: { status: 'PENDING' },
+        }),
+        resolved_incidents: await this.delivery_incident.count({
+          where: { status: 'RESOLVED' },
+        }),
+        by_type: incidentsByType.map((it) => ({
           type: it.incident_type,
-          count: it._count.incident_id
+          count: it._count.incident_id,
         })),
-        by_status: incidentsByStatus.map(it => ({
+        by_status: incidentsByStatus.map((it) => ({
           status: it.status,
-          count: it._count.incident_id
+          count: it._count.incident_id,
         })),
-        avg_resolution_time_hours: avgResolutionTimeHours.toFixed(2)
+        avg_resolution_time_hours: avgResolutionTimeHours.toFixed(2),
       };
     } catch (error) {
       console.error('Error al obtener estadísticas de incidencias:', error);
-      throw new InternalServerErrorException('Error al obtener estadísticas de incidencias');
+      throw new InternalServerErrorException(
+        'Error al obtener estadísticas de incidencias',
+      );
     }
   }
 }

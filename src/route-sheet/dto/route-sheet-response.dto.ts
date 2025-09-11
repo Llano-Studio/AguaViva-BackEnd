@@ -3,25 +3,25 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CustomerDto {
   @ApiProperty({
     description: 'ID del cliente',
-    example: 1
+    example: 1,
   })
   person_id: number;
 
   @ApiProperty({
     description: 'Nombre del cliente',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   name: string;
 
   @ApiProperty({
     description: 'Teléfono del cliente',
-    example: '+541155556666'
+    example: '+541155556666',
   })
   phone: string;
 
   @ApiProperty({
     description: 'Dirección del cliente',
-    example: 'Av. Rivadavia 1234'
+    example: 'Av. Rivadavia 1234',
   })
   address: string;
 }
@@ -29,13 +29,13 @@ export class CustomerDto {
 export class ProductDto {
   @ApiProperty({
     description: 'ID del producto',
-    example: 1
+    example: 1,
   })
   product_id: number;
 
   @ApiProperty({
     description: 'Descripción del producto',
-    example: 'Botellón de agua 20L'
+    example: 'Botellón de agua 20L',
   })
   description: string;
 }
@@ -43,31 +43,31 @@ export class ProductDto {
 export class OrderItemDto {
   @ApiProperty({
     description: 'ID del ítem del pedido',
-    example: 1
+    example: 1,
   })
   order_item_id: number;
 
   @ApiProperty({
     description: 'Producto',
-    type: ProductDto
+    type: ProductDto,
   })
   product: ProductDto;
 
   @ApiProperty({
     description: 'Cantidad',
-    example: 2
+    example: 2,
   })
   quantity: number;
 
   @ApiProperty({
     description: 'Cantidad entregada',
-    example: 0
+    example: 0,
   })
   delivered_quantity: number;
 
   @ApiProperty({
     description: 'Cantidad devuelta',
-    example: 0
+    example: 0,
   })
   returned_quantity: number;
 }
@@ -75,37 +75,37 @@ export class OrderItemDto {
 export class OrderDto {
   @ApiProperty({
     description: 'ID del pedido',
-    example: 1
+    example: 1,
   })
   order_id: number;
 
   @ApiProperty({
     description: 'Fecha del pedido',
-    example: '2023-07-10T15:00:00Z'
+    example: '2023-07-10T15:00:00Z',
   })
   order_date: string;
 
   @ApiProperty({
     description: 'Monto total',
-    example: '1500.00'
+    example: '1500.00',
   })
   total_amount: string;
 
   @ApiProperty({
     description: 'Estado del pedido',
-    example: 'PENDING'
+    example: 'PENDING',
   })
   status: string;
 
   @ApiProperty({
     description: 'Cliente',
-    type: CustomerDto
+    type: CustomerDto,
   })
   customer: CustomerDto;
 
   @ApiProperty({
     description: 'Ítems del pedido',
-    type: [OrderItemDto]
+    type: [OrderItemDto],
   })
   items: OrderItemDto[];
 }
@@ -113,54 +113,56 @@ export class OrderDto {
 export class RouteSheetDetailResponseDto {
   @ApiProperty({
     description: 'ID del detalle de hoja de ruta',
-    example: 1
+    example: 1,
   })
   route_sheet_detail_id: number;
 
   @ApiProperty({
     description: 'ID de la hoja de ruta',
-    example: 1
+    example: 1,
   })
   route_sheet_id: number;
 
   @ApiProperty({
     description: 'Pedido a entregar',
     type: OrderDto,
-    required: false
+    required: false,
   })
   order?: OrderDto;
 
   @ApiProperty({
     description: 'Estado de la entrega',
-    example: 'PENDING'
+    example: 'PENDING',
   })
   delivery_status: string;
 
   @ApiProperty({
-    description: 'Horario de entrega. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    description:
+      'Horario de entrega. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
     example: '08:00-16:00',
-    required: false
+    required: false,
   })
   delivery_time?: string;
 
   @ApiProperty({
     description: 'Comentarios',
     example: 'Llamar al cliente antes de entregar',
-    required: false
+    required: false,
   })
   comments?: string;
 
   @ApiProperty({
     description: 'ID de firma digital',
     example: 'sign-123-456',
-    required: false
+    required: false,
   })
   digital_signature_id?: string;
 
   @ApiProperty({
-    description: 'Indica si esta es la entrega actual que el chofer debe atender',
+    description:
+      'Indica si esta es la entrega actual que el chofer debe atender',
     example: true,
-    required: false // Se calculará en el backend
+    required: false, // Se calculará en el backend
   })
   is_current_delivery?: boolean;
 }
@@ -168,19 +170,19 @@ export class RouteSheetDetailResponseDto {
 export class DriverDto {
   @ApiProperty({
     description: 'ID del chofer',
-    example: 1
+    example: 1,
   })
   id: number;
 
   @ApiProperty({
     description: 'Nombre del chofer',
-    example: 'Carlos Rodríguez'
+    example: 'Carlos Rodríguez',
   })
   name: string;
 
   @ApiProperty({
     description: 'Email del chofer',
-    example: 'carlos@example.com'
+    example: 'carlos@example.com',
   })
   email: string;
 }
@@ -188,19 +190,19 @@ export class DriverDto {
 export class VehicleDto {
   @ApiProperty({
     description: 'ID del vehículo',
-    example: 1
+    example: 1,
   })
   vehicle_id: number;
 
   @ApiProperty({
     description: 'Código del vehículo',
-    example: 'TRK-001'
+    example: 'TRK-001',
   })
   code: string;
 
   @ApiProperty({
     description: 'Nombre del vehículo',
-    example: 'Camión Mercedes'
+    example: 'Camión Mercedes',
   })
   name: string;
 }
@@ -208,38 +210,38 @@ export class VehicleDto {
 export class RouteSheetResponseDto {
   @ApiProperty({
     description: 'ID de la hoja de ruta',
-    example: 1
+    example: 1,
   })
   route_sheet_id: number;
 
   @ApiProperty({
     description: 'Conductor asignado',
-    type: DriverDto
+    type: DriverDto,
   })
   driver: DriverDto;
 
   @ApiProperty({
     description: 'Vehículo asignado',
-    type: VehicleDto
+    type: VehicleDto,
   })
   vehicle: VehicleDto;
 
   @ApiProperty({
     description: 'Fecha de entrega',
-    example: '2023-07-15'
+    example: '2023-07-15',
   })
   delivery_date: string;
 
   @ApiProperty({
     description: 'Notas sobre la ruta',
     example: 'Ruta por zona norte',
-    required: false
+    required: false,
   })
   route_notes?: string;
 
   @ApiProperty({
     description: 'Detalles de las entregas',
-    type: [RouteSheetDetailResponseDto]
+    type: [RouteSheetDetailResponseDto],
   })
   details: RouteSheetDetailResponseDto[];
 

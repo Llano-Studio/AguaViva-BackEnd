@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
 
 export interface ProductQuotaInfo {
@@ -8,8 +13,8 @@ export interface ProductQuotaInfo {
   delivered_quantity: number;
   remaining_balance: number;
   requested_quantity: number;
-  covered_by_subscription: number;  // Cantidad cubierta por suscripción (precio $0)
-  additional_quantity: number;      // Cantidad adicional que debe pagar
+  covered_by_subscription: number; // Cantidad cubierta por suscripción (precio $0)
+  additional_quantity: number; // Cantidad adicional que debe pagar
 }
 
 export interface SubscriptionQuotaValidation {
@@ -26,8 +31,10 @@ export interface SubscriptionQuotaValidation {
 }
 
 @Injectable()
-export class SubscriptionQuotaService extends PrismaClient implements OnModuleInit {
-  
+export class SubscriptionQuotaService
+  extends PrismaClient
+  implements OnModuleInit
+{
   async onModuleInit() {
     await this.$connect();
   }
@@ -35,33 +42,39 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
   /**
    * Obtiene el ciclo actual activo para una suscripción
    */
-  private async getCurrentActiveCycle(subscriptionId: number, tx?: Prisma.TransactionClient) {
+  private async getCurrentActiveCycle(
+    subscriptionId: number,
+    tx?: Prisma.TransactionClient,
+  ) {
     const prisma = tx || this;
     const today = new Date();
-    
+
     return await prisma.subscription_cycle.findFirst({
       where: {
         subscription_id: subscriptionId,
         cycle_start: { lte: today },
-        cycle_end: { gte: today }
+        cycle_end: { gte: today },
       },
       include: {
         subscription_cycle_detail: {
           include: {
-            product: true
-          }
-        }
+            product: true,
+          },
+        },
       },
-      orderBy: { cycle_start: 'desc' }
+      orderBy: { cycle_start: 'desc' },
     });
   }
 
   /**
    * Crea un nuevo ciclo si no existe uno activo
    */
-  private async createNewCycleIfNeeded(subscriptionId: number, tx?: Prisma.TransactionClient) {
+  private async createNewCycleIfNeeded(
+    subscriptionId: number,
+    tx?: Prisma.TransactionClient,
+  ) {
     const prisma = tx || this;
-    
+
     // Obtener suscripción con su plan
     const subscription = await prisma.customer_subscription.findUnique({
       where: { subscription_id: subscriptionId },
@@ -69,19 +82,23 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
         subscription_plan: {
           include: {
             subscription_plan_product: {
-              include: { product: true }
-            }
-          }
-        }
-      }
+              include: { product: true },
+            },
+          },
+        },
+      },
     });
 
     if (!subscription) {
-      throw new NotFoundException(`Suscripción con ID ${subscriptionId} no encontrada.`);
+      throw new NotFoundException(
+        `Suscripción con ID ${subscriptionId} no encontrada.`,
+      );
     }
 
     if (subscription.status !== SubscriptionStatus.ACTIVE) {
-      throw new BadRequestException(`La suscripción con ID ${subscriptionId} no está activa.`);
+      throw new BadRequestException(
+        `La suscripción con ID ${subscriptionId} no está activa.`,
+      );
     }
 
     const today = new Date();
@@ -90,71 +107,82 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     // Calcular fechas del nuevo ciclo
     const cycleStart = new Date(today);
     const cycleEnd = new Date(today);
-    cycleEnd.setDate(cycleStart.getDate() + (subscription.subscription_plan.default_cycle_days || 30));
+    cycleEnd.setDate(
+      cycleStart.getDate() +
+        (subscription.subscription_plan.default_cycle_days || 30),
+    );
     cycleEnd.setHours(23, 59, 59, 999);
 
-         // Crear el nuevo ciclo
-     const newCycle = await prisma.subscription_cycle.create({
-       data: {
-         subscription_id: subscriptionId,
-         cycle_start: cycleStart,
-         cycle_end: cycleEnd,
-         notes: 'Ciclo creado automáticamente por sistema de cuotas'
-       }
-     });
-     
-     console.log(`🆕 DEBUG - Ciclo creado con ID: ${newCycle.cycle_id}`);
-     console.log(`🆕 DEBUG - Fechas: ${cycleStart.toISOString()} - ${cycleEnd.toISOString()}`);
+    // Crear el nuevo ciclo
+    const newCycle = await prisma.subscription_cycle.create({
+      data: {
+        subscription_id: subscriptionId,
+        cycle_start: cycleStart,
+        cycle_end: cycleEnd,
+        notes: 'Ciclo creado automáticamente por sistema de cuotas',
+      },
+    });
 
-         // Crear los detalles del ciclo con las cantidades planificadas
-     for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
-       console.log(`🆕 DEBUG - Creando detalle para producto ${planProduct.product_id}:`);
-       console.log(`  - Cantidad planificada: ${planProduct.product_quantity}`);
-       console.log(`  - Cantidad entregada: 0`);
-       console.log(`  - Balance restante: ${planProduct.product_quantity}`);
-       
-       await prisma.subscription_cycle_detail.create({
-         data: {
-           cycle_id: newCycle.cycle_id,
-           product_id: planProduct.product_id,
-           planned_quantity: planProduct.product_quantity,
-           delivered_quantity: 0,
-           remaining_balance: planProduct.product_quantity
-         }
-       });
-     }
+    console.log(`🆕 DEBUG - Ciclo creado con ID: ${newCycle.cycle_id}`);
+    console.log(
+      `🆕 DEBUG - Fechas: ${cycleStart.toISOString()} - ${cycleEnd.toISOString()}`,
+    );
 
-         // Recargar el ciclo con todas las relaciones necesarias
-     const reloadedCycle = await prisma.subscription_cycle.findUnique({
-       where: { cycle_id: newCycle.cycle_id },
-       include: {
-         subscription_cycle_detail: {
-           include: {
-             product: true
-           }
-         }
-       }
-     });
-     
-     console.log(`🆕 DEBUG - Ciclo recargado:`);
-     console.log(`  - ID del ciclo: ${reloadedCycle?.cycle_id}`);
-     console.log(`  - Detalles del ciclo:`, reloadedCycle?.subscription_cycle_detail.map(d => ({
-       product_id: d.product_id,
-       planned_quantity: d.planned_quantity,
-       delivered_quantity: d.delivered_quantity,
-       remaining_balance: d.remaining_balance
-     })));
-     
-     return reloadedCycle;
+    // Crear los detalles del ciclo con las cantidades planificadas
+    for (const planProduct of subscription.subscription_plan
+      .subscription_plan_product) {
+      console.log(
+        `🆕 DEBUG - Creando detalle para producto ${planProduct.product_id}:`,
+      );
+      console.log(`  - Cantidad planificada: ${planProduct.product_quantity}`);
+      console.log(`  - Cantidad entregada: 0`);
+      console.log(`  - Balance restante: ${planProduct.product_quantity}`);
+
+      await prisma.subscription_cycle_detail.create({
+        data: {
+          cycle_id: newCycle.cycle_id,
+          product_id: planProduct.product_id,
+          planned_quantity: planProduct.product_quantity,
+          delivered_quantity: 0,
+          remaining_balance: planProduct.product_quantity,
+        },
+      });
+    }
+
+    // Recargar el ciclo con todas las relaciones necesarias
+    const reloadedCycle = await prisma.subscription_cycle.findUnique({
+      where: { cycle_id: newCycle.cycle_id },
+      include: {
+        subscription_cycle_detail: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    console.log(`🆕 DEBUG - Ciclo recargado:`);
+    console.log(`  - ID del ciclo: ${reloadedCycle?.cycle_id}`);
+    console.log(
+      `  - Detalles del ciclo:`,
+      reloadedCycle?.subscription_cycle_detail.map((d) => ({
+        product_id: d.product_id,
+        planned_quantity: d.planned_quantity,
+        delivered_quantity: d.delivered_quantity,
+        remaining_balance: d.remaining_balance,
+      })),
+    );
+
+    return reloadedCycle;
   }
 
   /**
    * Valida las cuotas de suscripción para una orden y calcula qué productos son adicionales
    */
   async validateSubscriptionQuotas(
-    subscriptionId: number, 
+    subscriptionId: number,
     requestedProducts: { product_id: number; quantity: number }[],
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<SubscriptionQuotaValidation> {
     const prisma = tx || this;
 
@@ -163,7 +191,7 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
 
     // Obtener o crear ciclo actual
     let currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
-    
+
     if (!currentCycle) {
       console.log(`🆕 No hay ciclo activo, creando nuevo ciclo...`);
       currentCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
@@ -172,44 +200,63 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     }
 
     if (!currentCycle) {
-      throw new BadRequestException(`No se pudo obtener o crear un ciclo activo para la suscripción ${subscriptionId}.`);
+      throw new BadRequestException(
+        `No se pudo obtener o crear un ciclo activo para la suscripción ${subscriptionId}.`,
+      );
     }
 
-    // Los ciclos se renuevan automáticamente solo por fecha (mensualmente), 
-    // no por agotamiento de créditos. Si no hay créditos disponibles, 
+    // Los ciclos se renuevan automáticamente solo por fecha (mensualmente),
+    // no por agotamiento de créditos. Si no hay créditos disponibles,
     // los productos adicionales se cobran como productos individuales.
 
     console.log(`🆕 Ciclo actual encontrado: ${currentCycle.cycle_id}`);
-    console.log(`🆕 Detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
-      product_id: d.product_id,
-      product_name: d.product.description,
-      planned_quantity: d.planned_quantity,
-      remaining_balance: d.remaining_balance
-    })));
+    console.log(
+      `🆕 Detalles del ciclo:`,
+      currentCycle.subscription_cycle_detail.map((d) => ({
+        product_id: d.product_id,
+        product_name: d.product.description,
+        planned_quantity: d.planned_quantity,
+        remaining_balance: d.remaining_balance,
+      })),
+    );
 
     const productQuotas: ProductQuotaInfo[] = [];
     let hasAdditionalCharges = false;
 
     for (const requestedProduct of requestedProducts) {
-      console.log(`🆕 Validando producto ${requestedProduct.product_id} (cantidad: ${requestedProduct.quantity})`);
-      
+      console.log(
+        `🆕 Validando producto ${requestedProduct.product_id} (cantidad: ${requestedProduct.quantity})`,
+      );
+
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
-        detail => detail.product_id === requestedProduct.product_id
+        (detail) => detail.product_id === requestedProduct.product_id,
       );
 
       if (cycleDetail) {
-        console.log(`🆕 ✅ Producto ${requestedProduct.product_id} ENCONTRADO en ciclo`);
+        console.log(
+          `🆕 ✅ Producto ${requestedProduct.product_id} ENCONTRADO en ciclo`,
+        );
         console.log(`🆕   - Planificado: ${cycleDetail.planned_quantity}`);
         console.log(`🆕   - Entregado: ${cycleDetail.delivered_quantity}`);
-        console.log(`🆕   - Balance restante: ${cycleDetail.remaining_balance}`);
-        
+        console.log(
+          `🆕   - Balance restante: ${cycleDetail.remaining_balance}`,
+        );
+
         // Producto está en el plan de suscripción
         const availableBalance = Math.max(0, cycleDetail.remaining_balance);
-        const coveredBySubscription = Math.min(requestedProduct.quantity, availableBalance);
-        const additionalQuantity = Math.max(0, requestedProduct.quantity - coveredBySubscription);
+        const coveredBySubscription = Math.min(
+          requestedProduct.quantity,
+          availableBalance,
+        );
+        const additionalQuantity = Math.max(
+          0,
+          requestedProduct.quantity - coveredBySubscription,
+        );
 
         console.log(`🆕   - Balance disponible: ${availableBalance}`);
-        console.log(`🆕   - Cubierto por suscripción: ${coveredBySubscription}`);
+        console.log(
+          `🆕   - Cubierto por suscripción: ${coveredBySubscription}`,
+        );
         console.log(`🆕   - Cantidad adicional: ${additionalQuantity}`);
 
         if (additionalQuantity > 0) {
@@ -224,13 +271,15 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
           remaining_balance: cycleDetail.remaining_balance,
           requested_quantity: requestedProduct.quantity,
           covered_by_subscription: coveredBySubscription,
-          additional_quantity: additionalQuantity
+          additional_quantity: additionalQuantity,
         });
       } else {
-        console.log(`🆕 ❌ Producto ${requestedProduct.product_id} NO encontrado en ciclo`);
+        console.log(
+          `🆕 ❌ Producto ${requestedProduct.product_id} NO encontrado en ciclo`,
+        );
         // Producto NO está en el plan → todo es adicional
         const product = await prisma.product.findUnique({
-          where: { product_id: requestedProduct.product_id }
+          where: { product_id: requestedProduct.product_id },
         });
 
         productQuotas.push({
@@ -241,7 +290,7 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
           remaining_balance: 0,
           requested_quantity: requestedProduct.quantity,
           covered_by_subscription: 0,
-          additional_quantity: requestedProduct.quantity
+          additional_quantity: requestedProduct.quantity,
         });
 
         hasAdditionalCharges = true;
@@ -251,9 +300,11 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
     // Obtener información de recargos por mora del ciclo actual
     const lateFeeInfo = {
       is_overdue: currentCycle.is_overdue || false,
-      late_fee_percentage: currentCycle.late_fee_percentage ? parseFloat(currentCycle.late_fee_percentage.toString()) : 0,
+      late_fee_percentage: currentCycle.late_fee_percentage
+        ? parseFloat(currentCycle.late_fee_percentage.toString())
+        : 0,
       late_fee_applied: currentCycle.late_fee_applied || false,
-      payment_due_date: currentCycle.payment_due_date || undefined
+      payment_due_date: currentCycle.payment_due_date || undefined,
     };
 
     return {
@@ -261,7 +312,7 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       current_cycle_id: currentCycle.cycle_id,
       products: productQuotas,
       has_additional_charges: hasAdditionalCharges,
-      late_fee_info: lateFeeInfo
+      late_fee_info: lateFeeInfo,
     };
   }
 
@@ -271,31 +322,40 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
   async updateDeliveredQuantities(
     subscriptionId: number,
     deliveredProducts: { product_id: number; quantity: number }[],
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const prisma = tx || this;
 
-    const currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
+    const currentCycle = await this.getCurrentActiveCycle(
+      subscriptionId,
+      prisma,
+    );
     if (!currentCycle) {
-      throw new BadRequestException(`No hay un ciclo activo para la suscripción ${subscriptionId}.`);
+      throw new BadRequestException(
+        `No hay un ciclo activo para la suscripción ${subscriptionId}.`,
+      );
     }
 
     for (const deliveredProduct of deliveredProducts) {
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
-        detail => detail.product_id === deliveredProduct.product_id
+        (detail) => detail.product_id === deliveredProduct.product_id,
       );
 
       if (cycleDetail) {
         // Solo actualizar productos que están en el plan
-        const newDeliveredQuantity = cycleDetail.delivered_quantity + deliveredProduct.quantity;
-        const newRemainingBalance = Math.max(0, cycleDetail.planned_quantity - newDeliveredQuantity);
+        const newDeliveredQuantity =
+          cycleDetail.delivered_quantity + deliveredProduct.quantity;
+        const newRemainingBalance = Math.max(
+          0,
+          cycleDetail.planned_quantity - newDeliveredQuantity,
+        );
 
         await prisma.subscription_cycle_detail.update({
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
             delivered_quantity: newDeliveredQuantity,
-            remaining_balance: newRemainingBalance
-          }
+            remaining_balance: newRemainingBalance,
+          },
         });
       }
     }
@@ -304,26 +364,31 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
   /**
    * Obtiene el resumen de créditos disponibles para un cliente
    */
-  async getAvailableCredits(subscriptionId: number): Promise<ProductQuotaInfo[]> {
+  async getAvailableCredits(
+    subscriptionId: number,
+  ): Promise<ProductQuotaInfo[]> {
     console.log(`🆕 GET AVAILABLE CREDITS - Suscripción ${subscriptionId}`);
-    
+
     const currentCycle = await this.getCurrentActiveCycle(subscriptionId);
-    
+
     if (!currentCycle) {
       console.log(`  - ❌ No hay ciclo activo`);
       return [];
     }
 
     console.log(`  - ✅ Ciclo encontrado: ${currentCycle.cycle_id}`);
-    console.log(`  - Detalles del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
-      product_id: d.product_id,
-      product_name: d.product.description,
-      planned_quantity: d.planned_quantity,
-      delivered_quantity: d.delivered_quantity,
-      remaining_balance: d.remaining_balance
-    })));
+    console.log(
+      `  - Detalles del ciclo:`,
+      currentCycle.subscription_cycle_detail.map((d) => ({
+        product_id: d.product_id,
+        product_name: d.product.description,
+        planned_quantity: d.planned_quantity,
+        delivered_quantity: d.delivered_quantity,
+        remaining_balance: d.remaining_balance,
+      })),
+    );
 
-    return currentCycle.subscription_cycle_detail.map(detail => ({
+    return currentCycle.subscription_cycle_detail.map((detail) => ({
       product_id: detail.product_id,
       product_description: detail.product.description,
       planned_quantity: detail.planned_quantity,
@@ -331,7 +396,7 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
       remaining_balance: detail.remaining_balance,
       requested_quantity: 0,
       covered_by_subscription: 0,
-      additional_quantity: 0
+      additional_quantity: 0,
     }));
   }
 
@@ -342,42 +407,56 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
   async resetCreditsForDeletedOrder(
     subscriptionId: number,
     orderItems: { product_id: number; quantity: number }[],
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const prisma = tx || this;
 
     console.log(`🆕 REINICIANDO CRÉDITOS para suscripción ${subscriptionId}:`);
     console.log(`  - Productos a reiniciar:`, orderItems);
 
-    const currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
+    const currentCycle = await this.getCurrentActiveCycle(
+      subscriptionId,
+      prisma,
+    );
     if (!currentCycle) {
       console.log(`  - ❌ No hay ciclo activo, no hay nada que reiniciar`);
       return; // No hay ciclo activo, no hay nada que reiniciar
     }
 
     console.log(`  - Ciclo actual: ${currentCycle.cycle_id}`);
-    console.log(`  - Estado actual del ciclo:`, currentCycle.subscription_cycle_detail.map(d => ({
-      product_id: d.product_id,
-      planned_quantity: d.planned_quantity,
-      delivered_quantity: d.delivered_quantity,
-      remaining_balance: d.remaining_balance
-    })));
+    console.log(
+      `  - Estado actual del ciclo:`,
+      currentCycle.subscription_cycle_detail.map((d) => ({
+        product_id: d.product_id,
+        planned_quantity: d.planned_quantity,
+        delivered_quantity: d.delivered_quantity,
+        remaining_balance: d.remaining_balance,
+      })),
+    );
 
     for (const orderItem of orderItems) {
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
-        detail => detail.product_id === orderItem.product_id
+        (detail) => detail.product_id === orderItem.product_id,
       );
 
       if (cycleDetail) {
         console.log(`  - Reiniciando producto ${orderItem.product_id}:`);
         console.log(`    - Cantidad a reiniciar: ${orderItem.quantity}`);
-        console.log(`    - Entregado actual: ${cycleDetail.delivered_quantity}`);
-        
+        console.log(
+          `    - Entregado actual: ${cycleDetail.delivered_quantity}`,
+        );
+
         // Solo reiniciar créditos para productos que están en el plan de suscripción
         // Los productos adicionales no afectan los créditos
-        const newDeliveredQuantity = Math.max(0, cycleDetail.delivered_quantity - orderItem.quantity);
-        const newRemainingBalance = Math.max(0, cycleDetail.planned_quantity - newDeliveredQuantity);
-        
+        const newDeliveredQuantity = Math.max(
+          0,
+          cycleDetail.delivered_quantity - orderItem.quantity,
+        );
+        const newRemainingBalance = Math.max(
+          0,
+          cycleDetail.planned_quantity - newDeliveredQuantity,
+        );
+
         console.log(`    - Nuevo entregado: ${newDeliveredQuantity}`);
         console.log(`    - Nuevo balance restante: ${newRemainingBalance}`);
 
@@ -385,16 +464,18 @@ export class SubscriptionQuotaService extends PrismaClient implements OnModuleIn
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
             delivered_quantity: newDeliveredQuantity,
-            remaining_balance: newRemainingBalance
-          }
+            remaining_balance: newRemainingBalance,
+          },
         });
-        
+
         console.log(`    - ✅ Actualizado exitosamente`);
       } else {
-        console.log(`  - ⚠️ Producto ${orderItem.product_id} no está en el plan de suscripción`);
+        console.log(
+          `  - ⚠️ Producto ${orderItem.product_id} no está en el plan de suscripción`,
+        );
       }
     }
-    
+
     console.log(`  - ✅ Reinicio de créditos completado`);
   }
 }

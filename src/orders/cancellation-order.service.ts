@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaClient, CancellationOrderStatus, Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
@@ -59,11 +64,13 @@ export class CancellationOrderService extends PrismaClient {
    */
   async createCancellationOrder(
     dto: CreateCancellationOrderDto,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
     const prisma = tx || this;
 
-    this.logger.log(`Creating cancellation order for subscription ${dto.subscription_id}`);
+    this.logger.log(
+      `Creating cancellation order for subscription ${dto.subscription_id}`,
+    );
 
     // Verificar que la suscripción existe y está cancelada
     const subscription = await prisma.customer_subscription.findUnique({
@@ -73,20 +80,24 @@ export class CancellationOrderService extends PrismaClient {
           include: {
             subscription_plan_product: {
               include: {
-                product: true
-              }
-            }
-          }
-        }
-      }
+                product: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!subscription) {
-      throw new NotFoundException(`Suscripción con ID ${dto.subscription_id} no encontrada`);
+      throw new NotFoundException(
+        `Suscripción con ID ${dto.subscription_id} no encontrada`,
+      );
     }
 
     if (subscription.status !== 'CANCELLED') {
-      throw new BadRequestException('Solo se pueden crear órdenes de cancelación para suscripciones canceladas');
+      throw new BadRequestException(
+        'Solo se pueden crear órdenes de cancelación para suscripciones canceladas',
+      );
     }
 
     // Verificar si ya existe una orden de cancelación para esta suscripción
@@ -94,13 +105,19 @@ export class CancellationOrderService extends PrismaClient {
       where: {
         subscription_id: dto.subscription_id,
         status: {
-          in: [CancellationOrderStatus.PENDING, CancellationOrderStatus.SCHEDULED, CancellationOrderStatus.IN_PROGRESS]
-        }
-      }
+          in: [
+            CancellationOrderStatus.PENDING,
+            CancellationOrderStatus.SCHEDULED,
+            CancellationOrderStatus.IN_PROGRESS,
+          ],
+        },
+      },
     });
 
     if (existingOrder) {
-      throw new BadRequestException('Ya existe una orden de cancelación activa para esta suscripción');
+      throw new BadRequestException(
+        'Ya existe una orden de cancelación activa para esta suscripción',
+      );
     }
 
     const cancellationOrder = await prisma.cancellation_order.create({
@@ -109,20 +126,22 @@ export class CancellationOrderService extends PrismaClient {
         scheduled_collection_date: dto.scheduled_collection_date,
         status: CancellationOrderStatus.PENDING,
         notes: dto.notes,
-        rescheduled_count: 0
+        rescheduled_count: 0,
       },
       include: {
         customer_subscription: {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true
-          }
-        }
-      }
+            status: true,
+          },
+        },
+      },
     });
 
-    this.logger.log(`Created cancellation order ${cancellationOrder.cancellation_order_id} for subscription ${dto.subscription_id}`);
+    this.logger.log(
+      `Created cancellation order ${cancellationOrder.cancellation_order_id} for subscription ${dto.subscription_id}`,
+    );
 
     return this.mapToResponseDto(cancellationOrder);
   }
@@ -163,24 +182,24 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true
-          }
+            status: true,
+          },
         },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true
-          }
-        }
+            vehicle_id: true,
+          },
+        },
       },
       orderBy: {
-        scheduled_collection_date: 'asc'
-      }
+        scheduled_collection_date: 'asc',
+      },
     });
 
-    return orders.map(order => this.mapToResponseDto(order));
+    return orders.map((order) => this.mapToResponseDto(order));
   }
 
   /**
@@ -194,22 +213,24 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true
-          }
+            status: true,
+          },
         },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true
-          }
-        }
-      }
+            vehicle_id: true,
+          },
+        },
+      },
     });
 
     if (!order) {
-      throw new NotFoundException(`Orden de cancelación con ID ${id} no encontrada`);
+      throw new NotFoundException(
+        `Orden de cancelación con ID ${id} no encontrada`,
+      );
     }
 
     return this.mapToResponseDto(order);
@@ -221,7 +242,7 @@ export class CancellationOrderService extends PrismaClient {
   async update(
     id: number,
     dto: UpdateCancellationOrderDto,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
     const prisma = tx || this;
 
@@ -229,8 +250,11 @@ export class CancellationOrderService extends PrismaClient {
 
     // Si se está cambiando la fecha programada, incrementar el contador de reprogramaciones
     const updateData: any = { ...dto };
-    if (dto.scheduled_collection_date && 
-        dto.scheduled_collection_date.getTime() !== existingOrder.scheduled_collection_date.getTime()) {
+    if (
+      dto.scheduled_collection_date &&
+      dto.scheduled_collection_date.getTime() !==
+        existingOrder.scheduled_collection_date.getTime()
+    ) {
       updateData.rescheduled_count = existingOrder.rescheduled_count + 1;
       updateData.status = CancellationOrderStatus.RESCHEDULED;
     }
@@ -243,18 +267,18 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true
-          }
+            status: true,
+          },
         },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true
-          }
-        }
-      }
+            vehicle_id: true,
+          },
+        },
+      },
     });
 
     this.logger.log(`Updated cancellation order ${id}`);
@@ -267,23 +291,29 @@ export class CancellationOrderService extends PrismaClient {
   async assignToRouteSheet(
     id: number,
     routeSheetId: number,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
     const prisma = tx || this;
 
     // Verificar que la hoja de ruta existe
     const routeSheet = await prisma.route_sheet.findUnique({
-      where: { route_sheet_id: routeSheetId }
+      where: { route_sheet_id: routeSheetId },
     });
 
     if (!routeSheet) {
-      throw new NotFoundException(`Hoja de ruta con ID ${routeSheetId} no encontrada`);
+      throw new NotFoundException(
+        `Hoja de ruta con ID ${routeSheetId} no encontrada`,
+      );
     }
 
-    return this.update(id, {
-      route_sheet_id: routeSheetId,
-      status: CancellationOrderStatus.SCHEDULED
-    }, tx);
+    return this.update(
+      id,
+      {
+        route_sheet_id: routeSheetId,
+        status: CancellationOrderStatus.SCHEDULED,
+      },
+      tx,
+    );
   }
 
   /**
@@ -292,14 +322,16 @@ export class CancellationOrderService extends PrismaClient {
   async completeCancellationOrder(
     id: number,
     actualCollectionDate: Date,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
   ): Promise<{ order: CancellationOrderResponseDto; stockMovements: any[] }> {
     const prisma = tx || this;
 
     const order = await this.findOne(id);
 
     if (order.status === CancellationOrderStatus.COMPLETED) {
-      throw new BadRequestException('La orden de cancelación ya está completada');
+      throw new BadRequestException(
+        'La orden de cancelación ya está completada',
+      );
     }
 
     // Obtener información de la suscripción y productos
@@ -310,69 +342,88 @@ export class CancellationOrderService extends PrismaClient {
           include: {
             subscription_plan_product: {
               include: {
-                product: true
-              }
-            }
-          }
-        }
-      }
+                product: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!subscription) {
-      throw new NotFoundException(`Suscripción con ID ${order.subscription_id} no encontrada`);
+      throw new NotFoundException(
+        `Suscripción con ID ${order.subscription_id} no encontrada`,
+      );
     }
 
     const stockMovements = [];
 
     // Procesar devolución de stock para productos retornables
-    const returnMovementTypeId = await this.inventoryService.getMovementTypeIdByCode(
-      BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_CANCELACION_SUSCRIPCION,
-      prisma
-    );
+    const returnMovementTypeId =
+      await this.inventoryService.getMovementTypeIdByCode(
+        BUSINESS_CONFIG.MOVEMENT_TYPES
+          .INGRESO_DEVOLUCION_CANCELACION_SUSCRIPCION,
+        prisma,
+      );
 
-    for (const planProduct of subscription.subscription_plan.subscription_plan_product) {
+    for (const planProduct of subscription.subscription_plan
+      .subscription_plan_product) {
       const product = planProduct.product;
-      
+
       // Solo procesar productos retornables
       if (product.is_returnable) {
-        const stockMovement = await this.inventoryService.createStockMovement({
-          movement_type_id: returnMovementTypeId,
-          product_id: product.product_id,
-          quantity: planProduct.product_quantity,
-          source_warehouse_id: null,
-          destination_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-          movement_date: actualCollectionDate,
-          remarks: `Devolución por cancelación de suscripción ${order.subscription_id} - Producto: ${product.description} - Orden de cancelación: ${id}`
-        }, prisma);
+        const stockMovement = await this.inventoryService.createStockMovement(
+          {
+            movement_type_id: returnMovementTypeId,
+            product_id: product.product_id,
+            quantity: planProduct.product_quantity,
+            source_warehouse_id: null,
+            destination_warehouse_id:
+              BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+            movement_date: actualCollectionDate,
+            remarks: `Devolución por cancelación de suscripción ${order.subscription_id} - Producto: ${product.description} - Orden de cancelación: ${id}`,
+          },
+          prisma,
+        );
 
         stockMovements.push(stockMovement);
-        
-        this.logger.log(`Stock devuelto: ${planProduct.product_quantity} unidades de ${product.description} (retornable)`);
+
+        this.logger.log(
+          `Stock devuelto: ${planProduct.product_quantity} unidades de ${product.description} (retornable)`,
+        );
       } else {
-        this.logger.log(`No se devuelve stock para ${product.description} - producto NO retornable`);
+        this.logger.log(
+          `No se devuelve stock para ${product.description} - producto NO retornable`,
+        );
       }
     }
 
     // Actualizar la orden como completada
-    const updatedOrder = await this.update(id, {
-      actual_collection_date: actualCollectionDate,
-      status: CancellationOrderStatus.COMPLETED
-    }, prisma);
+    const updatedOrder = await this.update(
+      id,
+      {
+        actual_collection_date: actualCollectionDate,
+        status: CancellationOrderStatus.COMPLETED,
+      },
+      prisma,
+    );
 
     // Marcar la suscripción como recolección completada
     await prisma.customer_subscription.update({
       where: { subscription_id: order.subscription_id },
       data: {
         collection_completed: true,
-        collection_date: actualCollectionDate
-      }
+        collection_date: actualCollectionDate,
+      },
     });
 
-    this.logger.log(`Completed cancellation order ${id} with ${stockMovements.length} stock movements`);
+    this.logger.log(
+      `Completed cancellation order ${id} with ${stockMovements.length} stock movements`,
+    );
 
     return {
       order: updatedOrder,
-      stockMovements
+      stockMovements,
     };
   }
 
@@ -381,7 +432,7 @@ export class CancellationOrderService extends PrismaClient {
    */
   async getPendingOrders(): Promise<CancellationOrderResponseDto[]> {
     return this.findAll({
-      status: CancellationOrderStatus.PENDING
+      status: CancellationOrderStatus.PENDING,
     });
   }
 
@@ -391,13 +442,13 @@ export class CancellationOrderService extends PrismaClient {
   async getOrdersForDate(date: Date): Promise<CancellationOrderResponseDto[]> {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
     return this.findAll({
       scheduled_date_from: startOfDay,
-      scheduled_date_to: endOfDay
+      scheduled_date_to: endOfDay,
     });
   }
 
@@ -416,17 +467,22 @@ export class CancellationOrderService extends PrismaClient {
       created_at: order.created_at,
       updated_at: order.updated_at,
       rescheduled_count: order.rescheduled_count,
-      subscription: order.customer_subscription ? {
-        customer_id: order.customer_subscription.customer_id,
-        subscription_plan_id: order.customer_subscription.subscription_plan_id,
-        status: order.customer_subscription.status
-      } : undefined,
-      route_sheet: order.route_sheet ? {
-        route_sheet_id: order.route_sheet.route_sheet_id,
-        delivery_date: order.route_sheet.delivery_date,
-        driver_id: order.route_sheet.driver_id,
-        vehicle_id: order.route_sheet.vehicle_id
-      } : undefined
+      subscription: order.customer_subscription
+        ? {
+            customer_id: order.customer_subscription.customer_id,
+            subscription_plan_id:
+              order.customer_subscription.subscription_plan_id,
+            status: order.customer_subscription.status,
+          }
+        : undefined,
+      route_sheet: order.route_sheet
+        ? {
+            route_sheet_id: order.route_sheet.route_sheet_id,
+            delivery_date: order.route_sheet.delivery_date,
+            driver_id: order.route_sheet.driver_id,
+            vehicle_id: order.route_sheet.vehicle_id,
+          }
+        : undefined,
     };
   }
 }

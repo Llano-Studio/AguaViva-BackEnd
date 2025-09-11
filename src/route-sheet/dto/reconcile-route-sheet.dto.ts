@@ -10,4 +10,4 @@ export class ReconcileRouteSheetDto {
   @IsNotEmpty()
   @IsBase64()
   signature_data: string;
-} 
+}

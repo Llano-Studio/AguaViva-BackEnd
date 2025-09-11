@@ -1,13 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsArray, ValidateNested, IsDateString, Matches, ValidatorConstraint, ValidatorConstraintInterface, Validate } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+  IsDateString,
+  Matches,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  Validate,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { DeliveryStatus } from '../../common/constants/enums';
 
 @ValidatorConstraint({ name: 'atLeastOneOrderId', async: false })
-export class AtLeastOneOrderIdConstraint implements ValidatorConstraintInterface {
+export class AtLeastOneOrderIdConstraint
+  implements ValidatorConstraintInterface
+{
   validate(value: any, args: any) {
     const object = args.object;
-    return !!(object.order_id || object.one_off_purchase_id || object.one_off_purchase_header_id);
+    return !!(
+      object.order_id ||
+      object.one_off_purchase_id ||
+      object.one_off_purchase_header_id
+    );
   }
 
   defaultMessage() {
@@ -19,7 +37,7 @@ export class CreateRouteSheetDetailDto {
   @Validate(AtLeastOneOrderIdConstraint)
   @ApiPropertyOptional({
     description: 'ID del pedido de suscripción/contrato que debe ser entregado',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -27,15 +45,16 @@ export class CreateRouteSheetDetailDto {
 
   @ApiPropertyOptional({
     description: 'ID de la compra one-off individual que debe ser entregada',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
   one_off_purchase_id?: number;
 
   @ApiPropertyOptional({
-    description: 'ID de la compra one-off con múltiples productos que debe ser entregada',
-    example: 1
+    description:
+      'ID de la compra one-off con múltiples productos que debe ser entregada',
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -44,15 +63,16 @@ export class CreateRouteSheetDetailDto {
   @ApiPropertyOptional({
     description: 'Estado inicial de la entrega (por defecto PENDING)',
     example: 'PENDING',
-    default: 'PENDING'
+    default: 'PENDING',
   })
   @IsString()
   @IsOptional()
   delivery_status?: string = DeliveryStatus.PENDING;
 
   @ApiPropertyOptional({
-    description: 'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
-    example: '08:00-16:00'
+    description:
+      'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    example: '08:00-16:00',
   })
   @IsString()
   @IsOptional()
@@ -60,7 +80,7 @@ export class CreateRouteSheetDetailDto {
 
   @ApiPropertyOptional({
     description: 'Comentarios adicionales',
-    example: 'Llamar al cliente antes de entregar'
+    example: 'Llamar al cliente antes de entregar',
   })
   @IsString()
   @IsOptional()
@@ -70,7 +90,7 @@ export class CreateRouteSheetDetailDto {
 export class CreateRouteSheetDto {
   @ApiProperty({
     description: 'ID del conductor asignado',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -78,7 +98,7 @@ export class CreateRouteSheetDto {
 
   @ApiProperty({
     description: 'ID del vehículo asignado',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -86,7 +106,7 @@ export class CreateRouteSheetDto {
 
   @ApiProperty({
     description: 'Fecha de entrega programada (YYYY-MM-DD)',
-    example: '2023-07-15'
+    example: '2023-07-15',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -94,7 +114,7 @@ export class CreateRouteSheetDto {
 
   @ApiPropertyOptional({
     description: 'Notas sobre la ruta',
-    example: 'Ruta por zona norte'
+    example: 'Ruta por zona norte',
   })
   @IsString()
   @IsOptional()
@@ -102,7 +122,7 @@ export class CreateRouteSheetDto {
 
   @ApiProperty({
     description: 'Detalles de los pedidos a entregar',
-    type: [CreateRouteSheetDetailDto]
+    type: [CreateRouteSheetDetailDto],
   })
   @IsArray()
   @ValidateNested({ each: true })

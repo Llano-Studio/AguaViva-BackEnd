@@ -182,7 +182,8 @@ export class OneOffPurchaseController {
   @ApiQuery({
     name: 'status',
     required: false,
-    description: 'Filtrar por estado de la orden (PENDING, RETIRADO, DELIVERED, CANCELLED)',
+    description:
+      'Filtrar por estado de la orden (PENDING, RETIRADO, DELIVERED, CANCELLED)',
     type: String,
     example: 'PENDING',
   })
@@ -350,9 +351,10 @@ export class OneOffPurchaseController {
     },
   })
   @ApiResponse({ status: 404, description: 'Compra one-off no encontrada.' })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Conflicto: La compra está incluida en hojas de ruta activas y no puede ser eliminada. El mensaje incluye detalles específicos de las hojas de ruta afectadas.' 
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflicto: La compra está incluida en hojas de ruta activas y no puede ser eliminada. El mensaje incluye detalles específicos de las hojas de ruta afectadas.',
   })
   async removeOneOffPurchase(
     @Param('id', ParseIntPipe) id: number,

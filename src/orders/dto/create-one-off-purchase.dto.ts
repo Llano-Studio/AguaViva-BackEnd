@@ -1,12 +1,24 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsDateString, IsArray, ValidateNested, IsEnum, ValidateIf } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+  IsDateString,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  ValidateIf,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
 
 export class CreateOneOffPurchaseItemDto {
   @ApiProperty({
-    description: 'ID del producto a comprar. ⚠️ VALIDACIÓN: El producto debe existir en la base de datos.',
-    example: 1
+    description:
+      'ID del producto a comprar. ⚠️ VALIDACIÓN: El producto debe existir en la base de datos.',
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -15,7 +27,7 @@ export class CreateOneOffPurchaseItemDto {
   @ApiProperty({
     description: 'Cantidad del producto a comprar',
     minimum: 1,
-    example: 2
+    example: 2,
   })
   @IsInt()
   @Min(1)
@@ -23,8 +35,9 @@ export class CreateOneOffPurchaseItemDto {
   quantity: number;
 
   @ApiPropertyOptional({
-    description: 'ID de la lista de precios específica para este producto (opcional). ⚠️ VALIDACIÓN: Si se proporciona, la lista de precios debe existir en la base de datos. Si no se especifica, se usa la lista de precios estándar.',
-    example: 2
+    description:
+      'ID de la lista de precios específica para este producto (opcional). ⚠️ VALIDACIÓN: Si se proporciona, la lista de precios debe existir en la base de datos. Si no se especifica, se usa la lista de precios estándar.',
+    example: 2,
   })
   @IsOptional()
   @IsInt()
@@ -33,24 +46,27 @@ export class CreateOneOffPurchaseItemDto {
 
 export class CreateOneOffPurchaseCustomerDto {
   @ApiPropertyOptional({
-    description: 'Nombre completo del cliente (solo requerido si es cliente nuevo)',
-    example: 'Juan Pérez'
+    description:
+      'Nombre completo del cliente (solo requerido si es cliente nuevo)',
+    example: 'Juan Pérez',
   })
   @IsOptional()
   @IsString()
   name?: string;
 
   @ApiProperty({
-    description: 'Número de teléfono del cliente (SIEMPRE REQUERIDO para verificar si existe)',
-    example: '3412345678'
+    description:
+      'Número de teléfono del cliente (SIEMPRE REQUERIDO para verificar si existe)',
+    example: '3412345678',
   })
   @IsString()
   @IsNotEmpty()
   phone: string;
 
   @ApiPropertyOptional({
-    description: 'Teléfonos adicionales separados por comas (solo si es cliente nuevo)',
-    example: '3412345679, 3412345680'
+    description:
+      'Teléfonos adicionales separados por comas (solo si es cliente nuevo)',
+    example: '3412345679, 3412345680',
   })
   @IsOptional()
   @IsString()
@@ -58,7 +74,7 @@ export class CreateOneOffPurchaseCustomerDto {
 
   @ApiPropertyOptional({
     description: 'Alias o apodo del cliente (solo si es cliente nuevo)',
-    example: 'Juan'
+    example: 'Juan',
   })
   @IsOptional()
   @IsString()
@@ -66,7 +82,7 @@ export class CreateOneOffPurchaseCustomerDto {
 
   @ApiPropertyOptional({
     description: 'Dirección del cliente (solo si es cliente nuevo)',
-    example: 'Av. Principal 123'
+    example: 'Av. Principal 123',
   })
   @IsOptional()
   @IsString()
@@ -74,7 +90,7 @@ export class CreateOneOffPurchaseCustomerDto {
 
   @ApiPropertyOptional({
     description: 'RUC o documento de identidad (solo si es cliente nuevo)',
-    example: '12345678-9'
+    example: '12345678-9',
   })
   @IsOptional()
   @IsString()
@@ -82,7 +98,7 @@ export class CreateOneOffPurchaseCustomerDto {
 
   @ApiPropertyOptional({
     description: 'ID de la localidad del cliente (solo si es cliente nuevo)',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -90,7 +106,7 @@ export class CreateOneOffPurchaseCustomerDto {
 
   @ApiPropertyOptional({
     description: 'ID de la zona del cliente (solo si es cliente nuevo)',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -99,7 +115,7 @@ export class CreateOneOffPurchaseCustomerDto {
   @ApiPropertyOptional({
     description: 'Tipo de cliente (solo si es cliente nuevo)',
     example: 'INDIVIDUAL',
-    enum: ['INDIVIDUAL', 'CORPORATE']
+    enum: ['INDIVIDUAL', 'CORPORATE'],
   })
   @IsOptional()
   @IsEnum(['INDIVIDUAL', 'CORPORATE'])
@@ -108,8 +124,9 @@ export class CreateOneOffPurchaseCustomerDto {
 
 export class CreateOneOffPurchaseDto {
   @ApiProperty({
-    description: 'Datos del cliente (SIEMPRE REQUERIDO). El sistema verificará si existe por teléfono.',
-    type: CreateOneOffPurchaseCustomerDto
+    description:
+      'Datos del cliente (SIEMPRE REQUERIDO). El sistema verificará si existe por teléfono.',
+    type: CreateOneOffPurchaseCustomerDto,
   })
   @ValidateNested()
   @Type(() => CreateOneOffPurchaseCustomerDto)
@@ -124,7 +141,7 @@ Para múltiples productos, debe crear varias compras separadas.
 
 Recomendación: Enviar un solo item en el array hasta que se implemente soporte completo para múltiples productos.`,
     type: [CreateOneOffPurchaseItemDto],
-    example: [{ product_id: 1, quantity: 2 }]
+    example: [{ product_id: 1, quantity: 2 }],
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -134,7 +151,7 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiProperty({
     description: 'ID del canal de venta',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -142,16 +159,14 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiPropertyOptional({
     description: 'Si requiere entrega a domicilio',
-    example: true
+    example: true,
   })
   @IsOptional()
   requires_delivery?: boolean = false;
 
-
-
   @ApiPropertyOptional({
     description: 'Dirección de entrega específica (opcional)',
-    example: 'Av. Principal 123, Apto 4B'
+    example: 'Av. Principal 123, Apto 4B',
   })
   @IsOptional()
   @IsString()
@@ -159,7 +174,7 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiPropertyOptional({
     description: 'ID de la localidad para la entrega',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -167,49 +182,64 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiPropertyOptional({
     description: 'ID de la zona para la entrega',
-    example: 1
+    example: 1,
   })
   @IsOptional()
   @IsInt()
   zone_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Fecha de la compra en formato ISO (si no se especifica, se usa la fecha actual)',
-    example: '2024-03-20T10:00:00Z'
+    description:
+      'Fecha de la compra en formato ISO (si no se especifica, se usa la fecha actual)',
+    example: '2024-03-20T10:00:00Z',
   })
   @IsOptional()
   @IsDateString()
   purchase_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha programada de entrega del pedido en formato ISO (opcional). NOTA: No requerido si requires_delivery=false',
-    example: '2024-03-21T14:00:00Z'
+    description:
+      'Fecha programada de entrega del pedido en formato ISO (opcional). NOTA: No requerido si requires_delivery=false',
+    example: '2024-03-21T14:00:00Z',
   })
   @IsOptional()
-  @ValidateIf((object) => object.scheduled_delivery_date !== '' && object.scheduled_delivery_date !== null && object.scheduled_delivery_date !== undefined)
+  @ValidateIf(
+    (object) =>
+      object.scheduled_delivery_date !== '' &&
+      object.scheduled_delivery_date !== null &&
+      object.scheduled_delivery_date !== undefined,
+  )
   @IsDateString()
   scheduled_delivery_date?: string;
 
   @ApiPropertyOptional({
-    description: 'Rango de horario de entrega (opcional). NOTA: No requerido si requires_delivery=false',
-    example: '9:00 AM - 12:00 PM'
+    description:
+      'Rango de horario de entrega (opcional). NOTA: No requerido si requires_delivery=false',
+    example: '9:00 AM - 12:00 PM',
   })
   @IsOptional()
-  @ValidateIf((object) => object.delivery_time !== '' && object.delivery_time !== null && object.delivery_time !== undefined)
+  @ValidateIf(
+    (object) =>
+      object.delivery_time !== '' &&
+      object.delivery_time !== null &&
+      object.delivery_time !== undefined,
+  )
   @IsString()
   delivery_time?: string;
 
   @ApiPropertyOptional({
-    description: 'Monto total de la compra (opcional, se calcula automáticamente si no se proporciona)',
-    example: '1500.00'
+    description:
+      'Monto total de la compra (opcional, se calcula automáticamente si no se proporciona)',
+    example: '1500.00',
   })
   @IsOptional()
   @IsString()
   total_amount?: string;
 
   @ApiPropertyOptional({
-    description: 'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser menor o igual al total_amount.',
-    example: '1500.00'
+    description:
+      'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser menor o igual al total_amount.',
+    example: '1500.00',
   })
   @IsOptional()
   @IsString()
@@ -217,16 +247,17 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiPropertyOptional({
     description: 'Notas adicionales sobre la compra (opcional)',
-    example: 'Cliente prefiere entrega por la mañana'
+    example: 'Cliente prefiere entrega por la mañana',
   })
   @IsOptional()
   @IsString()
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Estado de la orden (opcional). Si no se especifica, se determina automáticamente: RETIRADO si requires_delivery=false, PENDING si requires_delivery=true',
+    description:
+      'Estado de la orden (opcional). Si no se especifica, se determina automáticamente: RETIRADO si requires_delivery=false, PENDING si requires_delivery=true',
     example: 'PENDING',
-    enum: ['PENDING', 'RETIRADO', 'DELIVERED', 'CANCELLED']
+    enum: ['PENDING', 'RETIRADO', 'DELIVERED', 'CANCELLED'],
   })
   @IsOptional()
   @IsString()

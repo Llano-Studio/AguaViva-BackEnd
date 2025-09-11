@@ -1,7 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
-import { BUSINESS_CONFIG, PaymentSemaphoreStatus } from '../config/business.config';
+import {
+  BUSINESS_CONFIG,
+  PaymentSemaphoreStatus,
+} from '../config/business.config';
 
 interface PaymentSemaphoreCache {
   [personId: number]: {
@@ -12,7 +15,10 @@ interface PaymentSemaphoreCache {
 }
 
 @Injectable()
-export class PaymentSemaphoreService extends PrismaClient implements OnModuleInit {
+export class PaymentSemaphoreService
+  extends PrismaClient
+  implements OnModuleInit
+{
   private cache: PaymentSemaphoreCache = {};
   private readonly cacheTtlMinutes: number;
   private readonly yellowThresholdDays: number;
@@ -21,9 +27,14 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
   constructor(private readonly configService: ConfigService) {
     super();
     // Usar configuración centralizada con fallback a BUSINESS_CONFIG
-    this.cacheTtlMinutes = this.configService.get('app.paymentSemaphore.cacheTtlMinutes') || 30;
-    this.yellowThresholdDays = this.configService.get('app.paymentSemaphore.yellowThresholdDays') || BUSINESS_CONFIG.PAYMENT_SEMAPHORE.YELLOW_THRESHOLD_DAYS;
-    this.redThresholdDays = this.configService.get('app.paymentSemaphore.redThresholdDays') || BUSINESS_CONFIG.PAYMENT_SEMAPHORE.RED_THRESHOLD_DAYS;
+    this.cacheTtlMinutes =
+      this.configService.get('app.paymentSemaphore.cacheTtlMinutes') || 30;
+    this.yellowThresholdDays =
+      this.configService.get('app.paymentSemaphore.yellowThresholdDays') ||
+      BUSINESS_CONFIG.PAYMENT_SEMAPHORE.YELLOW_THRESHOLD_DAYS;
+    this.redThresholdDays =
+      this.configService.get('app.paymentSemaphore.redThresholdDays') ||
+      BUSINESS_CONFIG.PAYMENT_SEMAPHORE.RED_THRESHOLD_DAYS;
   }
 
   async onModuleInit() {
@@ -33,23 +44,25 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
   /**
    * Calcula el estado del semáforo de pagos para una persona específica
    */
-  async calculatePaymentSemaphoreStatus(personId: number): Promise<PaymentSemaphoreStatus> {
+  async calculatePaymentSemaphoreStatus(
+    personId: number,
+  ): Promise<PaymentSemaphoreStatus> {
     try {
       const activeSubscription = await this.customer_subscription.findFirst({
         where: {
           customer_id: personId,
-          status: SubscriptionStatus.ACTIVE
+          status: SubscriptionStatus.ACTIVE,
         },
         orderBy: {
-          start_date: 'desc'
+          start_date: 'desc',
         },
         include: {
           subscription_cycle: {
             orderBy: {
-              cycle_end: 'desc'
+              cycle_end: 'desc',
             },
-            take: 1
-          }
+            take: 1,
+          },
         },
       });
 
@@ -57,21 +70,24 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
 
       const lastCycle = activeSubscription.subscription_cycle[0];
       const cycleEndDate = new Date(lastCycle.cycle_end);
-      const today = new Date(); 
+      const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       if (cycleEndDate < today) {
         const diffTime = today.getTime() - cycleEndDate.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays > this.redThresholdDays) return 'RED';
         if (diffDays > this.yellowThresholdDays) return 'YELLOW';
         return 'GREEN';
       }
-      
+
       return 'GREEN'; // Ciclo no vencido
     } catch (error) {
-      console.error(`Error calculando el semáforo para la persona ${personId}:`, error);
+      console.error(
+        `Error calculando el semáforo para la persona ${personId}:`,
+        error,
+      );
       return 'NONE';
     }
   }
@@ -79,7 +95,10 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
   /**
    * Obtiene el estado del semáforo con cache
    */
-  async getPaymentSemaphoreStatus(personId: number, useCache: boolean = true): Promise<PaymentSemaphoreStatus> {
+  async getPaymentSemaphoreStatus(
+    personId: number,
+    useCache: boolean = true,
+  ): Promise<PaymentSemaphoreStatus> {
     if (useCache && this.isCacheValid(personId)) {
       return this.cache[personId].status;
     }
@@ -92,9 +111,11 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
   /**
    * Pre-calcula el semáforo para múltiples personas
    */
-  async preCalculateForPersons(personIds: number[]): Promise<Map<number, PaymentSemaphoreStatus>> {
+  async preCalculateForPersons(
+    personIds: number[],
+  ): Promise<Map<number, PaymentSemaphoreStatus>> {
     const results = new Map<number, PaymentSemaphoreStatus>();
-    
+
     // Procesar en lotes para evitar sobrecarga
     const batchSize = 50;
     for (let i = 0; i < personIds.length; i += batchSize) {
@@ -133,7 +154,7 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
    */
   cleanExpiredCache(): void {
     const now = new Date();
-    Object.keys(this.cache).forEach(personIdStr => {
+    Object.keys(this.cache).forEach((personIdStr) => {
       const personId = parseInt(personIdStr);
       if (this.cache[personId].expiresAt < now) {
         delete this.cache[personId];
@@ -148,25 +169,31 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
 
   private updateCache(personId: number, status: PaymentSemaphoreStatus): void {
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + this.cacheTtlMinutes * 60 * 1000);
-    
+    const expiresAt = new Date(
+      now.getTime() + this.cacheTtlMinutes * 60 * 1000,
+    );
+
     this.cache[personId] = {
       status,
       lastUpdated: now,
-      expiresAt
+      expiresAt,
     };
   }
 
   /**
    * Obtiene estadísticas del cache
    */
-  getCacheStats(): { totalEntries: number; validEntries: number; expiredEntries: number } {
+  getCacheStats(): {
+    totalEntries: number;
+    validEntries: number;
+    expiredEntries: number;
+  } {
     const now = new Date();
     const totalEntries = Object.keys(this.cache).length;
     let validEntries = 0;
     let expiredEntries = 0;
 
-    Object.values(this.cache).forEach(entry => {
+    Object.values(this.cache).forEach((entry) => {
       if (entry.expiresAt > now) {
         validEntries++;
       } else {
@@ -176,4 +203,4 @@ export class PaymentSemaphoreService extends PrismaClient implements OnModuleIni
 
     return { totalEntries, validEntries, expiredEntries };
   }
-} 
+}

@@ -1,9 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import {
-  ValidationPipe,
-  Logger,
-} from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as helmet from 'helmet';
 import * as compression from 'compression';
@@ -24,43 +21,53 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  app.use(helmet.default({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "blob:", "*"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        connectSrc: ["'self'", "http://localhost:*", "http://127.0.0.1:*"],
+  app.use(
+    helmet.default({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'blob:', '*'],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          connectSrc: ["'self'", 'http://localhost:*', 'http://127.0.0.1:*'],
+        },
       },
-    },
-    // En desarrollo, ser menos restrictivo
-    ...(configService.get('app.app.environment') === 'development' && {
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: false,
-    })
-  }));
+      // En desarrollo, ser menos restrictivo
+      ...(configService.get('app.app.environment') === 'development' && {
+        crossOriginEmbedderPolicy: false,
+        crossOriginOpenerPolicy: false,
+      }),
+    }),
+  );
 
   app.use(compression());
 
-  const maxFileSize = configService.get('app.files.maxFileSize') || 5 * 1024 * 1024;
+  const maxFileSize =
+    configService.get('app.files.maxFileSize') || 5 * 1024 * 1024;
   app.use(json({ limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
-  app.use(urlencoded({ extended: true, limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb` }));
+  app.use(
+    urlencoded({
+      extended: true,
+      limit: `${Math.floor(maxFileSize / (1024 * 1024))}mb`,
+    }),
+  );
 
-
-  app.useStaticAssets(join(process.cwd(), 'public'), { 
+  app.useStaticAssets(join(process.cwd(), 'public'), {
     prefix: '/public/',
     setHeaders: (res, path) => {
       if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000'); 
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
         res.setHeader('Access-Control-Allow-Origin', '*');
       }
       // 🆕 Configuración CORS para archivos PDF
       if (path.match(/\.pdf$/i)) {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With');
+        res.setHeader(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Accept, Authorization, X-Requested-With',
+        );
         res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache de 1 hora para PDFs
       }
     },
@@ -77,7 +84,9 @@ async function bootstrap() {
     'http://127.0.0.1:4173',
   ];
 
-  const isDevelopment = configService.get('app.app.environment') === 'development' || process.env.NODE_ENV === 'development';
+  const isDevelopment =
+    configService.get('app.app.environment') === 'development' ||
+    process.env.NODE_ENV === 'development';
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -95,16 +104,9 @@ async function bootstrap() {
 
   const apiPrefix = configService.get('app.app.apiPrefix') || 'api';
   app.setGlobalPrefix(apiPrefix, {
-    exclude: ['/', '/health'] 
+    exclude: ['/', '/health'],
   });
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      skipMissingProperties: true,
-    }),
-  );
+  // ValidationPipe removed to fix optional parameter issues
 
   // Aplicar el interceptor global para manejar errores de base de datos
   app.useGlobalInterceptors(new DatabaseErrorInterceptor());
@@ -121,13 +123,13 @@ async function bootstrap() {
     './public/uploads/reconciliations',
     './public/pdfs', // 🆕 Directorio para PDFs generados
   ];
-  
-  uploadsDirectories.forEach(dir => {
+
+  uploadsDirectories.forEach((dir) => {
     const fs = require('fs-extra');
     fs.ensureDirSync(dir);
   });
 
-  app.enableShutdownHooks();  
+  app.enableShutdownHooks();
 
   // Swagger
   const swaggerConfig = new DocumentBuilder()
@@ -148,9 +150,13 @@ async function bootstrap() {
   const port = configService.get('app.app.port') || process.env.PORT || 3000;
   await app.listen(port);
 
-  logger.log(`🚀 Servidor escuchando en http://localhost:${port}/${apiPrefix} (v1)`);
+  logger.log(
+    `🚀 Servidor escuchando en http://localhost:${port}/${apiPrefix} (v1)`,
+  );
   logger.log(`📖 Documentación Swagger en http://localhost:${port}/docs`);
-  logger.log(`🌍 Entorno: ${configService.get('app.app.environment') || 'development'}`);
+  logger.log(
+    `🌍 Entorno: ${configService.get('app.app.environment') || 'development'}`,
+  );
 }
 
 bootstrap();

@@ -1,34 +1,61 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, HttpCode, HttpStatus, ValidationPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+  ValidationPipe,
+  Query,
+} from '@nestjs/common';
 import { SubscriptionPlansService } from './subscription-plans.service';
 import { CreateSubscriptionPlanDto } from './dto/create-subscription-plan.dto';
 import { UpdateSubscriptionPlanDto } from './dto/update-subscription-plan.dto';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
-import { subscription_plan as SubscriptionPlanPrisma } from '@prisma/client'; 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+  ApiBody,
+} from '@nestjs/swagger';
+import { subscription_plan as SubscriptionPlanPrisma } from '@prisma/client';
 import { AddProductToPlanDto } from './dto/add-product-to-plan.dto';
 import { UpdateProductInPlanDto } from './dto/update-product-in-plan.dto';
 import { AdjustPlanProductQuantitiesDto, AdjustAllPlansPriceDto } from './dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
-import { SubscriptionPlanResponseDto, PaginatedSubscriptionPlanResponseDto, FilterSubscriptionPlansDto } from './dto';
+import {
+  SubscriptionPlanResponseDto,
+  PaginatedSubscriptionPlanResponseDto,
+  FilterSubscriptionPlansDto,
+} from './dto';
 
 @ApiTags('Planes de Suscripción')
 @ApiBearerAuth()
 @Controller('subscription-plans')
 export class SubscriptionPlansController {
-  constructor(private readonly subscriptionPlansService: SubscriptionPlansService) {}
+  constructor(
+    private readonly subscriptionPlansService: SubscriptionPlansService,
+  ) {}
 
   @Post()
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear un nuevo plan de suscripción',
     description: `Crea un nuevo plan de suscripción con configuraciones por defecto que se aplicarán a nuevas suscripciones de clientes.
     
 **Nuevos campos disponibles:**
 - \`default_cycle_days\`: Duración por defecto del ciclo en días (ej: 30 para mensual)
 - \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo (ej: 1 entrega por mes)
-- \`is_active\`: Si el plan está disponible para nuevas suscripciones` 
+- \`is_active\`: Si el plan está disponible para nuevas suscripciones`,
   })
-  @ApiBody({ 
+  @ApiBody({
     type: CreateSubscriptionPlanDto,
     examples: {
       planBasico: {
@@ -36,12 +63,13 @@ export class SubscriptionPlansController {
         description: 'Ejemplo de un plan básico mensual',
         value: {
           name: 'Plan Básico Mensual',
-          description: 'Plan básico con entrega mensual de productos esenciales',
-          price: 15000.00,
+          description:
+            'Plan básico con entrega mensual de productos esenciales',
+          price: 15000.0,
           default_cycle_days: 30,
           default_deliveries_per_cycle: 1,
-          is_active: true
-        }
+          is_active: true,
+        },
       },
       planPremium: {
         summary: 'Plan Premium',
@@ -49,58 +77,103 @@ export class SubscriptionPlansController {
         value: {
           name: 'Plan Premium Quincenal',
           description: 'Plan premium con entregas cada 15 días',
-          price: 25000.00,
+          price: 25000.0,
           default_cycle_days: 15,
           default_deliveries_per_cycle: 2,
-          is_active: true
-        }
-      }
-    }
+          is_active: true,
+        },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Plan de suscripción creado exitosamente.',
     type: SubscriptionPlanResponseDto,
     example: {
       subscription_plan_id: 1,
       name: 'Plan Básico Mensual',
       description: 'Plan básico con entrega mensual de productos esenciales',
-      price: 15000.00,
+      price: 15000.0,
       default_cycle_days: 30,
       default_deliveries_per_cycle: 1,
       is_active: true,
       created_at: '2024-01-15T10:30:00Z',
       updated_at: '2024-01-15T10:30:00Z',
-      products: []
-    }
+      products: [],
+    },
   })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe un plan con el mismo nombre.' })
-  create(@Body(ValidationPipe) createSubscriptionPlanDto: CreateSubscriptionPlanDto): Promise<SubscriptionPlanResponseDto> {
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto - Ya existe un plan con el mismo nombre.',
+  })
+  create(
+    @Body(ValidationPipe) createSubscriptionPlanDto: CreateSubscriptionPlanDto,
+  ): Promise<SubscriptionPlanResponseDto> {
     return this.subscriptionPlansService.create(createSubscriptionPlanDto);
   }
 
   @Get()
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener todos los planes de suscripción',
     description: `Obtiene una lista paginada de todos los planes de suscripción con opções de filtrado y ordenamiento.
     
 **Campos disponibles para ordenar:** \`name\`, \`price\`, \`default_cycle_days\`, \`default_deliveries_per_cycle\`, \`is_active\`, \`created_at\`, \`updated_at\`
 
-**Ejemplo de sortBy:** \`name,-price,default_cycle_days\` (ordena por nombre ascendente, precio descendente, y ciclo ascendente)`
+**Ejemplo de sortBy:** \`name,-price,default_cycle_days\` (ordena por nombre ascendente, precio descendente, y ciclo ascendente)`,
   })
-  @ApiQuery({ name: 'search', required: false, type: String, description: "Búsqueda general por nombre o descripción del plan", example: "premium" })
-  @ApiQuery({ name: 'name', required: false, type: String, description: "Filtrar por nombre específico del plan", example: "Plan Premium" })
-  @ApiQuery({ name: 'is_active', required: false, type: Boolean, description: "Filtrar por estado de activación. true = solo activos, false = solo inactivos", example: true })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: "Campos para ordenar. Ej: name,-price,default_cycle_days", example: "name,-price" })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página (mínimo 1)', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página (mínimo 1, máximo 100)', example: 10 })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Planes de suscripción obtenidos exitosamente.', 
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Búsqueda general por nombre o descripción del plan',
+    example: 'premium',
+  })
+  @ApiQuery({
+    name: 'name',
+    required: false,
+    type: String,
+    description: 'Filtrar por nombre específico del plan',
+    example: 'Plan Premium',
+  })
+  @ApiQuery({
+    name: 'is_active',
+    required: false,
+    type: Boolean,
+    description:
+      'Filtrar por estado de activación. true = solo activos, false = solo inactivos',
+    example: true,
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Campos para ordenar. Ej: name,-price,default_cycle_days',
+    example: 'name,-price',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (mínimo 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Resultados por página (mínimo 1, máximo 100)',
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Planes de suscripción obtenidos exitosamente.',
     type: PaginatedSubscriptionPlanResponseDto,
     example: {
       data: [
@@ -108,24 +181,30 @@ export class SubscriptionPlansController {
           subscription_plan_id: 1,
           name: 'Plan Básico',
           description: 'Plan básico mensual',
-          price: 15000.00,
+          price: 15000.0,
           default_cycle_days: 30,
           default_deliveries_per_cycle: 1,
           is_active: true,
           created_at: '2024-01-15T10:30:00Z',
           updated_at: '2024-01-15T10:30:00Z',
-          products: []
-        }
+          products: [],
+        },
       ],
       total: 1,
       page: 1,
       limit: 10,
-      totalPages: 1
-    }
+      totalPages: 1,
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   findAll(
-    @Query(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true })) 
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
     filters: FilterSubscriptionPlansDto,
   ): Promise<PaginatedSubscriptionPlanResponseDto> {
     return this.subscriptionPlansService.findAll(filters);
@@ -133,20 +212,25 @@ export class SubscriptionPlansController {
 
   @Get(':id')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener un plan de suscripción por su ID',
-    description: `Obtiene los detalles completos de un plan de suscripción específico, incluyendo todos los productos asociados y la configuración de ciclos.`
+    description: `Obtiene los detalles completos de un plan de suscripción específico, incluyendo todos los productos asociados y la configuración de ciclos.`,
   })
-  @ApiParam({ name: 'id', description: 'ID del plan de suscripción', type: Number, example: 1 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    description: 'ID del plan de suscripción',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Plan de suscripción encontrado.',
     type: SubscriptionPlanResponseDto,
     example: {
       subscription_plan_id: 1,
       name: 'Plan Básico Mensual',
       description: 'Plan básico con entrega mensual de productos esenciales',
-      price: 15000.00,
+      price: 15000.0,
       default_cycle_days: 30,
       default_deliveries_per_cycle: 1,
       is_active: true,
@@ -157,20 +241,25 @@ export class SubscriptionPlansController {
           product_id: 101,
           product_description: 'Agua Purificada 20L',
           product_code: 'AGP20L',
-          quantity: 4
-        }
-      ]
-    }
+          quantity: 4,
+        },
+      ],
+    },
   })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan de suscripción no encontrado.',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  findOne(@Param('id', ParseIntPipe) id: number): Promise<SubscriptionPlanResponseDto> {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<SubscriptionPlanResponseDto> {
     return this.subscriptionPlansService.findOne(id);
   }
 
   @Patch(':id')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar un plan de suscripción por su ID',
     description: `Actualiza los campos de un plan de suscripción existente. Todos los campos son opcionales.
     
@@ -182,33 +271,38 @@ export class SubscriptionPlansController {
 - \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo
 - \`is_active\`: Si el plan está disponible para nuevas suscripciones
 
-**Nota:** Los cambios no afectan suscripciones existentes, solo se aplican a nuevas suscripciones.`
+**Nota:** Los cambios no afectan suscripciones existentes, solo se aplican a nuevas suscripciones.`,
   })
-  @ApiParam({ name: 'id', description: 'ID del plan de suscripción a actualizar', type: Number, example: 1 })
-  @ApiBody({ 
+  @ApiParam({
+    name: 'id',
+    description: 'ID del plan de suscripción a actualizar',
+    type: Number,
+    example: 1,
+  })
+  @ApiBody({
     type: UpdateSubscriptionPlanDto,
     examples: {
       actualizarPrecio: {
         summary: 'Actualizar solo precio',
         description: 'Ejemplo de actualización solo del precio',
         value: {
-          price: 18000.00
-        }
+          price: 18000.0,
+        },
       },
       actualizarCiclo: {
         summary: 'Actualizar configuración de ciclo',
         description: 'Ejemplo de actualización de configuración de ciclos',
         value: {
           default_cycle_days: 15,
-          default_deliveries_per_cycle: 2
-        }
+          default_deliveries_per_cycle: 2,
+        },
       },
       desactivarPlan: {
         summary: 'Desactivar plan',
         description: 'Ejemplo de desactivación de plan',
         value: {
-          is_active: false
-        }
+          is_active: false,
+        },
       },
       actualizacionCompleta: {
         summary: 'Actualización completa',
@@ -216,36 +310,45 @@ export class SubscriptionPlansController {
         value: {
           name: 'Plan Premium Actualizado',
           description: 'Plan premium con nuevas características',
-          price: 22000.00,
+          price: 22000.0,
           default_cycle_days: 30,
           default_deliveries_per_cycle: 1,
-          is_active: true
-        }
-      }
-    }
+          is_active: true,
+        },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Plan de suscripción actualizado exitosamente.', 
+  @ApiResponse({
+    status: 200,
+    description: 'Plan de suscripción actualizado exitosamente.',
     type: SubscriptionPlanResponseDto,
     example: {
       subscription_plan_id: 1,
       name: 'Plan Premium Actualizado',
       description: 'Plan premium con nuevas características',
-      price: 22000.00,
+      price: 22000.0,
       default_cycle_days: 30,
       default_deliveries_per_cycle: 1,
       is_active: true,
       created_at: '2024-01-15T10:30:00Z',
       updated_at: '2024-01-15T14:45:00Z',
-      products: []
-    }
+      products: [],
+    },
   })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan de suscripción no encontrado.',
+  })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - Ya existe otro plan con el mismo nombre.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto - Ya existe otro plan con el mismo nombre.',
+  })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body(ValidationPipe) updateSubscriptionPlanDto: UpdateSubscriptionPlanDto,
@@ -255,7 +358,7 @@ export class SubscriptionPlansController {
 
   @Delete(':id')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Eliminar un plan de suscripción por su ID',
     description: `Elimina un plan de suscripción y todos sus productos asociados.
     
@@ -263,119 +366,260 @@ export class SubscriptionPlansController {
 - No se puede eliminar un plan que tiene suscripciones de clientes activas o pausadas
 - Primero debe cancelar todas las suscripciones asociadas al plan
 
-**Efecto:** Elimina el plan y todas las relaciones producto-plan automáticamente.`
+**Efecto:** Elimina el plan y todas las relaciones producto-plan automáticamente.`,
   })
-  @ApiParam({ name: 'id', description: 'ID del plan de suscripción a eliminar', type: Number, example: 1 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    description: 'ID del plan de suscripción a eliminar',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Plan de suscripción eliminado exitosamente.',
-    schema: { 
-      properties: { 
-        message: { type: 'string', example: 'Plan de Suscripción con ID 1 y sus productos asociados eliminados correctamente.' }, 
-        deleted: { type: 'boolean', example: true } 
-      } 
-    }
+    schema: {
+      properties: {
+        message: {
+          type: 'string',
+          example:
+            'Plan de Suscripción con ID 1 y sus productos asociados eliminados correctamente.',
+        },
+        deleted: { type: 'boolean', example: true },
+      },
+    },
   })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción no encontrado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan de suscripción no encontrado.',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Conflicto - El plan está en uso por suscripciones activas o pausadas. Debe cancelar las suscripciones primero.',
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflicto - El plan está en uso por suscripciones activas o pausadas. Debe cancelar las suscripciones primero.',
     example: {
       statusCode: 409,
-      message: 'El plan de suscripción con ID 1 no puede ser eliminado porque tiene 3 suscripciones de clientes asociadas activas o pausadas. Considere cancelarlas primero.',
-      error: 'Conflict'
-    }
+      message:
+        'El plan de suscripción con ID 1 no puede ser eliminado porque tiene 3 suscripciones de clientes asociadas activas o pausadas. Considere cancelarlas primero.',
+      error: 'Conflict',
+    },
   })
-  remove(@Param('id', ParseIntPipe) id: number): Promise<{ message: string, deleted: boolean }>{
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ message: string; deleted: boolean }> {
     return this.subscriptionPlansService.remove(id);
   }
 
   @Post(':planId/products')
   @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Añadir un producto a un plan de suscripción' })
-  @ApiParam({ name: 'planId', description: 'ID del plan de suscripción', type: Number, example: 1 })
+  @ApiParam({
+    name: 'planId',
+    description: 'ID del plan de suscripción',
+    type: Number,
+    example: 1,
+  })
   @ApiBody({ type: AddProductToPlanDto })
-  @ApiResponse({ status: 201, description: 'Producto añadido al plan exitosamente.', type: SubscriptionPlanResponseDto })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción o producto no encontrado.' })
-  @ApiResponse({ status: 400, description: 'Datos inválidos o el producto ya existe en el plan.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Producto añadido al plan exitosamente.',
+    type: SubscriptionPlanResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan de suscripción o producto no encontrado.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o el producto ya existe en el plan.',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   addProductToPlan(
     @Param('planId', ParseIntPipe) planId: number,
     @Body(ValidationPipe) addProductToPlanDto: AddProductToPlanDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.addProductToPlan(planId, addProductToPlanDto);
+    return this.subscriptionPlansService.addProductToPlan(
+      planId,
+      addProductToPlanDto,
+    );
   }
 
   @Patch(':planId/products/:productId')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Actualizar la cantidad de un producto en un plan de suscripción' })
-  @ApiParam({ name: 'planId', description: 'ID del plan de suscripción', type: Number, example: 1 })
-  @ApiParam({ name: 'productId', description: 'ID del producto en el plan', type: Number, example: 101 })
+  @ApiOperation({
+    summary: 'Actualizar la cantidad de un producto en un plan de suscripción',
+  })
+  @ApiParam({
+    name: 'planId',
+    description: 'ID del plan de suscripción',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID del producto en el plan',
+    type: Number,
+    example: 101,
+  })
   @ApiBody({ type: UpdateProductInPlanDto })
-  @ApiResponse({ status: 200, description: 'Producto en el plan actualizado exitosamente.', type: SubscriptionPlanResponseDto })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción, producto o la relación producto-plan no encontrada.' })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. cantidad no positiva).' })
+  @ApiResponse({
+    status: 200,
+    description: 'Producto en el plan actualizado exitosamente.',
+    type: SubscriptionPlanResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Plan de suscripción, producto o la relación producto-plan no encontrada.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos (ej. cantidad no positiva).',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   updateProductInPlan(
     @Param('planId', ParseIntPipe) planId: number,
     @Param('productId', ParseIntPipe) productId: number,
     @Body(ValidationPipe) updateProductInPlanDto: UpdateProductInPlanDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.updateProductInPlan(planId, productId, updateProductInPlanDto);
+    return this.subscriptionPlansService.updateProductInPlan(
+      planId,
+      productId,
+      updateProductInPlanDto,
+    );
   }
 
   @Delete(':planId/products/:productId')
   @Auth(Role.SUPERADMIN)
   @ApiOperation({ summary: 'Eliminar un producto de un plan de suscripción' })
-  @ApiParam({ name: 'planId', description: 'ID del plan de suscripción', type: Number, example: 1 })
-  @ApiParam({ name: 'productId', description: 'ID del producto a eliminar del plan', type: Number, example: 101 })
-  @ApiResponse({ status: 200, description: 'Producto eliminado del plan exitosamente.', type: SubscriptionPlanResponseDto })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción, producto o la relación producto-plan no encontrada.' })
+  @ApiParam({
+    name: 'planId',
+    description: 'ID del plan de suscripción',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'productId',
+    description: 'ID del producto a eliminar del plan',
+    type: Number,
+    example: 101,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Producto eliminado del plan exitosamente.',
+    type: SubscriptionPlanResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Plan de suscripción, producto o la relación producto-plan no encontrada.',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   removeProductFromPlan(
     @Param('planId', ParseIntPipe) planId: number,
     @Param('productId', ParseIntPipe) productId: number,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.removeProductFromPlan(planId, productId);
+    return this.subscriptionPlansService.removeProductFromPlan(
+      planId,
+      productId,
+    );
   }
 
   @Post('adjust-prices')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
-    summary: 'Ajustar el precio de todos los planes de suscripción por un porcentaje o monto fijo',
-    description: 'Permite aplicar un aumento o disminución a todos los planes. Se debe especificar `percentage` o `fixedAmount`, no ambos.'
+  @ApiOperation({
+    summary:
+      'Ajustar el precio de todos los planes de suscripción por un porcentaje o monto fijo',
+    description:
+      'Permite aplicar un aumento o disminución a todos los planes. Se debe especificar `percentage` o `fixedAmount`, no ambos.',
   })
   @ApiBody({ type: AdjustAllPlansPriceDto })
-  @ApiResponse({ status: 200, description: 'Precios de los planes ajustados exitosamente.', schema: { properties: { message: { type: 'string' }, updated_count: {type: 'number'} } } })
-  @ApiResponse({ status: 400, description: 'Datos inválidos (ej. porcentaje y monto fijo especificados, o ninguno).' })
+  @ApiResponse({
+    status: 200,
+    description: 'Precios de los planes ajustados exitosamente.',
+    schema: {
+      properties: {
+        message: { type: 'string' },
+        updated_count: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos (ej. porcentaje y monto fijo especificados, o ninguno).',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  adjustAllPlansPrice(@Body(ValidationPipe) adjustAllPlansPriceDto: AdjustAllPlansPriceDto): Promise<{ message: string, updated_count: number }> {
-    return this.subscriptionPlansService.adjustAllPlansPrice(adjustAllPlansPriceDto);
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
+  adjustAllPlansPrice(
+    @Body(ValidationPipe) adjustAllPlansPriceDto: AdjustAllPlansPriceDto,
+  ): Promise<{ message: string; updated_count: number }> {
+    return this.subscriptionPlansService.adjustAllPlansPrice(
+      adjustAllPlansPriceDto,
+    );
   }
 
   @Post(':planId/adjust-product-quantities')
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ 
-    summary: 'Ajustar las cantidades de múltiples productos en un plan de suscripción específico',
-    description: 'Permite actualizar, agregar o eliminar varios productos y sus cantidades en un plan de una sola vez.'
+  @ApiOperation({
+    summary:
+      'Ajustar las cantidades de múltiples productos en un plan de suscripción específico',
+    description:
+      'Permite actualizar, agregar o eliminar varios productos y sus cantidades en un plan de una sola vez.',
   })
-  @ApiParam({ name: 'planId', description: 'ID del plan de suscripción a modificar', type: Number, example: 1 })
+  @ApiParam({
+    name: 'planId',
+    description: 'ID del plan de suscripción a modificar',
+    type: Number,
+    example: 1,
+  })
   @ApiBody({ type: AdjustPlanProductQuantitiesDto })
-  @ApiResponse({ status: 200, description: 'Cantidades de productos en el plan ajustadas exitosamente.', type: SubscriptionPlanResponseDto })
-  @ApiResponse({ status: 404, description: 'Plan de suscripción o alguno de los productos no encontrado.' })
-  @ApiResponse({ status: 400, description: 'Datos inválidos (ej. cantidades no positivas, producto duplicado en la lista).' })
+  @ApiResponse({
+    status: 200,
+    description: 'Cantidades de productos en el plan ajustadas exitosamente.',
+    type: SubscriptionPlanResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Plan de suscripción o alguno de los productos no encontrado.',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos inválidos (ej. cantidades no positivas, producto duplicado en la lista).',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   adjustPlanProductQuantities(
     @Param('planId', ParseIntPipe) planId: number,
-    @Body(ValidationPipe) adjustPlanProductQuantitiesDto: AdjustPlanProductQuantitiesDto,
+    @Body(ValidationPipe)
+    adjustPlanProductQuantitiesDto: AdjustPlanProductQuantitiesDto,
   ): Promise<SubscriptionPlanResponseDto> {
-    return this.subscriptionPlansService.adjustProductQuantitiesInPlan(planId, adjustPlanProductQuantitiesDto);
+    return this.subscriptionPlansService.adjustProductQuantitiesInPlan(
+      planId,
+      adjustPlanProductQuantitiesDto,
+    );
   }
-} 
+}

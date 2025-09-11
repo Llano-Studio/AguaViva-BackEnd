@@ -14,50 +14,89 @@ export class ComodatoResponseDto {
   @ApiProperty({ example: 2, description: 'Cantidad de productos en comodato' })
   quantity: number;
 
-  @ApiProperty({ example: '2025-01-15T00:00:00.000Z', description: 'Fecha de entrega del comodato' })
+  @ApiProperty({
+    example: '2025-01-15T00:00:00.000Z',
+    description: 'Fecha de entrega del comodato',
+  })
   delivery_date: Date;
 
-  @ApiPropertyOptional({ example: '2025-12-15T00:00:00.000Z', description: 'Fecha esperada de devolución' })
+  @ApiPropertyOptional({
+    example: '2025-12-15T00:00:00.000Z',
+    description: 'Fecha esperada de devolución',
+  })
   expected_return_date?: Date;
 
-  @ApiPropertyOptional({ example: '2025-01-20T00:00:00.000Z', description: 'Fecha real de devolución' })
+  @ApiPropertyOptional({
+    example: '2025-01-20T00:00:00.000Z',
+    description: 'Fecha real de devolución',
+  })
   actual_return_date?: Date;
 
-  @ApiProperty({ 
-    example: 'ACTIVE', 
-    enum: ComodatoStatus, 
-    description: 'Estado del comodato' 
+  @ApiProperty({
+    example: 'ACTIVE',
+    enum: ComodatoStatus,
+    description: 'Estado del comodato',
   })
   status: ComodatoStatus;
 
-  @ApiPropertyOptional({ example: 'Comodato de bidones para cliente nuevo', description: 'Notas adicionales' })
+  @ApiPropertyOptional({
+    example: 'Comodato de bidones para cliente nuevo',
+    description: 'Notas adicionales',
+  })
   notes?: string;
 
-  @ApiPropertyOptional({ example: 5000.00, description: 'Monto del depósito en garantía' })
+  @ApiPropertyOptional({
+    example: 5000.0,
+    description: 'Monto del depósito en garantía',
+  })
   deposit_amount?: number;
 
-  @ApiPropertyOptional({ example: 500.00, description: 'Cuota mensual del comodato' })
+  @ApiPropertyOptional({
+    example: 500.0,
+    description: 'Cuota mensual del comodato',
+  })
   monthly_fee?: number;
 
-  @ApiPropertyOptional({ example: 'Dispensador de agua fría/caliente', description: 'Descripción del artículo en comodato' })
+  @ApiPropertyOptional({
+    example: 'Dispensador de agua fría/caliente',
+    description: 'Descripción del artículo en comodato',
+  })
   article_description?: string;
 
-  @ApiPropertyOptional({ example: 'Samsung', description: 'Marca del producto en comodato' })
+  @ApiPropertyOptional({
+    example: 'Samsung',
+    description: 'Marca del producto en comodato',
+  })
   brand?: string;
 
-  @ApiPropertyOptional({ example: 'WD-500X', description: 'Modelo del producto en comodato' })
+  @ApiPropertyOptional({
+    example: 'WD-500X',
+    description: 'Modelo del producto en comodato',
+  })
   model?: string;
 
-  @ApiPropertyOptional({ example: '/uploads/contracts/comodato_123_contract.jpg', description: 'Ruta de la imagen del contrato' })
+  @ApiPropertyOptional({
+    example: '/uploads/contracts/comodato_123_contract.jpg',
+    description: 'Ruta de la imagen del contrato',
+  })
   contract_image_path?: string;
 
-  @ApiProperty({ example: true, description: 'Indica si el comodato está activo' })
+  @ApiProperty({
+    example: true,
+    description: 'Indica si el comodato está activo',
+  })
   is_active: boolean;
 
-  @ApiProperty({ example: '2025-01-10T10:30:00.000Z', description: 'Fecha de creación del registro' })
+  @ApiProperty({
+    example: '2025-01-10T10:30:00.000Z',
+    description: 'Fecha de creación del registro',
+  })
   created_at: Date;
 
-  @ApiProperty({ example: '2025-01-15T14:20:00.000Z', description: 'Fecha de última actualización' })
+  @ApiProperty({
+    example: '2025-01-15T14:20:00.000Z',
+    description: 'Fecha de última actualización',
+  })
   updated_at: Date;
 
   // Información relacionada del cliente
@@ -67,8 +106,8 @@ export class ComodatoResponseDto {
       person_id: 1,
       name: 'Juan Pérez',
       phone: '3412345678',
-      address: 'Av. Siempre Viva 123'
-    }
+      address: 'Av. Siempre Viva 123',
+    },
   })
   person?: {
     person_id: number;
@@ -87,8 +126,8 @@ export class ComodatoResponseDto {
     example: {
       product_id: 1,
       name: 'Bidón 20L',
-      description: 'Bidón de agua de 20 litros'
-    }
+      description: 'Bidón de agua de 20 litros',
+    },
   })
   product?: {
     product_id: number;

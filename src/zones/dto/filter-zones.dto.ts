@@ -23,7 +23,7 @@ export class FilterZonesDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Filtrar por ID de localidad (para compatibilidad)',
     example: 1,
-    type: 'integer'
+    type: 'integer',
   })
   @IsOptional()
   @IsInt()
@@ -32,7 +32,8 @@ export class FilterZonesDto extends PaginationQueryDto {
   locality_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por IDs de localidades múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por IDs de localidades múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
@@ -40,15 +41,18 @@ export class FilterZonesDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, asegurar que sean números
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -62,4 +66,4 @@ export class FilterZonesDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   locality_name?: string;
-} 
+}

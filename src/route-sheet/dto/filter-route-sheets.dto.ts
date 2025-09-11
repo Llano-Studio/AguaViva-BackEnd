@@ -6,7 +6,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 export class FilterRouteSheetsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'ID del conductor',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -15,7 +15,7 @@ export class FilterRouteSheetsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'ID del vehículo',
-    example: 1
+    example: 1,
   })
   @IsInt()
   @IsOptional()
@@ -24,7 +24,7 @@ export class FilterRouteSheetsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Fecha desde (YYYY-MM-DD)',
-    example: '2023-07-01'
+    example: '2023-07-01',
   })
   @IsDateString()
   @IsOptional()
@@ -32,9 +32,9 @@ export class FilterRouteSheetsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Fecha hasta (YYYY-MM-DD)',
-    example: '2023-07-31'
+    example: '2023-07-31',
   })
   @IsDateString()
   @IsOptional()
   to_date?: string;
-} 
+}

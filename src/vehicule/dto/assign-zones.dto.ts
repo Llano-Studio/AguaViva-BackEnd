@@ -1,12 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsOptional, IsString, IsBoolean } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AssignZonesToVehicleDto {
   @ApiProperty({
     description: 'IDs de las zonas a asignar al vehículo',
     example: [1, 2, 3],
-    type: [Number]
+    type: [Number],
   })
   @IsArray()
   @IsInt({ each: true })
@@ -16,7 +22,7 @@ export class AssignZonesToVehicleDto {
   @ApiProperty({
     description: 'Notas sobre la asignación de zonas',
     example: 'Asignación para ruta matutina',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -26,7 +32,7 @@ export class AssignZonesToVehicleDto {
     description: 'Estado activo de la asignación',
     example: true,
     default: true,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsBoolean()
@@ -73,4 +79,4 @@ export class VehicleZoneResponseDto {
       };
     };
   };
-} 
+}

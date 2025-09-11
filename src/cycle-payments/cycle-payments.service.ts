@@ -56,7 +56,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     }
 
     // Calcular el saldo total disponible (incluyendo créditos acumulados)
-    const totalAvailableBalance = Number(cycle.pending_balance) + Number(cycle.credit_balance);
+    const totalAvailableBalance =
+      Number(cycle.pending_balance) + Number(cycle.credit_balance);
 
     // Verificar que el monto no exceda el saldo total disponible
     if (amount > totalAvailableBalance) {
@@ -70,7 +71,10 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const paymentDueDate = new Date(cycle.payment_due_date);
     let surchargeAmount = 0;
 
-    if (currentDate > paymentDueDate && cycle.payment_status !== PaymentStatus.PAID) {
+    if (
+      currentDate > paymentDueDate &&
+      cycle.payment_status !== PaymentStatus.PAID
+    ) {
       surchargeAmount = await this.calculateLateFee(cycle);
       this.logger.log(
         `Aplicando recargo por mora de ${surchargeAmount} al ciclo ${cycle_id}`,
@@ -94,8 +98,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
 
       // Calcular nuevos balances considerando créditos acumulados
       let remainingPayment = amount;
-      let newCreditBalance = parseFloat(cycle.credit_balance?.toString() || '0');
-      let newPendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
+      let newCreditBalance = parseFloat(
+        cycle.credit_balance?.toString() || '0',
+      );
+      let newPendingBalance = parseFloat(
+        cycle.pending_balance?.toString() || '0',
+      );
       let newPaidAmount = parseFloat(cycle.paid_amount?.toString() || '0');
 
       // Primero aplicar el pago a la deuda pendiente
@@ -237,50 +245,50 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     });
 
     const cycles = await this.subscription_cycle.findMany({
-       where: {
-         subscription_id: {
-           in: subscriptions.map(sub => sub.subscription_id)
-         }
-       },
-       include: {
-         cycle_payments: {
-           orderBy: { payment_date: 'desc' },
-         },
-         customer_subscription: {
-           include: {
-             subscription_plan: true,
-           },
-         },
-       },
-       orderBy: { cycle_start: 'desc' },
-     });
+      where: {
+        subscription_id: {
+          in: subscriptions.map((sub) => sub.subscription_id),
+        },
+      },
+      include: {
+        cycle_payments: {
+          orderBy: { payment_date: 'desc' },
+        },
+        customer_subscription: {
+          include: {
+            subscription_plan: true,
+          },
+        },
+      },
+      orderBy: { cycle_start: 'desc' },
+    });
 
     const paymentSummaries: CyclePaymentSummaryDto[] = [];
 
     for (const cycle of cycles) {
-        const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
-          (payment) => ({
-            payment_id: payment.payment_id,
-            cycle_id: payment.cycle_id,
-            payment_date: payment.payment_date,
-            amount: parseFloat(payment.amount?.toString() || '0'),
-            payment_method: payment.payment_method,
-            reference: payment.reference,
-            notes: payment.notes,
-            created_by: payment.created_by,
-          }),
-        );
+      const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
+        (payment) => ({
+          payment_id: payment.payment_id,
+          cycle_id: payment.cycle_id,
+          payment_date: payment.payment_date,
+          amount: parseFloat(payment.amount?.toString() || '0'),
+          payment_method: payment.payment_method,
+          reference: payment.reference,
+          notes: payment.notes,
+          created_by: payment.created_by,
+        }),
+      );
 
-        paymentSummaries.push({
-           cycle_id: cycle.cycle_id,
-           total_amount: parseFloat(cycle.total_amount?.toString() || '0'),
-           paid_amount: parseFloat(cycle.paid_amount?.toString() || '0'),
-           pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
-           credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
-           payment_status: cycle.payment_status,
-           payment_due_date: cycle.payment_due_date,
-           payments,
-         });
+      paymentSummaries.push({
+        cycle_id: cycle.cycle_id,
+        total_amount: parseFloat(cycle.total_amount?.toString() || '0'),
+        paid_amount: parseFloat(cycle.paid_amount?.toString() || '0'),
+        pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
+        credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
+        payment_status: cycle.payment_status,
+        payment_due_date: cycle.payment_due_date,
+        payments,
+      });
     }
 
     return paymentSummaries;
@@ -343,7 +351,10 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       orderBy: { cycle_end: 'desc' },
     });
 
-    if (!previousCycle || parseFloat(previousCycle.credit_balance?.toString() || '0') <= 0) {
+    if (
+      !previousCycle ||
+      parseFloat(previousCycle.credit_balance?.toString() || '0') <= 0
+    ) {
       return; // No hay créditos para transferir
     }
 
@@ -403,8 +414,10 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     // Separar ciclos con créditos y deudas
     for (const cycle of cycles) {
       const creditBalance = parseFloat(cycle.credit_balance?.toString() || '0');
-      const pendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
-      
+      const pendingBalance = parseFloat(
+        cycle.pending_balance?.toString() || '0',
+      );
+
       if (creditBalance > 0) {
         cyclesWithCredit.push(cycle);
         availableCredits += creditBalance;
@@ -419,9 +432,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     }
 
     let remainingCredits = availableCredits;
-    
-    await this.$transaction(async (tx) => {
 
+    await this.$transaction(async (tx) => {
       // Aplicar créditos a las deudas más antiguas primero
       for (const debtCycle of cyclesWithDebt) {
         if (remainingCredits <= 0) break;

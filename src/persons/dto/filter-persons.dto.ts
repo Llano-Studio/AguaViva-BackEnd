@@ -1,12 +1,20 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsEnum, IsArray, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  IsEnum,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
 import { PersonType } from '../../common/constants/enums';
 import { Type, Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export class FilterPersonsDto extends PaginationQueryDto {
   @ApiPropertyOptional({
-    description: 'Búsqueda general por nombre, alias, dirección, teléfono o CUIT/CUIL/DNI',
+    description:
+      'Búsqueda general por nombre, alias, dirección, teléfono o CUIT/CUIL/DNI',
     example: 'marcos',
   })
   @IsOptional()
@@ -56,7 +64,8 @@ export class FilterPersonsDto extends PaginationQueryDto {
   type?: PersonType;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por tipos de persona múltiples. Puede ser un array o string separado por comas "INDIVIDUAL,PLAN,PROSPECT"',
+    description:
+      'Filtrar por tipos de persona múltiples. Puede ser un array o string separado por comas "INDIVIDUAL,PLAN,PROSPECT"',
     example: [PersonType.INDIVIDUAL, PersonType.PLAN],
     enum: PersonType,
     isArray: true,
@@ -65,15 +74,22 @@ export class FilterPersonsDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const types = value.split(',').map(type => type.trim()).filter(type => Object.values(PersonType).includes(type as PersonType));
+      const types = value
+        .split(',')
+        .map((type) => type.trim())
+        .filter((type) =>
+          Object.values(PersonType).includes(type as PersonType),
+        );
       return types.length > 0 ? types : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, filtrar solo valores válidos
-      const types = value.filter(type => Object.values(PersonType).includes(type));
+      const types = value.filter((type) =>
+        Object.values(PersonType).includes(type),
+      );
       return types.length > 0 ? types : undefined;
     }
     return undefined;
@@ -106,7 +122,8 @@ export class FilterPersonsDto extends PaginationQueryDto {
   localityId?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por IDs de localidades múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por IDs de localidades múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
@@ -114,15 +131,18 @@ export class FilterPersonsDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, asegurar que sean números
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -139,7 +159,8 @@ export class FilterPersonsDto extends PaginationQueryDto {
   zoneId?: number;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por IDs de zonas (múltiples zonas). Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    description:
+      'Filtrar por IDs de zonas (múltiples zonas). Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
     example: [1, 2, 3],
     type: [Number],
   })
@@ -147,15 +168,18 @@ export class FilterPersonsDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const ids = value.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, asegurar que sean números
-      const ids = value.map(id => parseInt(id)).filter(id => !isNaN(id));
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
       return ids.length > 0 ? ids : undefined;
     }
     return undefined;
@@ -163,17 +187,21 @@ export class FilterPersonsDto extends PaginationQueryDto {
   zoneIds?: number[];
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado del semáforo de pagos del cliente (para compatibilidad).',
+    description:
+      'Filtrar por estado del semáforo de pagos del cliente (para compatibilidad).',
     example: 'YELLOW',
-    enum: ['NONE', 'GREEN', 'YELLOW', 'RED']
+    enum: ['NONE', 'GREEN', 'YELLOW', 'RED'],
   })
   @IsOptional()
   @IsString()
-  @IsEnum(['NONE', 'GREEN', 'YELLOW', 'RED'], { message: 'El estado del semáforo debe ser NONE, GREEN, YELLOW o RED' })
+  @IsEnum(['NONE', 'GREEN', 'YELLOW', 'RED'], {
+    message: 'El estado del semáforo debe ser NONE, GREEN, YELLOW o RED',
+  })
   payment_semaphore_status?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estados del semáforo de pagos múltiples. Puede ser un array o string separado por comas "NONE,GREEN,YELLOW"',
+    description:
+      'Filtrar por estados del semáforo de pagos múltiples. Puede ser un array o string separado por comas "NONE,GREEN,YELLOW"',
     example: ['GREEN', 'YELLOW'],
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED'],
     isArray: true,
@@ -182,17 +210,20 @@ export class FilterPersonsDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     // Si no hay valor, retornar undefined
     if (!value) return undefined;
-    
+
     const validStatuses = ['NONE', 'GREEN', 'YELLOW', 'RED'];
-    
+
     if (typeof value === 'string') {
       // Si viene como string separado por comas, convertir a array
-      const statuses = value.split(',').map(status => status.trim()).filter(status => validStatuses.includes(status));
+      const statuses = value
+        .split(',')
+        .map((status) => status.trim())
+        .filter((status) => validStatuses.includes(status));
       return statuses.length > 0 ? statuses : undefined;
     }
     if (Array.isArray(value)) {
       // Si ya es array, filtrar solo valores válidos
-      const statuses = value.filter(status => validStatuses.includes(status));
+      const statuses = value.filter((status) => validStatuses.includes(status));
       return statuses.length > 0 ? statuses : undefined;
     }
     return undefined;
@@ -200,7 +231,8 @@ export class FilterPersonsDto extends PaginationQueryDto {
   payment_semaphore_statuses?: string[];
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado activo/inactivo de la persona. Por defecto solo muestra activos (true)',
+    description:
+      'Filtrar por estado activo/inactivo de la persona. Por defecto solo muestra activos (true)',
     example: false,
   })
   @IsOptional()

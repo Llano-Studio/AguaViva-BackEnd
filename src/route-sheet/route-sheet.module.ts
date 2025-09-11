@@ -9,14 +9,14 @@ import { CommonModule } from '../common/common.module';
   imports: [CommonModule],
   controllers: [RouteSheetController],
   providers: [
-    RouteSheetService, 
+    RouteSheetService,
     RouteOptimizationService,
-    MobileInventoryService
+    MobileInventoryService,
   ],
   exports: [
     RouteSheetService,
     RouteOptimizationService,
-    MobileInventoryService
-  ]
+    MobileInventoryService,
+  ],
 })
-export class RouteSheetModule {} 
+export class RouteSheetModule {}

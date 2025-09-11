@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsEnum, IsString, IsInt, IsDateString, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsString,
+  IsInt,
+  IsDateString,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { SubscriptionStatus } from '@prisma/client';
 import { DeliveryPreferences } from './customer-subscription-response.dto';
@@ -17,27 +24,27 @@ export class UpdateCustomerSubscriptionDto {
   @IsDateString()
   collection_date?: string;
 
-  @ApiProperty({ 
-    enum: SubscriptionStatus, 
-    example: SubscriptionStatus.ACTIVE, 
-    required: false 
+  @ApiProperty({
+    enum: SubscriptionStatus,
+    example: SubscriptionStatus.ACTIVE,
+    required: false,
   })
   @IsOptional()
   @IsEnum(SubscriptionStatus)
   status?: SubscriptionStatus;
 
-  @ApiProperty({ 
-    example: 'Cliente VIP - entrega prioritaria', 
-    required: false 
+  @ApiProperty({
+    example: 'Cliente VIP - entrega prioritaria',
+    required: false,
   })
   @IsOptional()
   @IsString()
   notes?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: DeliveryPreferences,
     description: 'Preferencias de horario de entrega',
-    required: false 
+    required: false,
   })
   @IsOptional()
   @ValidateNested()
