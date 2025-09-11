@@ -68,12 +68,26 @@ export const fileUploadConfigs = {
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB para evidencias
     }
+  },
+
+  /**
+   * Configuración para contratos de comodato
+   */
+  contractImages: {
+    storage: diskStorage({
+      destination: './public/uploads/contracts',
+      filename: editFileName,
+    }),
+    fileFilter: imageFileFilter,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB para contratos
+    }
   }
 };
 
-export const buildImageUrl = (fileName: string | null, folder: 'profile-images' | 'products' | 'evidence' | 'delivery-evidence' | 'reconciliations'): string | null => {
+export const buildImageUrl = (fileName: string | null, folder: 'profile-images' | 'products' | 'evidence' | 'delivery-evidence' | 'reconciliations' | 'contracts'): string | null => {
   if (!fileName) {
     return null;
   }
   return `http://localhost:3000/public/uploads/${folder}/${fileName}`;
-}; 
+};

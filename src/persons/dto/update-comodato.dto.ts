@@ -11,6 +11,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ComodatoStatus } from '@prisma/client';
 
 export class UpdateComodatoDto {
+  @ApiPropertyOptional({ example: 2, description: 'Nuevo ID del producto en comodato' })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  product_id?: number;
+
   @ApiPropertyOptional({ example: 3, description: 'Nueva cantidad de productos en comodato' })
   @IsInt()
   @Min(1)
