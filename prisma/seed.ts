@@ -106,6 +106,10 @@ async function main() {
     {
       code: 'TRANS_ENT',
       description: 'Transferencia de entrada'
+    },
+    {
+      code: 'ING_DEV_CS',
+      description: 'Ingreso dev. cancelación'
     }
   ];
 
