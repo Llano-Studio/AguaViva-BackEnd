@@ -633,6 +633,7 @@ model route_sheet_detail {
   order_id                   Int?                    
   one_off_purchase_id        Int?                     
   one_off_purchase_header_id Int?                     
+  cancellation_order_id      Int?
   delivery_status            String                   @db.VarChar(20)
   delivery_time              String?                  @db.VarChar(50)
   comments                   String?
@@ -652,6 +653,7 @@ model route_sheet_detail {
   order_header               order_header?            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
   one_off_purchase           one_off_purchase?        @relation(fields: [one_off_purchase_id], references: [purchase_id], onDelete: NoAction, onUpdate: NoAction)
   one_off_purchase_header    one_off_purchase_header? @relation(fields: [one_off_purchase_header_id], references: [purchase_header_id], onDelete: NoAction, onUpdate: NoAction)
+  cancellation_order         cancellation_order?      @relation(fields: [cancellation_order_id], references: [cancellation_order_id], onDelete: NoAction, onUpdate: NoAction)
   route_sheet                route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
 }
 
@@ -827,6 +829,7 @@ model cancellation_order {
   rescheduled_count        Int                  @default(0)
   customer_subscription    customer_subscription @relation(fields: [subscription_id], references: [subscription_id], onDelete: Cascade, onUpdate: NoAction)
   route_sheet              route_sheet?         @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: SetNull, onUpdate: NoAction)
+  route_sheet_detail       route_sheet_detail[]
   
   @@index([subscription_id])
   @@index([scheduled_collection_date])

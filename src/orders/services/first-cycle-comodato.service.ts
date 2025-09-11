@@ -111,6 +111,44 @@ export class FirstCycleComodatoService extends PrismaClient {
       `📦 Encontrados ${returnableProducts.length} productos retornables para comodato`,
     );
 
+    // Validar comodatos existentes antes de crear nuevos
+    const productIds = returnableProducts.map((item) => item.product_id);
+    const validation = await this.validateExistingComodatos(
+      subscription.customer_id,
+      productIds,
+    );
+
+    if (validation.hasConflicts) {
+      this.logger.warn(
+        `⚠️ Se encontraron ${validation.conflicts.length} comodatos activos existentes. Omitiendo productos con conflictos.`,
+      );
+      
+      // Filtrar productos que no tienen conflictos
+      const conflictProductIds = validation.conflicts.map(c => c.product_id);
+      const productsWithoutConflicts = returnableProducts.filter(
+        (item) => !conflictProductIds.includes(item.product_id)
+      );
+      
+      if (productsWithoutConflicts.length === 0) {
+        this.logger.log(
+          `ℹ️ Todos los productos retornables ya tienen comodatos activos para cliente ${subscription.customer_id}`,
+        );
+        return {
+          comodatos_created: [],
+          total_comodatos: 0,
+          is_first_cycle: true,
+          customer_id: subscription.customer_id,
+          subscription_id: subscriptionId,
+        };
+      }
+      
+      // Actualizar la lista de productos a procesar
+      returnableProducts.splice(0, returnableProducts.length, ...productsWithoutConflicts);
+      this.logger.log(
+        `📦 Procesando ${returnableProducts.length} productos sin conflictos`,
+      );
+    }
+
     // Crear comodatos para productos retornables
     const comodatosCreated = [];
 
@@ -256,6 +294,75 @@ export class FirstCycleComodatoService extends PrismaClient {
     });
 
     return !!existingComodato;
+  }
+
+  /**
+   * Valida que no existan comodatos activos duplicados antes de crear nuevos
+   * Previene la creación de comodatos duplicados al cancelar y crear nuevas suscripciones
+   */
+  async validateExistingComodatos(
+    customerId: number,
+    productIds: number[],
+  ): Promise<{
+    hasConflicts: boolean;
+    conflicts: Array<{
+      product_id: number;
+      existing_comodato_id: number;
+      product_description?: string;
+    }>;
+  }> {
+    this.logger.log(
+      `🔍 Validando comodatos existentes para cliente ${customerId} y productos [${productIds.join(', ')}]`,
+    );
+
+    const conflicts = [];
+
+    for (const productId of productIds) {
+      const existingComodato = await this.comodato.findFirst({
+        where: {
+          person_id: customerId,
+          product_id: productId,
+          status: ComodatoStatus.ACTIVE,
+          is_active: true,
+        },
+        include: {
+          product: {
+            select: {
+              description: true,
+            },
+          },
+        },
+      });
+
+      if (existingComodato) {
+        conflicts.push({
+          product_id: productId,
+          existing_comodato_id: existingComodato.comodato_id,
+          product_description: existingComodato.product?.description,
+        });
+
+        this.logger.warn(
+          `⚠️ Conflicto detectado: Cliente ${customerId} ya tiene comodato activo (ID: ${existingComodato.comodato_id}) para producto ${productId} (${existingComodato.product?.description})`,
+        );
+      }
+    }
+
+    const hasConflicts = conflicts.length > 0;
+
+    if (hasConflicts) {
+      this.logger.warn(
+        `❌ Validación fallida: ${conflicts.length} conflictos encontrados para cliente ${customerId}`,
+      );
+    } else {
+      this.logger.log(
+        `✅ Validación exitosa: No hay conflictos para cliente ${customerId}`,
+      );
+    }
+
+    return {
+      hasConflicts,
+      conflicts,
+    };
   }
 
   /**

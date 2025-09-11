@@ -26,6 +26,7 @@ import {
   CancellationOrderService,
   CancellationOrderResponseDto,
 } from './cancellation-order.service';
+import { CancellationOrderWithProductsDto } from './dto/cancellation-order-with-products.dto';
 import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
 import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
 import { CancellationOrderReassignmentService } from './services/cancellation-order-reassignment.service';
@@ -173,6 +174,60 @@ export class CancellationOrderController {
     if (scheduledDateTo) filters.scheduled_date_to = new Date(scheduledDateTo);
 
     return this.cancellationOrderService.findAll(filters);
+  }
+
+  @Get('with-products')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Obtener órdenes de cancelación con información de productos',
+    description:
+      'Obtiene todas las órdenes de cancelación con información detallada de productos y clientes',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: CancellationOrderStatus,
+    description: 'Filtrar por estado',
+  })
+  @ApiQuery({
+    name: 'subscription_id',
+    required: false,
+    type: Number,
+    description: 'Filtrar por ID de suscripción',
+  })
+  @ApiQuery({
+    name: 'scheduled_date_from',
+    required: false,
+    type: String,
+    description: 'Fecha desde (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'scheduled_date_to',
+    required: false,
+    type: String,
+    description: 'Fecha hasta (YYYY-MM-DD)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de órdenes de cancelación con productos',
+    type: [CancellationOrderWithProductsDto],
+  })
+  async findAllWithProducts(
+    @Query('status') status?: CancellationOrderStatus,
+    @Query('subscription_id', new ParseIntPipe({ optional: true }))
+    subscriptionId?: number,
+    @Query('scheduled_date_from') scheduledDateFrom?: string,
+    @Query('scheduled_date_to') scheduledDateTo?: string,
+  ): Promise<CancellationOrderWithProductsDto[]> {
+    const filters: any = {};
+
+    if (status) filters.status = status;
+    if (subscriptionId) filters.subscription_id = subscriptionId;
+    if (scheduledDateFrom)
+      filters.scheduled_date_from = new Date(scheduledDateFrom);
+    if (scheduledDateTo) filters.scheduled_date_to = new Date(scheduledDateTo);
+
+    return this.cancellationOrderService.findAllWithProducts(filters);
   }
 
   @Get('pending')

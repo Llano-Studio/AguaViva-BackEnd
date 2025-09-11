@@ -66,6 +66,15 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
             };
           };
         };
+        cancellation_order: {
+          include: {
+            customer_subscription: {
+              include: {
+                person: true;
+              };
+            };
+          };
+        };
       };
     };
   };
@@ -362,6 +371,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     },
                   },
                 },
+                cancellation_order: {
+                  include: {
+                    customer_subscription: {
+                      include: {
+                        person: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -433,6 +451,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     purchase_items: {
                       include: {
                         product: true,
+                      },
+                    },
+                  },
+                },
+                cancellation_order: {
+                  include: {
+                    customer_subscription: {
+                      include: {
+                        person: true,
                       },
                     },
                   },
@@ -525,6 +552,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   },
                 },
               },
+              cancellation_order: {
+                    include: {
+                      customer_subscription: {
+                        include: {
+                          person: true,
+                        },
+                      },
+                    },
+                  },
             },
           },
         },
@@ -584,6 +620,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 purchase_items: {
                   include: {
                     product: true,
+                  },
+                },
+              },
+            },
+            cancellation_order: {
+              include: {
+                customer_subscription: {
+                  include: {
+                    person: true,
                   },
                 },
               },
@@ -671,6 +716,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     },
                   },
                 },
+                cancellation_order: {
+                  include: {
+                    customer_subscription: {
+                      include: {
+                        person: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -752,6 +806,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     purchase_items: {
                       include: {
                         product: true,
+                      },
+                    },
+                  },
+                },
+                cancellation_order: {
+                  include: {
+                    customer_subscription: {
+                      include: {
+                        person: true,
                       },
                     },
                   },
@@ -1013,6 +1076,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             customer: customerDto,
             items: orderItemsDto,
           };
+        } else if (detail.cancellation_order) {
+          // Orden de cancelación
+          customerDto = {
+            person_id: detail.cancellation_order.customer_subscription.person.person_id,
+            name: detail.cancellation_order.customer_subscription.person.name || 'Sin nombre',
+            phone: detail.cancellation_order.customer_subscription.person.phone,
+            address: detail.cancellation_order.customer_subscription.person.address || 'Sin dirección',
+          };
+
+          // Para órdenes de cancelación, no tenemos productos específicos
+          const orderItemsDto: OrderItemDto[] = [];
+
+          orderDto = {
+            order_id: detail.cancellation_order.cancellation_order_id,
+            order_date: detail.cancellation_order.scheduled_collection_date.toISOString(),
+            total_amount: '0.00', // Las cancelaciones no tienen monto
+            status: 'CANCELLED',
+            customer: customerDto,
+            items: orderItemsDto,
+          };
         } else {
           throw new Error('Detalle de hoja de ruta sin orden válida');
         }
@@ -1115,6 +1198,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   purchase_items: {
                     include: {
                       product: true,
+                    },
+                  },
+                },
+              },
+              cancellation_order: {
+                include: {
+                  customer_subscription: {
+                    include: {
+                      person: true,
                     },
                   },
                 },

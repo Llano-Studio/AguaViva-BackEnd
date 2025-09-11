@@ -1878,6 +1878,29 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Crear el comodato si se proporcionaron los datos
       let comodato: ComodatoResponseDto | null = null;
       if (dto.comodato_product_id) {
+        // Verificar si ya existe un comodato activo para este producto y cliente
+        const existingComodato = await this.comodato.findFirst({
+          where: {
+            person_id: dto.customer_id,
+            product_id: dto.comodato_product_id,
+            status: ComodatoStatus.ACTIVE,
+            is_active: true,
+          },
+          include: {
+            product: {
+              select: {
+                description: true,
+              },
+            },
+          },
+        });
+
+        if (existingComodato) {
+          throw new ConflictException(
+            `El cliente ya tiene un comodato activo para el producto ${existingComodato.product?.description} (ID: ${existingComodato.comodato_id}). No se puede crear un comodato duplicado.`,
+          );
+        }
+
         const comodatoDto: CreateComodatoDto = {
           person_id: dto.customer_id,
           product_id: dto.comodato_product_id,
