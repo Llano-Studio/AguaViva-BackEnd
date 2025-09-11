@@ -15,7 +15,9 @@ import {
   ApiQuery,
   ApiBody,
   ApiBearerAuth,
+  ApiProperty,
 } from '@nestjs/swagger';
+import { IsDateString, IsNotEmpty } from 'class-validator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -26,7 +28,15 @@ import {
 } from '../services/automated-collection.service';
 
 export class GenerateCollectionOrdersDto {
-  target_date: string; // Formato: YYYY-MM-DD
+  @ApiProperty({
+    description: 'Fecha objetivo para generar las órdenes de cobranza en formato YYYY-MM-DD. Si la fecha cae en domingo, se ajusta automáticamente al sábado anterior.',
+    example: '2024-01-15',
+    type: String,
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+  })
+  @IsNotEmpty({ message: 'La fecha objetivo es requerida' })
+  @IsDateString({}, { message: 'La fecha debe estar en formato YYYY-MM-DD válido' })
+  target_date: string;
 }
 
 @ApiTags('Automated Collection Orders')
@@ -46,7 +56,7 @@ export class AutomatedCollectionController {
   @ApiOperation({
     summary: 'Generar pedidos de cobranza manualmente',
     description:
-      'Ejecuta la generación de pedidos de cobranza para una fecha específica. Si la fecha cae en domingo, se ajusta automáticamente al sábado anterior.',
+      'Ejecuta manualmente la generación de pedidos de cobranza para una fecha específica. Este endpoint permite procesar cobranzas fuera del horario automático programado. Si la fecha especificada cae en domingo, se ajusta automáticamente al sábado anterior para mantener la consistencia del negocio.',
   })
   @ApiBody({ type: GenerateCollectionOrdersDto })
   @ApiResponse({
@@ -145,7 +155,7 @@ export class AutomatedCollectionController {
   @ApiOperation({
     summary: 'Obtener próximas cobranzas',
     description:
-      'Lista los ciclos de suscripción que vencen en los próximos días y requieren generación de pedidos de cobranza.',
+      'Obtiene una lista detallada de los ciclos de suscripción que vencen en los próximos días y requieren generación de pedidos de cobranza. Útil para planificación y seguimiento de cobranzas pendientes.',
   })
   @ApiQuery({
     name: 'days',
@@ -229,7 +239,16 @@ export class AutomatedCollectionController {
   @ApiOperation({
     summary: 'Ejecutar generación automática para hoy',
     description:
-      'Ejecuta inmediatamente el proceso automático de generación de pedidos de cobranza para la fecha actual.',
+      'Ejecuta inmediatamente el proceso automático de generación de pedidos de cobranza para la fecha actual. No requiere parámetros en el cuerpo de la solicitud.',
+  })
+  @ApiBody({
+    required: false,
+    description: 'Este endpoint no requiere cuerpo de solicitud. Se ejecuta para la fecha actual automáticamente.',
+    schema: {
+      type: 'object',
+      properties: {},
+      example: {},
+    },
   })
   @ApiResponse({
     status: 200,
@@ -305,7 +324,7 @@ export class AutomatedCollectionController {
   @ApiOperation({
     summary: 'Estadísticas de cobranzas automáticas',
     description:
-      'Obtiene estadísticas sobre el proceso de generación automática de pedidos de cobranza.',
+      'Proporciona estadísticas detalladas sobre el proceso de generación automática de pedidos de cobranza, incluyendo métricas de rendimiento, montos pendientes, ciclos vencidos y proyecciones para las próximas semanas.',
   })
   @ApiQuery({
     name: 'days',

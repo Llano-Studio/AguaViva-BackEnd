@@ -24,10 +24,10 @@ import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import {
   CancellationOrderService,
-  CreateCancellationOrderDto,
-  UpdateCancellationOrderDto,
   CancellationOrderResponseDto,
 } from './cancellation-order.service';
+import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
+import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
 import { CancellationOrderReassignmentService } from './services/cancellation-order-reassignment.service';
 import { CancellationOrderStatus } from '@prisma/client';
 
@@ -90,7 +90,7 @@ export class CancellationOrderController {
   })
   @ApiResponse({ status: 404, description: 'Suscripción no encontrada' })
   async create(
-    @Body(ValidationPipe) createDto: CreateCancellationOrderDto,
+    @Body(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, skipMissingProperties: true })) createDto: CreateCancellationOrderDto,
   ): Promise<CancellationOrderResponseDto> {
     return this.cancellationOrderService.createCancellationOrder(createDto);
   }
