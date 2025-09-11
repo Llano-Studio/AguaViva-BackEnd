@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
+import { buildImageUrl } from '../../common/utils/file-upload.util';
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -256,7 +257,7 @@ export class FirstCycleComodatoService extends PrismaClient {
    * Obtiene información de comodatos activos para un cliente
    */
   async getActiveComodatosByCustomer(customerId: number) {
-    return await this.comodato.findMany({
+    const comodatos = await this.comodato.findMany({
       where: {
         person_id: customerId,
         status: ComodatoStatus.ACTIVE,
@@ -275,6 +276,68 @@ export class FirstCycleComodatoService extends PrismaClient {
         delivery_date: 'desc',
       },
     });
+
+    // Mapear los resultados al formato esperado
+    const mappedComodatos = await Promise.all(
+      comodatos.map(async (comodato) => {
+        // Buscar información de suscripción para este comodato
+        let subscription = null;
+        if (comodato.notes && comodato.notes.includes('suscripción')) {
+          // Extraer subscription_id de las notas si está disponible
+          const subscriptionMatch = comodato.notes.match(/suscripción (\d+)/);
+          if (subscriptionMatch) {
+            const subscriptionId = parseInt(subscriptionMatch[1]);
+            const subscriptionData = await this.customer_subscription.findUnique({
+              where: { subscription_id: subscriptionId },
+              include: {
+                subscription_plan: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            });
+            if (subscriptionData) {
+              subscription = {
+                subscription_id: subscriptionId,
+                subscription_name: subscriptionData.subscription_plan.name,
+              };
+            }
+          }
+        }
+
+        return {
+          comodato_id: comodato.comodato_id,
+          person_id: comodato.person_id,
+          product_id: comodato.product_id,
+          quantity: comodato.quantity,
+          delivery_date: comodato.delivery_date,
+          return_date: comodato.return_date,
+          expected_return_date: comodato.expected_return_date,
+          status: comodato.status,
+          notes: comodato.notes,
+          deposit_amount: comodato.deposit_amount?.toString() || '0',
+          monthly_fee: comodato.monthly_fee?.toString() || '0',
+          article_description: comodato.article_description || '',
+          brand: comodato.brand || '',
+          model: comodato.model || '',
+          contract_image_path: comodato.contract_image_path
+            ? buildImageUrl(comodato.contract_image_path, 'contracts')
+            : null,
+          created_at: comodato.created_at,
+          updated_at: comodato.updated_at,
+          is_active: comodato.is_active,
+          product: {
+            product_id: comodato.product.product_id,
+            description: comodato.product.description,
+            is_returnable: comodato.product.is_returnable,
+          },
+          subscription: subscription,
+        };
+      })
+    );
+
+    return mappedComodatos;
   }
 
   /**

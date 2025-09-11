@@ -21,6 +21,8 @@ import {
   PersonType as PrismaPersonType,
   ComodatoStatus,
   comodato,
+  customer_subscription,
+  subscription_plan,
 } from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
@@ -1224,6 +1226,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           zone_id: number;
           name: string;
         } | null;
+        customer_subscription?: (customer_subscription & {
+          subscription_plan: subscription_plan | null;
+        })[];
       };
       product?: {
         product_id: number;
@@ -1231,6 +1236,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       };
     },
   ): ComodatoResponseDto {
+    const firstSubscription =
+      comodatoEntity.person?.customer_subscription?.[0];
+
     return {
       comodato_id: comodatoEntity.comodato_id,
       person_id: comodatoEntity.person_id,
@@ -1250,8 +1258,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       article_description: comodatoEntity.article_description || undefined,
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
-      contract_image_path: comodatoEntity.contract_image_path 
-        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts') 
+      contract_image_path: comodatoEntity.contract_image_path
+        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts')
         : undefined,
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
@@ -1270,6 +1278,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: comodatoEntity.product.product_id,
             name: comodatoEntity.product.description,
             description: comodatoEntity.product.description,
+          }
+        : undefined,
+      subscription: firstSubscription
+        ? {
+            subscription_id: firstSubscription.subscription_id,
+            name: firstSubscription.subscription_plan?.name || '',
           }
         : undefined,
     };
@@ -1575,25 +1589,28 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: whereConditions,
         include: {
           person: {
-            select: {
-              person_id: true,
-              name: true,
-              phone: true,
-              address: true,
-              zone: {
-                select: {
-                  zone_id: true,
-                  name: true,
+            include: {
+              zone: true,
+              customer_subscription: {
+                where: {
+                  status: {
+                    in: [
+                      SubscriptionStatus.ACTIVE,
+                      SubscriptionStatus.CANCELLED,
+                    ],
+                  },
                 },
+                include: {
+                  subscription_plan: true,
+                },
+                orderBy: {
+                  start_date: 'desc',
+                },
+                take: 1,
               },
             },
           },
-          product: {
-            select: {
-              product_id: true,
-              description: true,
-            },
-          },
+          product: true,
         },
         orderBy: {
           created_at: 'desc',

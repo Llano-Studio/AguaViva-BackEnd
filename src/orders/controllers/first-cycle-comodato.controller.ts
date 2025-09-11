@@ -195,6 +195,11 @@ export class FirstCycleComodatoController {
             type: 'string',
             example: '2024-01-15T00:00:00.000Z',
           },
+          return_date: {
+            type: 'string',
+            example: null,
+            nullable: true,
+          },
           expected_return_date: {
             type: 'string',
             example: '2025-01-15T00:00:00.000Z',
@@ -202,14 +207,41 @@ export class FirstCycleComodatoController {
           status: { type: 'string', example: 'ACTIVE' },
           notes: {
             type: 'string',
-            example: 'Comodato automático - Primer ciclo',
+            example: 'Comodato automático - Primer ciclo de suscripción 1',
           },
+          deposit_amount: { type: 'string', example: '0' },
+          monthly_fee: { type: 'string', example: '0' },
+          article_description: { type: 'string', example: 'Bidón 20L' },
+          brand: { type: 'string', example: '' },
+          model: { type: 'string', example: '' },
+          contract_image_path: {
+            type: 'string',
+            example: 'http://localhost:3000/public/uploads/contracts/contract_123_456.jpg',
+            nullable: true,
+          },
+          created_at: {
+            type: 'string',
+            example: '2024-01-15T10:30:00.000Z',
+          },
+          updated_at: {
+            type: 'string',
+            example: '2024-01-15T10:30:00.000Z',
+          },
+          is_active: { type: 'boolean', example: true },
           product: {
             type: 'object',
             properties: {
               product_id: { type: 'number', example: 5 },
               description: { type: 'string', example: 'Bidón 20L' },
               is_returnable: { type: 'boolean', example: true },
+            },
+          },
+          subscription: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              subscription_id: { type: 'number', example: 1 },
+              subscription_name: { type: 'string', example: 'Plan Básico' },
             },
           },
         },
