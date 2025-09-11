@@ -43,6 +43,7 @@ import { CustomerSubscriptionService } from '../customer-subscription/customer-s
 import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { buildImageUrl } from '../common/utils/file-upload.util';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { SubscriptionQuotaService } from '../orders/services/subscription-quota.service';
@@ -1249,7 +1250,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       article_description: comodatoEntity.article_description || undefined,
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
-      contract_image_path: comodatoEntity.contract_image_path || undefined,
+      contract_image_path: comodatoEntity.contract_image_path 
+        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts') 
+        : undefined,
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
       updated_at: comodatoEntity.updated_at,
@@ -1294,6 +1297,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (!product) {
         throw new NotFoundException(
           `Producto con ID ${dto.product_id} no encontrado`,
+        );
+      }
+
+      // Verificar que el producto sea retornable
+      if (!product.is_returnable) {
+        throw new BadRequestException(
+          `No se puede crear comodato para ${product.description} porque no es un producto retornable`,
         );
       }
 
@@ -1667,6 +1677,23 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       const updateData: Prisma.comodatoUpdateInput = {};
+
+      if (dto.product_id !== undefined) {
+        // Verificar que el nuevo producto existe
+        const product = await this.product.findUnique({
+          where: { product_id: dto.product_id },
+        });
+
+        if (!product) {
+          throw new NotFoundException(
+            `Producto con ID ${dto.product_id} no encontrado`,
+          );
+        }
+
+        updateData.product = {
+          connect: { product_id: dto.product_id },
+        };
+      }
 
       if (dto.quantity !== undefined) {
         updateData.quantity = dto.quantity;

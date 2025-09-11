@@ -1,8 +1,8 @@
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, ValidationPipe,
+  Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, ValidationPipe, UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import {
-  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiProperty, ApiBody,
+  ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiProperty, ApiBody, ApiConsumes,
 } from '@nestjs/swagger';
 import { PersonsService } from './persons.service';
 import { CreatePersonDto } from './dto/create-person.dto';
@@ -22,6 +22,9 @@ import {
   ComodatoResponseDto,
   CreateSubscriptionWithComodatoDto,
 } from './dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { fileUploadConfigs, buildImageUrl } from '../common/utils/file-upload.util';
+import { Express } from 'express';
 
 class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
@@ -328,7 +331,7 @@ export class PersonsController {
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Búsqueda general' })
   @ApiResponse({ status: 200, description: 'Lista de comodatos obtenida', type: [ComodatoResponseDto] })
   async getAllComodatos(
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) filters: FilterComodatosDto
+    @Query() filters: FilterComodatosDto
   ): Promise<ComodatoResponseDto[]> {
     return this.personsService.getAllComodatos(filters);
   }
@@ -405,5 +408,52 @@ export class PersonsController {
     @Body(ValidationPipe) createDto: CreateSubscriptionWithComodatoDto
   ) {
     return this.personsService.createSubscriptionWithComodato(createDto);
+  }
+
+  @Post('upload-contract-image')
+  @UseInterceptors(FileInterceptor('contract_image', fileUploadConfigs.contractImages))
+  @ApiOperation({ 
+    summary: 'Subir imagen de contrato de comodato',
+    description: 'Sube una imagen de contrato y devuelve la URL para usar en comodatos'
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        contract_image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo de imagen del contrato (JPG, PNG, etc.)'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Imagen subida exitosamente',
+    schema: {
+      properties: {
+        message: { type: 'string', example: 'Imagen de contrato subida exitosamente' },
+        filename: { type: 'string', example: 'contrato-abc123.jpg' },
+        url: { type: 'string', example: 'http://localhost:3000/public/uploads/contracts/contrato-abc123.jpg' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Archivo inválido o no proporcionado' })
+  async uploadContractImage(
+    @UploadedFile() file: any
+  ) {
+    if (!file) {
+      throw new Error('No se proporcionó ningún archivo');
+    }
+    
+    const url = buildImageUrl(file.filename, 'contracts');
+    
+    return {
+      message: 'Imagen de contrato subida exitosamente',
+      filename: file.filename,
+      url: url
+    };
   }
 }
