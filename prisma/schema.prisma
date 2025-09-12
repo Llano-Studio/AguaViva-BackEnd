@@ -634,6 +634,7 @@ model route_sheet_detail {
   one_off_purchase_id        Int?                     
   one_off_purchase_header_id Int?                     
   cancellation_order_id      Int?
+  cycle_payment_id           Int?
   delivery_status            String                   @db.VarChar(20)
   delivery_time              String?                  @db.VarChar(50)
   comments                   String?
@@ -654,6 +655,7 @@ model route_sheet_detail {
   one_off_purchase           one_off_purchase?        @relation(fields: [one_off_purchase_id], references: [purchase_id], onDelete: NoAction, onUpdate: NoAction)
   one_off_purchase_header    one_off_purchase_header? @relation(fields: [one_off_purchase_header_id], references: [purchase_header_id], onDelete: NoAction, onUpdate: NoAction)
   cancellation_order         cancellation_order?      @relation(fields: [cancellation_order_id], references: [cancellation_order_id], onDelete: NoAction, onUpdate: NoAction)
+  cycle_payment              cycle_payment?           @relation(fields: [cycle_payment_id], references: [payment_id], onDelete: NoAction, onUpdate: NoAction)
   route_sheet                route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
 }
 
@@ -811,6 +813,7 @@ model cycle_payment {
   notes           String?
   created_by      Int?
   subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: Cascade, onUpdate: NoAction)
+  route_sheet_detail route_sheet_detail[]
   
   @@index([cycle_id])
   @@index([payment_date])

@@ -24,12 +24,13 @@ export class AtLeastOneOrderIdConstraint
     return !!(
       object.order_id ||
       object.one_off_purchase_id ||
-      object.one_off_purchase_header_id
+      object.one_off_purchase_header_id ||
+      object.cycle_payment_id
     );
   }
 
   defaultMessage() {
-    return 'Al menos uno de los siguientes campos debe estar presente: order_id, one_off_purchase_id, one_off_purchase_header_id';
+    return 'Al menos uno de los siguientes campos debe estar presente: order_id, one_off_purchase_id, one_off_purchase_header_id, cycle_payment_id';
   }
 }
 
@@ -59,6 +60,14 @@ export class CreateRouteSheetDetailDto {
   @IsInt()
   @IsOptional()
   one_off_purchase_header_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID del pedido de cobranza que debe ser procesado',
+    example: 1,
+  })
+  @IsInt()
+  @IsOptional()
+  cycle_payment_id?: number;
 
   @ApiPropertyOptional({
     description: 'Estado inicial de la entrega (por defecto PENDING)',
