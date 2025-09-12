@@ -99,7 +99,7 @@ export class MailService {
       }
 
       const template = await this.loadTemplate('password-recovery');
-      const resetUrl = `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/auth/resetear-clave?token=${token}`;
+      const resetUrl = `${this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'}/auth/reset-password?token=${token}`;
       const currentYear = new Date().getFullYear();
 
       const html = template({
