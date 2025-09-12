@@ -1359,6 +1359,21 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                   name: true,
                 },
               },
+              customer_subscription: {
+                where: {
+                  OR: [
+                    { status: 'ACTIVE' },
+                    { status: 'CANCELLED' }
+                  ]
+                },
+                include: {
+                  subscription_plan: true,
+                },
+                orderBy: {
+                  start_date: 'desc',
+                },
+                take: 1,
+              },
             },
           },
           product: {
@@ -1441,6 +1456,21 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                   zone_id: true,
                   name: true,
                 },
+              },
+              customer_subscription: {
+                where: {
+                  OR: [
+                    { status: 'ACTIVE' },
+                    { status: 'CANCELLED' }
+                  ]
+                },
+                include: {
+                  subscription_plan: true,
+                },
+                orderBy: {
+                  start_date: 'desc',
+                },
+                take: 1,
               },
             },
           },
@@ -1651,6 +1681,21 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                   name: true,
                 },
               },
+              customer_subscription: {
+                where: {
+                  OR: [
+                    { status: 'ACTIVE' },
+                    { status: 'CANCELLED' }
+                  ]
+                },
+                include: {
+                  subscription_plan: true,
+                },
+                orderBy: {
+                  start_date: 'desc',
+                },
+                take: 1,
+              },
             },
           },
           product: {
@@ -1788,6 +1833,21 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                   zone_id: true,
                   name: true,
                 },
+              },
+              customer_subscription: {
+                where: {
+                  OR: [
+                    { status: 'ACTIVE' },
+                    { status: 'CANCELLED' }
+                  ]
+                },
+                include: {
+                  subscription_plan: true,
+                },
+                orderBy: {
+                  start_date: 'desc',
+                },
+                take: 1,
               },
             },
           },

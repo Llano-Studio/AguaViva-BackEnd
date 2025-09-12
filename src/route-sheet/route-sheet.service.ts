@@ -75,6 +75,19 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
             };
           };
         };
+        cycle_payment: {
+          include: {
+            subscription_cycle: {
+              include: {
+                customer_subscription: {
+                  include: {
+                    person: true;
+                  };
+                };
+              };
+            };
+          };
+        };
       };
     };
   };
@@ -199,6 +212,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const oneOffPurchaseHeaderIds = details
         .filter((detail) => detail.one_off_purchase_header_id)
         .map((detail) => detail.one_off_purchase_header_id);
+      const cyclePaymentIds = details
+        .filter((detail) => detail.cycle_payment_id)
+        .map((detail) => detail.cycle_payment_id);
 
       // Validar órdenes de suscripción
       if (orderIds.length > 0) {
@@ -253,6 +269,24 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         }
       }
 
+      // Validar pedidos de cobranza
+      if (cyclePaymentIds.length > 0) {
+        const cyclePayments = await this.cycle_payment.findMany({
+          where: { payment_id: { in: cyclePaymentIds } },
+        });
+        if (cyclePayments.length !== cyclePaymentIds.length) {
+          const foundIds = cyclePayments.map(
+            (payment) => payment.payment_id,
+          );
+          const missingIds = cyclePaymentIds.filter(
+            (id) => !foundIds.includes(id),
+          );
+          throw new BadRequestException(
+            `Los siguientes pedidos de cobranza no existen: ${missingIds.join(', ')}`,
+          );
+        }
+      }
+
       // Verificar asignaciones existentes para todos los tipos de órdenes
       const existingAssignments = await this.route_sheet_detail.findMany({
         where: {
@@ -263,6 +297,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               : {},
             oneOffPurchaseHeaderIds.length > 0
               ? { one_off_purchase_header_id: { in: oneOffPurchaseHeaderIds } }
+              : {},
+            cyclePaymentIds.length > 0
+              ? { cycle_payment_id: { in: cyclePaymentIds } }
               : {},
           ].filter((condition) => Object.keys(condition).length > 0),
           route_sheet: {
@@ -282,6 +319,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             return `Compra one-off ${assignment.one_off_purchase_id} ya asignada a la hoja de ruta ${assignment.route_sheet_id}`;
           } else if (assignment.one_off_purchase_header_id) {
             return `Header de compra one-off ${assignment.one_off_purchase_header_id} ya asignado a la hoja de ruta ${assignment.route_sheet_id}`;
+          } else if (assignment.cycle_payment_id) {
+            return `Pedido de cobranza ${assignment.cycle_payment_id} ya asignado a la hoja de ruta ${assignment.route_sheet_id}`;
           }
           return `Orden desconocida ya asignada a la hoja de ruta ${assignment.route_sheet_id}`;
         });
@@ -296,6 +335,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         order_id?: number;
         one_off_purchase_id?: number;
         one_off_purchase_header_id?: number;
+        cycle_payment_id?: number;
         delivery_status: string;
         delivery_time: string | null;
         comments?: string;
@@ -320,6 +360,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           order_id: detail.order_id,
           one_off_purchase_id: detail.one_off_purchase_id,
           one_off_purchase_header_id: detail.one_off_purchase_header_id,
+          cycle_payment_id: detail.cycle_payment_id,
           delivery_status: detail.delivery_status || 'PENDING',
           delivery_time: detail.delivery_time || null,
           comments: detail.comments,
@@ -380,6 +421,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     },
                   },
                 },
+                cycle_payment: {
+                  include: {
+                    subscription_cycle: {
+                      include: {
+                        customer_subscription: {
+                          include: {
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -394,6 +448,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               one_off_purchase_id: detail.one_off_purchase_id || undefined,
               one_off_purchase_header_id:
                 detail.one_off_purchase_header_id || undefined,
+              cycle_payment_id: detail.cycle_payment_id || undefined,
               delivery_status: detail.delivery_status,
               delivery_time: detail.delivery_time || undefined,
               comments: detail.comments,
@@ -460,6 +515,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     customer_subscription: {
                       include: {
                         person: true,
+                      },
+                    },
+                  },
+                },
+                cycle_payment: {
+                  include: {
+                    subscription_cycle: {
+                      include: {
+                        customer_subscription: {
+                          include: {
+                            person: true,
+                          },
+                        },
                       },
                     },
                   },
@@ -561,6 +629,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                       },
                     },
                   },
+              cycle_payment: {
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: {
+                          person: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -629,6 +710,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 customer_subscription: {
                   include: {
                     person: true,
+                  },
+                },
+              },
+            },
+            cycle_payment: {
+              include: {
+                subscription_cycle: {
+                  include: {
+                    customer_subscription: {
+                      include: {
+                        person: true,
+                      },
+                    },
                   },
                 },
               },
@@ -725,6 +819,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     },
                   },
                 },
+                cycle_payment: {
+                  include: {
+                    subscription_cycle: {
+                      include: {
+                        customer_subscription: {
+                          include: {
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -815,6 +922,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     customer_subscription: {
                       include: {
                         person: true,
+                      },
+                    },
+                  },
+                },
+                cycle_payment: {
+                  include: {
+                    subscription_cycle: {
+                      include: {
+                        customer_subscription: {
+                          include: {
+                            person: true,
+                          },
+                        },
                       },
                     },
                   },
@@ -1096,6 +1216,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             customer: customerDto,
             items: orderItemsDto,
           };
+        } else if (detail.cycle_payment) {
+          // Pedido de cobranza
+          customerDto = {
+            person_id: detail.cycle_payment.subscription_cycle.customer_subscription.person.person_id,
+            name: detail.cycle_payment.subscription_cycle.customer_subscription.person.name || 'Sin nombre',
+            phone: detail.cycle_payment.subscription_cycle.customer_subscription.person.phone,
+            address: detail.cycle_payment.subscription_cycle.customer_subscription.person.address || 'Sin dirección',
+          };
+
+          // Para pedidos de cobranza, no tenemos productos específicos
+          const orderItemsDto: OrderItemDto[] = [];
+
+          orderDto = {
+            order_id: detail.cycle_payment.payment_id,
+            order_date: detail.cycle_payment.payment_date.toISOString(),
+            total_amount: detail.cycle_payment.amount.toString(),
+            status: 'PENDING', // Los cycle_payments no tienen status, usamos un valor por defecto
+            customer: customerDto,
+            items: orderItemsDto,
+          };
         } else {
           throw new Error('Detalle de hoja de ruta sin orden válida');
         }
@@ -1207,6 +1347,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   customer_subscription: {
                     include: {
                       person: true,
+                    },
+                  },
+                },
+              },
+              cycle_payment: {
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: {
+                          person: true,
+                        },
+                      },
                     },
                   },
                 },
