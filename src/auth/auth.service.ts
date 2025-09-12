@@ -498,6 +498,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         recoveryToken,
       );
       return {
+        success: true,
         message:
           'Si el email está registrado, recibirás un correo para recuperar tu contraseña.',
       };
@@ -534,7 +535,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      return { message: 'Contraseña restablecida correctamente.' };
+      return { 
+        success: true,
+        message: 'Contraseña restablecida correctamente.' 
+      };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
