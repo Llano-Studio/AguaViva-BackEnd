@@ -136,6 +136,14 @@ export class CustomerSubscriptionService
       );
     }
 
+    // CORRECCIÓN: Validar que el plan tenga precio definido
+    if (!subscriptionPlan.price || Number(subscriptionPlan.price) <= 0) {
+      throw new BadRequestException(
+        `No se puede crear la suscripción: El plan "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) no tiene precio definido. ` +
+        `Debe asignar un precio al plan antes de crear suscripciones.`
+      );
+    }
+
     // Nota: Se permite múltiples suscripciones del mismo plan para un cliente
     // El sistema está diseñado para manejar múltiples suscripciones activas
     // como evidencia el módulo MultipleSubscriptionsModule y sus estadísticas

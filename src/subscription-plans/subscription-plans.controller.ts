@@ -622,4 +622,62 @@ export class SubscriptionPlansController {
       adjustPlanProductQuantitiesDto,
     );
   }
+
+  @Get('diagnostics/without-price')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Diagnóstico: Planes sin precio definido',
+    description: 'Obtiene una lista de planes que no tienen precio definido, identificando casos críticos con suscripciones activas'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de planes sin precio',
+    schema: {
+      properties: {
+        plans_without_price: {
+          type: 'array',
+          items: {
+            properties: {
+              subscription_plan_id: { type: 'number' },
+              name: { type: 'string' },
+              price: { type: 'number', nullable: true },
+              is_active: { type: 'boolean' },
+              active_subscriptions_count: { type: 'number' }
+            }
+          }
+        },
+        total_count: { type: 'number' },
+        critical_count: { type: 'number' }
+      }
+    }
+  })
+  async getPlansWithoutPrice() {
+    return this.subscriptionPlansService.getPlansWithoutPrice();
+  }
+
+  @Patch(':id/assign-price')
+  @Auth(Role.SUPERADMIN)
+  @ApiOperation({
+    summary: 'Asignar precio a un plan',
+    description: 'Asigna un precio específico a un plan de suscripción'
+  })
+  @ApiParam({ name: 'id', description: 'ID del plan de suscripción' })
+  @ApiBody({
+    schema: {
+      properties: {
+        price: { type: 'number', example: 18300.00, description: 'Precio a asignar al plan' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Precio asignado exitosamente',
+    type: SubscriptionPlanResponseDto
+  })
+  async assignPriceToplan(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('price') price: number,
+  ) {
+    return this.subscriptionPlansService.assignPriceToplan(id, price);
+  }
 }

@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PersonType, OrderType } from '../common/constants/enums';
@@ -32,6 +33,8 @@ export class OneOffPurchaseService
     super();
   }
 
+  private readonly logger = new Logger(OneOffPurchaseService.name);
+  
   async onModuleInit() {
     await this.$connect();
   }
@@ -46,7 +49,11 @@ export class OneOffPurchaseService
   ): Promise<any[]> {
     const documentNumberPattern = `ONE-OFF-${orderIdValue}`;
     
-    return await this.payment_transaction.findMany({
+    this.logger.log(
+      `🔍 Buscando pagos para: customer_id=${customerId}, document_number=${documentNumberPattern}`,
+    );
+    
+    const payments = await this.payment_transaction.findMany({
       where: {
         customer_id: customerId,
         document_number: documentNumberPattern,
@@ -59,6 +66,12 @@ export class OneOffPurchaseService
         transaction_date: 'desc',
       },
     });
+    
+    this.logger.log(
+      `✅ Encontrados ${payments.length} pagos para la orden ONE-OFF ${orderIdValue}`,
+    );
+    
+    return payments;
   }
 
   async findAllSimpleOneOff(): Promise<any> {
@@ -573,7 +586,7 @@ export class OneOffPurchaseService
         }
 
         // Retornar respuesta usando el nuevo header/items structure
-        return this.mapToHeaderItemsOneOffPurchaseResponseDto(
+        return await this.mapToHeaderItemsOneOffPurchaseResponseDto(
           newPurchaseHeader,
         );
       });
@@ -834,8 +847,27 @@ export class OneOffPurchaseService
       });
       // Agrupar compras por orden (person_id + fecha)
       const groupedPurchases = this.groupPurchasesByOrder(purchases);
-      const consolidatedOrders = Array.from(groupedPurchases.values()).map(
-        (group) => this.mapToConsolidatedOneOffPurchaseResponseDto(group),
+      
+      // Convertir a formato de respuesta consolidado con pagos cargados
+      const consolidatedOrders = await Promise.all(
+        Array.from(groupedPurchases.values()).map(
+          async (group) => {
+            // Cargar pagos para cada grupo de compras
+            const basePurchase = group[0];
+            const payments = await this.loadPaymentTransactions(
+              basePurchase.person_id,
+              basePurchase.purchase_id,
+              true // isLegacyStructure = true
+            );
+            
+            // Agregar pagos a las compras
+            group.forEach(purchase => {
+              (purchase as any).payment_transaction = payments;
+            });
+            
+            return this.mapToConsolidatedOneOffPurchaseResponseDto(group);
+          }
+        )
       );
 
       return {
@@ -934,6 +966,18 @@ export class OneOffPurchaseService
           orderBy: { purchase_id: 'asc' },
         });
 
+        // Cargar pagos para las compras relacionadas
+        const payments = await this.loadPaymentTransactions(
+          legacyPurchase.person_id,
+          legacyPurchase.purchase_id,
+          true // isLegacyStructure = true
+        );
+        
+        // Agregar pagos a las compras
+        relatedPurchases.forEach(purchase => {
+          (purchase as any).payment_transaction = payments;
+        });
+        
         return this.mapToConsolidatedOneOffPurchaseResponseDto(
           relatedPurchases,
         );
@@ -941,7 +985,7 @@ export class OneOffPurchaseService
 
       // Si se encuentra en header, usar mapeo directo
       if (headerPurchase) {
-        return this.mapToHeaderItemsOneOffPurchaseResponseDto(headerPurchase);
+        return await this.mapToHeaderItemsOneOffPurchaseResponseDto(headerPurchase);
       }
 
       // Si no se encuentra en ninguna estructura, lanzar error
@@ -1383,7 +1427,7 @@ export class OneOffPurchaseService
         if (isLegacyStructure) {
           return await this.mapToOneOffPurchaseResponseDto(updatedPurchase);
         } else {
-          return this.mapToHeaderItemsOneOffPurchaseResponseDto(
+          return await this.mapToHeaderItemsOneOffPurchaseResponseDto(
             updatedPurchase,
           );
         }
@@ -1634,11 +1678,11 @@ export class OneOffPurchaseService
     // Consolidar transacciones de pago de todas las compras
     const allPayments = purchases.flatMap(purchase => 
       (purchase.payment_transaction || []).map((payment: any) => ({
-        payment_id: payment.transaction_id,
-        amount: payment.amount.toString(),
-        payment_date: payment.payment_date.toISOString(),
-        payment_method: payment.payment_method?.description || 'No especificado',
-        transaction_reference: payment.transaction_reference || undefined,
+        payment_id: payment.transaction_id || payment.payment_id,
+        amount: (payment.transaction_amount || payment.amount || 0).toString(),
+        payment_date: payment.transaction_date ? payment.transaction_date.toISOString() : new Date().toISOString(),
+        payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
+        transaction_reference: payment.receipt_number || payment.reference || undefined,
         notes: payment.notes || undefined,
       }))
     );
@@ -1743,24 +1787,32 @@ export class OneOffPurchaseService
       paymentStatus = 'PARTIAL';
     }
     
-    // Cargar pagos si no se proporcionaron
+    // CORRECCIÓN: Siempre cargar pagos para asegurar que no estén vacíos
     let paymentTransactions = payments;
     if (!paymentTransactions) {
       const orderIdValue = purchase.purchase_id || purchase.purchase_header_id;
-      paymentTransactions = await this.loadPaymentTransactions(
-        purchase.person_id,
-        orderIdValue,
-        !!purchase.purchase_id
-      );
+      try {
+        paymentTransactions = await this.loadPaymentTransactions(
+          purchase.person_id,
+          orderIdValue,
+          !!purchase.purchase_id
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error cargando pagos para orden ${orderIdValue}:`,
+          error.message,
+        );
+        paymentTransactions = [];
+      }
     }
     
-    // Mapear transacciones de pago
+    // Mapear transacciones de pago con mejor manejo de errores
     const mappedPayments = (paymentTransactions || []).map((payment: any) => ({
-      payment_id: payment.transaction_id,
-      amount: payment.transaction_amount.toString(),
-      payment_date: payment.transaction_date.toISOString(),
-      payment_method: payment.payment_method?.description || 'No especificado',
-      transaction_reference: payment.receipt_number || undefined,
+      payment_id: payment.transaction_id || payment.payment_transaction_id || payment.payment_id,
+      amount: (payment.transaction_amount || payment.amount || 0).toString(),
+      payment_date: (payment.transaction_date || payment.payment_date || new Date()).toISOString(),
+      payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
+      transaction_reference: payment.receipt_number || payment.transaction_reference || payment.reference || undefined,
       notes: payment.notes || undefined,
     }));
 
@@ -1820,9 +1872,9 @@ export class OneOffPurchaseService
     };
   }
 
-  private mapToHeaderItemsOneOffPurchaseResponseDto(
+  private async mapToHeaderItemsOneOffPurchaseResponseDto(
     purchaseHeader: any,
-  ): OneOffPurchaseResponseDto {
+  ): Promise<OneOffPurchaseResponseDto> {
     // Calcular información de pagos
     const totalAmount = new Decimal(purchaseHeader.total_amount);
     const paidAmount = new Decimal(purchaseHeader.paid_amount || 0);
@@ -1838,15 +1890,42 @@ export class OneOffPurchaseService
       paymentStatus = 'PARTIAL';
     }
     
-    // Mapear transacciones de pago
-    const payments = (purchaseHeader.payment_transaction || []).map((payment: any) => ({
-      payment_id: payment.payment_transaction_id,
-      amount: payment.amount.toString(),
-      payment_date: payment.payment_date.toISOString(),
-      payment_method: payment.payment_method?.description || 'No especificado',
-      transaction_reference: payment.transaction_reference || undefined,
-      notes: payment.notes || undefined,
-    }));
+    // CORRECCIÓN: Cargar pagos desde payment_transaction si no están incluidos
+    let payments = [];
+    if (purchaseHeader.payment_transaction && purchaseHeader.payment_transaction.length > 0) {
+      payments = purchaseHeader.payment_transaction.map((payment: any) => ({
+        payment_id: payment.payment_transaction_id || payment.transaction_id || payment.payment_id,
+        amount: (payment.amount || payment.transaction_amount || 0).toString(),
+        payment_date: payment.payment_date ? payment.payment_date.toISOString() : new Date().toISOString(),
+        payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
+        transaction_reference: payment.transaction_reference || payment.receipt_number || payment.reference || undefined,
+        notes: payment.notes || undefined,
+      }));
+    } else {
+      // Cargar pagos manualmente si no están incluidos en la query
+      try {
+        const paymentTransactions = await this.loadPaymentTransactions(
+          purchaseHeader.person_id,
+          purchaseHeader.purchase_header_id,
+          false // Es estructura header
+        );
+        
+        payments = (paymentTransactions || []).map((payment: any) => ({
+          payment_id: payment.transaction_id || payment.payment_id,
+          amount: (payment.transaction_amount || payment.amount || 0).toString(),
+          payment_date: payment.transaction_date ? payment.transaction_date.toISOString() : new Date().toISOString(),
+          payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
+          transaction_reference: payment.receipt_number || payment.reference || undefined,
+          notes: payment.notes || undefined,
+        }));
+      } catch (error) {
+        this.logger.error(
+          `Error cargando pagos para header ${purchaseHeader.purchase_header_id}:`,
+          error.message,
+        );
+        payments = [];
+      }
+    }
 
     return {
       purchase_id: purchaseHeader.purchase_header_id,
@@ -2078,9 +2157,21 @@ export class OneOffPurchaseService
         orderBy,
       });
 
-      // Convertir header/items al formato esperado
-      const convertedOrders = headerPurchases.map((header) =>
-        this.mapToHeaderItemsOneOffPurchaseResponseDto(header),
+      // Convertir header/items al formato esperado con pagos cargados
+      const convertedOrders = await Promise.all(
+        headerPurchases.map(async (header) => {
+          // Cargar pagos para cada header
+          const payments = await this.loadPaymentTransactions(
+            header.person_id,
+            header.purchase_header_id,
+            false // isLegacyStructure = false
+          );
+          
+          // Agregar pagos al header
+          (header as any).payment_transaction = payments;
+          
+          return this.mapToHeaderItemsOneOffPurchaseResponseDto(header);
+        })
       );
 
       return {

@@ -20,7 +20,7 @@ export class CreateCyclePaymentDto {
   cycle_id: number;
 
   @ApiProperty({
-    description: 'Monto del pago',
+    description: 'Monto del pago (se permiten sobrepagos que se acreditarán como crédito)',
     example: 15000.0,
     type: 'number',
     format: 'float',
@@ -28,6 +28,7 @@ export class CreateCyclePaymentDto {
   @IsNotEmpty()
   @IsNumber()
   @Min(0.01, { message: 'El monto debe ser mayor a 0' })
+  // NOTA: NO se aplica @Max para permitir sobrepagos
   @Transform(({ value }) => parseFloat(value))
   amount: number;
 

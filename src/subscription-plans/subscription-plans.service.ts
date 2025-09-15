@@ -567,4 +567,88 @@ export class SubscriptionPlansService
       message: `Se actualizaron los precios de ${updatedCount} planes de suscripción.`,
     };
   }
+
+  /**
+   * Diagnóstico: Obtiene planes sin precio definido
+   */
+  async getPlansWithoutPrice(): Promise<{
+    plans_without_price: Array<{
+      subscription_plan_id: number;
+      name: string;
+      price: number | null;
+      is_active: boolean;
+      active_subscriptions_count: number;
+    }>;
+    total_count: number;
+    critical_count: number; // Planes activos con suscripciones activas
+  }> {
+    const plansWithoutPrice = await this.subscription_plan.findMany({
+      where: {
+        OR: [
+          { price: null },
+          { price: 0 },
+        ],
+      },
+      include: {
+        _count: {
+          select: {
+            customer_subscription: {
+              where: {
+                status: 'ACTIVE',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const critical_count = plansWithoutPrice.filter(
+      plan => plan.is_active && plan._count.customer_subscription > 0
+    ).length;
+
+    return {
+      plans_without_price: plansWithoutPrice.map(plan => ({
+        subscription_plan_id: plan.subscription_plan_id,
+        name: plan.name,
+        price: plan.price ? Number(plan.price) : null,
+        is_active: plan.is_active,
+        active_subscriptions_count: plan._count.customer_subscription,
+      })),
+      total_count: plansWithoutPrice.length,
+      critical_count,
+    };
+  }
+
+  /**
+   * Asigna un precio a un plan específico
+   */
+  async assignPriceToplan(
+    planId: number,
+    price: number,
+  ): Promise<{ message: string; updated_plan: SubscriptionPlanResponseDto }> {
+    const plan = await this.subscription_plan.findUnique({
+      where: { subscription_plan_id: planId },
+    });
+
+    if (!plan) {
+      throw new NotFoundException(`Plan con ID ${planId} no encontrado`);
+    }
+
+    const updatedPlan = await this.subscription_plan.update({
+      where: { subscription_plan_id: planId },
+      data: { price },
+      include: {
+        subscription_plan_product: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: `Precio ${price} asignado al plan "${plan.name}"`,
+      updated_plan: this.toSubscriptionPlanResponseDto(updatedPlan),
+    };
+  }
 }
