@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaClient, OrderStatus as PrismaOrderStatus } from '@prisma/client';
-import { OrderStatus } from '../../common/constants/enums';
 
 @Injectable()
 export class OverdueOrderService extends PrismaClient implements OnModuleInit {

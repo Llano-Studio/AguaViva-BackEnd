@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { BUSINESS_CONFIG } from '../config/business.config';
 
 export interface TimeSlot {

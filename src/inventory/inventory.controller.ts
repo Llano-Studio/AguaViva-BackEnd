@@ -30,7 +30,6 @@ import { Role } from '@prisma/client';
 import {
   FilterInventoryDto,
   PaginatedInventoryResponseDto,
-  InventoryDetailDto,
 } from './dto/filter-inventory.dto';
 
 @ApiTags('Inventario')

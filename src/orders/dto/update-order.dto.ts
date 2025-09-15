@@ -12,7 +12,6 @@ import {
   ValidateNested,
   IsNotEmpty,
   Min,
-  IsDecimal,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

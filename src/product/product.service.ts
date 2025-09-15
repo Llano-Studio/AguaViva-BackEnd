@@ -13,19 +13,16 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import {
   Prisma,
   PrismaClient,
-  product_category,
   product as ProductPrisma,
 } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import {
   ProductResponseDto,
-  ProductCategoryResponseDto,
 } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
-import { Decimal } from '@prisma/client/runtime/library';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()

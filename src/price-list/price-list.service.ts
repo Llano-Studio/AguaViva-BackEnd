@@ -3,7 +3,6 @@ import {
   OnModuleInit,
   InternalServerErrorException,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import {
