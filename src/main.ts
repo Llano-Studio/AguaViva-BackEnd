@@ -13,7 +13,6 @@ import { DatabaseErrorInterceptor } from './common/interceptors/database-error.i
 import { DatabaseExceptionFilter } from './common/filters/database-exception.filter';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
-import { isOriginAllowed } from './common/utils/cors.utils';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');

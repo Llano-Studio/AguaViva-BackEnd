@@ -12,7 +12,6 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { PersonType } from '../../common/constants/enums';
 
 export class CreateOneOffPurchaseItemDto {
   @ApiProperty({

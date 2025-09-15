@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Decimal } from '@prisma/client/runtime/library';
 import { CycleNumberingService } from '../../customer-subscription/services/cycle-numbering.service';
 import { SubscriptionCycleCalculatorService } from '../../customer-subscription/services/subscription-cycle-calculator.service';
 

@@ -24,7 +24,6 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import {
   AutomatedCollectionService,
-  CollectionOrderSummaryDto,
 } from '../services/automated-collection.service';
 
 export class GenerateCollectionOrdersDto {

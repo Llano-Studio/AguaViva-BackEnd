@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, CancellationOrderStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CancellationOrderService } from '../cancellation-order.service';
 
 @Injectable()
 export class CancellationOrderReassignmentService
@@ -13,7 +12,6 @@ export class CancellationOrderReassignmentService
   );
 
   constructor(
-    private readonly cancellationOrderService: CancellationOrderService,
   ) {
     super();
   }

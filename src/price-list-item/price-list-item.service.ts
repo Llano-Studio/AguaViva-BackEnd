@@ -17,7 +17,6 @@ import {
   CreatePriceListItemDto,
   UpdatePriceListItemDto,
   PriceListItemResponseDto,
-  PaginatedPriceListItemResponseDto,
   FilterPriceListItemDto,
 } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';

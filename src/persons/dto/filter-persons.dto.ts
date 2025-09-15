@@ -4,7 +4,6 @@ import {
   IsString,
   IsInt,
   IsEnum,
-  IsArray,
   IsBoolean,
 } from 'class-validator';
 import { PersonType } from '../../common/constants/enums';

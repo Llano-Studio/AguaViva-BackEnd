@@ -4,7 +4,6 @@ import {
   Param,
   ParseIntPipe,
   Post,
-  Body,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -14,7 +13,6 @@ import {
   ApiResponse,
   ApiParam,
   ApiBearerAuth,
-  ApiBody,
 } from '@nestjs/swagger';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';

@@ -7,7 +7,6 @@ import {
   OrderCollectionEditService,
   CollectionItemDto,
 } from './order-collection-edit.service';
-import { AutomatedCollectionService } from './automated-collection.service';
 import {
   CustomerSearchDto,
   CustomerSearchResponseDto,
@@ -32,7 +31,6 @@ export class ManualCollectionService extends PrismaClient {
   constructor(
     private readonly ordersService: OrdersService,
     private readonly orderCollectionEditService: OrderCollectionEditService,
-    private readonly automatedCollectionService: AutomatedCollectionService,
   ) {
     super();
   }

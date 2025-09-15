@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
