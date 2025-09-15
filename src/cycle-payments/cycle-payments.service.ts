@@ -55,14 +55,16 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       );
     }
 
-    // Calcular el saldo total disponible (incluyendo créditos acumulados)
-    const totalAvailableBalance =
-      Number(cycle.pending_balance) + Number(cycle.credit_balance);
+    // Calcular el monto máximo permitido para el pago
+    // Permitir pagos hasta el monto total del ciclo más cualquier crédito disponible
+    const totalCycleAmount = Number(cycle.total_amount);
+    const creditBalance = Number(cycle.credit_balance);
+    const maxAllowedPayment = totalCycleAmount + creditBalance;
 
-    // Verificar que el monto no exceda el saldo total disponible
-    if (amount > totalAvailableBalance) {
+    // Verificar que el monto no exceda el máximo permitido
+    if (amount > maxAllowedPayment) {
       throw new BadRequestException(
-        `El monto del pago (${amount}) no puede ser mayor al saldo total disponible (${totalAvailableBalance})`,
+        `El monto del pago (${amount}) no puede ser mayor al monto máximo permitido (${maxAllowedPayment})`,
       );
     }
 
@@ -127,14 +129,14 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       // Determinar el estado del pago
       let newPaymentStatus = cycle.payment_status;
       if (newPendingBalance <= 0) {
-        newPaymentStatus = 'PAID';
+        newPaymentStatus = PaymentStatus.PAID;
       } else if (newPaidAmount > 0) {
-        newPaymentStatus = 'PARTIAL';
+        newPaymentStatus = PaymentStatus.PARTIAL;
       }
 
       // Si hay crédito acumulado, marcar como CREDITED
       if (newCreditBalance > 0 && newPendingBalance <= 0) {
-        newPaymentStatus = 'CREDITED';
+        newPaymentStatus = PaymentStatus.CREDITED;
       }
 
       // Si hay recargo por mora, actualizar el total del ciclo
@@ -448,9 +450,9 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         // Actualizar estado del pago
         let newPaymentStatus = debtCycle.payment_status;
         if (newPendingBalance <= 0) {
-          newPaymentStatus = 'PAID';
+          newPaymentStatus = PaymentStatus.PAID;
         } else if (newPaidAmount > 0) {
-          newPaymentStatus = 'PARTIAL';
+          newPaymentStatus = PaymentStatus.PARTIAL;
         }
 
         await tx.subscription_cycle.update({
@@ -507,13 +509,58 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
   }
 
   /**
+   * Obtiene todos los ciclos de suscripción
+   */
+  async getAllCycles(): Promise<CyclePaymentSummaryDto[]> {
+    const cycles = await this.subscription_cycle.findMany({
+      include: {
+        cycle_payments: {
+          orderBy: { payment_date: 'desc' },
+        },
+        customer_subscription: {
+          include: {
+            person: true,
+          },
+        },
+      },
+      orderBy: { payment_due_date: 'asc' },
+    });
+
+    return cycles.map((cycle) => {
+      const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
+        (payment) => ({
+          payment_id: payment.payment_id,
+          cycle_id: payment.cycle_id,
+          payment_date: payment.payment_date,
+          amount: parseFloat(payment.amount?.toString() || '0'),
+          payment_method: payment.payment_method,
+          reference: payment.reference,
+          notes: payment.notes,
+          created_by: payment.created_by,
+        }),
+      );
+
+      return {
+        cycle_id: cycle.cycle_id,
+        total_amount: parseFloat(cycle.total_amount?.toString() || '0'),
+        paid_amount: parseFloat(cycle.paid_amount?.toString() || '0'),
+        pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
+        credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
+        payment_status: cycle.payment_status,
+        payment_due_date: cycle.payment_due_date,
+        payments,
+      };
+    });
+  }
+
+  /**
    * Obtiene los ciclos con pagos pendientes
    */
   async getPendingPaymentCycles(): Promise<CyclePaymentSummaryDto[]> {
     const cycles = await this.subscription_cycle.findMany({
       where: {
         payment_status: {
-          in: ['PENDING', 'PARTIAL', 'OVERDUE'],
+          in: [PaymentStatus.PENDING, PaymentStatus.PARTIAL, PaymentStatus.OVERDUE],
         },
         pending_balance: {
           gt: 0,

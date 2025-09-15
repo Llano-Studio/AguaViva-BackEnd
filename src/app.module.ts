@@ -23,6 +23,7 @@ import { CustomerSubscriptionModule } from './customer-subscription/customer-sub
 import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
 import { CommonModule } from './common/common.module';
 import { ComodatoModule } from './comodato/comodato.module';
+import { ServicesModule } from './services/services.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -31,6 +32,7 @@ import environmentConfig from './common/config/environment.config';
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    ServicesModule,
     CommonModule,
     PersonsModule, 
     AuthModule,

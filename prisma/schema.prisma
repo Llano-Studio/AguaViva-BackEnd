@@ -306,6 +306,7 @@ model customer_subscription {
   subscription_cycle             subscription_cycle[]
   subscription_delivery_schedule subscription_delivery_schedule[]
   cancellation_orders            cancellation_order[]
+  comodatos                      comodato[]
 
   @@index([status])
 }
@@ -313,6 +314,7 @@ model customer_subscription {
 model subscription_cycle {
   cycle_id                  Int                         @id @default(autoincrement())
   subscription_id           Int
+  cycle_number              Int
   cycle_start               DateTime                    @db.Date
   cycle_end                 DateTime                    @db.Date
   payment_due_date          DateTime?                   @db.Date
@@ -328,6 +330,8 @@ model subscription_cycle {
   customer_subscription     customer_subscription       @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_subscription")
   subscription_cycle_detail subscription_cycle_detail[]
   cycle_payments            cycle_payment[]
+
+  @@unique([subscription_id, cycle_number])
 }
 
 model subscription_cycle_detail {
@@ -848,10 +852,20 @@ enum CancellationOrderStatus {
   CANCELLED
 }
 
+enum RecoveryStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
 model comodato {
   comodato_id          Int            @id @default(autoincrement())
   person_id            Int
   product_id           Int
+  subscription_id      Int?
   quantity             Int
   delivery_date        DateTime       @db.Date
   return_date          DateTime?      @db.Date
@@ -869,12 +883,31 @@ model comodato {
   is_active            Boolean        @default(true)
   person               person         @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   product              product        @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  subscription         customer_subscription? @relation(fields: [subscription_id], references: [subscription_id], onDelete: SetNull, onUpdate: NoAction)
+  recovery_order       recovery_order?
   comodato_changes     comodato_change[]
   
   @@index([person_id])
+  @@index([subscription_id])
   @@index([status])
   @@index([delivery_date])
   @@index([is_active])
+}
+
+model recovery_order {
+  recovery_order_id        Int                   @id @default(autoincrement())
+  comodato_id              Int                   @unique
+  scheduled_recovery_date  DateTime             @db.Date
+  actual_recovery_date     DateTime?            @db.Date
+  status                   RecoveryStatus       @default(PENDING)
+  notes                    String?              @db.Text
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  comodato                 comodato             @relation(fields: [comodato_id], references: [comodato_id], onDelete: Cascade, onUpdate: NoAction)
+  
+  @@index([comodato_id])
+  @@index([scheduled_recovery_date])
+  @@index([status])
 }
 
 model comodato_change {

@@ -11,6 +11,7 @@ import {
   HttpStatus,
   ValidationPipe,
   Patch,
+  Req,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -636,38 +637,147 @@ export class OrdersController {
 
   @Post(':id/payments')
   @ApiOperation({
-    summary: 'Procesar pago para una orden híbrida',
+    summary: 'Procesar pago de orden híbrida',
     description:
-      'Registra un pago para una orden híbrida, actualizando el monto pagado y el estado de la orden si es necesario.',
+      'Permite procesar un pago para una orden híbrida. Valida el monto contra el saldo pendiente y registra la transacción.',
   })
-  @ApiParam({ name: 'id', description: 'ID de la orden' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden híbrida',
+    example: 1,
+  })
   @ApiResponse({
     status: 201,
     description: 'Pago procesado exitosamente',
     schema: {
       type: 'object',
       properties: {
-        payment_transaction_id: { type: 'number' },
-        transaction_date: { type: 'string', format: 'date-time' },
-        customer_id: { type: 'number' },
-        order_id: { type: 'number' },
-        transaction_amount: { type: 'string' },
-        payment_method_id: { type: 'number' },
-        notes: { type: 'string' },
+        payment_transaction_id: {
+          type: 'number',
+          description: 'ID de la transacción de pago creada',
+          example: 123,
+        },
+        order_id: {
+          type: 'number',
+          description: 'ID de la orden',
+          example: 1,
+        },
+        amount: {
+          type: 'string',
+          description: 'Monto del pago procesado',
+          example: '150.50',
+        },
+        payment_method_id: {
+          type: 'number',
+          description: 'ID del método de pago utilizado',
+          example: 1,
+        },
+        transaction_reference: {
+          type: 'string',
+          description: 'Referencia de la transacción',
+          example: 'MP-123456789',
+        },
+        payment_date: {
+          type: 'string',
+          format: 'date-time',
+          description: 'Fecha y hora del pago',
+          example: '2024-05-21T10:30:00.000Z',
+        },
+        notes: {
+          type: 'string',
+          description: 'Notas del pago',
+          example: 'Pago parcial de orden híbrida',
+        },
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Datos de pago inválidos' })
-  @ApiResponse({ status: 404, description: 'Orden no encontrada' })
+  @ApiResponse({
+    status: 400,
+    description: 'Error de validación o monto inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Orden no encontrada',
+  })
   async processPayment(
-    @Param('id', ParseIntPipe) orderId: number,
+    @Param('id', ParseIntPipe) id: number,
     @Body() processPaymentDto: ProcessPaymentDto,
-    @GetUser() user: User,
+    @Req() req: any,
   ) {
-    return this.ordersService.processPayment(
-      orderId,
-      processPaymentDto,
-      user.id,
-    );
+    const userId = req.user?.userId;
+    return this.ordersService.processPayment(id, processPaymentDto, userId);
+  }
+
+  @Post('one-off/:id/payments')
+  @ApiOperation({
+    summary: 'Procesar pago de orden ONE_OFF',
+    description:
+      'Permite procesar un pago para una orden ONE_OFF. Valida el monto contra el saldo pendiente y registra la transacción.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden ONE_OFF',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Pago procesado exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        payment_transaction_id: {
+          type: 'number',
+          description: 'ID de la transacción de pago creada',
+          example: 123,
+        },
+        order_id: {
+          type: 'number',
+          description: 'ID de la orden',
+          example: 1,
+        },
+        amount: {
+          type: 'string',
+          description: 'Monto del pago procesado',
+          example: '150.50',
+        },
+        payment_method_id: {
+          type: 'number',
+          description: 'ID del método de pago utilizado',
+          example: 1,
+        },
+        transaction_reference: {
+          type: 'string',
+          description: 'Referencia de la transacción',
+          example: 'MP-123456789',
+        },
+        payment_date: {
+          type: 'string',
+          format: 'date-time',
+          description: 'Fecha y hora del pago',
+          example: '2024-05-21T10:30:00.000Z',
+        },
+        notes: {
+          type: 'string',
+          description: 'Notas del pago',
+          example: 'Pago de orden ONE_OFF',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error de validación o monto inválido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Orden no encontrada',
+  })
+  async processOneOffPayment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() processPaymentDto: ProcessPaymentDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.userId;
+    return this.ordersService.processOneOffPayment(id, processPaymentDto, userId);
   }
 }

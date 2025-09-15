@@ -51,7 +51,9 @@ import { PaymentSemaphoreService } from '../common/services/payment-semaphore.se
 import { SubscriptionQuotaService } from '../orders/services/subscription-quota.service';
 import { CancellationOrderService } from '../orders/cancellation-order.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { RecoveryOrderService } from '../services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -63,6 +65,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
     private readonly cancellationOrderService: CancellationOrderService,
     private readonly inventoryService: InventoryService,
+    private readonly recoveryOrderService: RecoveryOrderService,
+
   ) {
     super();
   }
@@ -877,6 +881,47 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
       }
 
+      // Generar órdenes de recuperación para comodatos activos
+      try {
+        console.log(`Buscando comodatos activos para la suscripción ${subscriptionId}...`);
+        
+        const activeComodatos = await tx.comodato.findMany({
+          where: {
+            person_id: personId,
+            status: ComodatoStatus.ACTIVE,
+          },
+          include: {
+            product: true,
+          },
+        });
+
+        console.log(`Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación`);
+
+        for (const comodato of activeComodatos) {
+           try {
+             await this.recoveryOrderService.createRecoveryOrder(
+               comodato.comodato_id,
+               new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
+               `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`
+             );
+            
+            console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
+          } catch (recoveryError) {
+            console.error(
+              `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
+              recoveryError,
+            );
+            // Continuar con los demás comodatos aunque uno falle
+          }
+        }
+      } catch (error) {
+        console.error(
+          `Error al buscar comodatos activos para suscripción ${subscriptionId}:`,
+          error,
+        );
+        // No fallar la cancelación de la suscripción por este error
+      }
+
       return updatedSubscription;
     });
   }
@@ -982,8 +1027,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       await tx.subscription_cycle.create({
         data: {
           subscription_id: newSubscription.subscription_id,
+          cycle_number: 1,
           cycle_start: firstCycleStartDate,
           cycle_end: firstCycleEndDate,
+          total_amount: 0, // Se calculará después
+          payment_due_date: new Date(firstCycleEndDate.getTime() + 10 * 24 * 60 * 60 * 1000), // 10 días después del final del ciclo
           notes: 'Primer ciclo post cambio de plan.',
         },
       });

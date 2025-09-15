@@ -113,12 +113,22 @@ export class SubscriptionQuotaService
     );
     cycleEnd.setHours(23, 59, 59, 999);
 
+    // Obtener el siguiente número de ciclo
+    const lastCycle = await prisma.subscription_cycle.findFirst({
+      where: { subscription_id: subscriptionId },
+      orderBy: { cycle_number: 'desc' },
+    });
+    const nextCycleNumber = (lastCycle?.cycle_number || 0) + 1;
+
     // Crear el nuevo ciclo
     const newCycle = await prisma.subscription_cycle.create({
       data: {
         subscription_id: subscriptionId,
+        cycle_number: nextCycleNumber,
         cycle_start: cycleStart,
         cycle_end: cycleEnd,
+        total_amount: 0, // Se calculará después
+        payment_due_date: new Date(cycleEnd.getTime() + 10 * 24 * 60 * 60 * 1000), // 10 días después del final del ciclo
         notes: 'Ciclo creado automáticamente por sistema de cuotas',
       },
     });

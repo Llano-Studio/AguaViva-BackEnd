@@ -238,12 +238,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         );
     }
 
-    const totalAmount = new Decimal(createOrderDto.total_amount);
-    const paidAmount = new Decimal(createOrderDto.paid_amount);
-    if (paidAmount.greaterThan(totalAmount))
-      throw new BadRequestException(
-        'El monto pagado no puede ser mayor al monto total del pedido.',
-      );
+    // 🆕 CORRECCIÓN: Para órdenes HYBRID, no validar paid_amount aquí
+    // porque se establecerá a 0 más adelante en el proceso
+    if (createOrderDto.order_type !== 'HYBRID') {
+      const totalAmount = new Decimal(createOrderDto.total_amount);
+      const paidAmount = new Decimal(createOrderDto.paid_amount);
+      if (paidAmount.greaterThan(totalAmount))
+        throw new BadRequestException(
+          'El monto pagado no puede ser mayor al monto total del pedido.',
+        );
+    }
 
     if (createOrderDto.scheduled_delivery_date) {
       const orderDate = new Date(createOrderDto.order_date);
@@ -709,7 +713,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
         console.log(`  - ID de suscripción: ${subscription_id}`);
 
-        const finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
+        // 🆕 CORRECCIÓN: Para órdenes HYBRID, el paid_amount debe ser 0 por defecto
+        // ya que no están pagadas al momento de la creación
+        let finalPaidAmount: Decimal;
+        if (createOrderDto.order_type === 'HYBRID') {
+          finalPaidAmount = new Decimal('0');
+          console.log(`🆕 HYBRID ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`);
+        } else {
+          finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
+        }
+        
         if (finalPaidAmount.greaterThan(calculatedTotalFromDB)) {
           throw new BadRequestException(
             'El monto pagado no puede ser mayor al monto total del pedido calculado.',
@@ -1868,6 +1881,29 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     processPaymentDto: ProcessPaymentDto,
     userId: number,
   ): Promise<Prisma.payment_transactionGetPayload<{}>> {
+    return this.processOrderPayment(orderId, processPaymentDto, userId, 'HYBRID');
+  }
+
+  /**
+   * Procesa un pago para una orden ONE_OFF
+   */
+  async processOneOffPayment(
+    orderId: number,
+    processPaymentDto: ProcessPaymentDto,
+    userId: number,
+  ): Promise<Prisma.payment_transactionGetPayload<{}>> {
+    return this.processOrderPayment(orderId, processPaymentDto, userId, 'ONE_OFF');
+  }
+
+  /**
+   * Método genérico para procesar pagos de órdenes
+   */
+  private async processOrderPayment(
+    orderId: number,
+    processPaymentDto: ProcessPaymentDto,
+    userId: number,
+    expectedOrderType: string,
+  ): Promise<Prisma.payment_transactionGetPayload<{}>> {
     try {
       const order = await this.order_header.findUnique({
         where: { order_id: orderId },
@@ -1878,6 +1914,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
       if (!order) {
         throw new NotFoundException(`Orden con ID ${orderId} no encontrada.`);
+      }
+
+      // Validar que la orden sea del tipo esperado
+      if (order.order_type !== expectedOrderType) {
+        throw new BadRequestException(
+          `Esta orden es de tipo ${order.order_type}, pero se esperaba ${expectedOrderType}.`,
+        );
       }
 
       // Validar método de pago
