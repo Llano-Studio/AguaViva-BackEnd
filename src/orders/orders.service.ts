@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import {
   PrismaClient,
@@ -57,6 +58,7 @@ type SaleChannelPayload = Prisma.sale_channelGetPayload<{}> | null | undefined;
 @Injectable()
 export class OrdersService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Pedido';
+  private readonly logger = new Logger(OrdersService.name);
 
   constructor(
     private readonly inventoryService: InventoryService,
@@ -87,6 +89,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         customer_subscription: { include: { subscription_plan: true } };
         client_contract: true;
         zone: true;
+        payment_transaction: {
+          include: {
+            payment_method: true;
+          };
+        };
       };
     }>,
   ): OrderResponseDto {
@@ -159,6 +166,45 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       };
     }
 
+    // Calcular información de pagos
+    const totalAmount = new Decimal(order.total_amount);
+    const paidAmount = new Decimal(order.paid_amount);
+    const remainingAmount = totalAmount.minus(paidAmount);
+
+    // Determinar payment_status
+    let paymentStatus = 'PENDING';
+    if (paidAmount.equals(0)) {
+      paymentStatus = 'PENDING';
+    } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+
+    // Calcular traffic_light_status basado en días desde creación
+    const orderDate = new Date(order.order_date);
+    const currentDate = new Date();
+    const daysDifference = Math.floor(
+      (currentDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    let trafficLightStatus = 'green';
+    if (daysDifference > 7) {
+      trafficLightStatus = 'red';
+    } else if (daysDifference > 3) {
+      trafficLightStatus = 'yellow';
+    }
+
+    // Mapear historial de pagos
+    const payments = order.payment_transaction?.map((payment) => ({
+      payment_id: payment.transaction_id,
+      amount: payment.transaction_amount.toString(),
+      payment_date: payment.transaction_date.toISOString(),
+      payment_method: payment.payment_method?.description || 'No especificado',
+      transaction_reference: payment.receipt_number || undefined,
+      notes: payment.notes || undefined,
+    })) || [];
+
     return {
       order_id: order.order_id,
       customer_id: order.customer_id,
@@ -185,6 +231,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             name: order.zone.name || '',
           }
         : undefined,
+      payment_status: paymentStatus,
+      remaining_amount: remainingAmount.toString(),
+      traffic_light_status: trafficLightStatus,
+      payments: payments,
     };
   }
 
@@ -713,12 +763,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
         console.log(`  - ID de suscripción: ${subscription_id}`);
 
-        // 🆕 CORRECCIÓN: Para órdenes HYBRID, el paid_amount debe ser 0 por defecto
-        // ya que no están pagadas al momento de la creación
+   
         let finalPaidAmount: Decimal;
-        if (createOrderDto.order_type === 'HYBRID') {
+        if (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'ONE_OFF') {
           finalPaidAmount = new Decimal('0');
-          console.log(`🆕 HYBRID ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`);
+          console.log(`🆕 ${createOrderDto.order_type} ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`);
         } else {
           finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
         }
@@ -863,6 +912,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             customer_subscription: { include: { subscription_plan: true } },
             client_contract: true,
             zone: true,
+            payment_transaction: {
+              include: {
+                payment_method: true,
+              },
+            },
           },
         });
 
@@ -1179,6 +1233,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           customer_subscription: { include: { subscription_plan: true } },
           client_contract: true,
           zone: true,
+          payment_transaction: {
+            include: {
+              payment_method: true,
+            },
+          },
         },
         orderBy: orderByClause,
         skip,
@@ -1213,6 +1272,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           customer_subscription: { include: { subscription_plan: true } },
           client_contract: true,
           zone: true,
+          payment_transaction: {
+            include: {
+              payment_method: true,
+            },
+            orderBy: {
+              transaction_date: 'desc',
+            },
+          },
         },
       });
       return this.mapToOrderResponseDto(order);
@@ -1624,6 +1691,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             customer_subscription: { include: { subscription_plan: true } },
             client_contract: true,
             zone: true,
+            payment_transaction: {
+              include: {
+                payment_method: true,
+              },
+            },
           },
         });
         return this.mapToOrderResponseDto(finalOrder);
@@ -1892,7 +1964,137 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     processPaymentDto: ProcessPaymentDto,
     userId: number,
   ): Promise<Prisma.payment_transactionGetPayload<{}>> {
-    return this.processOrderPayment(orderId, processPaymentDto, userId, 'ONE_OFF');
+    try {
+      // 🆕 BÚSQUEDA PARALELA: Buscar en ambas estructuras como en findOneOneOff
+      const [legacyPurchase, headerPurchase] = await Promise.all([
+        // Buscar en estructura legacy
+        this.one_off_purchase
+          .findUnique({
+            where: { purchase_id: orderId },
+            include: {
+              person: true,
+            },
+          })
+          .catch(() => null),
+        // Buscar en estructura nueva
+        this.one_off_purchase_header
+          .findUnique({
+            where: { purchase_header_id: orderId },
+            include: {
+              person: true,
+            },
+          })
+          .catch(() => null),
+      ]);
+
+      const order = headerPurchase || legacyPurchase;
+
+      if (!order) {
+        throw new NotFoundException(`Orden ONE-OFF con ID ${orderId} no encontrada.`);
+      }
+
+      // Determinar si es estructura legacy o nueva
+      const isLegacyStructure = !!legacyPurchase && !headerPurchase;
+      const orderIdField = isLegacyStructure ? 'purchase_id' : 'purchase_header_id';
+
+      // Validar método de pago
+      const paymentMethod = await this.payment_method.findUnique({
+        where: { payment_method_id: processPaymentDto.payment_method_id },
+      });
+
+      if (!paymentMethod) {
+        throw new BadRequestException(
+          `Método de pago con ID ${processPaymentDto.payment_method_id} no es válido.`,
+        );
+      }
+
+      const paymentAmount = new Decimal(processPaymentDto.amount);
+      if (paymentAmount.isNegative() || paymentAmount.isZero()) {
+        throw new BadRequestException('El monto del pago debe ser positivo.');
+      }
+
+      const paymentTransactionResult = await this.$transaction(async (tx) => {
+        const orderCurrentPaidAmount = new Decimal(order.paid_amount);
+        const orderTotalAmount = new Decimal(order.total_amount);
+        const remainingBalance = orderTotalAmount.minus(orderCurrentPaidAmount);
+
+        if (paymentAmount.greaterThan(remainingBalance.plus(0.001))) {
+          const orderIdValue = isLegacyStructure ? order.purchase_id : order.purchase_header_id;
+          throw new BadRequestException(
+            `El monto del pago (${paymentAmount}) excede el saldo pendiente (${remainingBalance.toFixed(2)}) de la orden ONE-OFF ${orderIdValue}.`,
+          );
+        }
+
+        const orderIdValue = isLegacyStructure ? order.purchase_id : order.purchase_header_id;
+        
+        const paymentTransaction = await tx.payment_transaction.create({
+          data: {
+            transaction_date: processPaymentDto.payment_date
+              ? new Date(processPaymentDto.payment_date)
+              : new Date(),
+            customer_id: order.person_id,
+            order_id: null, // ONE-OFF orders don't use order_id
+            document_number: `ONE-OFF-${orderIdValue}`,
+            receipt_number: processPaymentDto.transaction_reference,
+            transaction_type: 'PAYMENT',
+            previous_balance: orderTotalAmount
+              .minus(orderCurrentPaidAmount)
+              .toString(),
+            transaction_amount: paymentAmount.toString(),
+            total: paymentAmount.toString(),
+            payment_method_id: processPaymentDto.payment_method_id,
+            user_id: userId,
+            notes: processPaymentDto.notes,
+          },
+        });
+
+        const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
+        
+        // Actualizar payment_status si está completamente pagado
+        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(orderTotalAmount) 
+          ? 'PAID' 
+          : 'PARTIAL';
+
+        // Actualizar en la tabla correspondiente según la estructura
+        if (isLegacyStructure) {
+          // La estructura legacy no tiene payment_status, solo actualizar paid_amount
+          await tx.one_off_purchase.update({
+            where: { purchase_id: order.purchase_id },
+            data: {
+              paid_amount: newPaidAmount.toString(),
+            },
+          });
+        } else {
+          // La estructura nueva sí tiene payment_status
+          await tx.one_off_purchase_header.update({
+            where: { purchase_header_id: order.purchase_header_id },
+            data: {
+              paid_amount: newPaidAmount.toString(),
+              payment_status: newPaymentStatus,
+            },
+          });
+        }
+
+        return paymentTransaction;
+      });
+
+      return paymentTransactionResult;
+    } catch (error) {
+      handlePrismaError(error, 'Pedido ONE-OFF');
+      if (
+        !(
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException ||
+          error instanceof ConflictException ||
+          error instanceof InternalServerErrorException
+        )
+      ) {
+        throw new InternalServerErrorException(
+          'Error inesperado al procesar el Pedido: ' + error.message,
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -1973,6 +2175,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
         const newOrderStatus = order.status;
+        
+        // Determinar payment_status basado en el monto pagado
+        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(orderTotalAmount) 
+          ? 'PAID' 
+          : newPaidAmount.equals(0) 
+            ? 'PENDING' 
+            : 'PARTIAL';
+        
         // Note: Order status remains unchanged when fully paid
         // Payment completion doesn't automatically change delivery status
 
@@ -1981,6 +2191,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           data: {
             paid_amount: newPaidAmount.toString(),
             status: newOrderStatus,
+            payment_status: newPaymentStatus,
           },
         });
 
@@ -2003,6 +2214,131 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Genera una orden de cobranza automáticamente para un ciclo específico
+   */
+  async generateCollectionOrder(
+    cycleId: number,
+    collectionDateStr: string,
+    notes?: string,
+    userId?: number,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    order_id: number;
+    cycle_id: number;
+    collection_amount: string;
+    collection_date: string;
+  }> {
+    try {
+      // Validar y parsear la fecha
+      const collectionDate = new Date(collectionDateStr);
+      if (isNaN(collectionDate.getTime())) {
+        throw new BadRequestException('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
+      }
+
+      // Obtener información del ciclo
+      const cycle = await this.subscription_cycle.findUnique({
+        where: { cycle_id: cycleId },
+        include: {
+          customer_subscription: {
+            include: {
+              person: true,
+              subscription_plan: true,
+            },
+          },
+        },
+      });
+
+      if (!cycle) {
+        throw new NotFoundException(`Ciclo de suscripción con ID ${cycleId} no encontrado`);
+      }
+
+      const person = cycle.customer_subscription.person;
+      const subscription = cycle.customer_subscription;
+
+      // Verificar si ya existe una orden de cobranza para este ciclo
+      const existingCollectionOrder = await this.order_header.findFirst({
+        where: {
+          customer_id: person.person_id,
+          notes: {
+            contains: `Ciclo: ${cycleId}`,
+          },
+          order_type: 'ONE_OFF',
+          status: {
+            in: ['PENDING', 'CONFIRMED', 'IN_PREPARATION', 'READY_FOR_DELIVERY', 'IN_DELIVERY'],
+          },
+        },
+      });
+
+      if (existingCollectionOrder) {
+        throw new BadRequestException(
+          `Ya existe una orden de cobranza activa para el ciclo ${cycleId} (Orden ID: ${existingCollectionOrder.order_id})`
+        );
+      }
+
+      // Verificar que el ciclo tenga saldo pendiente
+      const pendingBalance = new Decimal(cycle.pending_balance || 0);
+      if (pendingBalance.lessThanOrEqualTo(0)) {
+        throw new BadRequestException(
+          `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`
+        );
+      }
+
+      // Crear la orden de cobranza
+      const createOrderDto: CreateOrderDto = {
+        customer_id: person.person_id,
+        subscription_id: subscription.subscription_id,
+        sale_channel_id: 1, // Canal por defecto para cobranzas automáticas
+        order_date: new Date().toISOString(),
+        scheduled_delivery_date: collectionDate.toISOString(),
+        delivery_time: '09:00-18:00',
+        total_amount: '0.00', // Pedido de cobranza sin productos adicionales
+        paid_amount: '0.00',
+        order_type: 'ONE_OFF' as any,
+        status: 'PENDING' as any,
+        notes: [
+          'ORDEN DE COBRANZA AUTOMÁTICA GENERADA',
+          `Suscripción: ${subscription.subscription_plan.name}`,
+          `Ciclo: ${cycleId}`,
+          `Monto a cobrar: $${pendingBalance.toString()}`,
+          cycle.payment_due_date ? `Vencimiento: ${cycle.payment_due_date.toISOString().split('T')[0]}` : '',
+          notes ? `Notas adicionales: ${notes}` : '',
+        ].filter(Boolean).join(' - '),
+        items: [], // Sin productos, solo cobranza
+      };
+
+      const newOrder = await this.create(createOrderDto);
+
+      this.logger.log(
+        `✅ Orden de cobranza generada: ID ${newOrder.order_id} para ciclo ${cycleId}, cliente ${person.name}, monto $${pendingBalance.toString()}`
+      );
+
+      return {
+        success: true,
+        message: 'Orden de cobranza generada exitosamente',
+        order_id: newOrder.order_id,
+        cycle_id: cycleId,
+        collection_amount: pendingBalance.toString(),
+        collection_date: collectionDateStr,
+      };
+    } catch (error) {
+      this.logger.error(`Error generando orden de cobranza para ciclo ${cycleId}:`, error);
+      
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      
+      throw new InternalServerErrorException(
+        `Error inesperado al generar orden de cobranza: ${error.message}`
+      );
     }
   }
 }

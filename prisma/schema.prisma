@@ -374,6 +374,7 @@ model order_header {
   paid_amount             Decimal                  @db.Decimal(10, 2)
   order_type              OrderType
   status                  OrderStatus
+  payment_status          String                   @default("PENDING")
   notes                   String?
   subscription_id         Int?
   zone_id                 Int?                     @db.SmallInt

@@ -19,6 +19,7 @@ import {
 } from './dto';
 import { FirstCycleComodatoService } from '../orders/services/first-cycle-comodato.service';
 import { CycleNumberingService } from './services/cycle-numbering.service';
+import { SubscriptionCycleCalculatorService } from './services/subscription-cycle-calculator.service';
 import { RecoveryOrderService } from '../services/recovery-order.service';
 
 @Injectable()
@@ -30,8 +31,8 @@ export class CustomerSubscriptionService
 
   constructor(
     private readonly firstCycleComodatoService: FirstCycleComodatoService,
-
     private readonly cycleNumberingService: CycleNumberingService,
+    private readonly subscriptionCycleCalculatorService: SubscriptionCycleCalculatorService,
     private readonly recoveryOrderService: RecoveryOrderService,
   ) {
     super();
@@ -135,21 +136,9 @@ export class CustomerSubscriptionService
       );
     }
 
-    // Verificar que no haya una suscripción activa del mismo plan para el cliente
-    const existingActiveSubscription =
-      await this.customer_subscription.findFirst({
-        where: {
-          customer_id: createDto.customer_id,
-          subscription_plan_id: createDto.subscription_plan_id,
-          status: SubscriptionStatus.ACTIVE,
-        },
-      });
-
-    if (existingActiveSubscription) {
-      throw new BadRequestException(
-        'El cliente ya tiene una suscripción activa para este plan',
-      );
-    }
+    // Nota: Se permite múltiples suscripciones del mismo plan para un cliente
+    // El sistema está diseñado para manejar múltiples suscripciones activas
+    // como evidencia el módulo MultipleSubscriptionsModule y sus estadísticas
 
     // Build notes with delivery preferences separados
     const notes = this.buildNotesWithPreferences(
@@ -212,6 +201,20 @@ export class CustomerSubscriptionService
             remaining_balance: planProduct.product_quantity,
           },
         });
+      }
+
+      // Calcular el total_amount del ciclo basado en los productos del plan
+      try {
+        await this.subscriptionCycleCalculatorService.calculateAndUpdateCycleAmount(firstCycle.cycle_id);
+        this.logger.log(
+          `✅ Total amount calculated for cycle ${firstCycle.cycle_id} of subscription ${subscription.subscription_id}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `❌ Error calculating total amount for cycle ${firstCycle.cycle_id}:`,
+          error,
+        );
+        // No fallar la creación de la suscripción por errores en el cálculo
       }
 
       this.logger.log(
