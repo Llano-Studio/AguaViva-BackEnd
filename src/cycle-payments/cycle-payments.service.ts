@@ -55,18 +55,23 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       );
     }
 
-    // Calcular el monto máximo permitido para el pago
-    // Permitir pagos hasta el monto total del ciclo más cualquier crédito disponible
+    // CORRECCIÓN: Permitir pagos mayores al monto del ciclo para acreditar diferencia al próximo ciclo
+    // Ya no limitamos el monto del pago. Los pagos excedentes se convertirán en crédito.
     const totalCycleAmount = Number(cycle.total_amount);
     const creditBalance = Number(cycle.credit_balance);
-    const maxAllowedPayment = totalCycleAmount + creditBalance;
-
-    // Verificar que el monto no exceda el máximo permitido
-    if (amount > maxAllowedPayment) {
-      throw new BadRequestException(
-        `El monto del pago (${amount}) no puede ser mayor al monto máximo permitido (${maxAllowedPayment})`,
+    const pendingBalance = Number(cycle.pending_balance);
+    
+    // Validación explícita: PERMITIR sobrepagos
+    if (amount > totalCycleAmount) {
+      this.logger.log(
+        `✅ SOBREPAGO DETECTADO: Monto recibido ${amount} excede el total del ciclo ${totalCycleAmount}. ` +
+        `La diferencia de ${amount - totalCycleAmount} se acreditará como crédito a favor del cliente.`
       );
     }
+    
+    this.logger.log(
+      `Procesando pago: Monto del ciclo ${totalCycleAmount}, Pendiente ${pendingBalance}, Crédito actual ${creditBalance}, Pago recibido ${amount}`,
+    );
 
     // Calcular recargos por mora si el ciclo está vencido
     const currentDate = new Date();

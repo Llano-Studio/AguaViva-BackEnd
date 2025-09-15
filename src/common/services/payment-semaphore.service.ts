@@ -62,27 +62,77 @@ export class PaymentSemaphoreService
               cycle_end: 'desc',
             },
             take: 1,
+            select: {
+              cycle_id: true,
+              cycle_start: true,
+              cycle_end: true,
+              payment_due_date: true,
+              total_amount: true,
+              paid_amount: true,
+              pending_balance: true,
+              credit_balance: true,
+              payment_status: true,
+            },
           },
         },
       });
 
+
       if (!activeSubscription?.subscription_cycle?.length) return 'NONE';
 
       const lastCycle = activeSubscription.subscription_cycle[0];
+      
+
       const cycleEndDate = new Date(lastCycle.cycle_end);
+      const paymentDueDate = new Date(lastCycle.payment_due_date || lastCycle.cycle_end);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (cycleEndDate < today) {
-        const diffTime = today.getTime() - cycleEndDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      // Obtener información del ciclo
+      const pendingBalance = parseFloat(lastCycle.pending_balance?.toString() || '0');
+      const paidAmount = parseFloat(lastCycle.paid_amount?.toString() || '0');
+      const totalAmount = parseFloat(lastCycle.total_amount?.toString() || '0');
 
-        if (diffDays > this.redThresholdDays) return 'RED';
-        if (diffDays > this.yellowThresholdDays) return 'YELLOW';
+      
+      // Si el ciclo está marcado como PAID, el estado es GREEN
+      if (lastCycle.payment_status === 'PAID') {
         return 'GREEN';
       }
 
-      return 'GREEN'; // Ciclo no vencido
+      // CORRECCIÓN: Para nuevas suscripciones sin montos calculados aún, devolver NONE
+      if (totalAmount <= 0 && paidAmount <= 0 && pendingBalance <= 0) {
+        return 'NONE';
+      }
+
+      // Si no hay deuda pendiente (está totalmente pagado) y el monto total es mayor a 0
+      if (pendingBalance <= 0 && totalAmount > 0) {
+        return 'GREEN';
+      }
+
+      // Si hay deuda pendiente, verificar si está vencido
+      if (pendingBalance > 0) {
+        if (paymentDueDate < today) {
+          const diffTime = today.getTime() - paymentDueDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+
+          if (diffDays > this.redThresholdDays) return 'RED';
+          if (diffDays > this.yellowThresholdDays) return 'YELLOW';
+          return 'GREEN';
+        }
+
+        // Si tiene deuda pero no está vencido, es YELLOW (advertencia)
+        return 'YELLOW';
+      }
+
+      // CORRECCIÓN ADICIONAL: Si pending_balance es 0 pero total_amount también es 0, 
+      // puede ser una suscripción recién creada sin cálculo de precios
+      if (pendingBalance <= 0 && totalAmount <= 0) {
+        return 'NONE';
+      }
+
+      // Caso por defecto
+      return 'NONE';
     } catch (error) {
       console.error(
         `Error calculando el semáforo para la persona ${personId}:`,

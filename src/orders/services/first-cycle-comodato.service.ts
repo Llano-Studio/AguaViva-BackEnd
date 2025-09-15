@@ -155,11 +155,12 @@ export class FirstCycleComodatoService extends PrismaClient {
 
     for (const planProduct of returnableProducts) {
       try {
-        // Verificar si ya existe un comodato activo para este producto y cliente
+        // Verificar si ya existe un comodato activo para este producto y suscripción específica
         const existingComodato = await this.comodato.findFirst({
           where: {
             person_id: subscription.customer_id,
             product_id: planProduct.product_id,
+            subscription_id: subscriptionId,
             status: ComodatoStatus.ACTIVE,
             is_active: true,
           },
@@ -167,9 +168,26 @@ export class FirstCycleComodatoService extends PrismaClient {
 
         if (existingComodato) {
           this.logger.log(
-            `⚠️ Ya existe comodato activo para producto ${planProduct.product.description} (ID: ${planProduct.product_id})`,
+            `⚠️ Ya existe comodato activo para producto ${planProduct.product.description} (ID: ${planProduct.product_id}) en esta suscripción ${subscriptionId}`,
           );
           continue;
+        }
+
+        // Log informativo: verificar si existen otros comodatos para este producto en otras suscripciones
+        const otherComodatos = await this.comodato.findMany({
+          where: {
+            person_id: subscription.customer_id,
+            product_id: planProduct.product_id,
+            status: ComodatoStatus.ACTIVE,
+            is_active: true,
+            subscription_id: { not: subscriptionId },
+          },
+        });
+
+        if (otherComodatos.length > 0) {
+          this.logger.log(
+            `ℹ️ Cliente tiene ${otherComodatos.length} comodato(s) activo(s) para producto ${planProduct.product.description} en otras suscripciones. Creando comodato adicional para suscripción ${subscriptionId}`,
+          );
         }
 
         // Calcular fecha esperada de devolución (1 año después)
@@ -193,13 +211,14 @@ export class FirstCycleComodatoService extends PrismaClient {
           data: {
             person_id: comodatoDto.person_id,
             product_id: comodatoDto.product_id,
+            subscription_id: subscriptionId, // ← Agregar subscription_id
             quantity: comodatoDto.quantity,
             delivery_date: new Date(comodatoDto.delivery_date),
             expected_return_date: comodatoDto.expected_return_date
               ? new Date(comodatoDto.expected_return_date)
               : null,
             status: comodatoDto.status,
-            notes: comodatoDto.notes,
+            notes: `${comodatoDto.notes} - Suscripción ID: ${subscriptionId}`,
             deposit_amount: comodatoDto.deposit_amount || null,
             monthly_fee: comodatoDto.monthly_fee || null,
             article_description: comodatoDto.article_description,
@@ -360,12 +379,13 @@ export class FirstCycleComodatoService extends PrismaClient {
   }
 
   /**
-   * Valida que no existan comodatos activos duplicados antes de crear nuevos
-   * Previene la creación de comodatos duplicados al cancelar y crear nuevas suscripciones
+   * Valida que no existan comodatos activos duplicados para la misma suscripción
+   * Permite múltiples comodatos del mismo producto si son de suscripciones diferentes
    */
   async validateExistingComodatos(
     customerId: number,
     productIds: number[],
+    subscriptionId?: number,
   ): Promise<{
     hasConflicts: boolean;
     conflicts: Array<{
@@ -375,19 +395,30 @@ export class FirstCycleComodatoService extends PrismaClient {
     }>;
   }> {
     this.logger.log(
-      `🔍 Validando comodatos existentes para cliente ${customerId} y productos [${productIds.join(', ')}]`,
+      `🔍 Validando comodatos existentes para cliente ${customerId}, suscripción ${subscriptionId || 'N/A'} y productos [${productIds.join(', ')}]`,
     );
 
     const conflicts = [];
 
     for (const productId of productIds) {
+      // Si se proporciona subscriptionId, validar solo para esa suscripción específica
+      const whereCondition = subscriptionId 
+        ? {
+            person_id: customerId,
+            product_id: productId,
+            subscription_id: subscriptionId,
+            status: ComodatoStatus.ACTIVE,
+            is_active: true,
+          }
+        : {
+            person_id: customerId,
+            product_id: productId,
+            status: ComodatoStatus.ACTIVE,
+            is_active: true,
+          };
+
       const existingComodato = await this.comodato.findFirst({
-        where: {
-          person_id: customerId,
-          product_id: productId,
-          status: ComodatoStatus.ACTIVE,
-          is_active: true,
-        },
+        where: whereCondition,
         include: {
           product: {
             select: {
@@ -404,8 +435,9 @@ export class FirstCycleComodatoService extends PrismaClient {
           product_description: existingComodato.product?.description,
         });
 
+        const subscriptionInfo = subscriptionId ? ` en suscripción ${subscriptionId}` : '';
         this.logger.warn(
-          `⚠️ Conflicto detectado: Cliente ${customerId} ya tiene comodato activo (ID: ${existingComodato.comodato_id}) para producto ${productId} (${existingComodato.product?.description})`,
+          `⚠️ Conflicto detectado: Cliente ${customerId} ya tiene comodato activo (ID: ${existingComodato.comodato_id}) para producto ${productId} (${existingComodato.product?.description})${subscriptionInfo}`,
         );
       }
     }

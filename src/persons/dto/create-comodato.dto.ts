@@ -22,6 +22,11 @@ export class CreateComodatoDto {
   @IsNotEmpty()
   product_id: number;
 
+  @ApiPropertyOptional({ example: 1, description: 'ID de la suscripción asociada' })
+  @IsInt()
+  @IsOptional()
+  subscription_id?: number;
+
   @ApiProperty({ example: 2, description: 'Cantidad de productos en comodato' })
   @IsInt()
   @Min(1)

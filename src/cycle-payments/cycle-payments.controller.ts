@@ -9,6 +9,7 @@ import {
   Request,
   HttpStatus,
   HttpCode,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,13 +29,17 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../auth/guards/roles.guard';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
+import { SubscriptionCycleCalculatorService } from '../customer-subscription/services/subscription-cycle-calculator.service';
 
 @ApiTags('Pagos de Ciclos')
 @ApiBearerAuth()
 @Controller('cycle-payments')
 @UseGuards(JwtAuthGuard, UserRolesGuard)
 export class CyclePaymentsController {
-  constructor(private readonly cyclePaymentsService: CyclePaymentsService) {}
+  constructor(
+    private readonly cyclePaymentsService: CyclePaymentsService,
+    private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
+  ) {}
 
   @Post()
   @Auth(Role.SUPERADMIN)
@@ -59,9 +64,19 @@ export class CyclePaymentsController {
     description: 'Ciclo de suscripción no encontrado',
   })
   async createCyclePayment(
-    @Body() createCyclePaymentDto: CreateCyclePaymentDto,
+    @Body(new ValidationPipe({
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      skipMissingProperties: false,
+      disableErrorMessages: false,
+    })) createCyclePaymentDto: CreateCyclePaymentDto,
     @Request() req: any,
   ): Promise<CyclePaymentResponseDto> {
+    // Log para debug: verificar que el monto llegue correctamente
+    console.log(`🔍 DEBUG: Pago recibido para ciclo ${createCyclePaymentDto.cycle_id}, monto: ${createCyclePaymentDto.amount}`);
+    
     return this.cyclePaymentsService.createCyclePayment(
       createCyclePaymentDto,
       req.user.userId,
@@ -261,5 +276,70 @@ export class CyclePaymentsController {
     };
 
     return statistics;
+  }
+
+  @Post('recalculate/:cycleId')
+  @Auth(Role.SUPERADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Recalcular ciclo específico',
+    description: 'Recalcula un ciclo específico usando el precio correcto del plan en lugar de sumar productos individuales'
+  })
+  @ApiParam({
+    name: 'cycleId',
+    description: 'ID del ciclo a recalcular',
+    type: 'integer',
+    example: 12
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ciclo recalculado exitosamente',
+    schema: {
+      properties: {
+        cycle_id: { type: 'number' },
+        old_total: { type: 'number' },
+        new_total: { type: 'number' },
+        corrected: { type: 'boolean' },
+        message: { type: 'string' }
+      }
+    }
+  })
+  async recalculateSpecificCycle(
+    @Param('cycleId', ParseIntPipe) cycleId: number,
+  ) {
+    return this.cycleCalculatorService.recalculateSpecificCycle(cycleId);
+  }
+
+  @Post('fix-all-incorrect-cycles')
+  @Auth(Role.SUPERADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Corregir todos los ciclos con cálculos incorrectos',
+    description: 'Encuentra y corrige automáticamente todos los ciclos que tienen cálculos incorrectos (total_amount diferente al precio del plan)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ciclos corregidos exitosamente',
+    schema: {
+      properties: {
+        total_cycles_checked: { type: 'number' },
+        cycles_corrected: { type: 'number' },
+        corrections: {
+          type: 'array',
+          items: {
+            properties: {
+              cycle_id: { type: 'number' },
+              subscription_id: { type: 'number' },
+              plan_name: { type: 'string' },
+              old_total: { type: 'number' },
+              new_total: { type: 'number' }
+            }
+          }
+        }
+      }
+    }
+  })
+  async fixAllIncorrectCycles() {
+    return this.cycleCalculatorService.findAndFixIncorrectCycles();
   }
 }

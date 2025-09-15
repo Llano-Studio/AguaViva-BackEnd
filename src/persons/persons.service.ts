@@ -1417,6 +1417,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         data: {
           person_id: dto.person_id,
           product_id: dto.product_id,
+          subscription_id: dto.subscription_id || null, // ← Agregar subscription_id
           quantity: dto.quantity,
           delivery_date: new Date(dto.delivery_date),
           expected_return_date: dto.expected_return_date
@@ -2040,11 +2041,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Crear el comodato si se proporcionaron los datos
       let comodato: ComodatoResponseDto | null = null;
       if (dto.comodato_product_id) {
-        // Verificar si ya existe un comodato activo para este producto y cliente
+        // Verificar si ya existe un comodato activo para este producto y suscripción específica
         const existingComodato = await this.comodato.findFirst({
           where: {
             person_id: dto.customer_id,
             product_id: dto.comodato_product_id,
+            subscription_id: subscription.subscription_id,
             status: ComodatoStatus.ACTIVE,
             is_active: true,
           },
@@ -2059,20 +2061,39 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
         if (existingComodato) {
           throw new ConflictException(
-            `El cliente ya tiene un comodato activo para el producto ${existingComodato.product?.description} (ID: ${existingComodato.comodato_id}). No se puede crear un comodato duplicado.`,
+            `El cliente ya tiene un comodato activo para el producto ${existingComodato.product?.description} (ID: ${existingComodato.comodato_id}) en esta suscripción. No se puede crear un comodato duplicado para la misma suscripción.`,
+          );
+        }
+
+        const otherComodatos = await this.comodato.findMany({
+          where: {
+            person_id: dto.customer_id,
+            product_id: dto.comodato_product_id,
+            status: ComodatoStatus.ACTIVE,
+            is_active: true,
+            subscription_id: { not: subscription.subscription_id },
+          },
+        });
+
+        if (otherComodatos.length > 0) {
+          console.log(
+            `ℹ️ Cliente tiene ${otherComodatos.length} comodato(s) activo(s) para este producto en otras suscripciones. Creando comodato adicional para suscripción ${subscription.subscription_id}`,
           );
         }
 
         const comodatoDto: CreateComodatoDto = {
           person_id: dto.customer_id,
           product_id: dto.comodato_product_id,
+          subscription_id: subscription.subscription_id, // ← Agregar subscription_id
           quantity: dto.comodato_quantity || 1,
           delivery_date:
             dto.comodato_delivery_date ||
             new Date().toISOString().split('T')[0],
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
-          notes: dto.comodato_notes,
+          notes: dto.comodato_notes 
+            ? `${dto.comodato_notes} - Suscripción ID: ${subscription.subscription_id}`
+            : `Comodato creado para suscripción ID: ${subscription.subscription_id}`,
           deposit_amount: dto.comodato_deposit_amount,
           monthly_fee: dto.comodato_monthly_fee,
           article_description: dto.comodato_article_description,
