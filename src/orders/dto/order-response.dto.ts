@@ -262,4 +262,48 @@ export class OrderResponseDto {
     zone_id: number;
     name: string;
   };
+
+  @ApiProperty({
+    description: 'Estado de pago de la orden',
+    enum: ['PENDING', 'PARTIAL', 'PAID'],
+    example: 'PENDING',
+  })
+  payment_status: string;
+
+  @ApiProperty({
+    description: 'Monto pendiente de pago',
+    example: '0.00',
+  })
+  remaining_amount: string;
+
+  @ApiProperty({
+    description: 'Semáforo de estado basado en días desde creación',
+    enum: ['green', 'yellow', 'red'],
+    example: 'green',
+  })
+  traffic_light_status: string;
+
+  @ApiProperty({
+    description: 'Historial de pagos realizados',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        payment_id: { type: 'number', example: 1 },
+        amount: { type: 'string', example: '50.00' },
+        payment_date: { type: 'string', example: '2024-03-20T10:00:00Z' },
+        payment_method: { type: 'string', example: 'Efectivo' },
+        transaction_reference: { type: 'string', example: 'MP-123456789' },
+        notes: { type: 'string', example: 'Pago parcial' },
+      },
+    },
+  })
+  payments: {
+    payment_id: number;
+    amount: string;
+    payment_date: string;
+    payment_method: string;
+    transaction_reference?: string;
+    notes?: string;
+  }[];
 }

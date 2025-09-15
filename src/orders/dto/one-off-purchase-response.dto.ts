@@ -151,4 +151,42 @@ export class OneOffPurchaseResponseDto {
 
   @ApiProperty({ type: OneOffPurchaseZoneResponseDto, nullable: true })
   zone?: OneOffPurchaseZoneResponseDto;
+
+  @ApiProperty({
+    example: 'PENDING',
+    description: 'Estado de pago (PENDING, PARTIAL, PAID)',
+  })
+  payment_status: string;
+
+  @ApiProperty({
+    example: '500.00',
+    description: 'Monto restante por pagar',
+  })
+  remaining_amount: string;
+
+
+
+  @ApiProperty({
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        payment_id: { type: 'number', example: 1 },
+        amount: { type: 'string', example: '500.00' },
+        payment_date: { type: 'string', example: '2024-03-25T10:00:00Z' },
+        payment_method: { type: 'string', example: 'Efectivo' },
+        transaction_reference: { type: 'string', example: 'TXN-123456' },
+        notes: { type: 'string', example: 'Pago parcial' },
+      },
+    },
+    description: 'Historial de pagos realizados',
+  })
+  payments: Array<{
+    payment_id: number;
+    amount: string;
+    payment_date: string;
+    payment_method: string;
+    transaction_reference?: string;
+    notes?: string;
+  }>;
 }

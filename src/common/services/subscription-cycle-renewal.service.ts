@@ -2,7 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Decimal } from '@prisma/client/runtime/library';
-import { CycleNumberingService } from '../../services/cycle-numbering.service';
+import { CycleNumberingService } from '../../customer-subscription/services/cycle-numbering.service';
+import { SubscriptionCycleCalculatorService } from '../../customer-subscription/services/subscription-cycle-calculator.service';
 
 @Injectable()
 export class SubscriptionCycleRenewalService
@@ -11,7 +12,10 @@ export class SubscriptionCycleRenewalService
 {
   private readonly logger = new Logger(SubscriptionCycleRenewalService.name);
 
-  constructor(private readonly cycleNumberingService: CycleNumberingService) {
+  constructor(
+    private readonly cycleNumberingService: CycleNumberingService,
+    private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
+  ) {
     super();
   }
 
@@ -95,13 +99,14 @@ export class SubscriptionCycleRenewalService
       paymentDueDate.setDate(paymentDueDate.getDate() + 10);
 
       // Crear el nuevo ciclo usando CycleNumberingService para numeración correcta
-      const newCycle = await this.cycleNumberingService.createCycleWithAutoNumbering(
+      const newCycle = await this.cycleNumberingService.createCycleWithNumber(
         subscription.subscription_id,
-        cycleStartDate,
-        cycleEndDate,
-        paymentDueDate,
-        0, // total_amount - Se calculará después
-        'Ciclo renovado automáticamente'
+        {
+          cycle_start: cycleStartDate,
+          cycle_end: cycleEndDate,
+          payment_due_date: paymentDueDate,
+          total_amount: 0, // Se calculará después
+        }
       );
 
       // Crear los detalles del ciclo basados en el plan de suscripción
@@ -116,6 +121,14 @@ export class SubscriptionCycleRenewalService
             remaining_balance: planProduct.product_quantity,
           },
         });
+      }
+
+      // Calcular el total_amount del ciclo basado en los productos del plan
+      try {
+        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(newCycle.cycle_id);
+        this.logger.log(`✅ Total calculado para ciclo renovado ${newCycle.cycle_id}`);
+      } catch (error) {
+        this.logger.error(`❌ Error calculando total para ciclo renovado ${newCycle.cycle_id}:`, error);
       }
 
       this.logger.log(

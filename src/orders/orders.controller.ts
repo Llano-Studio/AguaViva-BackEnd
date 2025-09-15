@@ -780,4 +780,65 @@ export class OrdersController {
     const userId = req.user?.userId;
     return this.ordersService.processOneOffPayment(id, processPaymentDto, userId);
   }
+
+  @Post('generate-collection/:cycleId')
+  @ApiOperation({
+    summary: 'Generar orden de cobranza automática por cycle_id',
+    description: 'Genera automáticamente una orden de cobranza para un ciclo específico de suscripción si no existe ya una para ese ciclo.',
+  })
+  @ApiParam({
+    name: 'cycleId',
+    description: 'ID del ciclo de suscripción',
+    example: 1,
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        collection_date: {
+          type: 'string',
+          format: 'date',
+          description: 'Fecha para la orden de cobranza (YYYY-MM-DD)',
+          example: '2024-05-21',
+        },
+        notes: {
+          type: 'string',
+          description: 'Notas adicionales para la orden de cobranza',
+          example: 'Cobranza generada automáticamente',
+        },
+      },
+      required: ['collection_date'],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Orden de cobranza generada exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Orden de cobranza generada exitosamente' },
+        order_id: { type: 'number', example: 123 },
+        cycle_id: { type: 'number', example: 1 },
+        collection_amount: { type: 'string', example: '15000.00' },
+        collection_date: { type: 'string', example: '2024-05-21' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error de validación o ciclo ya tiene orden de cobranza',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Ciclo de suscripción no encontrado',
+  })
+  async generateCollectionOrder(
+    @Param('cycleId', ParseIntPipe) cycleId: number,
+    @Body() body: { collection_date: string; notes?: string },
+    @Req() req: any,
+  ) {
+    const userId = req.user?.userId;
+    return this.ordersService.generateCollectionOrder(cycleId, body.collection_date, body.notes, userId);
+  }
 }

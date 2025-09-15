@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { SubscriptionCycleCalculatorService } from '../../customer-subscription/services/subscription-cycle-calculator.service';
 
 export interface ProductQuotaInfo {
   product_id: number;
@@ -35,6 +36,12 @@ export class SubscriptionQuotaService
   extends PrismaClient
   implements OnModuleInit
 {
+  constructor(
+    private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
+  ) {
+    super();
+  }
+
   async onModuleInit() {
     await this.$connect();
   }
@@ -159,6 +166,14 @@ export class SubscriptionQuotaService
       });
     }
 
+    // Calcular el total_amount del ciclo basado en los productos del plan
+    try {
+      await this.cycleCalculatorService.calculateAndUpdateCycleAmount(newCycle.cycle_id);
+      console.log(`🆕 DEBUG - Total calculado para ciclo ${newCycle.cycle_id}`);
+    } catch (error) {
+      console.error(`🆕 ERROR - No se pudo calcular total para ciclo ${newCycle.cycle_id}:`, error);
+    }
+
     // Recargar el ciclo con todas las relaciones necesarias
     const reloadedCycle = await prisma.subscription_cycle.findUnique({
       where: { cycle_id: newCycle.cycle_id },
@@ -173,6 +188,7 @@ export class SubscriptionQuotaService
 
     console.log(`🆕 DEBUG - Ciclo recargado:`);
     console.log(`  - ID del ciclo: ${reloadedCycle?.cycle_id}`);
+    console.log(`  - Total amount: ${reloadedCycle?.total_amount}`);
     console.log(
       `  - Detalles del ciclo:`,
       reloadedCycle?.subscription_cycle_detail.map((d) => ({

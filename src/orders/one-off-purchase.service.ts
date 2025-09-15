@@ -36,6 +36,31 @@ export class OneOffPurchaseService
     await this.$connect();
   }
 
+  /**
+   * Carga las transacciones de pago relacionadas con una orden one-off
+   */
+  private async loadPaymentTransactions(
+    customerId: number,
+    orderIdValue: number,
+    isLegacyStructure: boolean
+  ): Promise<any[]> {
+    const documentNumberPattern = `ONE-OFF-${orderIdValue}`;
+    
+    return await this.payment_transaction.findMany({
+      where: {
+        customer_id: customerId,
+        document_number: documentNumberPattern,
+        is_active: true,
+      },
+      include: {
+        payment_method: true,
+      },
+      orderBy: {
+        transaction_date: 'desc',
+      },
+    });
+  }
+
   async findAllSimpleOneOff(): Promise<any> {
     try {
       const purchases = await this.one_off_purchase.findMany({
@@ -183,9 +208,7 @@ export class OneOffPurchaseService
               createDto.zone_id && createDto.zone_id > 0
                 ? createDto.zone_id
                 : null,
-            paid_amount: createDto.paid_amount
-              ? new Decimal(createDto.paid_amount)
-              : new Decimal(0),
+            paid_amount: new Decimal(0),
             notes: createDto.notes,
             purchase_date: createDto.purchase_date
               ? new Date(createDto.purchase_date)
@@ -235,7 +258,7 @@ export class OneOffPurchaseService
           );
         }
 
-        return this.mapToOneOffPurchaseResponseDto(newPurchase);
+        return await this.mapToOneOffPurchaseResponseDto(newPurchase);
       });
     } catch (error) {
       handlePrismaError(error, 'Compra One-Off');
@@ -857,6 +880,7 @@ export class OneOffPurchaseService
               locality: true,
               zone: true,
               price_list: true,
+              // Removed payment_transaction include - not available for one_off_purchase
             },
           })
           .catch(() => null), // No lanzar error, solo retornar null
@@ -876,6 +900,7 @@ export class OneOffPurchaseService
                   price_list: true,
                 },
               },
+              // Las transacciones de pago se cargarán por separado basándose en customer_id y document_number
             },
           })
           .catch(() => null), // No lanzar error, solo retornar null
@@ -904,6 +929,7 @@ export class OneOffPurchaseService
             locality: true,
             zone: true,
             price_list: true,
+            // Removed payment_transaction include - not available for one_off_purchase
           },
           orderBy: { purchase_id: 'asc' },
         });
@@ -1355,7 +1381,7 @@ export class OneOffPurchaseService
 
         // Retornar el resultado mapeado según la estructura
         if (isLegacyStructure) {
-          return this.mapToOneOffPurchaseResponseDto(updatedPurchase);
+          return await this.mapToOneOffPurchaseResponseDto(updatedPurchase);
         } else {
           return this.mapToHeaderItemsOneOffPurchaseResponseDto(
             updatedPurchase,
@@ -1591,6 +1617,32 @@ export class OneOffPurchaseService
       new Decimal(0),
     );
 
+    // Calcular información de pagos consolidada
+    const paidAmount = new Decimal(basePurchase.paid_amount || 0);
+    const remainingAmount = totalAmount.minus(paidAmount);
+    
+    // Determinar estado de pago
+    let paymentStatus = 'PENDING';
+    if (paidAmount.equals(0)) {
+      paymentStatus = 'PENDING';
+    } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+    
+    // Consolidar transacciones de pago de todas las compras
+    const allPayments = purchases.flatMap(purchase => 
+      (purchase.payment_transaction || []).map((payment: any) => ({
+        payment_id: payment.transaction_id,
+        amount: payment.amount.toString(),
+        payment_date: payment.payment_date.toISOString(),
+        payment_method: payment.payment_method?.description || 'No especificado',
+        transaction_reference: payment.transaction_reference || undefined,
+        notes: payment.notes || undefined,
+      }))
+    );
+
     // Consolidar todos los productos
     const products = purchases.map((purchase) => {
       const unitPrice = purchase.total_amount.div(purchase.quantity);
@@ -1622,6 +1674,9 @@ export class OneOffPurchaseService
       requires_delivery: basePurchase.requires_delivery,
       notes: basePurchase.notes,
       delivery_address: basePurchase.delivery_address || undefined,
+      payment_status: paymentStatus,
+      remaining_amount: remainingAmount.toString(),
+      payments: allPayments,
       person: {
         person_id: basePurchase.person.person_id,
         name: basePurchase.person.name || 'Nombre no disponible',
@@ -1669,9 +1724,46 @@ export class OneOffPurchaseService
     }
   }
 
-  private mapToOneOffPurchaseResponseDto(
+  private async mapToOneOffPurchaseResponseDto(
     purchase: any,
-  ): OneOffPurchaseResponseDto {
+    payments?: any[]
+  ): Promise<OneOffPurchaseResponseDto> {
+    // Calcular información de pagos
+    const totalAmount = new Decimal(purchase.total_amount);
+    const paidAmount = new Decimal(purchase.paid_amount || 0);
+    const remainingAmount = totalAmount.minus(paidAmount);
+    
+    // Determinar estado de pago
+    let paymentStatus = 'PENDING';
+    if (paidAmount.equals(0)) {
+      paymentStatus = 'PENDING';
+    } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+    
+    // Cargar pagos si no se proporcionaron
+    let paymentTransactions = payments;
+    if (!paymentTransactions) {
+      const orderIdValue = purchase.purchase_id || purchase.purchase_header_id;
+      paymentTransactions = await this.loadPaymentTransactions(
+        purchase.person_id,
+        orderIdValue,
+        !!purchase.purchase_id
+      );
+    }
+    
+    // Mapear transacciones de pago
+    const mappedPayments = (paymentTransactions || []).map((payment: any) => ({
+      payment_id: payment.transaction_id,
+      amount: payment.transaction_amount.toString(),
+      payment_date: payment.transaction_date.toISOString(),
+      payment_method: payment.payment_method?.description || 'No especificado',
+      transaction_reference: payment.receipt_number || undefined,
+      notes: payment.notes || undefined,
+    }));
+
     return {
       purchase_id: purchase.purchase_id,
       person_id: purchase.person_id,
@@ -1688,6 +1780,9 @@ export class OneOffPurchaseService
       requires_delivery: purchase.requires_delivery,
       notes: purchase.notes,
       delivery_address: purchase.delivery_address || undefined,
+      payment_status: paymentStatus,
+      remaining_amount: remainingAmount.toString(),
+      payments: mappedPayments,
       person: {
         person_id: purchase.person.person_id,
         name: purchase.person.name || 'Nombre no disponible',
@@ -1728,6 +1823,31 @@ export class OneOffPurchaseService
   private mapToHeaderItemsOneOffPurchaseResponseDto(
     purchaseHeader: any,
   ): OneOffPurchaseResponseDto {
+    // Calcular información de pagos
+    const totalAmount = new Decimal(purchaseHeader.total_amount);
+    const paidAmount = new Decimal(purchaseHeader.paid_amount || 0);
+    const remainingAmount = totalAmount.minus(paidAmount);
+    
+    // Determinar estado de pago
+    let paymentStatus = 'PENDING';
+    if (paidAmount.equals(0)) {
+      paymentStatus = 'PENDING';
+    } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+    
+    // Mapear transacciones de pago
+    const payments = (purchaseHeader.payment_transaction || []).map((payment: any) => ({
+      payment_id: payment.payment_transaction_id,
+      amount: payment.amount.toString(),
+      payment_date: payment.payment_date.toISOString(),
+      payment_method: payment.payment_method?.description || 'No especificado',
+      transaction_reference: payment.transaction_reference || undefined,
+      notes: payment.notes || undefined,
+    }));
+
     return {
       purchase_id: purchaseHeader.purchase_header_id,
       person_id: purchaseHeader.person_id,
@@ -1745,6 +1865,9 @@ export class OneOffPurchaseService
       requires_delivery: !!purchaseHeader.delivery_address,
       notes: purchaseHeader.notes,
       delivery_address: purchaseHeader.delivery_address || undefined,
+      payment_status: paymentStatus,
+      remaining_amount: remainingAmount.toString(),
+      payments: payments,
       person: {
         person_id: purchaseHeader.person.person_id,
         name: purchaseHeader.person.name || 'Nombre no disponible',

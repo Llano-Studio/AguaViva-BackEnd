@@ -53,6 +53,7 @@ import { CancellationOrderService } from '../orders/cancellation-order.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { SubscriptionCycleCalculatorService } from '../customer-subscription/services/subscription-cycle-calculator.service';
 
 
 @Injectable()
@@ -66,7 +67,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     private readonly cancellationOrderService: CancellationOrderService,
     private readonly inventoryService: InventoryService,
     private readonly recoveryOrderService: RecoveryOrderService,
-
+    private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
   ) {
     super();
   }
@@ -930,7 +931,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     personId: number,
     dto: ChangeSubscriptionPlanDto,
   ): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
-    return this.$transaction(async (tx) => {
+    const newSubscription = await this.$transaction(async (tx) => {
       const currentSubscription = await tx.customer_subscription.findUnique({
         where: { subscription_id: dto.current_subscription_id },
         include: {
@@ -959,6 +960,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       const newPlan = await tx.subscription_plan.findUnique({
         where: { subscription_plan_id: dto.new_plan_id },
+        include: {
+          subscription_plan_product: true,
+        },
       });
       if (!newPlan) {
         throw new NotFoundException(
@@ -1024,7 +1028,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       firstCycleEndDate.setDate(firstCycleStartDate.getDate() - 1);
       firstCycleEndDate.setHours(23, 59, 59, 999);
 
-      await tx.subscription_cycle.create({
+      const newCycle = await tx.subscription_cycle.create({
         data: {
           subscription_id: newSubscription.subscription_id,
           cycle_number: 1,
@@ -1035,8 +1039,41 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           notes: 'Primer ciclo post cambio de plan.',
         },
       });
+
+      // Crear los detalles del ciclo basados en el nuevo plan
+      for (const planProduct of newPlan.subscription_plan_product) {
+        await tx.subscription_cycle_detail.create({
+          data: {
+            cycle_id: newCycle.cycle_id,
+            product_id: planProduct.product_id,
+            planned_quantity: planProduct.product_quantity,
+            delivered_quantity: 0,
+            remaining_balance: planProduct.product_quantity,
+          },
+        });
+      }
+
       return newSubscription;
     });
+
+    // Calcular el total_amount del ciclo después de la transacción
+    try {
+      const createdCycle = await this.subscription_cycle.findFirst({
+        where: {
+          subscription_id: newSubscription.subscription_id,
+          cycle_number: 1,
+        },
+      });
+      
+      if (createdCycle) {
+        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(createdCycle.cycle_id);
+        console.log(`✅ Total calculado para ciclo de cambio de plan ${createdCycle.cycle_id}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error calculando total para ciclo de cambio de plan:`, error);
+    }
+
+    return newSubscription;
   }
 
   async cancelContract(

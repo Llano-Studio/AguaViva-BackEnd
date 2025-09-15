@@ -34,10 +34,10 @@ export enum SubscriptionStatus {
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
-  PARTIALLY_PAID = 'PARTIALLY_PAID',
-  PAID = 'PAID',
-  REFUNDED = 'REFUNDED',
   PARTIAL = 'PARTIAL',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+  CREDITED = 'CREDITED',
 }
 
 export enum PaymentMethod {
