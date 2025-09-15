@@ -18,6 +18,8 @@ import {
   SubscriptionDeliveryScheduleResponseDto,
 } from './dto';
 import { FirstCycleComodatoService } from '../orders/services/first-cycle-comodato.service';
+import { CycleNumberingService } from './services/cycle-numbering.service';
+import { RecoveryOrderService } from '../services/recovery-order.service';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -28,6 +30,9 @@ export class CustomerSubscriptionService
 
   constructor(
     private readonly firstCycleComodatoService: FirstCycleComodatoService,
+
+    private readonly cycleNumberingService: CycleNumberingService,
+    private readonly recoveryOrderService: RecoveryOrderService,
   ) {
     super();
   }
@@ -174,7 +179,7 @@ export class CustomerSubscriptionService
         },
       });
 
-      // Crear el primer ciclo de suscripción automáticamente
+      // Crear el primer ciclo de suscripción usando CycleNumberingService
       const firstCycleStartDate = new Date(createDto.start_date);
       const firstCycleEndDate = new Date(firstCycleStartDate);
       firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1);
@@ -185,18 +190,15 @@ export class CustomerSubscriptionService
       const paymentDueDate = new Date(firstCycleEndDate);
       paymentDueDate.setDate(paymentDueDate.getDate() + 10);
 
-      const firstCycle = await this.subscription_cycle.create({
-        data: {
-          subscription_id: subscription.subscription_id,
+      const firstCycle = await this.cycleNumberingService.createCycleWithNumber(
+        subscription.subscription_id,
+        {
           cycle_start: firstCycleStartDate,
           cycle_end: firstCycleEndDate,
           payment_due_date: paymentDueDate,
-          is_overdue: false,
-          late_fee_applied: false,
-          late_fee_percentage: new Decimal(20.0), // 20% de recargo
-          notes: 'Primer ciclo creado automáticamente al crear la suscripción',
+          total_amount: 0, // Se calculará después
         },
-      });
+      );
 
       // Crear los detalles del ciclo con las cantidades planificadas del plan
       for (const planProduct of subscription.subscription_plan
@@ -1038,5 +1040,187 @@ export class CustomerSubscriptionService
     return schedules.map(
       (schedule) => new SubscriptionDeliveryScheduleResponseDto(schedule),
     );
+  }
+
+  /**
+   * Cancela una suscripción y genera órdenes de recuperación para comodatos activos
+   * @param subscriptionId ID de la suscripción a cancelar
+   * @param customerId ID del cliente (para validación)
+   * @param cancellationReason Motivo de la cancelación
+   * @returns Suscripción actualizada
+   */
+  async cancelSubscription(
+    subscriptionId: number,
+    customerId: number,
+    cancellationReason?: string,
+  ): Promise<CustomerSubscriptionResponseDto> {
+    this.logger.log(`Cancelling subscription: ${subscriptionId}`);
+
+    return this.$transaction(async (prisma) => {
+      // Verificar que la suscripción existe y pertenece al cliente
+      const subscription = await prisma.customer_subscription.findUnique({
+        where: { subscription_id: subscriptionId },
+        include: {
+          subscription_cycle: {
+            orderBy: { cycle_end: 'desc' },
+            take: 1,
+          },
+          subscription_plan: {
+            include: {
+              subscription_plan_product: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!subscription) {
+        throw new NotFoundException(
+          `Suscripción con ID ${subscriptionId} no encontrada`,
+        );
+      }
+
+      if (subscription.customer_id !== customerId) {
+        throw new BadRequestException(
+          'No tienes permiso para cancelar esta suscripción',
+        );
+      }
+
+      if (subscription.status === SubscriptionStatus.CANCELLED) {
+        throw new BadRequestException('La suscripción ya está cancelada');
+      }
+
+      if (subscription.status === SubscriptionStatus.EXPIRED) {
+        throw new BadRequestException('La suscripción ya está expirada');
+      }
+
+      // Calcular fecha efectiva de cancelación
+      let effectiveEndDate =
+        subscription.subscription_cycle?.[0]?.cycle_end || new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (effectiveEndDate < today) effectiveEndDate = today;
+
+      // Actualizar estado de la suscripción
+      const updatedSubscription = await prisma.customer_subscription.update({
+        where: { subscription_id: subscriptionId },
+        data: {
+          status: SubscriptionStatus.CANCELLED,
+          cancellation_date: effectiveEndDate,
+          cancellation_reason: cancellationReason,
+        },
+        include: this.getIncludeClause(),
+      });
+
+      // Cancelar órdenes futuras
+      await prisma.order_header.updateMany({
+        where: {
+          subscription_id: subscriptionId,
+          scheduled_delivery_date: { gt: effectiveEndDate },
+          status: {
+            in: ['PENDING', 'CONFIRMED', 'IN_PREPARATION', 'READY_FOR_DELIVERY', 'IN_DELIVERY'],
+          },
+        },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      // Obtener comodatos activos asociados a la suscripción
+      const activeComodatos = await prisma.comodato.findMany({
+        where: {
+          subscription_id: subscriptionId,
+          status: 'ACTIVE',
+        },
+      });
+
+      // Generar órdenes de recuperación para cada comodato activo
+      if (activeComodatos.length > 0) {
+        this.logger.log(
+          `Generando ${activeComodatos.length} órdenes de recuperación para suscripción ${subscriptionId}`,
+        );
+
+        for (const comodato of activeComodatos) {
+          try {
+            await this.recoveryOrderService.createRecoveryOrder(
+              comodato.comodato_id,
+              undefined, // Usar fecha por defecto (7 días)
+              `Recuperación automática por cancelación de suscripción ${subscriptionId}`,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Error generando orden de recuperación para comodato ${comodato.comodato_id}:`,
+              error,
+            );
+            // Continuar con otros comodatos aunque uno falle
+          }
+        }
+      }
+
+      this.logger.log(`Subscription ${subscriptionId} cancelled successfully`);
+      return this.mapToResponseDto(updatedSubscription);
+    });
+  }
+
+  /**
+   * Crea un nuevo comodato independiente para una nueva suscripción
+   * @param subscriptionId ID de la nueva suscripción
+   * @param productId ID del producto del comodato
+   * @param quantity Cantidad del producto
+   * @returns Comodato creado
+   */
+  async createIndependentComodato(
+    subscriptionId: number,
+    productId: number,
+    quantity: number,
+  ) {
+    this.logger.log(
+      `Creating independent comodato for subscription: ${subscriptionId}`,
+    );
+
+    return this.$transaction(async (prisma) => {
+      // Verificar que la suscripción existe
+      const subscription = await prisma.customer_subscription.findUnique({
+        where: { subscription_id: subscriptionId },
+      });
+
+      if (!subscription) {
+        throw new NotFoundException(
+          `Suscripción con ID ${subscriptionId} no encontrada`,
+        );
+      }
+
+      // Verificar que el producto existe
+      const product = await prisma.product.findUnique({
+        where: { product_id: productId },
+      });
+
+      if (!product) {
+        throw new NotFoundException(
+          `Producto con ID ${productId} no encontrado`,
+        );
+      }
+
+      // Crear el comodato independiente
+      const comodato = await prisma.comodato.create({
+        data: {
+          person_id: subscription.customer_id,
+          subscription_id: subscriptionId,
+          product_id: productId,
+          quantity: quantity,
+          delivery_date: new Date(),
+          status: 'ACTIVE',
+          notes: `Comodato independiente creado para nueva suscripción ${subscriptionId}`,
+        },
+      });
+
+      this.logger.log(
+        `Independent comodato ${comodato.comodato_id} created successfully`,
+      );
+      return comodato;
+    });
   }
 }

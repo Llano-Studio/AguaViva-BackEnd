@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, SubscriptionStatus, PaymentStatus } from '@prisma/client';
 import { CustomerSubscriptionResponseDto } from '../dto/customer-subscription-response.dto';
 
 export interface MultipleSubscriptionSummaryDto {
@@ -104,8 +104,8 @@ export class MultipleSubscriptionsService
         totalPaid += Number(cycle.paid_amount);
 
         if (
-          cycle.payment_status === 'PENDING' ||
-          cycle.payment_status === 'PARTIAL'
+          cycle.payment_status === PaymentStatus.PENDING ||
+          cycle.payment_status === PaymentStatus.PARTIAL
         ) {
           if (
             cycle.payment_due_date &&

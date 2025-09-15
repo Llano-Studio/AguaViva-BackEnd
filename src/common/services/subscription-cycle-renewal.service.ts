@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Decimal } from '@prisma/client/runtime/library';
+import { CycleNumberingService } from '../../services/cycle-numbering.service';
 
 @Injectable()
 export class SubscriptionCycleRenewalService
@@ -9,6 +10,10 @@ export class SubscriptionCycleRenewalService
   implements OnModuleInit
 {
   private readonly logger = new Logger(SubscriptionCycleRenewalService.name);
+
+  constructor(private readonly cycleNumberingService: CycleNumberingService) {
+    super();
+  }
 
   async onModuleInit() {
     await this.$connect();
@@ -72,7 +77,7 @@ export class SubscriptionCycleRenewalService
   }
 
   /**
-   * Crea un nuevo ciclo para una suscripción específica
+   * Crea un nuevo ciclo para una suscripción específica usando CycleNumberingService
    */
   private async createNewCycleForSubscription(subscription: any) {
     try {
@@ -89,19 +94,15 @@ export class SubscriptionCycleRenewalService
       const paymentDueDate = new Date(cycleEndDate);
       paymentDueDate.setDate(paymentDueDate.getDate() + 10);
 
-      // Crear el nuevo ciclo
-      const newCycle = await this.subscription_cycle.create({
-        data: {
-          subscription_id: subscription.subscription_id,
-          cycle_start: cycleStartDate,
-          cycle_end: cycleEndDate,
-          payment_due_date: paymentDueDate,
-          is_overdue: false,
-          late_fee_applied: false,
-          late_fee_percentage: new Decimal(20.0), // 20% de recargo
-          notes: 'Ciclo renovado automáticamente',
-        },
-      });
+      // Crear el nuevo ciclo usando CycleNumberingService para numeración correcta
+      const newCycle = await this.cycleNumberingService.createCycleWithAutoNumbering(
+        subscription.subscription_id,
+        cycleStartDate,
+        cycleEndDate,
+        paymentDueDate,
+        0, // total_amount - Se calculará después
+        'Ciclo renovado automáticamente'
+      );
 
       // Crear los detalles del ciclo basados en el plan de suscripción
       for (const planProduct of subscription.subscription_plan

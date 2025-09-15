@@ -241,15 +241,15 @@ export class CyclePaymentsController {
     },
   })
   async getPaymentStatistics() {
-    const allCycles = await this.cyclePaymentsService.getPendingPaymentCycles();
+    const allCycles = await this.cyclePaymentsService.getAllCycles();
     const currentDate = new Date();
 
     const statistics = {
       total_cycles: allCycles.length,
-      paid_cycles: allCycles.filter((c) => c.payment_status === 'PAGADO')
+      paid_cycles: allCycles.filter((c) => c.payment_status === 'PAID')
         .length,
       pending_cycles: allCycles.filter((c) =>
-        ['PENDIENTE', 'PARCIAL'].includes(c.payment_status),
+        ['PENDING', 'PARTIAL'].includes(c.payment_status),
       ).length,
       overdue_cycles: allCycles.filter(
         (c) =>
