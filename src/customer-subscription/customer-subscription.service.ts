@@ -1141,8 +1141,10 @@ export class CustomerSubscriptionService
       });
 
       // Obtener comodatos activos asociados a la suscripción
+      // Buscar por subscription_id Y person_id para asegurar que se encuentren todos los comodatos
       const activeComodatos = await prisma.comodato.findMany({
         where: {
+          person_id: customerId,
           subscription_id: subscriptionId,
           status: 'ACTIVE',
         },

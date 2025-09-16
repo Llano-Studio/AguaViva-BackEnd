@@ -6,11 +6,10 @@ import { CommonModule } from '../common/common.module';
 import { CustomerSubscriptionModule } from '../customer-subscription/customer-subscription.module';
 import { OrdersModule } from '../orders/orders.module';
 import { InventoryModule } from '../inventory/inventory.module';
-import { RecoveryOrderService } from '../services/recovery-order.service';
 
 @Module({
   controllers: [PersonsController],
-  providers: [PersonsService, RecoveryOrderService],
+  providers: [PersonsService],
   exports: [PersonsService],
   imports: [
     AuthModule,

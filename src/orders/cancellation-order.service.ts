@@ -52,9 +52,6 @@ export class CancellationOrderService extends PrismaClient {
     this.logger.log('CancellationOrderService initialized');
   }
 
-  /**
-   * Crear una orden de cancelación cuando se cancela una suscripción
-   */
   async createCancellationOrder(
     dto: CreateCancellationOrderDto,
     tx?: Prisma.TransactionClient,
@@ -87,7 +84,7 @@ export class CancellationOrderService extends PrismaClient {
       );
     }
 
-    if (subscription.status !== 'CANCELLED') {
+    if (!tx && subscription.status !== 'CANCELLED') {
       throw new BadRequestException(
         'Solo se pueden crear órdenes de cancelación para suscripciones canceladas',
       );
