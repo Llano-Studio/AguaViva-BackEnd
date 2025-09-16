@@ -832,7 +832,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             subscription_id: subscriptionId,
             scheduled_collection_date: scheduledCollectionDate.toISOString().split('T')[0],
             notes: `Orden de cancelación generada automáticamente para suscripción ${subscriptionId}`,
-          });
+          }, tx);
         } catch (error) {
           // Log del error pero no fallar la cancelación de la suscripción
           console.error(
@@ -889,6 +889,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const activeComodatos = await tx.comodato.findMany({
           where: {
             person_id: personId,
+            subscription_id: subscriptionId,
             status: ComodatoStatus.ACTIVE,
           },
           include: {
