@@ -53,9 +53,13 @@ export class UpdateProductDto {
   @IsBoolean()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
     }
-    return value;
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    return Boolean(value);
   })
   is_returnable?: boolean;
 
