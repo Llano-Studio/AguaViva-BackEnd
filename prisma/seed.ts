@@ -163,39 +163,39 @@ async function main() {
   const localities = [
     // Chaco
     { province_id: 1, code: 'RES', name: 'Resistencia' },
-    { province_id: 1, code: 'PRS_SAENZ', name: 'Presidencia Roque Sáenz Peña' },
+    { province_id: 1, code: 'PRS', name: 'Presidencia Roque Sáenz Peña' },
     { province_id: 1, code: 'JJC', name: 'Juan José Castelli' },
-    { province_id: 1, code: 'VANGELA', name: 'Villa Ángela' },
-    { province_id: 1, code: 'CHARATA', name: 'Charata' },
+    { province_id: 1, code: 'VANG', name: 'Villa Ángela' },
+    { province_id: 1, code: 'CHAR', name: 'Charata' },
     // Corrientes
-    { province_id: 2, code: 'CORRIENTES', name: 'Corrientes' },
+    { province_id: 2, code: 'CORR', name: 'Corrientes' },
     { province_id: 2, code: 'GOYA', name: 'Goya' },
-    { province_id: 2, code: 'PAS_LIBRES', name: 'Paso de los Libres' },
-    { province_id: 2, code: 'CURUZUCUAT', name: 'Curuzú Cuatiá' },
-    { province_id: 2, code: 'MERCEDES', name: 'Mercedes' },
+    { province_id: 2, code: 'PASO', name: 'Paso de los Libres' },
+    { province_id: 2, code: 'CURU', name: 'Curuzú Cuatiá' },
+    { province_id: 2, code: 'MERC', name: 'Mercedes' },
     // Formosa
-    { province_id: 3, code: 'FORMOSA', name: 'Formosa' },
-    { province_id: 3, code: 'CLORINDA', name: 'Clorinda' },
-    { province_id: 3, code: 'PIRANE', name: 'Pirané' },
+    { province_id: 3, code: 'FORM', name: 'Formosa' },
+    { province_id: 3, code: 'CLOR', name: 'Clorinda' },
+    { province_id: 3, code: 'PIRA', name: 'Pirané' },
     // Misiones
-    { province_id: 4, code: 'POSADAS', name: 'Posadas' },
-    { province_id: 4, code: 'OBERA', name: 'Oberá' },
-    { province_id: 4, code: 'ELDORADO', name: 'Eldorado' },
-    { province_id: 4, code: 'GARUPA', name: 'Garupá' },
-    { province_id: 4, code: 'PT_IGUAZU', name: 'Puerto Iguazú' },
+    { province_id: 4, code: 'POSA', name: 'Posadas' },
+    { province_id: 4, code: 'OBER', name: 'Oberá' },
+    { province_id: 4, code: 'ELDO', name: 'Eldorado' },
+    { province_id: 4, code: 'GARU', name: 'Garupá' },
+    { province_id: 4, code: 'IGUA', name: 'Puerto Iguazú' },
     // Santa Fe
-    { province_id: 5, code: 'SANTAFE', name: 'Santa Fe de la Vera Cruz' },
-    { province_id: 5, code: 'ROSARIO', name: 'Rosario' },
-    { province_id: 5, code: 'RAFAELA', name: 'Rafaela' },
-    { province_id: 5, code: 'RECONQUIST', name: 'Reconquista' },
-    { province_id: 5, code: 'VILLACONS', name: 'Villa Constitución' },
+    { province_id: 5, code: 'SFVC', name: 'Santa Fe de la Vera Cruz' },
+    { province_id: 5, code: 'ROSA', name: 'Rosario' },
+    { province_id: 5, code: 'RAFA', name: 'Rafaela' },
+    { province_id: 5, code: 'RECO', name: 'Reconquista' },
+    { province_id: 5, code: 'VICO', name: 'Villa Constitución' },
     // Paraguay - Distrito Capital
-    { province_id: 6, code: 'ASUNCION', name: 'Asunción' },
-    { province_id: 6, code: 'SANLORENZ', name: 'San Lorenzo' },
-    { province_id: 6, code: 'FEDMORA', name: 'Fernando de la Mora' },
-    { province_id: 6, code: 'LAMBARA', name: 'Lambaré' },
-    { province_id: 6, code: 'LUQUE', name: 'Luque' },
-    { province_id: 6, code: 'MROQALON', name: 'Mariano Roque Alonso' }
+    { province_id: 6, code: 'ASUN', name: 'Asunción' },
+    { province_id: 6, code: 'SLOR', name: 'San Lorenzo' },
+    { province_id: 6, code: 'FDM', name: 'Fernando de la Mora' },
+    { province_id: 6, code: 'LAMB', name: 'Lambaré' },
+    { province_id: 6, code: 'LUQU', name: 'Luque' },
+    { province_id: 6, code: 'MRA', name: 'Mariano Roque Alonso' }
   ];
   
   for (const localityData of localities) {
