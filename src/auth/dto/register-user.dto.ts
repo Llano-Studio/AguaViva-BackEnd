@@ -60,13 +60,28 @@ export class RegisterUserDto {
   @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
-    }
+    // Si ya es boolean, devolverlo tal como está
     if (typeof value === 'boolean') {
       return value;
     }
-    return false;
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    
+    return undefined;
   })
   isActive?: boolean;
 
