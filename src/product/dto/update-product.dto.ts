@@ -52,27 +52,36 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
+    // DEBUG: Log para ver qué valor está llegando
+    console.log('🔍 DEBUG - Transform is_returnable - Valor recibido:', value, 'Tipo:', typeof value);
+    
     // Si ya es boolean, devolverlo tal como está
     if (typeof value === 'boolean') {
+      console.log('🔍 DEBUG - Transform is_returnable - Es boolean, devolviendo:', value);
       return value;
     }
     
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
+      console.log('🔍 DEBUG - Transform is_returnable - Es string, valor normalizado:', lowerValue);
       if (lowerValue === 'true' || lowerValue === '1') {
+        console.log('🔍 DEBUG - Transform is_returnable - String es true, devolviendo true');
         return true;
       }
       if (lowerValue === 'false' || lowerValue === '0') {
+        console.log('🔍 DEBUG - Transform is_returnable - String es false, devolviendo false');
         return false;
       }
     }
     
     // Si es number, convertir a boolean
     if (typeof value === 'number') {
+      console.log('🔍 DEBUG - Transform is_returnable - Es number:', value, 'devolviendo:', value === 1);
       return value === 1;
     }
     
+    console.log('🔍 DEBUG - Transform is_returnable - Valor no reconocido, devolviendo undefined');
     return undefined;
   })
   is_returnable?: boolean;

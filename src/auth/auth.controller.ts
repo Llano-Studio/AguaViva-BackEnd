@@ -47,6 +47,7 @@ import { Auth } from './decorators/auth.decorator';
 import { RolesService } from './roles.service';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
+import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 
 @ApiTags('Autenticación/Usuarios')
 @Controller('auth')
@@ -84,7 +85,7 @@ export class AuthController {
     type: RegisterUserDto,
   })
   register(
-    @Body(ValidationPipe) dto: RegisterUserDto,
+    @FormDataBody(RegisterUserDto) dto: RegisterUserDto,
     @UploadedFile() profileImage?: any,
   ) {
     return this.authService.register(dto, profileImage);
@@ -319,7 +320,7 @@ export class AuthController {
     type: CreateUserDto,
   })
   createUser(
-    @Body(ValidationPipe) createUserDto: CreateUserDto,
+    @FormDataBody(CreateUserDto) createUserDto: CreateUserDto,
     @UploadedFile() profileImage?: any,
   ) {
     return this.authService.createUser(createUserDto, profileImage);
@@ -370,7 +371,7 @@ export class AuthController {
   })
   updateUser(
     @Param('id', ParseIntPipe) id: number,
-    @Body(ValidationPipe) updateUserDto: UpdateUserDto,
+    @FormDataBody(UpdateUserDto) updateUserDto: UpdateUserDto,
     @UploadedFile() profileImage?: any,
   ) {
     return this.authService.updateUser(id, updateUserDto, profileImage);

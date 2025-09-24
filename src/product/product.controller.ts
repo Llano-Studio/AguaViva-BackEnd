@@ -32,6 +32,8 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
+import { FormDataPreserveInterceptor } from '../common/interceptors/form-data-preserve.interceptor';
+import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 
 @ApiTags('Productos & Artículos')
 @ApiBearerAuth()
@@ -219,6 +221,7 @@ La respuesta incluye stock actual calculado en tiempo real:
   @Auth(Role.SUPERADMIN)
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
+    FormDataPreserveInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -351,7 +354,7 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
       'Conflicto - Restricción de unicidad violada (ej. número de serie duplicado si se requiere que sea único).',
   })
   createProduct(
-    @Body() dto: CreateProductDto,
+    @FormDataBody(CreateProductDto) dto: CreateProductDto,
     @UploadedFile() productImage?: any,
   ) {
     // DEBUG: Log para ver qué está llegando
@@ -366,6 +369,7 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   @Auth(Role.SUPERADMIN)
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
+    FormDataPreserveInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -504,7 +508,7 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   })
   updateProductById(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateProductDto,
+    @FormDataBody(UpdateProductDto) dto: UpdateProductDto,
     @UploadedFile() productImage?: any,
   ) {
     // DEBUG: Log para ver qué está llegando
