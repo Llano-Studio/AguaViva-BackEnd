@@ -10,19 +10,22 @@ export class RecoveryOrderService {
    * @param comodatoId ID del comodato a recuperar
    * @param scheduledDate Fecha programada para la recuperación (opcional, por defecto 7 días)
    * @param notes Notas adicionales
+   * @param tx Transacción opcional de Prisma
    * @returns La orden de recuperación creada
    */
-  async createRecoveryOrder(
+async createRecoveryOrder(
     comodatoId: number,
     scheduledDate?: Date,
-    notes?: string
+    notes?: string,
+    tx?: any
   ) {
     // Si no se proporciona fecha, programar para 7 días después
     const defaultScheduledDate = scheduledDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const prisma = tx || this.prisma;
 
     try {
       // Verificar que el comodato existe y está activo
-      const comodato = await this.prisma.comodato.findUnique({
+      const comodato = await prisma.comodato.findUnique({
         where: { comodato_id: comodatoId },
         include: {
           recovery_order: true,
@@ -39,7 +42,7 @@ export class RecoveryOrderService {
       }
 
       // Verificar si ya existe una orden de recuperación para este comodato
-      const existingRecoveryOrder = await this.prisma.recovery_order.findUnique({
+      const existingRecoveryOrder = await prisma.recovery_order.findUnique({
         where: { comodato_id: comodatoId },
       });
 
@@ -48,7 +51,7 @@ export class RecoveryOrderService {
       }
 
       // Crear la orden de recuperación
-      const recoveryOrder = await this.prisma.recovery_order.create({
+      const recoveryOrder = await prisma.recovery_order.create({
         data: {
           comodato_id: comodatoId,
           scheduled_recovery_date: defaultScheduledDate,

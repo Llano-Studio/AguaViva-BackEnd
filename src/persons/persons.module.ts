@@ -6,6 +6,7 @@ import { CommonModule } from '../common/common.module';
 import { CustomerSubscriptionModule } from '../customer-subscription/customer-subscription.module';
 import { OrdersModule } from '../orders/orders.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { ServicesModule } from '../services/services.module';
 
 @Module({
   controllers: [PersonsController],
@@ -17,6 +18,7 @@ import { InventoryModule } from '../inventory/inventory.module';
     CustomerSubscriptionModule,
     OrdersModule,
     InventoryModule,
+    ServicesModule,
   ],
 })
 export class PersonsModule {}
