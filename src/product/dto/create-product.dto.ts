@@ -59,11 +59,10 @@ export class CreateProductDto {
     if (typeof value === 'boolean') {
       return value;
     }
-    // CORRECCIÓN: Manejar explícitamente valores falsy
     if (value === 'false' || value === '0' || value === 0) {
       return false;
     }
-    return Boolean(value);
+    return false;
   })
   is_returnable: boolean;
 
