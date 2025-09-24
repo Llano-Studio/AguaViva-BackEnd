@@ -294,6 +294,11 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     await this.validateDefaultPriceListExists();
     const { category_id, total_stock, productImage: _, ...productData } = dto;
 
+    // DEBUG: Log para ver qué datos se van a guardar
+    console.log('🔍 DEBUG - Datos que se van a guardar en createProduct:');
+    console.log('  productData.is_returnable:', productData.is_returnable, typeof productData.is_returnable);
+    console.log('  productData completo:', JSON.stringify(productData, null, 2));
+
     try {
       const dataToCreate: any = {
         ...productData,
@@ -389,6 +394,11 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       productImage: _,
       ...productUpdateData
     } = dto;
+
+    // DEBUG: Log para ver qué datos se van a actualizar
+    console.log('🔍 DEBUG - Datos que se van a actualizar en updateProductById:');
+    console.log('  productUpdateData.is_returnable:', productUpdateData.is_returnable, typeof productUpdateData.is_returnable);
+    console.log('  productUpdateData completo:', JSON.stringify(productUpdateData, null, 2));
 
     if (category_id) {
       await this.validateCategoryExists(category_id);

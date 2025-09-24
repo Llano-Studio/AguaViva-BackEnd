@@ -910,7 +910,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               await this.recoveryOrderService.createRecoveryOrder(
                 comodato.comodato_id,
                 effectiveEndDate, // Usar la fecha de cancelación
-                `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`,
+                `Orden de recuperación generada automáticamente por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId})`,
                 tx
               );
               
@@ -929,7 +929,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             quantity: comodato.quantity,
             unit_price: 0, // Sin precio para retiro
             subtotal: 0, // Sin subtotal para retiro
-            notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
+            notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description} (Plan: "${subscription.subscription_plan?.name || 'Plan sin nombre'}")`,
           }));
 
           const withdrawalOrder = await tx.order_header.create({
@@ -942,7 +942,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               paid_amount: 0, // Sin pago para retiro
               order_type: 'HYBRID', // Tipo de orden híbrida como solicitado
               status: 'PENDING', // Estado pendiente
-              notes: `Pedido de retiro de comodatos por cancelación de suscripción ${subscriptionId}. ${cancelDto.notes || ''}`.trim(),
+              notes: `Pedido de retiro de comodatos por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
               subscription_id: subscriptionId, // Asociar con la suscripción cancelada
               // Crear todos los items de orden en una sola transacción
               order_item: {
