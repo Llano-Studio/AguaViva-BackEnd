@@ -33,6 +33,7 @@ import {
 } from './dto/person-response.dto';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
+import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
 import {
   CreateComodatoDto,
@@ -732,6 +733,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   async cancelSubscription(
     personId: number,
     subscriptionId: number,
+    cancelDto: CancelSubscriptionDto,
   ): Promise<Prisma.customer_subscriptionGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const subscription = await tx.customer_subscription.findUnique({
@@ -780,11 +782,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         );
       }
 
-      let effectiveEndDate =
-        subscription.subscription_cycle?.[0]?.cycle_end || new Date();
+      // Usar la fecha de cancelación del DTO
+      const cancellationDate = new Date(cancelDto.cancellation_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      if (effectiveEndDate < today) effectiveEndDate = today;
+      
+      // Asegurar que la fecha de cancelación no sea anterior a hoy
+      const effectiveEndDate = cancellationDate < today ? today : cancellationDate;
 
       const updatedSubscription = await tx.customer_subscription.update({
         where: { subscription_id: subscriptionId },
@@ -882,7 +886,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
       }
 
-      // Generar órdenes de recuperación y órdenes de retiro para comodatos activos
+      // Generar órdenes de recuperación y una sola orden de retiro para todos los comodatos activos
       try {
         console.log(`Buscando comodatos activos para la suscripción ${subscriptionId}...`);
         
@@ -899,53 +903,55 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
         console.log(`Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación y retiro`);
 
-        for (const comodato of activeComodatos) {
-           try {
-             // 1. Crear orden de recuperación (como antes)
-             await this.recoveryOrderService.createRecoveryOrder(
-               comodato.comodato_id,
-               new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
-               `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`,
-               tx
-             );
-            
-            console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
-
-            // 2. CORRECCIÓN: Crear Order normal con pedido de retiro de comodato
-            const withdrawalOrder = await tx.order_header.create({
-              data: {
-                customer_id: personId,
-                sale_channel_id: 1, // Canal por defecto
-                order_date: new Date(),
-                scheduled_delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
-                total_amount: 0, // Sin costo para retiro
-                paid_amount: 0, // Sin pago para retiro
-                order_type: 'ONE_OFF', // Tipo de orden única
-                status: 'PENDING', // Estado pendiente
-                notes: `Pedido de retiro de comodato ${comodato.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}) - Generado por cancelación de suscripción ${subscriptionId}`,
-                subscription_id: subscriptionId, // Asociar con la suscripción cancelada
-                // Crear item de orden para el retiro
-                order_item: {
-                  create: {
-                    product_id: comodato.product_id,
-                    quantity: comodato.quantity,
-                    unit_price: 0, // Sin precio para retiro
-                    subtotal: 0, // Sin subtotal para retiro
-                    notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
-                  },
-                },
-              },
-            });
-
-            console.log(`Order de retiro creada exitosamente para comodato ${comodato.comodato_id} - Order ID: ${withdrawalOrder.order_id}`);
-            
-          } catch (recoveryError) {
-            console.error(
-              `Error al crear órdenes para comodato ${comodato.comodato_id}:`,
-              recoveryError,
-            );
-            // Continuar con los demás comodatos aunque uno falle
+        if (activeComodatos.length > 0) {
+          // 1. Crear órdenes de recuperación individuales (como antes)
+          for (const comodato of activeComodatos) {
+            try {
+              await this.recoveryOrderService.createRecoveryOrder(
+                comodato.comodato_id,
+                effectiveEndDate, // Usar la fecha de cancelación
+                `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`,
+                tx
+              );
+              
+              console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
+            } catch (recoveryError) {
+              console.error(
+                `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
+                recoveryError,
+              );
+            }
           }
+
+          // 2. Crear UNA SOLA orden de retiro con todos los productos
+          const orderItems = activeComodatos.map(comodato => ({
+            product_id: comodato.product_id,
+            quantity: comodato.quantity,
+            unit_price: 0, // Sin precio para retiro
+            subtotal: 0, // Sin subtotal para retiro
+            notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
+          }));
+
+          const withdrawalOrder = await tx.order_header.create({
+            data: {
+              customer_id: personId,
+              sale_channel_id: 1, // Canal por defecto
+              order_date: new Date(),
+              scheduled_delivery_date: effectiveEndDate, // Usar la fecha de cancelación del DTO
+              total_amount: 0, // Sin costo para retiro
+              paid_amount: 0, // Sin pago para retiro
+              order_type: 'HYBRID', // Tipo de orden híbrida como solicitado
+              status: 'PENDING', // Estado pendiente
+              notes: `Pedido de retiro de comodatos por cancelación de suscripción ${subscriptionId}. ${cancelDto.notes || ''}`.trim(),
+              subscription_id: subscriptionId, // Asociar con la suscripción cancelada
+              // Crear todos los items de orden en una sola transacción
+              order_item: {
+                create: orderItems,
+              },
+            },
+          });
+
+          console.log(`Order de retiro única creada exitosamente con ${orderItems.length} productos - Order ID: ${withdrawalOrder.order_id}`);
         }
       } catch (error) {
         console.error(

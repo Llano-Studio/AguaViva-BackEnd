@@ -13,6 +13,7 @@ import { Role } from '@prisma/client';
 import { PersonType } from '../common/constants/enums';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
+import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
 import { LoanedProductDetailDto } from './dto/person-response.dto';
 import {
@@ -156,8 +157,9 @@ export class PersonsController {
   cancelSubscription(
     @Param('personId', ParseIntPipe) personId: number,
     @Param('subscriptionId', ParseIntPipe) subscriptionId: number,
+    @Body() cancelDto: CancelSubscriptionDto,
   ) {
-    return this.personsService.cancelSubscription(personId, subscriptionId);
+    return this.personsService.cancelSubscription(personId, subscriptionId, cancelDto);
   }
 
   @Patch(':personId/contracts/:contractId/cancel')
