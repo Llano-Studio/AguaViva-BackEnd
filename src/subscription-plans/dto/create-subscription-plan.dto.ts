@@ -11,7 +11,7 @@ import {
   IsBoolean,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
 
 export class CreateSubscriptionPlanDto {
@@ -80,7 +80,26 @@ export class CreateSubscriptionPlanDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    
+    // Para cualquier otro caso, devolver true por defecto en creación
+    return true;
+  })
   is_active?: boolean;
 
   @ApiPropertyOptional({

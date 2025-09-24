@@ -52,21 +52,23 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
       return lowerValue === 'true' || lowerValue === '1';
     }
+    
+    // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    if (value === 'false' || value === '0' || value === 0) {
-      return false;
-    }
-    // Si no es ninguno de los casos anteriores, devolver false por defecto
-    return false;
+    
+    return undefined;
   })
   is_returnable?: boolean;
 
