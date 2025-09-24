@@ -905,7 +905,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
              await this.recoveryOrderService.createRecoveryOrder(
                comodato.comodato_id,
                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
-               `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`
+               `Orden de recuperación generada automáticamente por cancelación de suscripción ${subscriptionId}`,
+               tx
              );
             
             console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
