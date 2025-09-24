@@ -88,6 +88,13 @@ export class SubscriptionPlanResponseDto {
   updated_at: Date;
 
   @ApiProperty({
+    description: 'Tipo de plan de suscripción',
+    enum: ['INDIVIDUAL', 'PLAN'],
+    example: 'PLAN',
+  })
+  type: string;
+
+  @ApiProperty({
     description: 'Lista de productos incluidos en el plan',
     type: [SubscriptionPlanProductResponseDto],
     required: false,

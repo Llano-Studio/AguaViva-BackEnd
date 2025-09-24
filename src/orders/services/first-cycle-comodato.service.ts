@@ -112,19 +112,19 @@ export class FirstCycleComodatoService extends PrismaClient {
       `📦 Encontrados ${returnableProducts.length} productos retornables para comodato`,
     );
 
-    // Validar comodatos existentes antes de crear nuevos
     const productIds = returnableProducts.map((item) => item.product_id);
     const validation = await this.validateExistingComodatos(
       subscription.customer_id,
       productIds,
+      subscriptionId,
     );
 
     if (validation.hasConflicts) {
       this.logger.warn(
-        `⚠️ Se encontraron ${validation.conflicts.length} comodatos activos existentes. Omitiendo productos con conflictos.`,
+        `⚠️ Se encontraron ${validation.conflicts.length} comodatos activos existentes para esta suscripción específica. Omitiendo productos con conflictos.`,
       );
       
-      // Filtrar productos que no tienen conflictos
+      // Filtrar productos que no tienen conflictos en esta suscripción específica
       const conflictProductIds = validation.conflicts.map(c => c.product_id);
       const productsWithoutConflicts = returnableProducts.filter(
         (item) => !conflictProductIds.includes(item.product_id)
@@ -132,7 +132,7 @@ export class FirstCycleComodatoService extends PrismaClient {
       
       if (productsWithoutConflicts.length === 0) {
         this.logger.log(
-          `ℹ️ Todos los productos retornables ya tienen comodatos activos para cliente ${subscription.customer_id}`,
+          `ℹ️ Todos los productos retornables ya tienen comodatos activos para esta suscripción específica ${subscriptionId}`,
         );
         return {
           comodatos_created: [],
@@ -146,7 +146,7 @@ export class FirstCycleComodatoService extends PrismaClient {
       // Actualizar la lista de productos a procesar
       returnableProducts.splice(0, returnableProducts.length, ...productsWithoutConflicts);
       this.logger.log(
-        `📦 Procesando ${returnableProducts.length} productos sin conflictos`,
+        `📦 Procesando ${returnableProducts.length} productos sin conflictos para esta suscripción`,
       );
     }
 
@@ -341,7 +341,13 @@ export class FirstCycleComodatoService extends PrismaClient {
           brand: comodato.brand || '',
           model: comodato.model || '',
           contract_image_path: comodato.contract_image_path
-            ? buildImageUrl(comodato.contract_image_path, 'contracts')
+            ? (() => {
+                if (typeof comodato.contract_image_path === 'string' && 
+                    !comodato.contract_image_path.includes('[object File]')) {
+                  return buildImageUrl(comodato.contract_image_path, 'contracts');
+                }
+                return null;
+              })()
             : null,
           created_at: comodato.created_at,
           updated_at: comodato.updated_at,

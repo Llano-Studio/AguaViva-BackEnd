@@ -882,7 +882,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
       }
 
-      // Generar órdenes de recuperación para comodatos activos
+      // Generar órdenes de recuperación y órdenes de retiro para comodatos activos
       try {
         console.log(`Buscando comodatos activos para la suscripción ${subscriptionId}...`);
         
@@ -897,10 +897,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           },
         });
 
-        console.log(`Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación`);
+        console.log(`Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación y retiro`);
 
         for (const comodato of activeComodatos) {
            try {
+             // 1. Crear orden de recuperación (como antes)
              await this.recoveryOrderService.createRecoveryOrder(
                comodato.comodato_id,
                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
@@ -908,9 +909,38 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
              );
             
             console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
+
+            // 2. CORRECCIÓN: Crear Order normal con pedido de retiro de comodato
+            const withdrawalOrder = await tx.order_header.create({
+              data: {
+                customer_id: personId,
+                sale_channel_id: 1, // Canal por defecto
+                order_date: new Date(),
+                scheduled_delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
+                total_amount: 0, // Sin costo para retiro
+                paid_amount: 0, // Sin pago para retiro
+                order_type: 'ONE_OFF', // Tipo de orden única
+                status: 'PENDING', // Estado pendiente
+                notes: `Pedido de retiro de comodato ${comodato.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}) - Generado por cancelación de suscripción ${subscriptionId}`,
+                subscription_id: subscriptionId, // Asociar con la suscripción cancelada
+                // Crear item de orden para el retiro
+                order_item: {
+                  create: {
+                    product_id: comodato.product_id,
+                    quantity: comodato.quantity,
+                    unit_price: 0, // Sin precio para retiro
+                    subtotal: 0, // Sin subtotal para retiro
+                    notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
+                  },
+                },
+              },
+            });
+
+            console.log(`Order de retiro creada exitosamente para comodato ${comodato.comodato_id} - Order ID: ${withdrawalOrder.order_id}`);
+            
           } catch (recoveryError) {
             console.error(
-              `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
+              `Error al crear órdenes para comodato ${comodato.comodato_id}:`,
               recoveryError,
             );
             // Continuar con los demás comodatos aunque uno falle
@@ -1345,7 +1375,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
       contract_image_path: comodatoEntity.contract_image_path
-        ? buildImageUrl(comodatoEntity.contract_image_path, 'contracts')
+        ? (() => {
+            if (typeof comodatoEntity.contract_image_path === 'string' && 
+                !comodatoEntity.contract_image_path.includes('[object File]')) {
+              return buildImageUrl(comodatoEntity.contract_image_path, 'contracts');
+            }
+            return null;
+          })()
         : undefined,
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
