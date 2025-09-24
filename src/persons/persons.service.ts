@@ -1375,15 +1375,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       article_description: comodatoEntity.article_description || undefined,
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
-      contract_image_path: comodatoEntity.contract_image_path
-        ? (() => {
-            if (typeof comodatoEntity.contract_image_path === 'string' && 
-                !comodatoEntity.contract_image_path.includes('[object File]')) {
-              return buildImageUrl(comodatoEntity.contract_image_path, 'contracts');
-            }
-            return null;
-          })()
-        : undefined,
+      contract_image_path: buildImageUrl(comodatoEntity.contract_image_path, 'contracts'),
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
       updated_at: comodatoEntity.updated_at,
