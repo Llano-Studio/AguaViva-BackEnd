@@ -63,7 +63,10 @@ export class RegisterUserDto {
     if (typeof value === 'string') {
       return value.toLowerCase() === 'true';
     }
-    return value;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return false;
   })
   isActive?: boolean;
 

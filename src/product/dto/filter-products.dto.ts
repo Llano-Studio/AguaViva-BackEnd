@@ -68,7 +68,10 @@ export class FilterProductsDto extends PaginationQueryDto {
     if (typeof value === 'string') {
       return value.toLowerCase() === 'true';
     }
-    return value;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return false;
   })
   isReturnable?: boolean;
 
@@ -90,7 +93,10 @@ export class FilterProductsDto extends PaginationQueryDto {
     if (typeof value === 'string') {
       return value.toLowerCase() === 'true';
     }
-    return value;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return false;
   })
   includeInventory?: boolean;
 }

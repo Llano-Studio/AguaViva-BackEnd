@@ -65,7 +65,8 @@ export class UpdateProductDto {
     if (value === 'false' || value === '0' || value === 0) {
       return false;
     }
-    return Boolean(value);
+    // Si no es ninguno de los casos anteriores, devolver false por defecto
+    return false;
   })
   is_returnable?: boolean;
 

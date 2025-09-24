@@ -31,7 +31,8 @@ export class FilterSubscriptionPlansDto extends PaginationQueryDto {
   @Transform(({ value }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    if (typeof value === 'boolean') return value;
+    return false;
   })
   is_active?: boolean;
 
