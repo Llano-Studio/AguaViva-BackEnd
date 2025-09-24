@@ -826,16 +826,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Crear orden de cancelación solo si hay productos retornables
       if (hasReturnableProducts) {
         try {
-          // Calcular fecha de recolección (7 días después de la cancelación)
-          const scheduledCollectionDate = new Date();
-          scheduledCollectionDate.setDate(
-            scheduledCollectionDate.getDate() + 7,
-          );
+          const scheduledCollectionDate = effectiveEndDate;
 
           await this.cancellationOrderService.createCancellationOrder({
             subscription_id: subscriptionId,
             scheduled_collection_date: scheduledCollectionDate.toISOString().split('T')[0],
-            notes: `Orden de cancelación generada automáticamente para suscripción ${subscriptionId}`,
+            notes: `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
           }, tx);
         } catch (error) {
           // Log del error pero no fallar la cancelación de la suscripción
