@@ -89,5 +89,29 @@ export const buildImageUrl = (fileName: string | null, folder: 'profile-images' 
   if (!fileName) {
     return null;
   }
-  return `http://localhost:3000/public/uploads/${folder}/${fileName}`;
+
+  // Limpiar el fileName si contiene [object File] o paths problemáticos
+  let cleanFileName = fileName;
+  
+  // Si contiene [object File], extraer solo el nombre del archivo si está disponible
+  if (fileName.includes('[object File]')) {
+    // Si es un path completo con [object File], intentar extraer el nombre real del archivo
+    const pathMatch = fileName.match(/\/uploads\/[^\/]+\/(.+)$/);
+    if (pathMatch && pathMatch[1] && !pathMatch[1].includes('[object File]')) {
+      cleanFileName = pathMatch[1];
+    } else {
+      // Si no se puede extraer un nombre válido, retornar null
+      return null;
+    }
+  }
+  
+  // Si el fileName ya es un path completo, extraer solo el nombre del archivo
+  if (cleanFileName.includes('/uploads/')) {
+    const pathMatch = cleanFileName.match(/\/uploads\/[^\/]+\/(.+)$/);
+    if (pathMatch && pathMatch[1]) {
+      cleanFileName = pathMatch[1];
+    }
+  }
+
+  return `http://localhost:3000/public/uploads/${folder}/${cleanFileName}`;
 };

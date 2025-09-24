@@ -319,15 +319,7 @@ export class FirstCycleComodatoService extends PrismaClient {
           article_description: comodato.article_description || '',
           brand: comodato.brand || '',
           model: comodato.model || '',
-          contract_image_path: comodato.contract_image_path
-            ? (() => {
-                if (typeof comodato.contract_image_path === 'string' && 
-                    !comodato.contract_image_path.includes('[object File]')) {
-                  return buildImageUrl(comodato.contract_image_path, 'contracts');
-                }
-                return null;
-              })()
-            : null,
+          contract_image_path: buildImageUrl(comodato.contract_image_path, 'contracts'),
           created_at: comodato.created_at,
           updated_at: comodato.updated_at,
           is_active: comodato.is_active,
