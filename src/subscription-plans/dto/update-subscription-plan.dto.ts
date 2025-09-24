@@ -88,7 +88,12 @@ export class UpdateSubscriptionPlanDto {
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
-      return lowerValue === 'true' || lowerValue === '1';
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
     }
     
     // Si es number, convertir a boolean
