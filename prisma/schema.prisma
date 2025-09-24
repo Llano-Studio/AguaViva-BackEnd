@@ -269,6 +269,7 @@ model subscription_plan {
   name                         String                      @db.VarChar(50)
   description                  String?
   price                        Decimal?                    @db.Decimal(10, 2)
+  type                         PersonType                  @default(PLAN)
   created_at                   DateTime                    @default(now())
   default_cycle_days           Int                         @default(30)
   default_deliveries_per_cycle Int                         @default(1)

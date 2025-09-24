@@ -136,6 +136,17 @@ export class CustomerSubscriptionService
       );
     }
 
+    // CORRECCIÓN: Si el plan tiene tipo "INDIVIDUAL", cambiarlo automáticamente a "PLAN"
+    if (subscriptionPlan.type === 'INDIVIDUAL') {
+      await this.subscription_plan.update({
+        where: { subscription_plan_id: createDto.subscription_plan_id },
+        data: { type: 'PLAN' },
+      });
+      this.logger.log(
+        `Plan de suscripción "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) actualizado de tipo "INDIVIDUAL" a "PLAN"`,
+      );
+    }
+
     // CORRECCIÓN: Validar que el plan tenga precio definido
     if (!subscriptionPlan.price || Number(subscriptionPlan.price) <= 0) {
       throw new BadRequestException(
@@ -1148,24 +1159,58 @@ export class CustomerSubscriptionService
           subscription_id: subscriptionId,
           status: 'ACTIVE',
         },
+        include: {
+          product: true,
+        },
       });
 
-      // Generar órdenes de recuperación para cada comodato activo
+      // Generar órdenes de recuperación y órdenes de retiro para cada comodato activo
       if (activeComodatos.length > 0) {
         this.logger.log(
-          `Generando ${activeComodatos.length} órdenes de recuperación para suscripción ${subscriptionId}`,
+          `Generando ${activeComodatos.length} órdenes de recuperación y retiro para suscripción ${subscriptionId}`,
         );
 
         for (const comodato of activeComodatos) {
           try {
+            // 1. Crear orden de recuperación (como antes)
             await this.recoveryOrderService.createRecoveryOrder(
               comodato.comodato_id,
               undefined, // Usar fecha por defecto (7 días)
               `Recuperación automática por cancelación de suscripción ${subscriptionId}`,
             );
+
+            // 2. CORRECCIÓN: Crear Order normal con pedido de retiro de comodato
+            const withdrawalOrder = await prisma.order_header.create({
+              data: {
+                customer_id: customerId,
+                sale_channel_id: 1, // Canal por defecto
+                order_date: new Date(),
+                scheduled_delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
+                total_amount: 0, // Sin costo para retiro
+                paid_amount: 0, // Sin pago para retiro
+                order_type: 'ONE_OFF', // Tipo de orden única
+                status: 'PENDING', // Estado pendiente
+                notes: `Pedido de retiro de comodato ${comodato.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}) - Generado por cancelación de suscripción ${subscriptionId}`,
+                subscription_id: subscriptionId, // Asociar con la suscripción cancelada
+                // Crear item de orden para el retiro
+                order_item: {
+                  create: {
+                    product_id: comodato.product_id,
+                    quantity: comodato.quantity,
+                    unit_price: 0, // Sin precio para retiro
+                    subtotal: 0, // Sin subtotal para retiro
+                    notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
+                  },
+                },
+              },
+            });
+
+            this.logger.log(
+              `Order de retiro creada exitosamente para comodato ${comodato.comodato_id} - Order ID: ${withdrawalOrder.order_id}`,
+            );
           } catch (error) {
             this.logger.error(
-              `Error generando orden de recuperación para comodato ${comodato.comodato_id}:`,
+              `Error generando órdenes para comodato ${comodato.comodato_id}:`,
               error,
             );
             // Continuar con otros comodatos aunque uno falle

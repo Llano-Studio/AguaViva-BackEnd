@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsInt,
   IsString,
@@ -27,12 +27,12 @@ export class UpdateProductDto {
   description?: string;
 
   @ApiPropertyOptional({
-    example: 1.5,
-    description: 'Volumen en litros',
+    example: 0.5,
+    description: 'Volumen en litros (permite decimales como 0.5)',
     nullable: true,
   })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'volume_liters debe ser un número válido con máximo 2 decimales' })
   @ValidateIf((o, v) => v !== null)
   @Transform(({ value }) => {
     if (value === null || value === undefined || value === '') {
@@ -58,6 +58,12 @@ export class UpdateProductDto {
     }
     if (typeof value === 'number') {
       return value === 1;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (value === 'false' || value === '0' || value === 0) {
+      return false;
     }
     return Boolean(value);
   })
@@ -130,5 +136,5 @@ export class UpdateProductDto {
     format: 'binary',
   })
   @IsOptional()
-  productImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
+  productImage?: any; 
 }

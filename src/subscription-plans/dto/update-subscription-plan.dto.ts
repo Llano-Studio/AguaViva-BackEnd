@@ -7,11 +7,12 @@ import {
   ValidateIf,
   IsNumber,
   Min,
-  IsPositive,
   IsInt,
   IsBoolean,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PersonType } from '../../common/constants/enums';
 
 export class UpdateSubscriptionPlanDto {
   @ApiPropertyOptional({
@@ -80,4 +81,13 @@ export class UpdateSubscriptionPlanDto {
   @IsBoolean()
   @Type(() => Boolean)
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Nuevo tipo de plan de suscripción',
+    enum: PersonType,
+    example: PersonType.PLAN,
+  })
+  @IsOptional()
+  @IsEnum(PersonType)
+  type?: PersonType;
 }

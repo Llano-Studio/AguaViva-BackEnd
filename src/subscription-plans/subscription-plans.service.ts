@@ -70,6 +70,7 @@ export class SubscriptionPlansService
         (plan as any).is_active !== undefined ? (plan as any).is_active : true,
       created_at: (plan as any).created_at || new Date(),
       updated_at: (plan as any).updated_at || new Date(),
+      type: (plan as any).type || 'PLAN',
       products:
         plan.subscription_plan_product?.map((p) =>
           this.toSubscriptionPlanProductResponseDto(p),

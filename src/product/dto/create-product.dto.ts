@@ -25,13 +25,13 @@ export class CreateProductDto {
   description: string;
 
   @ApiProperty({
-    example: 1.5,
-    description: 'Volumen en litros',
+    example: 0.5,
+    description: 'Volumen en litros (permite decimales como 0.5)',
     required: false,
     nullable: true,
   })
   @IsOptional()
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'volume_liters debe ser un número válido con máximo 2 decimales' })
   @ValidateIf((o, v) => v !== null)
   @Transform(({ value }) => {
     if (value === null || value === undefined || value === '') {
@@ -55,6 +55,13 @@ export class CreateProductDto {
     }
     if (typeof value === 'number') {
       return value === 1;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    // CORRECCIÓN: Manejar explícitamente valores falsy
+    if (value === 'false' || value === '0' || value === 0) {
+      return false;
     }
     return Boolean(value);
   })
