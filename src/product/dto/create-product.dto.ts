@@ -49,19 +49,23 @@ export class CreateProductDto {
   @ApiProperty({ example: true, description: 'Si es retornable o no' })
   @IsBoolean()
   @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
       return lowerValue === 'true' || lowerValue === '1';
     }
+    
+    // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    if (typeof value === 'boolean') {
-      return value;
-    }
-    if (value === 'false' || value === '0' || value === 0) {
-      return false;
-    }
+    
+    // Para cualquier otro caso, devolver false por defecto en creación
     return false;
   })
   is_returnable: boolean;

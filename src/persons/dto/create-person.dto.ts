@@ -8,6 +8,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
 
 export class CreatePersonDto {
@@ -75,6 +76,26 @@ export class CreatePersonDto {
   })
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    
+    // Para cualquier otro caso, devolver false por defecto en creación
+    return false;
+  })
   owns_returnable_containers?: boolean;
 
   @ApiPropertyOptional({
@@ -83,6 +104,26 @@ export class CreatePersonDto {
   })
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    
+    // Para cualquier otro caso, devolver true por defecto en creación
+    return true;
+  })
   is_active?: boolean;
 
   @ApiPropertyOptional({

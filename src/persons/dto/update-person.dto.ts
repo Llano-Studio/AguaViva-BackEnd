@@ -7,6 +7,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
 
 export class UpdatePersonDto {
@@ -76,6 +77,25 @@ export class UpdatePersonDto {
   })
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+
+    return undefined;
+  })
   owns_returnable_containers?: boolean;
 
   @ApiPropertyOptional({
@@ -84,6 +104,27 @@ export class UpdatePersonDto {
   })
   @IsBoolean()
   @IsOptional()
+  @Transform(({ value }) => {
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      return lowerValue === 'true' || lowerValue === '1';
+    }
+    
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    
+    // Para cualquier otro caso (null, undefined, etc.), devolver undefined
+    // para que el campo sea opcional y no se actualice si no se envía
+    return undefined;
+  })
   is_active?: boolean;
 
   @ApiPropertyOptional({
