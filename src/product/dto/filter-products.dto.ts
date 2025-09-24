@@ -66,12 +66,18 @@ export class FilterProductsDto extends PaginationQueryDto {
   @IsBoolean()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
     }
     if (typeof value === 'boolean') {
       return value;
     }
-    return false;
+    return undefined;
   })
   isReturnable?: boolean;
 
@@ -91,12 +97,18 @@ export class FilterProductsDto extends PaginationQueryDto {
   @IsBoolean()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
     }
     if (typeof value === 'boolean') {
       return value;
     }
-    return false;
+    return undefined;
   })
   includeInventory?: boolean;
 }
