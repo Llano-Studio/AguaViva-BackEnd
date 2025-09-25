@@ -2063,6 +2063,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         subscription_plan_id: dto.subscription_plan_id,
         start_date: dto.start_date,
         collection_day: dto.collection_day,
+        payment_mode: dto.payment_mode,
+        payment_due_day: dto.payment_due_day,
         status: dto.status,
         notes: dto.notes,
         delivery_preferences: dto.delivery_preferences,
