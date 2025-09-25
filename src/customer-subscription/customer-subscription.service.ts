@@ -185,12 +185,15 @@ export class CustomerSubscriptionService
         },
       });
 
-      // Crear el primer ciclo de suscripción usando CycleNumberingService
-      const firstCycleStartDate = new Date(createDto.start_date);
-      const firstCycleEndDate = new Date(firstCycleStartDate);
-      firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1);
-      firstCycleEndDate.setDate(firstCycleStartDate.getDate() - 1);
-      firstCycleEndDate.setHours(23, 59, 59, 999);
+      // Crear el primer ciclo de suscripción usando la nueva lógica de collection_day
+      const cycleDates = this.calculateCycleDates(
+        new Date(createDto.start_date),
+        createDto.collection_day || 0,
+        true // isNewSubscription = true para crear ciclo inmediato
+      );
+      
+      const firstCycleStartDate = cycleDates.cycle_start;
+      const firstCycleEndDate = cycleDates.cycle_end;
 
       // Calcular fecha de vencimiento de pago (10 días después del final del ciclo)
       const paymentDueDate = new Date(firstCycleEndDate);
@@ -838,9 +841,14 @@ export class CustomerSubscriptionService
    * Calcula las fechas de inicio y fin del ciclo basándose en el collection_day
    * @param startDate Fecha de inicio de la suscripción
    * @param collectionDay Día del mes para recolección (1-28)
+   * @param isNewSubscription Si es una suscripción nueva (para crear ciclo inmediato)
    * @returns Objeto con cycle_start y cycle_end
    */
-  private calculateCycleDates(startDate: Date, collectionDay: number): { cycle_start: Date; cycle_end: Date } {
+  private calculateCycleDates(
+    startDate: Date, 
+    collectionDay: number, 
+    isNewSubscription: boolean = false
+  ): { cycle_start: Date; cycle_end: Date } {
     const today = new Date();
     const subscriptionStart = new Date(startDate);
     
@@ -852,7 +860,34 @@ export class CustomerSubscriptionService
       return { cycle_start: cycleStart, cycle_end: cycleEnd };
     }
 
-    // Calcular el próximo ciclo basado en collection_day
+    // LÓGICA ESPECIAL PARA SUSCRIPCIONES NUEVAS
+    if (isNewSubscription) {
+      // Para suscripciones nuevas, siempre crear un ciclo que comience inmediatamente
+      const cycleStart = new Date(Math.max(today.getTime(), subscriptionStart.getTime()));
+      
+      // Calcular la fecha de fin basada en collection_day
+      let cycleEnd: Date;
+      
+      // Si el collection_day es mayor al día actual, usar este mes
+      if (collectionDay > today.getDate()) {
+        cycleEnd = new Date(today.getFullYear(), today.getMonth(), collectionDay);
+      } else {
+        // Si el collection_day ya pasó este mes, usar el próximo mes
+        cycleEnd = new Date(today.getFullYear(), today.getMonth() + 1, collectionDay);
+      }
+      
+      // Asegurar que el ciclo tenga al menos 7 días de duración
+      const minCycleEnd = new Date(cycleStart);
+      minCycleEnd.setDate(minCycleEnd.getDate() + 7);
+      
+      if (cycleEnd < minCycleEnd) {
+        cycleEnd = new Date(today.getFullYear(), today.getMonth() + 1, collectionDay);
+      }
+      
+      return { cycle_start: cycleStart, cycle_end: cycleEnd };
+    }
+
+    // LÓGICA PARA CICLOS REGULARES (renovaciones)
     let cycleStart: Date;
     
     // Si hoy es el día de recolección o después, el ciclo actual ya comenzó
