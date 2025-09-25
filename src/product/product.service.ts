@@ -85,7 +85,9 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     try {
-      const whereClause: Prisma.productWhereInput = {};
+      const whereClause: Prisma.productWhereInput = {
+        is_active: true, // Solo mostrar productos activos
+      };
 
       if (filters) {
         // Búsqueda general en múltiples campos
@@ -226,9 +228,13 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   async getProductById(
     id: number,
     includeInventory: boolean = true,
+    includeInactive: boolean = false,
   ): Promise<ProductResponseDto> {
-    const productEntity = await this.product.findUnique({
-      where: { product_id: id },
+    const productEntity = await this.product.findFirst({
+      where: { 
+        product_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: {
         product_category: true,
         ...(includeInventory && {
@@ -491,30 +497,16 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   async deleteProductById(
     id: number,
   ): Promise<{ message: string; deleted: boolean }> {
-    await this.getProductById(id, false);
+    await this.getProductById(id, false, true); // Permitir buscar productos inactivos
     try {
-      // Eliminar referencias en tablas dependientes antes de borrar el producto
-      await this.$transaction(async (prismaTx) => {
-        await prismaTx.price_list_item.deleteMany({
-          where: { product_id: id },
-        });
-        await prismaTx.subscription_plan_product.deleteMany({
-          where: { product_id: id },
-        });
-        await prismaTx.inventory.deleteMany({ where: { product_id: id } });
-        await prismaTx.inventory_transaction.deleteMany({
-          where: { product_id: id },
-        });
-        await prismaTx.payment_line.deleteMany({ where: { product_id: id } });
-        await prismaTx.order_item.deleteMany({ where: { product_id: id } });
-        await prismaTx.one_off_purchase.deleteMany({
-          where: { product_id: id },
-        });
-        // Finalmente eliminar el producto
-        await prismaTx.product.delete({ where: { product_id: id } });
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.product.update({
+        where: { product_id: id },
+        data: { is_active: false }
       });
+      
       return {
-        message: `${this.entityName} eliminado correctamente`,
+        message: `${this.entityName} desactivado correctamente`,
         deleted: true,
       };
     } catch (error) {

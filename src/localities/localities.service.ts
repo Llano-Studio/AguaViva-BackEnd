@@ -20,6 +20,9 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
   async findAll(): Promise<locality[]> {
     try {
       return await this.locality.findMany({
+        where: {
+          is_active: true, // Solo mostrar localidades activas
+        },
         include: {
           province: {
             include: {
@@ -40,10 +43,13 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findById(id: number): Promise<locality> {
+  async findById(id: number, includeInactive: boolean = false): Promise<locality> {
     try {
-      const record = await this.locality.findUnique({
-        where: { locality_id: id },
+      const record = await this.locality.findFirst({
+        where: { 
+          locality_id: id,
+          ...(includeInactive ? {} : { is_active: true })
+        },
         include: {
           province: {
             include: {
@@ -198,39 +204,20 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Verificar que la localidad existe
       const existingLocality = await this.locality.findUnique({
         where: { locality_id: id },
-        include: {
-          zones: true,
-          person: true,
-          warehouse: true,
-          one_off_purchase: true,
-          one_off_purchase_headers: true,
-        },
       });
 
       if (!existingLocality) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
       }
 
-      // Verificar que no tenga registros relacionados
-      const hasRelatedRecords =
-        existingLocality.zones.length > 0 ||
-        existingLocality.person.length > 0 ||
-        existingLocality.warehouse.length > 0 ||
-        existingLocality.one_off_purchase.length > 0 ||
-        existingLocality.one_off_purchase_headers.length > 0;
-
-      if (hasRelatedRecords) {
-        throw new ConflictException(
-          'No se puede eliminar la localidad porque tiene registros relacionados (zonas, personas, almacenes, etc.).',
-        );
-      }
-
-      await this.locality.delete({
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.locality.update({
         where: { locality_id: id },
+        data: { is_active: false }
       });
 
       return {
-        message: `${this.entityName} eliminada correctamente`,
+        message: `${this.entityName} desactivada correctamente`,
         deleted: true,
       };
     } catch (error) {

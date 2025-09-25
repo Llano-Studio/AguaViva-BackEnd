@@ -117,7 +117,9 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       const take = Math.max(1, limit);
       const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
 
-      const where: Prisma.price_listWhereInput = {};
+      const where: Prisma.price_listWhereInput = {
+        is_active: true, // Solo mostrar listas de precios activas
+      };
 
       // Búsqueda general en múltiples campos
       if (search) {
@@ -175,9 +177,12 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number): Promise<PriceListWithRelations> {
-    const priceList = await this.price_list.findUnique({
-      where: { price_list_id: id },
+  async findOne(id: number, includeInactive: boolean = false): Promise<PriceListWithRelations> {
+    const priceList = await this.price_list.findFirst({
+      where: { 
+        price_list_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: {
         price_list_item: {
           include: {
@@ -254,17 +259,19 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
   async remove(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.findOne(id); // Verifica existencia
     try {
-      // Eliminar items primero para evitar errores de FK si la relación es restrictiva en DB
-      await this.price_list_item.deleteMany({ where: { price_list_id: id } });
-      await this.price_list.delete({ where: { price_list_id: id } });
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.price_list.update({
+        where: { price_list_id: id },
+        data: { is_active: false }
+      });
       return {
-        message: `${this.entityName} y sus ítems asociados eliminados correctamente`,
+        message: `${this.entityName} desactivada correctamente`,
         deleted: true,
       };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
-        `Error no manejado al eliminar ${this.entityName.toLowerCase()} con ID ${id}.`,
+        `Error no manejado al desactivar ${this.entityName.toLowerCase()} con ID ${id}.`,
       );
     }
   }

@@ -552,7 +552,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     try {
-      const whereClause: Prisma.route_sheetWhereInput = {};
+      const whereClause: Prisma.route_sheetWhereInput = {
+        is_active: true, // Solo mostrar hojas de ruta activas
+      };
       const page = filters?.page || 1;
       const limit = filters?.limit || 10;
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -671,9 +673,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number): Promise<RouteSheetResponseDto> {
-    const routeSheet = await this.route_sheet.findUnique({
-      where: { route_sheet_id: id },
+  async findOne(id: number, includeInactive: boolean = false): Promise<RouteSheetResponseDto> {
+    const routeSheet = await this.route_sheet.findFirst({
+      where: { 
+        route_sheet_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: {
         driver: true,
         vehicle: true,
@@ -961,16 +966,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   async remove(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.findOne(id);
     try {
-      await this.$transaction(async (tx) => {
-        await tx.route_sheet_detail.deleteMany({
-          where: { route_sheet_id: id },
-        });
-        await tx.route_sheet.delete({
-          where: { route_sheet_id: id },
-        });
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.route_sheet.update({
+        where: { route_sheet_id: id },
+        data: { is_active: false }
       });
+      
       return {
-        message: `${this.entityName} con ID ${id} eliminada correctamente`,
+        message: `${this.entityName} con ID ${id} desactivada correctamente`,
         deleted: true,
       };
     } catch (error) {

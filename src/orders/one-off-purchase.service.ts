@@ -688,7 +688,9 @@ export class OneOffPurchaseService
     } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
-    const where: Prisma.one_off_purchaseWhereInput = {};
+    const where: Prisma.one_off_purchaseWhereInput = {
+      is_active: true, // Solo mostrar compras activas
+    };
 
     if (person_id) where.person_id = person_id;
     if (product_id) where.product_id = product_id;
@@ -1541,9 +1543,10 @@ export class OneOffPurchaseService
             prismaTx,
           );
 
-          // Eliminar la compra legacy
-          await prismaTx.one_off_purchase.delete({
+          // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+          await prismaTx.one_off_purchase.update({
             where: { purchase_id: id },
+            data: { is_active: false }
           });
         } else if (headerPurchase) {
           // Renovar stock para estructura header (múltiples items)
@@ -1559,20 +1562,17 @@ export class OneOffPurchaseService
             prismaTx,
           );
 
-          // Eliminar primero los items y luego el header
-          await prismaTx.one_off_purchase_item.deleteMany({
+          // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+          await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
-          });
-
-          await prismaTx.one_off_purchase_header.delete({
-            where: { purchase_header_id: id },
+            data: { is_active: false }
           });
         }
       });
 
       const structureType = legacyPurchase ? 'legacy' : 'header';
       return {
-        message: `Compra One-Off con ID ${id} (estructura ${structureType}) eliminada exitosamente. El stock de productos no retornables ha sido renovado.`,
+        message: `Compra One-Off con ID ${id} (estructura ${structureType}) desactivada exitosamente. El stock de productos no retornables ha sido renovado.`,
         deleted: true,
       };
     } catch (error) {
@@ -2059,7 +2059,9 @@ export class OneOffPurchaseService
         vehicleIds,
       } = filters;
 
-      const where: Prisma.one_off_purchase_headerWhereInput = {};
+      const where: Prisma.one_off_purchase_headerWhereInput = {
+        is_active: true, // Solo mostrar compras activas
+      };
 
       if (person_id) where.person_id = person_id;
       if (sale_channel_id) where.sale_channel_id = sale_channel_id;

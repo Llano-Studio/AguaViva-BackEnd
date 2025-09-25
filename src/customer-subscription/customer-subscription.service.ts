@@ -172,9 +172,7 @@ export class CustomerSubscriptionService
           subscription_plan_id: createDto.subscription_plan_id,
           start_date: new Date(createDto.start_date),
           // end_date field removed - not present in schema
-          collection_date: createDto.collection_date
-            ? new Date(createDto.collection_date)
-            : null,
+          collection_day: createDto.collection_day || null,
           status: createDto.status || SubscriptionStatus.ACTIVE,
           notes,
         },
@@ -368,11 +366,14 @@ export class CustomerSubscriptionService
     };
   }
 
-  async findOne(id: number): Promise<CustomerSubscriptionResponseDto> {
+  async findOne(id: number, includeInactive: boolean = false): Promise<CustomerSubscriptionResponseDto> {
     this.logger.log(`Finding subscription: ${id}`);
 
-    const subscription = await this.customer_subscription.findUnique({
-      where: { subscription_id: id },
+    const subscription = await this.customer_subscription.findFirst({
+      where: { 
+        subscription_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: this.getIncludeClause(),
     });
 
@@ -434,10 +435,8 @@ export class CustomerSubscriptionService
         updateData.subscription_plan_id = updateDto.subscription_plan_id;
       }
       // end_date field removed - not present in schema
-      if (updateDto.collection_date !== undefined) {
-        updateData.collection_date = updateDto.collection_date
-          ? new Date(updateDto.collection_date)
-          : null;
+      if (updateDto.collection_day !== undefined) {
+        updateData.collection_day = updateDto.collection_day;
       }
       if (updateDto.status !== undefined) {
         updateData.status = updateDto.status;
@@ -541,12 +540,13 @@ export class CustomerSubscriptionService
           );
         }
 
-        // 4. Finalmente eliminar la suscripción
-        await prisma.customer_subscription.delete({
+        // 4. Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+        await prisma.customer_subscription.update({
           where: { subscription_id: id },
+          data: { is_active: false }
         });
 
-        this.logger.log(`Successfully deleted subscription ${id}`);
+        this.logger.log(`Successfully deactivated subscription ${id}`);
       });
     } catch (error) {
       this.logger.error(`Error deleting subscription ${id}:`, error);
@@ -605,7 +605,9 @@ export class CustomerSubscriptionService
   private buildWhereClause(
     filters: Partial<FilterCustomerSubscriptionsDto>,
   ): Prisma.customer_subscriptionWhereInput {
-    const where: Prisma.customer_subscriptionWhereInput = {};
+    const where: Prisma.customer_subscriptionWhereInput = {
+      is_active: true, // Solo mostrar suscripciones activas
+    };
 
     // Manejar filtrado por IDs de clientes (múltiples o único)
     if (filters.customer_ids && filters.customer_ids.length > 0) {
@@ -711,9 +713,7 @@ export class CustomerSubscriptionService
       subscription_plan_id: subscription.subscription_plan_id,
       start_date: subscription.start_date.toISOString().split('T')[0],
       // end_date removed - field not present in schema
-      collection_date: subscription.collection_date
-        ? subscription.collection_date.toISOString().split('T')[0]
-        : null,
+      collection_day: subscription.collection_day,
       status: subscription.status,
       notes: this.parseClientNotes(subscription.notes),
       customer: {
@@ -832,6 +832,53 @@ export class CustomerSubscriptionService
   private timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  /**
+   * Calcula las fechas de inicio y fin del ciclo basándose en el collection_day
+   * @param startDate Fecha de inicio de la suscripción
+   * @param collectionDay Día del mes para recolección (1-28)
+   * @returns Objeto con cycle_start y cycle_end
+   */
+  private calculateCycleDates(startDate: Date, collectionDay: number): { cycle_start: Date; cycle_end: Date } {
+    const today = new Date();
+    const subscriptionStart = new Date(startDate);
+    
+    // Si no hay collection_day, usar la fecha de inicio como base
+    if (!collectionDay) {
+      const cycleStart = new Date(Math.max(today.getTime(), subscriptionStart.getTime()));
+      const cycleEnd = new Date(cycleStart);
+      cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+      return { cycle_start: cycleStart, cycle_end: cycleEnd };
+    }
+
+    // Calcular el próximo ciclo basado en collection_day
+    let cycleStart: Date;
+    
+    // Si hoy es el día de recolección o después, el ciclo actual ya comenzó
+    if (today.getDate() >= collectionDay) {
+      // El ciclo actual va del collection_day de este mes al collection_day del próximo mes
+      cycleStart = new Date(today.getFullYear(), today.getMonth(), collectionDay);
+    } else {
+      // El ciclo actual va del collection_day del mes pasado al collection_day de este mes
+      cycleStart = new Date(today.getFullYear(), today.getMonth() - 1, collectionDay);
+    }
+
+    // Asegurar que no sea anterior a la fecha de inicio de la suscripción
+    if (cycleStart < subscriptionStart) {
+      cycleStart = new Date(subscriptionStart.getFullYear(), subscriptionStart.getMonth(), collectionDay);
+      
+      // Si el collection_day ya pasó en el mes de inicio, mover al siguiente mes
+      if (cycleStart < subscriptionStart) {
+        cycleStart.setMonth(cycleStart.getMonth() + 1);
+      }
+    }
+
+    // Calcular fecha de fin del ciclo (collection_day del siguiente mes)
+    const cycleEnd = new Date(cycleStart);
+    cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+
+    return { cycle_start: cycleStart, cycle_end: cycleEnd };
   }
 
   /**

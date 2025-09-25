@@ -56,7 +56,10 @@ export class CustomerSubscriptionController {
   @ApiOperation({
     summary: 'Crear nueva suscripción de cliente',
     description:
-      'Crea una nueva suscripción asociando un cliente con un plan de suscripción',
+      'Crea una nueva suscripción asociando un cliente con un plan de suscripción. ' +
+      'El campo collection_day (1-28) define el día del mes para recolección de bidones. ' +
+      'El sistema generará automáticamente los ciclos basándose en este día. ' +
+      'Ejemplo: si collection_day=24 y hoy es 24 de septiembre, el ciclo será del 24 de septiembre al 24 de octubre.',
   })
   @ApiBody({ type: CreateCustomerSubscriptionDto })
   @ApiResponse({

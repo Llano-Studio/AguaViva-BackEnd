@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -45,12 +46,17 @@ export class CreateCustomerSubscriptionDto {
   // end_date field removed - not present in schema
 
   @ApiPropertyOptional({
-    description: 'Fecha de recolección de bidones (YYYY-MM-DD), opcional',
-    example: '2024-01-15',
+    description: 'Día del mes para recolección de bidones (1-28), opcional',
+    example: 15,
+    minimum: 1,
+    maximum: 28,
   })
   @IsOptional()
-  @IsDateString()
-  collection_date?: string;
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  @Type(() => Number)
+  collection_day?: number;
 
   @ApiProperty({
     description: 'Estado inicial de la suscripción',

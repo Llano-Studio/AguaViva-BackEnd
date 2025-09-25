@@ -1086,7 +1086,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
-    const where: Prisma.order_headerWhereInput = {};
+    const where: Prisma.order_headerWhereInput = {
+      is_active: true, // Solo mostrar pedidos activos
+    };
 
     if (orderId) where.order_id = orderId;
 
@@ -1261,10 +1263,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number): Promise<OrderResponseDto> {
+  async findOne(id: number, includeInactive: boolean = false): Promise<OrderResponseDto> {
     try {
-      const order = await this.order_header.findUniqueOrThrow({
-        where: { order_id: id },
+      const order = await this.order_header.findFirstOrThrow({
+        where: { 
+          order_id: id,
+          ...(includeInactive ? {} : { is_active: true })
+        },
         include: {
           order_item: { include: { product: true } },
           customer: { include: { locality: true, zone: true } },
@@ -1903,17 +1908,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           }
         }
 
-        await tx.installment_order_link.deleteMany({ where: { order_id: id } });
-        await tx.payment_transaction.updateMany({
+        // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+        await tx.order_header.update({
           where: { order_id: id },
-          data: { order_id: null },
+          data: { is_active: false }
         });
-        await tx.route_sheet_detail.deleteMany({ where: { order_id: id } });
-        await tx.order_item.deleteMany({ where: { order_id: id } });
-        await tx.order_header.delete({ where: { order_id: id } });
       });
       return {
-        message: `${this.entityName} con ID ${id} y sus ítems asociados han sido eliminados. El stock de productos no retornables ha sido restaurado. Los créditos de suscripción han sido reiniciados si corresponde.`,
+        message: `${this.entityName} con ID ${id} ha sido desactivado correctamente. El stock de productos no retornables ha sido restaurado. Los créditos de suscripción han sido reiniciados si corresponde.`,
         deleted: true,
       };
     } catch (error) {

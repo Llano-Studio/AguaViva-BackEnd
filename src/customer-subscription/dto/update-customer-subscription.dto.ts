@@ -1,11 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   IsEnum,
   IsString,
   IsInt,
-  IsDateString,
   ValidateNested,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SubscriptionStatus } from '@prisma/client';
@@ -19,10 +20,18 @@ export class UpdateCustomerSubscriptionDto {
 
   // end_date field removed - not present in schema
 
-  @ApiProperty({ example: '2024-01-15', required: false })
+  @ApiPropertyOptional({
+    description: 'Nuevo día del mes para recolección (1-28)',
+    example: 15,
+    minimum: 1,
+    maximum: 28,
+  })
   @IsOptional()
-  @IsDateString()
-  collection_date?: string;
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  @Type(() => Number)
+  collection_day?: number;
 
   @ApiProperty({
     enum: SubscriptionStatus,
