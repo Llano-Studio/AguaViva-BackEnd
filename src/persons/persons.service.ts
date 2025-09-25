@@ -2006,14 +2006,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         );
       }
 
-      await this.comodato.delete({
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.comodato.update({
         where: {
           comodato_id: comodatoId,
         },
+        data: { is_active: false }
       });
 
       return {
-        message: 'Comodato eliminado exitosamente',
+        message: 'Comodato desactivado exitosamente',
         deleted: true,
       };
     } catch (error) {
@@ -2060,7 +2062,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         customer_id: dto.customer_id,
         subscription_plan_id: dto.subscription_plan_id,
         start_date: dto.start_date,
-        collection_date: dto.collection_date,
+        collection_day: dto.collection_day,
         status: dto.status,
         notes: dto.notes,
         delivery_preferences: dto.delivery_preferences,

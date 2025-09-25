@@ -247,7 +247,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
   async getAllUsers(filters?: FilterUsersDto) {
     try {
-      const whereClause: Prisma.UserWhereInput = {};
+      const whereClause: Prisma.UserWhereInput = {
+        // Por defecto solo mostrar usuarios activos, a menos que se especifique lo contrario
+        isActive: filters?.isActive !== undefined ? filters.isActive : true
+      };
       if (filters) {
         if (filters.search) {
           whereClause.OR = [
@@ -263,8 +266,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           // Si solo se proporciona un rol (compatibilidad), usar equality
           whereClause.role = filters.role;
         }
-        if (filters.isActive !== undefined)
-          whereClause.isActive = filters.isActive;
+        // El filtro por isActive ya está configurado arriba
       }
 
       const page = filters?.page || 1;
@@ -322,10 +324,13 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getUserById(id: number) {
+  async getUserById(id: number, includeInactive: boolean = false) {
     try {
-      const user = await this.user.findUnique({
-        where: { id },
+      const user = await this.user.findFirst({
+        where: { 
+          id,
+          ...(includeInactive ? {} : { isActive: true })
+        },
         select: {
           id: true,
           email: true,
@@ -426,13 +431,17 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           `${this.entityName} con ID ${id} no encontrado.`,
         );
       }
-      await this.user.delete({ where: { id } });
-      return { message: `${this.entityName} con ID ${id} eliminado.` };
+      // Soft delete: cambiar isActive a false en lugar de eliminar físicamente
+      await this.user.update({ 
+        where: { id },
+        data: { isActive: false }
+      });
+      return { message: `${this.entityName} con ID ${id} desactivado.` };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
-        `Error eliminando ${this.entityName.toLowerCase()} con ID ${id}.`,
+        `Error desactivando ${this.entityName.toLowerCase()} con ID ${id}.`,
       );
     }
   }

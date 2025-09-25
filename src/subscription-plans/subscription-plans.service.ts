@@ -123,7 +123,10 @@ export class SubscriptionPlansService
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
-    const where: Prisma.subscription_planWhereInput = {};
+    const where: Prisma.subscription_planWhereInput = {
+      // Por defecto solo mostrar planes activos, a menos que se especifique lo contrario
+      is_active: is_active !== undefined ? is_active : true
+    };
 
     // Búsqueda general en múltiples campos
     if (search) {
@@ -138,10 +141,7 @@ export class SubscriptionPlansService
       where.name = { contains: name, mode: 'insensitive' };
     }
 
-    // Filtro por estado de activación
-    if (is_active !== undefined) {
-      where.is_active = is_active;
-    }
+    // El filtro por estado de activación ya está configurado arriba
 
     const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
 
@@ -179,9 +179,12 @@ export class SubscriptionPlansService
     }
   }
 
-  async findOne(id: number): Promise<SubscriptionPlanResponseDto> {
-    const plan = await this.subscription_plan.findUnique({
-      where: { subscription_plan_id: id },
+  async findOne(id: number, includeInactive: boolean = false): Promise<SubscriptionPlanResponseDto> {
+    const plan = await this.subscription_plan.findFirst({
+      where: { 
+        subscription_plan_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: {
         subscription_plan_product: {
           include: {
@@ -255,15 +258,14 @@ export class SubscriptionPlansService
     }
 
     try {
-      await this.subscription_plan_product.deleteMany({
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.subscription_plan.update({
         where: { subscription_plan_id: id },
+        data: { is_active: false }
       });
-
-      await this.subscription_plan.delete({
-        where: { subscription_plan_id: id },
-      });
+      
       return {
-        message: `${this.entityName} con ID ${id} y sus productos asociados eliminados correctamente.`,
+        message: `${this.entityName} con ID ${id} desactivado correctamente.`,
         deleted: true,
       };
     } catch (error) {

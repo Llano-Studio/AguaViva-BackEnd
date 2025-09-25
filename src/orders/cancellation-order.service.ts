@@ -418,7 +418,7 @@ export class CancellationOrderService extends PrismaClient {
       where: { subscription_id: order.subscription_id },
       data: {
         collection_completed: true,
-        collection_date: actualCollectionDate,
+        collection_day: actualCollectionDate.getDate(),
       },
     });
 

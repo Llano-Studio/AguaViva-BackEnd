@@ -65,7 +65,9 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
   async getAllVehicles(
     filters?: FilterVehiclesDto,
   ): Promise<PaginatedVehicleResponseDto> {
-    const where: Prisma.vehicleWhereInput = {};
+    const where: Prisma.vehicleWhereInput = {
+      is_active: true, // Solo mostrar vehículos activos
+    };
     const page = filters?.page || 1;
     const limit = filters?.limit || 10;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -112,9 +114,12 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getVehicleById(id: number): Promise<VehicleResponseDto> {
-    const vehicle = await this.vehicle.findUnique({
-      where: { vehicle_id: id },
+  async getVehicleById(id: number, includeInactive: boolean = false): Promise<VehicleResponseDto> {
+    const vehicle = await this.vehicle.findFirst({
+      where: { 
+        vehicle_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
     });
     if (!vehicle) {
       throw new NotFoundException(
@@ -181,11 +186,13 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
   ): Promise<{ message: string; deleted: boolean }> {
     await this.getVehicleById(id);
     try {
-      await this.vehicle.delete({
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.vehicle.update({
         where: { vehicle_id: id },
+        data: { is_active: false }
       });
       return {
-        message: `${this.entityName} eliminado correctamente`,
+        message: `${this.entityName} desactivado correctamente`,
         deleted: true,
       };
     } catch (error) {

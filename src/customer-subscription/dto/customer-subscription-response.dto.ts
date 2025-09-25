@@ -194,8 +194,12 @@ export class CustomerSubscriptionResponseDto {
 
   // end_date field removed - not present in schema
 
-  @ApiProperty({ example: '2024-01-15', required: false })
-  collection_date?: string;
+  @ApiProperty({ 
+    example: 15, 
+    required: false,
+    description: 'Día del mes para recolección (1-28)'
+  })
+  collection_day?: number;
 
   @ApiProperty({ enum: SubscriptionStatus, example: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;

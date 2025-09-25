@@ -38,7 +38,9 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
-    const where: Prisma.zoneWhereInput = {};
+    const where: Prisma.zoneWhereInput = {
+      is_active: true, // Solo mostrar zonas activas
+    };
 
     // Búsqueda general en múltiples campos
     if (search) {
@@ -114,9 +116,12 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getZoneById(id: number): Promise<zone> {
-    const record = await this.zone.findUnique({
-      where: { zone_id: id },
+  async getZoneById(id: number, includeInactive: boolean = false): Promise<zone> {
+    const record = await this.zone.findFirst({
+      where: { 
+        zone_id: id,
+        ...(includeInactive ? {} : { is_active: true })
+      },
       include: {
         locality: {
           include: {
@@ -248,11 +253,13 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
   ): Promise<{ message: string; deleted: boolean }> {
     await this.getZoneById(id);
     try {
-      await this.zone.delete({
+      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      await this.zone.update({
         where: { zone_id: id },
+        data: { is_active: false }
       });
       return {
-        message: 'Zona eliminada correctamente',
+        message: 'Zona desactivada correctamente',
         deleted: true,
       };
     } catch (error) {

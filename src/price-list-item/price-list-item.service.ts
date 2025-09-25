@@ -173,7 +173,10 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         { product: { description: 'asc' } },
       ]);
 
-      const where: Prisma.price_list_itemWhereInput = {};
+      const where: Prisma.price_list_itemWhereInput = {
+        price_list: { is_active: true },
+        product: { is_active: true }
+      };
       if (price_list_id) where.price_list_id = price_list_id;
       if (product_id) where.product_id = product_id;
 
@@ -215,7 +218,6 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     const { page = 1, limit = 10, sortBy, product_id } = filterDto;
-    // price_list_id del DTO se ignora, paramPriceListId tiene precedencia.
     await this.validatePriceListExists(paramPriceListId);
     try {
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -226,6 +228,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
       const where: Prisma.price_list_itemWhereInput = {
         price_list_id: paramPriceListId,
+        product: { is_active: true }
       };
       if (product_id) where.product_id = product_id;
 

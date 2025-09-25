@@ -128,8 +128,7 @@ export class MultipleSubscriptionsService
         subscription_plan_id: subscription.subscription_plan_id,
         start_date: subscription.start_date.toISOString().split('T')[0],
         // end_date field removed - not present in schema
-        collection_date:
-          subscription.collection_date?.toISOString().split('T')[0] || null,
+        collection_day: subscription.collection_day || null,
         status: subscription.status,
         notes: subscription.notes,
         cancellation_reason: subscription.cancellation_reason,
