@@ -6,7 +6,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import {
   CreateCustomerSubscriptionDto,
   UpdateCustomerSubscriptionDto,
