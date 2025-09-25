@@ -129,6 +129,8 @@ export class MultipleSubscriptionsService
         start_date: subscription.start_date.toISOString().split('T')[0],
         // end_date field removed - not present in schema
         collection_day: subscription.collection_day || null,
+        payment_mode: subscription.payment_mode,
+        payment_due_day: subscription.payment_due_day || null,
         status: subscription.status,
         notes: subscription.notes,
         cancellation_reason: subscription.cancellation_reason,

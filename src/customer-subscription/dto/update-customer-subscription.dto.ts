@@ -4,12 +4,13 @@ import {
   IsEnum,
   IsString,
   IsInt,
+  IsDateString,
   ValidateNested,
   Min,
   Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus, PaymentMode } from '@prisma/client';
 import { DeliveryPreferences } from './customer-subscription-response.dto';
 
 export class UpdateCustomerSubscriptionDto {
@@ -32,6 +33,28 @@ export class UpdateCustomerSubscriptionDto {
   @Max(28)
   @Type(() => Number)
   collection_day?: number;
+
+  @ApiPropertyOptional({
+    description: 'Modalidad de pago: ADVANCE (adelantado) o ARREARS (vencido)',
+    enum: PaymentMode,
+    example: PaymentMode.ADVANCE,
+  })
+  @IsOptional()
+  @IsEnum(PaymentMode)
+  payment_mode?: PaymentMode;
+
+  @ApiPropertyOptional({
+    description: 'Día específico de vencimiento para pagos vencidos (1-28). Solo aplica cuando payment_mode = ARREARS',
+    example: 10,
+    minimum: 1,
+    maximum: 28,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  @Type(() => Number)
+  payment_due_day?: number;
 
   @ApiProperty({
     enum: SubscriptionStatus,

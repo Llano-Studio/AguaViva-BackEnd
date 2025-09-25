@@ -296,6 +296,8 @@ model customer_subscription {
   subscription_plan_id           Int                              @db.SmallInt
   start_date                     DateTime                         @db.Date
   collection_day                 Int?                             @db.SmallInt
+  payment_mode                   PaymentMode                      @default(ADVANCE)
+  payment_due_day                Int?                             @db.SmallInt
   status                         SubscriptionStatus
   notes                          String?
   cancellation_reason            String?                          @db.Text
@@ -813,6 +815,11 @@ enum PaymentStatus {
   PAID
   OVERDUE
   CREDITED
+}
+
+enum PaymentMode {
+  ADVANCE     // Pago adelantado (inicio de mes)
+  ARREARS     // Pago vencido (fin de mes o fechas específicas)
 }
 
 model cycle_payment {

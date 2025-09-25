@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus, PaymentMode } from '@prisma/client';
 import { IsOptional, IsString, IsArray } from 'class-validator';
 
 export class CustomerResponseDto {
@@ -200,6 +200,20 @@ export class CustomerSubscriptionResponseDto {
     description: 'Día del mes para recolección (1-28)'
   })
   collection_day?: number;
+
+  @ApiProperty({ 
+    enum: PaymentMode, 
+    example: PaymentMode.ADVANCE,
+    description: 'Modalidad de pago: ADVANCE (adelantado) o ARREARS (vencido)'
+  })
+  payment_mode: PaymentMode;
+
+  @ApiProperty({ 
+    example: 10, 
+    required: false,
+    description: 'Día específico de vencimiento para pagos vencidos (1-28)'
+  })
+  payment_due_day?: number;
 
   @ApiProperty({ enum: SubscriptionStatus, example: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;
