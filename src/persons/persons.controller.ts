@@ -23,6 +23,8 @@ import {
   ComodatoResponseDto,
   CreateSubscriptionWithComodatoDto,
 } from './dto';
+import { WithdrawComodatoDto } from './dto/withdraw-comodato.dto';
+import { WithdrawComodatoResponseDto } from './dto/withdraw-comodato-response.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { fileUploadConfigs, buildImageUrl } from '../common/utils/file-upload.util';
 
@@ -366,6 +368,123 @@ export class PersonsController {
     @Param('comodatoId', ParseIntPipe) comodatoId: number
   ) {
     return this.personsService.deleteComodato(personId, comodatoId);
+  }
+
+  @Post(':personId/comodatos/withdraw')
+  @ApiOperation({ 
+    summary: '🆕 Retirar comodato sin cancelar suscripción',
+    description: `Procesa el retiro independiente de un comodato específico manteniendo la suscripción activa.
+
+## ✅ NUEVA FUNCIONALIDAD: RETIRO INDEPENDIENTE
+
+**Características principales:**
+- **Retiro selectivo**: Retira comodatos específicos sin afectar la suscripción
+- **Programación flexible**: Permite programar la fecha de retiro
+- **Orden de recuperación automática**: Crea automáticamente orden de recuperación
+- **Orden de retiro**: Genera orden de retiro para seguimiento logístico
+- **Trazabilidad completa**: Registra motivos y notas del retiro
+
+## 🎯 CASOS DE USO
+
+**Ejemplos comunes:**
+- Cliente solicita cambio de producto manteniendo suscripción
+- Retiro temporal por mudanza o viaje
+- Reemplazo de producto defectuoso
+- Ajuste de cantidad de productos en comodato
+- Retiro por mantenimiento o limpieza
+
+## 📋 PROCESO AUTOMATIZADO
+
+**Flujo del sistema:**
+1. **Validación**: Verifica comodato activo y suscripción vigente
+2. **Programación**: Establece fecha de retiro (por defecto 7 días)
+3. **Orden de recuperación**: Crea orden para programar retiro físico
+4. **Orden de retiro**: Genera orden logística sin costo
+5. **Actualización**: Marca comodato como "PENDING_WITHDRAWAL"
+6. **Notificación**: Registra motivo y notas del retiro
+
+## 💡 VENTAJAS
+
+- **Flexibilidad**: No requiere cancelar toda la suscripción
+- **Continuidad**: Mantiene relación comercial activa
+- **Control**: Permite gestión granular de productos
+- **Trazabilidad**: Historial completo de movimientos`
+  })
+  @ApiParam({ name: 'personId', type: Number, description: 'ID de la persona/cliente propietaria del comodato' })
+  @ApiBody({ 
+    type: WithdrawComodatoDto,
+    examples: {
+      retiroBasico: {
+        summary: 'Retiro básico programado',
+        description: 'Retiro simple con fecha automática (7 días)',
+        value: {
+          comodato_id: 15,
+          withdrawal_reason: 'Cliente solicita cambio de producto',
+          notes: 'Coordinar horario con cliente para retiro',
+          create_recovery_order: true
+        }
+      },
+      retiroFechaProgramada: {
+        summary: 'Retiro con fecha específica',
+        description: 'Retiro programado para fecha específica',
+        value: {
+          comodato_id: 23,
+          scheduled_withdrawal_date: '2024-02-15',
+          withdrawal_reason: 'Mudanza temporal del cliente',
+          notes: 'Cliente estará disponible entre 9:00-12:00',
+          create_recovery_order: true
+        }
+      },
+      retiroMantenimiento: {
+        summary: 'Retiro por mantenimiento',
+        description: 'Retiro temporal para mantenimiento de producto',
+        value: {
+          comodato_id: 8,
+          scheduled_withdrawal_date: '2024-02-10',
+          withdrawal_reason: 'Mantenimiento preventivo de dispensador',
+          notes: 'Reemplazar con producto temporal durante mantenimiento',
+          create_recovery_order: true
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Retiro de comodato procesado exitosamente',
+    type: WithdrawComodatoResponseDto,
+    examples: {
+      exitoso: {
+        summary: 'Retiro procesado exitosamente',
+        value: {
+          success: true,
+          message: 'Retiro de comodato procesado exitosamente',
+          comodato_id: 15,
+          withdrawal_order_id: 456,
+          recovery_order_id: 789,
+          scheduled_withdrawal_date: '2024-02-15T10:00:00.000Z',
+          comodato_status: 'PENDING_WITHDRAWAL',
+          product_info: {
+            product_id: 1,
+            product_name: 'Bidón 20L',
+            quantity: 2
+          },
+          subscription_info: {
+            subscription_id: 7,
+            subscription_status: 'ACTIVE',
+            plan_name: 'Plan Familiar'
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Datos inválidos o comodato no puede ser retirado' })
+  @ApiResponse({ status: 404, description: 'Persona o comodato no encontrado' })
+  @ApiResponse({ status: 409, description: 'Conflicto: suscripción no activa o comodato ya en proceso de retiro' })
+  async withdrawComodato(
+    @Param('personId', ParseIntPipe) personId: number,
+    @Body(ValidationPipe) withdrawDto: WithdrawComodatoDto
+  ): Promise<WithdrawComodatoResponseDto> {
+    return this.personsService.withdrawComodato(personId, withdrawDto);
   }
 
   @Post('subscriptions-with-comodato')
