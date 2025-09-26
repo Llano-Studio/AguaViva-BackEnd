@@ -7,4 +7,6 @@ export * from './update-comodato.dto';
 export * from './filter-comodatos.dto';
 export * from './comodato-response.dto';
 export * from './create-subscription-with-comodato.dto';
+export * from './withdraw-comodato.dto';
+export * from './withdraw-comodato-response.dto';
 export * from './cancel-subscription.dto';

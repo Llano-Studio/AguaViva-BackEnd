@@ -42,6 +42,8 @@ import {
   ComodatoResponseDto,
   CreateSubscriptionWithComodatoDto,
 } from './dto';
+import { WithdrawComodatoDto } from './dto/withdraw-comodato.dto';
+import { WithdrawComodatoResponseDto } from './dto/withdraw-comodato-response.dto';
 import { CustomerSubscriptionService } from '../customer-subscription/customer-subscription.service';
 import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
@@ -2157,6 +2159,156 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
       throw new InternalServerErrorException(
         `Error al crear suscripción con comodato: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Retira un comodato específico sin cancelar la suscripción
+   * @param personId ID de la persona propietaria del comodato
+   * @param dto Datos del retiro del comodato
+   * @returns Información del retiro procesado
+   */
+  async withdrawComodato(
+    personId: number,
+    dto: WithdrawComodatoDto,
+  ): Promise<WithdrawComodatoResponseDto> {
+    try {
+      return await this.$transaction(async (tx) => {
+        // 1. Verificar que el comodato existe y pertenece a la persona
+        const comodato = await tx.comodato.findFirst({
+          where: {
+            comodato_id: dto.comodato_id,
+            person_id: personId,
+            status: ComodatoStatus.ACTIVE,
+          },
+          include: {
+            product: true,
+            subscription: {
+              include: {
+                subscription_plan: true,
+              },
+            },
+            person: true,
+          },
+        });
+
+        if (!comodato) {
+          throw new NotFoundException(
+            `Comodato activo con ID ${dto.comodato_id} no encontrado para la persona ${personId}`,
+          );
+        }
+
+        // 2. Verificar que la suscripción asociada sigue activa (si existe)
+        if (comodato.subscription && comodato.subscription.status !== SubscriptionStatus.ACTIVE) {
+          throw new BadRequestException(
+            `No se puede retirar el comodato porque la suscripción asociada no está activa (Estado: ${comodato.subscription.status})`,
+          );
+        }
+
+        // 3. Calcular fecha de retiro programada
+        const scheduledDate = dto.scheduled_withdrawal_date
+          ? new Date(dto.scheduled_withdrawal_date)
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días por defecto
+
+        // 4. Crear orden de recuperación si se solicita
+        let recoveryOrderId: number | undefined;
+        if (dto.create_recovery_order !== false) {
+          try {
+            const recoveryOrder = await this.recoveryOrderService.createRecoveryOrder(
+              dto.comodato_id,
+              scheduledDate,
+              dto.withdrawal_reason || `Retiro independiente solicitado - ${dto.notes || 'Sin notas adicionales'}`,
+              tx,
+            );
+            recoveryOrderId = recoveryOrder.recovery_order_id;
+          } catch (recoveryError) {
+            console.error(`Error al crear orden de recuperación para comodato ${dto.comodato_id}:`, recoveryError);
+            // No fallar el proceso si no se puede crear la orden de recuperación
+          }
+        }
+
+        // 5. Crear orden de retiro
+        const withdrawalOrder = await tx.order_header.create({
+          data: {
+            customer_id: personId,
+            sale_channel_id: 1, // Canal por defecto
+            order_date: new Date(),
+            scheduled_delivery_date: scheduledDate,
+            total_amount: 0, // Sin costo para retiro
+            paid_amount: 0, // Sin pago para retiro
+            order_type: 'ONE_OFF', // Tipo de orden única
+            status: 'PENDING', // Estado pendiente
+            notes: `Retiro independiente de comodato ${dto.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}). Motivo: ${dto.withdrawal_reason || 'No especificado'}. ${dto.notes || ''}`.trim(),
+            subscription_id: comodato.subscription_id, // Asociar con la suscripción si existe
+            // Crear item de orden para el retiro
+            order_item: {
+              create: {
+                product_id: comodato.product_id,
+                quantity: comodato.quantity,
+                unit_price: 0, // Sin precio para retiro
+                subtotal: 0, // Sin subtotal para retiro
+                notes: `Retiro independiente de comodato ${dto.comodato_id} - ${comodato.product.description}`,
+              },
+            },
+          },
+        });
+
+        // 6. Actualizar estado del comodato a "PENDING_WITHDRAWAL" (estado personalizado)
+        // Nota: Si este estado no existe en el enum, se puede usar ACTIVE y agregar una nota
+        const updatedComodato = await tx.comodato.update({
+          where: { comodato_id: dto.comodato_id },
+          data: {
+            expected_return_date: scheduledDate,
+            notes: `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${scheduledDate.toISOString().split('T')[0]}`.trim(),
+          },
+        });
+
+        // 7. Preparar respuesta
+        const response: WithdrawComodatoResponseDto = {
+          success: true,
+          message: 'Retiro de comodato procesado exitosamente',
+          comodato_id: dto.comodato_id,
+          withdrawal_order_id: withdrawalOrder.order_id,
+          recovery_order_id: recoveryOrderId,
+          scheduled_withdrawal_date: scheduledDate,
+          comodato_status: 'PENDING_WITHDRAWAL',
+          product_info: {
+            product_id: comodato.product_id,
+            product_name: comodato.product.description,
+            quantity: comodato.quantity,
+          },
+        };
+
+        // 8. Agregar información de suscripción si existe
+        if (comodato.subscription) {
+          response.subscription_info = {
+            subscription_id: comodato.subscription.subscription_id,
+            subscription_status: comodato.subscription.status,
+            plan_name: comodato.subscription.subscription_plan?.name || 'Plan sin nombre',
+          };
+        }
+
+        console.log(`Retiro independiente procesado exitosamente para comodato ${dto.comodato_id} - Order ID: ${withdrawalOrder.order_id}`);
+        
+        return response;
+      });
+    } catch (error) {
+      console.error(`Error al procesar retiro de comodato ${dto.comodato_id}:`, error);
+      
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      
+      if (error instanceof PrismaClientKnownRequestError) {
+        handlePrismaError(error, this.entityName);
+      }
+      
+      throw new InternalServerErrorException(
+        `Error al procesar retiro de comodato: ${error.message}`,
       );
     }
   }
