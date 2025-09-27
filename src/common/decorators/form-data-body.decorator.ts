@@ -2,6 +2,7 @@ import {
   createParamDecorator,
   ExecutionContext,
   ValidationPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -103,13 +104,15 @@ export const FormDataBody = createParamDecorator(
         // Validar el DTO
         const errors = await validate(dto as object);
         if (errors.length > 0) {
+          const mensaje = errors
+            .map((e) => Object.values(e.constraints || {}))
+            .flat()
+            .join(', ');
 
-          throw new Error(
-            `Validation failed: ${errors
-              .map((e) => Object.values(e.constraints || {}))
-              .flat()
-              .join(', ')}`,
-          );
+          throw new BadRequestException({
+            statusCode: 400,
+            mensaje: mensaje,
+          });
         }
 
         return dto;
