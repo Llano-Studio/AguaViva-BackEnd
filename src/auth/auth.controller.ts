@@ -48,6 +48,7 @@ import { RolesService } from './roles.service';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
+import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
 @ApiTags('Autenticación/Usuarios')
 @Controller('auth')
@@ -78,6 +79,7 @@ export class AuthController {
   })
   @UseInterceptors(
     FileInterceptor('profileImage', fileUploadConfigs.profileImages),
+    CleanupFileOnErrorInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -312,6 +314,7 @@ export class AuthController {
   })
   @UseInterceptors(
     FileInterceptor('profileImage', fileUploadConfigs.profileImages),
+    CleanupFileOnErrorInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -362,6 +365,7 @@ export class AuthController {
   })
   @UseInterceptors(
     FileInterceptor('profileImage', fileUploadConfigs.profileImages),
+    CleanupFileOnErrorInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
