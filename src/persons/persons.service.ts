@@ -896,9 +896,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       // Generar órdenes de recuperación y una sola orden de retiro para todos los comodatos activos
       try {
-        console.log(
-          `Buscando comodatos activos para la suscripción ${subscriptionId}...`,
-        );
 
         const activeComodatos = await tx.comodato.findMany({
           where: {
@@ -911,10 +908,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           },
         });
 
-        console.log(
-          `Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación y retiro`,
-        );
-
         if (activeComodatos.length > 0) {
           // 1. Crear órdenes de recuperación individuales (como antes)
           for (const comodato of activeComodatos) {
@@ -926,9 +919,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 tx,
               );
 
-              console.log(
-                `Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`,
-              );
             } catch (recoveryError) {
               console.error(
                 `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
@@ -966,9 +956,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             },
           });
 
-          console.log(
-            `Order de retiro única creada exitosamente con ${orderItems.length} productos - Order ID: ${withdrawalOrder.order_id}`,
-          );
         }
       } catch (error) {
         console.error(
@@ -1125,9 +1112,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (createdCycle) {
         await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
           createdCycle.cycle_id,
-        );
-        console.log(
-          `✅ Total calculado para ciclo de cambio de plan ${createdCycle.cycle_id}`,
         );
       }
     } catch (error) {
@@ -2132,9 +2116,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         });
 
         if (otherComodatos.length > 0) {
-          console.log(
-            `ℹ️ Cliente tiene ${otherComodatos.length} comodato(s) activo(s) para este producto en otras suscripciones. Creando comodato adicional para suscripción ${subscription.subscription_id}`,
-          );
         }
 
         const comodatoDto: CreateComodatoDto = {
@@ -2318,10 +2299,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               'Plan sin nombre',
           };
         }
-
-        console.log(
-          `Retiro independiente procesado exitosamente para comodato ${dto.comodato_id} - Order ID: ${withdrawalOrder.order_id}`,
-        );
 
         return response;
       });

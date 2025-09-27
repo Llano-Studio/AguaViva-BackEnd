@@ -469,9 +469,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               status: 'READY_FOR_DELIVERY',
             },
           });
-          console.log(
-            `✅ Estado actualizado a READY_FOR_DELIVERY para ${orderIdsToUpdate.length} órdenes: ${orderIdsToUpdate.join(', ')}`,
-          );
         }
 
         // Obtener la hoja de ruta completa con los detalles
@@ -1408,9 +1405,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     recordPaymentDto: RecordPaymentDto,
     userId: number,
   ): Promise<Prisma.payment_transactionGetPayload<{}>> {
-    console.log(
-      `Registrando pago para detailId: ${detailId}, DTO: ${JSON.stringify(recordPaymentDto)}, Usuario ID: ${userId}`,
-    );
 
     const routeSheetDetail = await this.route_sheet_detail.findUnique({
       where: { route_sheet_detail_id: detailId },

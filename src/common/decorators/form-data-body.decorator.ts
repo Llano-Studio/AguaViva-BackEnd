@@ -11,7 +11,7 @@ export const FormDataBody = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     const body = request.body;
 
-    console.log('🔍 DEBUG - FormDataBody - Body original:', body);
+
 
     // Solo procesar si es multipart/form-data
     if (request.headers['content-type']?.includes('multipart/form-data')) {
@@ -77,10 +77,6 @@ export const FormDataBody = createParamDecorator(
       Object.keys(preservedBody).forEach((key) => {
         if (allowedFields.includes(key)) {
           filteredBody[key] = preservedBody[key];
-        } else {
-          console.log(
-            `🔍 DEBUG - FormDataBody - Filtrando campo no permitido: ${key}`,
-          );
         }
       });
 
@@ -88,14 +84,11 @@ export const FormDataBody = createParamDecorator(
         if (filteredBody[field] !== undefined) {
           // Asegurar que sea string
           filteredBody[field] = String(filteredBody[field]);
-          console.log(
-            `🔍 DEBUG - FormDataBody - Preservando ${field} como string:`,
-            filteredBody[field],
-          );
+
         }
       });
 
-      console.log('🔍 DEBUG - FormDataBody - Body preservado:', filteredBody);
+
 
       // Transformar a la clase DTO
       const dtoClass = data; // La clase DTO se pasa como parámetro
@@ -105,15 +98,12 @@ export const FormDataBody = createParamDecorator(
           excludeExtraneousValues: false,
         });
 
-        console.log('🔍 DEBUG - FormDataBody - DTO transformado:', dto);
+
 
         // Validar el DTO
         const errors = await validate(dto as object);
         if (errors.length > 0) {
-          console.log(
-            '🔍 DEBUG - FormDataBody - Errores de validación:',
-            errors,
-          );
+
           throw new Error(
             `Validation failed: ${errors
               .map((e) => Object.values(e.constraints || {}))

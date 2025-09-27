@@ -137,11 +137,6 @@ export class CyclePaymentsController {
     createCyclePaymentDto: CreateCyclePaymentDto,
     @Request() req: any,
   ): Promise<CyclePaymentResponseDto> {
-    // Log para debug: verificar que el monto llegue correctamente
-    console.log(
-      `🔍 DEBUG: Pago recibido para ciclo ${createCyclePaymentDto.cycle_id}, monto: ${createCyclePaymentDto.amount}`,
-    );
-
     return this.cyclePaymentsService.createCyclePayment(
       createCyclePaymentDto,
       req.user.userId,

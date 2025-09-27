@@ -295,16 +295,6 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     const { category_id, total_stock, productImage: _, ...productData } = dto;
 
     // DEBUG: Log para ver qué datos se van a guardar
-    console.log('🔍 DEBUG - Datos que se van a guardar en createProduct:');
-    console.log(
-      '  productData.is_returnable:',
-      productData.is_returnable,
-      typeof productData.is_returnable,
-    );
-    console.log(
-      '  productData completo:',
-      JSON.stringify(productData, null, 2),
-    );
 
     try {
       const dataToCreate: any = {
@@ -403,18 +393,6 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     } = dto;
 
     // DEBUG: Log para ver qué datos se van a actualizar
-    console.log(
-      '🔍 DEBUG - Datos que se van a actualizar en updateProductById:',
-    );
-    console.log(
-      '  productUpdateData.is_returnable:',
-      productUpdateData.is_returnable,
-      typeof productUpdateData.is_returnable,
-    );
-    console.log(
-      '  productUpdateData completo:',
-      JSON.stringify(productUpdateData, null, 2),
-    );
 
     if (category_id) {
       await this.validateCategoryExists(category_id);
@@ -509,14 +487,22 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   ): Promise<{ message: string; deleted: boolean }> {
     await this.getProductById(id, false, true); // Permitir buscar productos inactivos
     try {
-      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
-      await this.product.update({
-        where: { product_id: id },
-        data: { is_active: false },
+      // Usar transacción para asegurar consistencia
+      await this.$transaction(async (tx) => {
+        // Primero eliminar todos los price_list_items asociados al producto
+        await tx.price_list_item.deleteMany({
+          where: { product_id: id },
+        });
+
+        // Luego hacer soft delete del producto: cambiar is_active a false
+        await tx.product.update({
+          where: { product_id: id },
+          data: { is_active: false },
+        });
       });
 
       return {
-        message: `${this.entityName} desactivado correctamente`,
+        message: `${this.entityName} desactivado correctamente y eliminado de todas las listas de precios`,
         deleted: true,
       };
     } catch (error) {

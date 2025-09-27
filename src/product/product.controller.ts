@@ -398,13 +398,6 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
     @UploadedFile() productImage?: any,
   ) {
     // DEBUG: Log para ver qué está llegando
-    console.log('🔍 DEBUG - Datos recibidos en createProduct:');
-    console.log(
-      '  dto.is_returnable:',
-      dto.is_returnable,
-      typeof dto.is_returnable,
-    );
-    console.log('  dto completo:', JSON.stringify(dto, null, 2));
 
     return this.service.createProduct(dto, productImage);
   }
@@ -556,13 +549,6 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
     @UploadedFile() productImage?: any,
   ) {
     // DEBUG: Log para ver qué está llegando
-    console.log('🔍 DEBUG - Datos recibidos en updateProductById:');
-    console.log(
-      '  dto.is_returnable:',
-      dto.is_returnable,
-      typeof dto.is_returnable,
-    );
-    console.log('  dto completo:', JSON.stringify(dto, null, 2));
 
     return this.service.updateProductById(id, dto, productImage);
   }

@@ -116,9 +116,7 @@ export class GeneralCycleNumberingService {
         },
       });
 
-      console.log(
-        `Ciclo ${nextCycleNumber} creado para suscripción ${subscriptionId}`,
-      );
+
       return newCycle;
     } catch (error) {
       console.error('Error creando ciclo con numeración automática:', error);
