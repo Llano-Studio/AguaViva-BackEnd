@@ -49,6 +49,7 @@ import {
   fileUploadConfigs,
   buildImageUrl,
 } from '../common/utils/file-upload.util';
+import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
 class PaginatedPersonsResponseDto {
   @ApiProperty({ type: [PersonResponseDto] })
@@ -972,6 +973,7 @@ export class PersonsController {
   @Post('upload-contract-image')
   @UseInterceptors(
     FileInterceptor('contract_image', fileUploadConfigs.contractImages),
+    CleanupFileOnErrorInterceptor,
   )
   @ApiOperation({
     summary: 'Subir imagen de contrato de comodato',

@@ -34,6 +34,7 @@ import { FilterProductsDto } from './dto/filter-products.dto';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataPreserveInterceptor } from '../common/interceptors/form-data-preserve.interceptor';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
+import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
 @ApiTags('Productos & Artículos')
 @ApiBearerAuth()
@@ -262,6 +263,7 @@ La respuesta incluye stock actual calculado en tiempo real:
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
     FormDataPreserveInterceptor,
+    CleanupFileOnErrorInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -407,6 +409,7 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
     FormDataPreserveInterceptor,
+    CleanupFileOnErrorInterceptor,
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
