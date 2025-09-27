@@ -10,15 +10,9 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import {
-  Prisma,
-  PrismaClient,
-  product as ProductPrisma,
-} from '@prisma/client';
+import { Prisma, PrismaClient, product as ProductPrisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
-import {
-  ProductResponseDto,
-} from './dto/product-response.dto';
+import { ProductResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
@@ -231,9 +225,9 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     includeInactive: boolean = false,
   ): Promise<ProductResponseDto> {
     const productEntity = await this.product.findFirst({
-      where: { 
+      where: {
         product_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: {
         product_category: true,
@@ -302,8 +296,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     // DEBUG: Log para ver qué datos se van a guardar
     console.log('🔍 DEBUG - Datos que se van a guardar en createProduct:');
-    console.log('  productData.is_returnable:', productData.is_returnable, typeof productData.is_returnable);
-    console.log('  productData completo:', JSON.stringify(productData, null, 2));
+    console.log(
+      '  productData.is_returnable:',
+      productData.is_returnable,
+      typeof productData.is_returnable,
+    );
+    console.log(
+      '  productData completo:',
+      JSON.stringify(productData, null, 2),
+    );
 
     try {
       const dataToCreate: any = {
@@ -402,9 +403,18 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     } = dto;
 
     // DEBUG: Log para ver qué datos se van a actualizar
-    console.log('🔍 DEBUG - Datos que se van a actualizar en updateProductById:');
-    console.log('  productUpdateData.is_returnable:', productUpdateData.is_returnable, typeof productUpdateData.is_returnable);
-    console.log('  productUpdateData completo:', JSON.stringify(productUpdateData, null, 2));
+    console.log(
+      '🔍 DEBUG - Datos que se van a actualizar en updateProductById:',
+    );
+    console.log(
+      '  productUpdateData.is_returnable:',
+      productUpdateData.is_returnable,
+      typeof productUpdateData.is_returnable,
+    );
+    console.log(
+      '  productUpdateData completo:',
+      JSON.stringify(productUpdateData, null, 2),
+    );
 
     if (category_id) {
       await this.validateCategoryExists(category_id);
@@ -502,9 +512,9 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.product.update({
         where: { product_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
-      
+
       return {
         message: `${this.entityName} desactivado correctamente`,
         deleted: true,

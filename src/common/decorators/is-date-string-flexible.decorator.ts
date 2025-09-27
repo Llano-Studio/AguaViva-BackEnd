@@ -1,7 +1,11 @@
-import { registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator';
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidationArguments,
+} from 'class-validator';
 
 export function IsDateStringFlexible(validationOptions?: ValidationOptions) {
-  return function (object: Object, propertyName: string) {
+  return function (object: object, propertyName: string) {
     registerDecorator({
       name: 'isDateStringFlexible',
       target: object.constructor,
@@ -12,7 +16,7 @@ export function IsDateStringFlexible(validationOptions?: ValidationOptions) {
           if (typeof value !== 'string') {
             return false;
           }
-          
+
           // Intentar crear una fecha válida
           const date = new Date(value);
           return !isNaN(date.getTime());

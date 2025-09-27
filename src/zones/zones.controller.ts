@@ -39,9 +39,39 @@ export class ZonesController {
 
   @Post()
   @ApiOperation({
-    summary: 'Crear una zona',
-    description:
-      'Crea una nueva zona geográfica en el sistema. Las zonas pertenecen a una localidad específica y se utilizan para organizar clientes y planificar rutas de entrega. Pueden existir múltiples zonas con el mismo nombre en diferentes localidades.',
+    summary: 'Crear nueva zona geográfica de entrega',
+    description: `Crea una nueva zona geográfica para organización territorial y planificación logística.
+
+## 🗺️ GESTIÓN TERRITORIAL
+
+**Funcionalidad Principal:**
+- Organización geográfica de clientes
+- Planificación eficiente de rutas de entrega
+- Asignación de vehículos por zona
+- Control territorial de operaciones
+
+## 📍 ESTRUCTURA JERÁRQUICA
+
+**Relaciones Geográficas:**
+- **País** → **Provincia** → **Localidad** → **Zona**
+- Cada zona pertenece a una localidad específica
+- Múltiples zonas pueden existir en la misma localidad
+- Códigos únicos por localidad
+
+## 🚚 PLANIFICACIÓN LOGÍSTICA
+
+**Beneficios Operativos:**
+- **Optimización de Rutas**: Agrupación geográfica de entregas
+- **Asignación de Recursos**: Vehículos específicos por zona
+- **Eficiencia de Combustible**: Reducción de distancias
+- **Mejor Servicio**: Tiempos de entrega predecibles
+
+## 🎯 CASOS DE USO
+
+- **Expansión Territorial**: Nuevas áreas de cobertura
+- **Reorganización Logística**: Optimización de zonas existentes
+- **Asignación de Clientes**: Ubicación geográfica de servicios
+- **Planificación de Rutas**: Base para hojas de ruta eficientes`,
   })
   @ApiBody({
     description: 'Datos de la zona a crear',
@@ -110,9 +140,49 @@ export class ZonesController {
   @Get()
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({
-    summary: 'Listar todas las zonas',
-    description:
-      'Obtiene un listado completo de todas las zonas disponibles en el sistema. Los resultados se almacenan en caché para mejorar el rendimiento.',
+    summary: 'Listar todas las zonas geográficas',
+    description: `Obtiene un listado completo de todas las zonas geográficas disponibles en el sistema con capacidades avanzadas de filtrado y búsqueda.
+
+## 🔍 FILTRADO AVANZADO
+
+**Búsqueda Inteligente:**
+- **search**: Búsqueda general por nombre de zona, código o nombre de localidad
+- **name**: Filtro específico por nombre exacto de zona
+- **locality_id**: Filtro por ID de localidad específica (compatibilidad)
+- **locality_ids**: Filtro por múltiples localidades (formato: "1,2,3" o array [1,2,3])
+- **locality_name**: Búsqueda parcial por nombre de localidad
+
+**Ordenamiento Avanzado:**
+- **sortBy**: Múltiples campos con dirección (ej: "name,-code" = nombre ascendente, código descendente)
+- Campos disponibles: name, code, locality_id
+- Prefijo "-" para orden descendente
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos de Zona:**
+- ID único de zona
+- Código identificador
+- Nombre descriptivo
+- Estado activo/inactivo
+
+**Información Geográfica:**
+- Datos completos de localidad asociada
+- Información de provincia y país
+- Jerarquía geográfica completa
+
+**Metadatos de Paginación:**
+- Total de registros
+- Página actual y límite
+- Total de páginas disponibles
+
+## 🎯 CASOS DE USO
+
+- **Gestión Territorial**: Administración de zonas de cobertura
+- **Planificación Logística**: Asignación de rutas y vehículos por zona
+- **Análisis Geográfico**: Estudios de distribución territorial
+- **Reportes Gerenciales**: Informes de cobertura y operaciones
+- **Administración**: Configuración y mantenimiento del sistema
+- **Auditorías**: Verificación de estructura territorial`,
   })
   @ApiQuery({
     name: 'search',
@@ -241,9 +311,36 @@ export class ZonesController {
     example: 1,
   })
   @ApiOperation({
-    summary: 'Obtener zona por ID',
-    description:
-      'Devuelve la información detallada de una zona específica según su ID, incluyendo datos relacionados.',
+    summary: 'Obtener zona específica por ID',
+    description: `Devuelve la información completa y detallada de una zona geográfica específica según su ID único.
+
+## 📋 INFORMACIÓN DEVUELTA
+
+**Identificación:**
+- ID único de la zona
+- Código identificador único
+- Nombre descriptivo de la zona
+- Estado de activación
+
+**Detalles Operativos:**
+- Código único para identificación rápida
+- Nombre descriptivo para uso administrativo
+- Características geográficas específicas
+- Estado de disponibilidad operativa
+
+**Información Geográfica Completa:**
+- Datos completos de localidad asociada
+- Información detallada de provincia
+- Datos del país correspondiente
+- Jerarquía territorial completa
+
+## 🎯 CASOS DE USO
+
+- **Consultas Específicas**: Obtener detalles de una zona particular
+- **Validación de Asignaciones**: Verificar datos antes de asignar vehículos o rutas
+- **Planificación de Entregas**: Consultar información para programación logística
+- **Gestión Individual**: Administración detallada de zona específica
+- **Verificación de Auditoría**: Validación de datos para procesos de control`,
   })
   @ApiResponse({
     status: 200,

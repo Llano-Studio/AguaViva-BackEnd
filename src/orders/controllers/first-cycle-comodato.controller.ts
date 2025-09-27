@@ -16,14 +16,14 @@ import {
 import {
   FirstCycleComodatoService,
   FirstCycleComodatoResult,
-} from '../services/first-cycle-comodato.service';
+} from '../../common/services/first-cycle-comodato.service';
 
 export class ProcessFirstCycleDto {
   subscription_id: number;
   delivery_date: string; // YYYY-MM-DD format
 }
 
-@ApiTags('First Cycle Comodato')
+@ApiTags('Ciclos de Comodatos')
 @Controller('first-cycle-comodato')
 export class FirstCycleComodatoController {
   constructor(
@@ -32,19 +32,40 @@ export class FirstCycleComodatoController {
 
   @Post('process')
   @ApiOperation({
-    summary: 'Procesar comodato automático para primer ciclo',
-    description: `
-    Verifica si es el primer ciclo de una suscripción y crea automáticamente 
-    comodatos para todos los productos retornables del plan.
-    
-    **Funcionalidad:**
-    - Verifica si es el primer ciclo de la suscripción
-    - Identifica productos retornables en el plan de suscripción
-    - Crea comodatos automáticamente para productos retornables
-    - Evita duplicados verificando comodatos existentes
-    - Establece fecha de devolución esperada (1 año después)
-    - Sin depósito ni cuota mensual en primer ciclo
-    `,
+    summary: 'Procesar comodato automático para primer ciclo de suscripción',
+    description: `Gestiona automáticamente la creación de comodatos cuando un cliente inicia su primera suscripción.
+
+## 🎯 COMODATO DE PRIMER CICLO
+
+**Proceso Automático:**
+- Verifica si es el primer ciclo de la suscripción
+- Identifica productos retornables en el plan
+- Crea comodatos automáticamente sin depósito
+- Establece fecha de devolución esperada (1 año)
+- Evita duplicados verificando comodatos existentes
+
+## 📦 PRODUCTOS ELEGIBLES
+
+**Criterios de Comodato:**
+- Solo productos marcados como retornables
+- Productos incluidos en el plan de suscripción
+- Bidones, dispensadores y accesorios
+- Exclusión de productos consumibles
+
+## 💰 CONDICIONES ESPECIALES
+
+**Primer Ciclo:**
+- **Sin depósito**: No se cobra depósito inicial
+- **Sin cuota mensual**: Comodato gratuito
+- **Período extendido**: 1 año de plazo
+- **Renovación automática**: Con suscripciones activas
+
+## 🔄 VALIDACIONES AUTOMÁTICAS
+
+- Verificación de primer ciclo
+- Prevención de comodatos duplicados
+- Validación de productos retornables
+- Control de fechas y plazos`,
   })
   @ApiBody({
     description: 'Datos para procesar el primer ciclo',
@@ -216,7 +237,8 @@ export class FirstCycleComodatoController {
           model: { type: 'string', example: '' },
           contract_image_path: {
             type: 'string',
-            example: 'http://localhost:3000/public/uploads/contracts/contract_123_456.jpg',
+            example:
+              'http://localhost:3000/public/uploads/contracts/contract_123_456.jpg',
             nullable: true,
           },
           created_at: {

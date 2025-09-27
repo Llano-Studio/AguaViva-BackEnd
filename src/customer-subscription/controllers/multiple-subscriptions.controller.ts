@@ -20,7 +20,7 @@ import {
   MultipleSubscriptionsService,
   MultipleSubscriptionSummaryDto,
   ActiveCycleSummaryDto,
-} from '../services/multiple-subscriptions.service';
+} from '../../common/services/multiple-subscriptions.service';
 import { CyclePaymentsService } from '../../cycle-payments/cycle-payments.service';
 
 export class ConsolidatePaymentDto {
@@ -28,7 +28,7 @@ export class ConsolidatePaymentDto {
   apply_credits_to_debts: boolean;
 }
 
-@ApiTags('Multiple Subscriptions')
+@ApiTags('Multiple Abonos de Clientes')
 @ApiBearerAuth()
 @Controller('multiple-subscriptions')
 export class MultipleSubscriptionsController {
@@ -40,9 +40,34 @@ export class MultipleSubscriptionsController {
   @Get('customer/:customerId/summary')
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
-    summary: 'Obtener resumen completo de suscripciones de un cliente',
-    description:
-      'Obtiene todas las suscripciones activas de un cliente con información consolidada de pagos y créditos',
+    summary:
+      'Obtener resumen consolidado de suscripciones múltiples de un cliente',
+    description: `Proporciona una vista consolidada de todas las suscripciones activas de un cliente específico.
+
+## 📊 GESTIÓN DE SUSCRIPCIONES MÚLTIPLES
+
+**Información Consolidada:**
+- Todas las suscripciones activas del cliente
+- Estado de pagos por cada suscripción
+- Balance total de créditos acumulados
+- Deudas pendientes consolidadas
+- Resumen financiero global
+
+## 💰 ANÁLISIS FINANCIERO
+
+**Métricas Incluidas:**
+- Total de ciclos activos
+- Monto total pendiente de pago
+- Balance total de créditos disponibles
+- Distribución de pagos por estado
+- Análisis de flujo de caja del cliente
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Cobranzas**: Vista unificada de deudas
+- **Aplicación de Créditos**: Identificar oportunidades de compensación
+- **Análisis de Cliente**: Evaluación financiera integral
+- **Planificación de Entregas**: Coordinación de múltiples servicios`,
   })
   @ApiParam({ name: 'customerId', description: 'ID del cliente', type: Number })
   @ApiResponse({

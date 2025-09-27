@@ -41,8 +41,8 @@ import {
   UpdateDeliveryTimeDto,
 } from './dto';
 import { RouteSheetService } from './route-sheet.service';
-import { RouteOptimizationService } from './services/route-optimization.service';
-import { MobileInventoryService } from './services/mobile-inventory.service';
+import { RouteOptimizationService } from '../common/services/route-optimization.service';
+import { MobileInventoryService } from '../common/services/mobile-inventory.service';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -79,7 +79,57 @@ export class RouteSheetController {
   @Get()
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
-    summary: 'Obtener todas las hojas de ruta con filtros y paginación',
+    summary: 'Listar hojas de ruta con filtros avanzados',
+    description: `Obtiene un listado completo de hojas de ruta con capacidades avanzadas de filtrado, búsqueda y paginación para gestión logística.
+
+## 🔍 FILTRADO AVANZADO
+
+**Filtros por Personal y Recursos:**
+- **driver_id**: Filtro por conductor específico
+- **vehicle_id**: Filtro por vehículo asignado
+
+**Filtros Temporales:**
+- **from_date**: Fecha de inicio del rango (YYYY-MM-DD)
+- **to_date**: Fecha de fin del rango (YYYY-MM-DD)
+- Búsqueda por rangos de fechas para análisis histórico
+
+**Ordenamiento Avanzado:**
+- **sortBy**: Múltiples campos con dirección (ej: "delivery_date,-driver.name")
+- Campos disponibles: delivery_date, driver.name, vehicle.code
+- Prefijo "-" para orden descendente
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos de Hoja de Ruta:**
+- ID único de hoja de ruta
+- Fecha de entrega programada
+- Notas de ruta y observaciones
+- Estado general de la ruta
+
+**Información de Personal y Recursos:**
+- Datos completos del conductor asignado
+- Información detallada del vehículo
+- Capacidades y especificaciones técnicas
+
+**Detalles de Entregas:**
+- Lista completa de entregas programadas
+- Estados de entrega por pedido
+- Horarios programados y comentarios
+- Información de clientes y productos
+
+**Metadatos de Paginación:**
+- Total de registros encontrados
+- Página actual y límite por página
+- Total de páginas disponibles
+
+## 🎯 CASOS DE USO
+
+- **Gestión Logística**: Supervisión de rutas y entregas diarias
+- **Planificación Operativa**: Asignación de recursos y personal
+- **Seguimiento de Entregas**: Monitoreo del estado de pedidos
+- **Reportes Gerenciales**: Análisis de eficiencia y productividad
+- **Control de Calidad**: Verificación de cumplimiento de horarios
+- **Auditorías**: Revisión histórica de operaciones logísticas`,
   })
   @ApiQuery({
     name: 'driver_id',
@@ -160,7 +210,45 @@ export class RouteSheetController {
 
   @Get(':id')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Obtener una hoja de ruta por su ID' })
+  @ApiOperation({
+    summary: 'Obtener hoja de ruta específica por ID',
+    description: `Devuelve la información completa y detallada de una hoja de ruta específica según su ID único.
+
+## 📋 INFORMACIÓN DEVUELTA
+
+**Identificación:**
+- ID único de la hoja de ruta
+- Fecha de entrega programada
+- Notas de ruta y observaciones especiales
+- Estado general de la hoja de ruta
+
+**Detalles del Personal y Recursos:**
+- Información completa del conductor asignado (ID, nombre, email)
+- Datos detallados del vehículo (ID, código, nombre, descripción)
+- Capacidades y especificaciones técnicas del vehículo
+
+**Detalles Completos de Entregas:**
+- Lista completa de todas las entregas programadas
+- Estados individuales de cada entrega (PENDING, DELIVERED, SKIPPED, etc.)
+- Horarios programados y comentarios específicos
+- Información detallada de clientes y productos por entrega
+- Indicador de entrega actual para el conductor
+
+**Información Operativa:**
+- Datos de pedidos de suscripción y compras one-off
+- Información de cobranzas y pagos asociados
+- Firmas digitales y evidencias de entrega
+- Cantidades entregadas y devueltas por producto
+
+## 🎯 CASOS DE USO
+
+- **Consultas Específicas**: Obtener detalles completos de una ruta particular
+- **Seguimiento en Tiempo Real**: Monitoreo del progreso de entregas
+- **Gestión de Conductores**: Información para el personal de campo
+- **Control de Calidad**: Verificación de cumplimiento y evidencias
+- **Auditorías**: Revisión detallada de operaciones específicas
+- **Resolución de Problemas**: Análisis de incidencias en entregas`,
+  })
   @ApiParam({
     name: 'id',
     description: 'ID de la hoja de ruta',

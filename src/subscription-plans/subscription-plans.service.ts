@@ -125,7 +125,7 @@ export class SubscriptionPlansService
 
     const where: Prisma.subscription_planWhereInput = {
       // Por defecto solo mostrar planes activos, a menos que se especifique lo contrario
-      is_active: is_active !== undefined ? is_active : true
+      is_active: is_active !== undefined ? is_active : true,
     };
 
     // Búsqueda general en múltiples campos
@@ -179,11 +179,14 @@ export class SubscriptionPlansService
     }
   }
 
-  async findOne(id: number, includeInactive: boolean = false): Promise<SubscriptionPlanResponseDto> {
+  async findOne(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<SubscriptionPlanResponseDto> {
     const plan = await this.subscription_plan.findFirst({
-      where: { 
+      where: {
         subscription_plan_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: {
         subscription_plan_product: {
@@ -261,9 +264,9 @@ export class SubscriptionPlansService
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.subscription_plan.update({
         where: { subscription_plan_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
-      
+
       return {
         message: `${this.entityName} con ID ${id} desactivado correctamente.`,
         deleted: true,
@@ -587,10 +590,7 @@ export class SubscriptionPlansService
   }> {
     const plansWithoutPrice = await this.subscription_plan.findMany({
       where: {
-        OR: [
-          { price: null },
-          { price: 0 },
-        ],
+        OR: [{ price: null }, { price: 0 }],
       },
       include: {
         _count: {
@@ -606,11 +606,11 @@ export class SubscriptionPlansService
     });
 
     const critical_count = plansWithoutPrice.filter(
-      plan => plan.is_active && plan._count.customer_subscription > 0
+      (plan) => plan.is_active && plan._count.customer_subscription > 0,
     ).length;
 
     return {
-      plans_without_price: plansWithoutPrice.map(plan => ({
+      plans_without_price: plansWithoutPrice.map((plan) => ({
         subscription_plan_id: plan.subscription_plan_id,
         name: plan.name,
         price: plan.price ? Number(plan.price) : null,

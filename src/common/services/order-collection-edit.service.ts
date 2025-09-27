@@ -6,7 +6,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaClient, OrderStatus } from '@prisma/client';
-import { OrdersService } from '../orders.service';
+import { OrdersService } from '../../orders/orders.service';
 
 export interface CollectionItemDto {
   cycle_id: number;

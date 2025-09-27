@@ -14,30 +14,39 @@ import { Type } from 'class-transformer';
 
 export class WaypointDto {
   @ApiProperty({
-    description: 'Latitud del punto',
+    description:
+      'Latitud del punto geográfico en coordenadas decimales (WGS84)',
     example: -34.603722,
+    minimum: -90,
+    maximum: 90,
   })
   @IsNumber()
   lat: number;
 
   @ApiProperty({
-    description: 'Longitud del punto',
+    description:
+      'Longitud del punto geográfico en coordenadas decimales (WGS84)',
     example: -58.381592,
+    minimum: -180,
+    maximum: 180,
   })
   @IsNumber()
   lng: number;
 
   @ApiPropertyOptional({
-    description: 'ID del detalle de hoja de ruta relacionado',
+    description:
+      'ID del detalle de hoja de ruta asociado a este punto de entrega',
     example: 1,
+    minimum: 1,
   })
   @IsInt()
   @IsOptional()
   route_sheet_detail_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Dirección legible',
-    example: 'Av. Rivadavia 1234, CABA',
+    description: 'Dirección legible y formateada del punto de entrega',
+    example: 'Av. Rivadavia 1234, CABA, Buenos Aires',
+    maxLength: 255,
   })
   @IsString()
   @IsOptional()
@@ -46,8 +55,10 @@ export class WaypointDto {
 
 export class CreateRouteOptimizationDto {
   @ApiProperty({
-    description: 'ID de la hoja de ruta a optimizar',
+    description:
+      'ID de la hoja de ruta que se desea optimizar para mejorar eficiencia de entregas',
     example: 1,
+    minimum: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -55,7 +66,7 @@ export class CreateRouteOptimizationDto {
 
   @ApiPropertyOptional({
     description:
-      'Punto de inicio de la ruta (por defecto será la ubicación del almacén)',
+      'Punto de inicio personalizado de la ruta. Si no se especifica, se utilizará la ubicación del almacén principal como punto de partida.',
     type: WaypointDto,
   })
   @IsObject()
@@ -66,7 +77,7 @@ export class CreateRouteOptimizationDto {
 
   @ApiPropertyOptional({
     description:
-      'Punto final de la ruta (por defecto será el mismo que el punto de inicio)',
+      'Punto final personalizado de la ruta. Si no se especifica, se utilizará el mismo punto de inicio para crear una ruta circular.',
     type: WaypointDto,
   })
   @IsObject()
@@ -76,7 +87,8 @@ export class CreateRouteOptimizationDto {
   end_point?: WaypointDto;
 
   @ApiPropertyOptional({
-    description: 'Optimizar por tiempo (true) o distancia (false)',
+    description:
+      'Criterio de optimización: true para optimizar por tiempo de viaje, false para optimizar por distancia total',
     example: true,
     default: true,
   })
@@ -85,7 +97,8 @@ export class CreateRouteOptimizationDto {
   optimize_by_time?: boolean = true;
 
   @ApiPropertyOptional({
-    description: 'Considerar el tráfico actual',
+    description:
+      'Incluir condiciones de tráfico en tiempo real para cálculos más precisos de tiempo de viaje',
     example: true,
     default: true,
   })

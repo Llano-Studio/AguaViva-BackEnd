@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class CycleNumberingService {
-  private readonly logger = new Logger(CycleNumberingService.name);
+export class SubscriptionCycleNumberingService {
+  private readonly logger = new Logger(SubscriptionCycleNumberingService.name);
   private readonly prisma = new PrismaClient();
 
   /**
@@ -25,7 +25,7 @@ export class CycleNumberingService {
     });
 
     const nextCycleNumber = existingCycle ? existingCycle.cycle_number + 1 : 1;
-    
+
     this.logger.log(
       `Siguiente número de ciclo para suscripción ${subscriptionId}: ${nextCycleNumber}`,
     );
@@ -148,7 +148,10 @@ export class CycleNumberingService {
    * @param cycleNumber Número del ciclo a validar
    * @returns true si es válido, false si ya existe
    */
-  async validateCycleNumber(subscriptionId: number, cycleNumber: number): Promise<boolean> {
+  async validateCycleNumber(
+    subscriptionId: number,
+    cycleNumber: number,
+  ): Promise<boolean> {
     const existingCycle = await this.prisma.subscription_cycle.findFirst({
       where: {
         subscription_id: subscriptionId,
@@ -166,7 +169,9 @@ export class CycleNumberingService {
    * @returns Número de ciclos renumerados
    */
   async renumberCycles(subscriptionId: number): Promise<number> {
-    this.logger.log(`Iniciando renumeración de ciclos para suscripción ${subscriptionId}`);
+    this.logger.log(
+      `Iniciando renumeración de ciclos para suscripción ${subscriptionId}`,
+    );
 
     // Obtener todos los ciclos ordenados por fecha de inicio
     const cycles = await this.prisma.subscription_cycle.findMany({
@@ -221,12 +226,22 @@ export class CycleNumberingService {
     });
 
     const totalCycles = cycles.length;
-    const paidCycles = cycles.filter(c => c.payment_status === 'PAID').length;
-    const pendingCycles = cycles.filter(c => c.payment_status === 'PENDING').length;
-    const overdueCycles = cycles.filter(c => c.payment_status === 'OVERDUE').length;
+    const paidCycles = cycles.filter((c) => c.payment_status === 'PAID').length;
+    const pendingCycles = cycles.filter(
+      (c) => c.payment_status === 'PENDING',
+    ).length;
+    const overdueCycles = cycles.filter(
+      (c) => c.payment_status === 'OVERDUE',
+    ).length;
 
-    const totalAmount = cycles.reduce((sum, cycle) => sum + Number(cycle.total_amount), 0);
-    const paidAmount = cycles.reduce((sum, cycle) => sum + Number(cycle.paid_amount), 0);
+    const totalAmount = cycles.reduce(
+      (sum, cycle) => sum + Number(cycle.total_amount),
+      0,
+    );
+    const paidAmount = cycles.reduce(
+      (sum, cycle) => sum + Number(cycle.paid_amount),
+      0,
+    );
 
     return {
       subscription_id: subscriptionId,
@@ -237,7 +252,8 @@ export class CycleNumberingService {
       total_amount: totalAmount,
       paid_amount: paidAmount,
       pending_amount: totalAmount - paidAmount,
-      current_cycle_number: totalCycles > 0 ? Math.max(...cycles.map(c => c.cycle_number)) : 0,
+      current_cycle_number:
+        totalCycles > 0 ? Math.max(...cycles.map((c) => c.cycle_number)) : 0,
     };
   }
 
@@ -262,8 +278,11 @@ export class CycleNumberingService {
     });
 
     const issues = [];
-    const expectedNumbers = Array.from({ length: cycles.length }, (_, i) => i + 1);
-    const actualNumbers = cycles.map(c => c.cycle_number);
+    const expectedNumbers = Array.from(
+      { length: cycles.length },
+      (_, i) => i + 1,
+    );
+    const actualNumbers = cycles.map((c) => c.cycle_number);
 
     // Verificar secuencia continua
     for (let i = 0; i < expectedNumbers.length; i++) {
@@ -278,7 +297,9 @@ export class CycleNumberingService {
     }
 
     // Verificar duplicados
-    const duplicates = actualNumbers.filter((num, index) => actualNumbers.indexOf(num) !== index);
+    const duplicates = actualNumbers.filter(
+      (num, index) => actualNumbers.indexOf(num) !== index,
+    );
     if (duplicates.length > 0) {
       issues.push({
         type: 'DUPLICATES',

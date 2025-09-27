@@ -4,7 +4,11 @@ import { diskStorage } from 'multer';
 /**
  * Genera un nombre único para el archivo subido
  */
-export const editFileName = (req: any, file: any, callback: (error: Error | null, filename: string) => void) => {
+export const editFileName = (
+  req: any,
+  file: any,
+  callback: (error: Error | null, filename: string) => void,
+) => {
   const name = file.originalname.split('.')[0];
   const fileExtName = extname(file.originalname);
   const randomName = Array(4)
@@ -17,9 +21,18 @@ export const editFileName = (req: any, file: any, callback: (error: Error | null
 /**
  * Filtro para validar archivos de imagen
  */
-export const imageFileFilter = (req: any, file: any, callback: (error: Error | null, acceptFile: boolean) => void) => {
+export const imageFileFilter = (
+  req: any,
+  file: any,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) => {
   if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-    return callback(new Error('¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp)!'), false);
+    return callback(
+      new Error(
+        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp)!',
+      ),
+      false,
+    );
   }
   callback(null, true);
 };
@@ -39,7 +52,7 @@ export const fileUploadConfigs = {
     fileFilter: imageFileFilter,
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB
-    }
+    },
   },
 
   /**
@@ -53,7 +66,7 @@ export const fileUploadConfigs = {
     fileFilter: imageFileFilter,
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB
-    }
+    },
   },
 
   /**
@@ -67,7 +80,7 @@ export const fileUploadConfigs = {
     fileFilter: imageFileFilter,
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB para evidencias
-    }
+    },
   },
 
   /**
@@ -81,18 +94,27 @@ export const fileUploadConfigs = {
     fileFilter: imageFileFilter,
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB para contratos
-    }
-  }
+    },
+  },
 };
 
-export const buildImageUrl = (fileName: string | null, folder: 'profile-images' | 'products' | 'evidence' | 'delivery-evidence' | 'reconciliations' | 'contracts'): string | null => {
+export const buildImageUrl = (
+  fileName: string | null,
+  folder:
+    | 'profile-images'
+    | 'products'
+    | 'evidence'
+    | 'delivery-evidence'
+    | 'reconciliations'
+    | 'contracts',
+): string | null => {
   if (!fileName) {
     return null;
   }
 
   // Limpiar el fileName si contiene [object File] o paths problemáticos
   let cleanFileName = fileName;
-  
+
   // Si contiene [object File], extraer solo el nombre del archivo si está disponible
   if (fileName.includes('[object File]')) {
     // Si es un path completo con [object File], intentar extraer el nombre real del archivo
@@ -104,7 +126,7 @@ export const buildImageUrl = (fileName: string | null, folder: 'profile-images' 
       return null;
     }
   }
-  
+
   // Si el fileName ya es un path completo, extraer solo el nombre del archivo
   if (cleanFileName.includes('/uploads/')) {
     const pathMatch = cleanFileName.match(/\/uploads\/[^\/]+\/(.+)$/);

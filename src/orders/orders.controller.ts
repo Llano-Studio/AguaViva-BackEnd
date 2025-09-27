@@ -21,7 +21,7 @@ import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { ScheduleService } from '../common/services/schedule.service';
 import { OrderStatus, OrderType } from '../common/constants/enums';
-import { SubscriptionQuotaService } from './services/subscription-quota.service';
+import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import {
   ApiTags,
   ApiOperation,
@@ -214,8 +214,46 @@ export class OrdersController {
   @Get()
   @ApiOperation({
     summary: 'Obtener todos los pedidos regulares',
-    description:
-      'Retorna una lista paginada de pedidos regulares con filtros opcionales.',
+    description: `Obtiene una lista paginada de pedidos regulares con filtros avanzados y búsqueda inteligente.
+
+## 🔍 BÚSQUEDA Y FILTROS AVANZADOS
+
+**Búsqueda General:**
+- Búsqueda unificada por cliente, número de pedido, notas
+- Búsqueda parcial y tolerante a errores
+- Resultados ordenados por relevancia
+
+**Filtros Temporales:**
+- **Fecha de Pedido**: Rango desde/hasta para análisis de ventas
+- **Fecha de Entrega**: Programación y logística de entregas
+- **Combinados**: Análisis de períodos específicos
+
+**Filtros de Estado y Tipo:**
+- **Estados**: PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED
+- **Tipos**: SUBSCRIPTION, HYBRID, ONE_OFF, CONTRACT
+- **Combinados**: Análisis de flujo de pedidos
+
+**Filtros Geográficos:**
+- **Por Cliente**: Pedidos de cliente específico
+- **Por Zona**: Optimización de rutas de entrega
+- **Por Pedido**: Búsqueda directa por ID
+
+## 📊 CASOS DE USO
+
+**Gestión Operativa:**
+- **Preparación de Entregas**: Filtrar por fecha y zona
+- **Control de Estado**: Seguimiento de pedidos en proceso
+- **Planificación**: Análisis de carga de trabajo
+
+**Análisis Comercial:**
+- **Ventas por Período**: Filtros temporales para reportes
+- **Tipos de Pedido**: Análisis de mix de productos
+- **Clientes**: Patrones de compra y frecuencia
+
+**Logística:**
+- **Rutas de Entrega**: Organización por zona y fecha
+- **Capacidad**: Planificación de recursos
+- **Seguimiento**: Estado de entregas en tiempo real`,
   })
   @ApiQuery({
     name: 'search',
@@ -331,18 +369,65 @@ export class OrdersController {
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener un pedido regular por ID',
-    description:
-      'Retorna los detalles completos de un pedido regular específico.',
+    description: `Obtiene los detalles completos de un pedido específico incluyendo toda su información comercial y operativa.
+
+## 📋 INFORMACIÓN INCLUIDA
+
+**Datos del Pedido:**
+- Información básica: ID, fechas, estado, tipo
+- Montos: total, pagado, pendiente
+- Programación: fecha y horario de entrega
+- Notas y observaciones especiales
+
+**Información del Cliente:**
+- Datos completos del cliente
+- Dirección de entrega
+- Información de contacto
+- Historial de pagos relacionado
+
+**Detalles de Productos:**
+- Lista completa de ítems del pedido
+- Cantidades solicitadas y entregadas
+- Precios aplicados por producto
+- Listas de precios utilizadas
+
+**Información Comercial:**
+- Canal de venta utilizado
+- Suscripción o contrato asociado
+- Método de pago y transacciones
+- Estado de facturación
+
+## 🎯 CASOS DE USO
+
+**Atención al Cliente:**
+- Consulta de estado de pedido
+- Verificación de productos y cantidades
+- Información de entrega y facturación
+
+**Operaciones:**
+- Preparación de pedidos para entrega
+- Verificación de stock y productos
+- Coordinación de rutas y horarios
+
+**Administración:**
+- Revisión de precios y descuentos
+- Análisis de rentabilidad por pedido
+- Auditoría de transacciones y pagos`,
   })
-  @ApiParam({ name: 'id', description: 'ID del pedido' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del pedido',
+    type: Number,
+    example: 123,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Pedido encontrado exitosamente.',
+    description: 'Pedido encontrado exitosamente con todos sus detalles.',
     type: OrderResponseDto,
   })
   @ApiResponse({
     status: 404,
-    description: 'Pedido no encontrado.',
+    description: 'Pedido no encontrado con el ID especificado.',
   })
   async findOneOrder(
     @Param('id', ParseIntPipe) id: number,
@@ -778,13 +863,18 @@ export class OrdersController {
     @Req() req: any,
   ) {
     const userId = req.user?.userId;
-    return this.ordersService.processOneOffPayment(id, processPaymentDto, userId);
+    return this.ordersService.processOneOffPayment(
+      id,
+      processPaymentDto,
+      userId,
+    );
   }
 
   @Post('generate-collection/:cycleId')
   @ApiOperation({
     summary: 'Generar orden de cobranza automática por cycle_id',
-    description: 'Genera automáticamente una orden de cobranza para un ciclo específico de suscripción si no existe ya una para ese ciclo.',
+    description:
+      'Genera automáticamente una orden de cobranza para un ciclo específico de suscripción si no existe ya una para ese ciclo.',
   })
   @ApiParam({
     name: 'cycleId',
@@ -817,7 +907,10 @@ export class OrdersController {
       type: 'object',
       properties: {
         success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Orden de cobranza generada exitosamente' },
+        message: {
+          type: 'string',
+          example: 'Orden de cobranza generada exitosamente',
+        },
         order_id: { type: 'number', example: 123 },
         cycle_id: { type: 'number', example: 1 },
         collection_amount: { type: 'string', example: '15000.00' },
@@ -839,6 +932,11 @@ export class OrdersController {
     @Req() req: any,
   ) {
     const userId = req.user?.userId;
-    return this.ordersService.generateCollectionOrder(cycleId, body.collection_date, body.notes, userId);
+    return this.ordersService.generateCollectionOrder(
+      cycleId,
+      body.collection_date,
+      body.notes,
+      userId,
+    );
   }
 }

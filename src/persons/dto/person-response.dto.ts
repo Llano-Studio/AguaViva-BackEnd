@@ -38,10 +38,16 @@ export class LoanedProductDetailDto {
 }
 
 export class PersonResponseDto extends CreatePersonDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'ID único del cliente en el sistema',
+  })
   person_id: number;
 
-  @ApiProperty({ example: '2023-06-15' })
+  @ApiProperty({
+    example: '2023-06-15',
+    description: 'Fecha de registro del cliente en el sistema',
+  })
   registration_date: Date;
 
   @ApiProperty({

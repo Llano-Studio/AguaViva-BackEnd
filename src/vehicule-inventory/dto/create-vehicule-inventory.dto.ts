@@ -1,7 +1,7 @@
 import { IsInt, Min, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateVehicleInventoryDto {
+export class CreateVehiculeInventoryDto {
   @ApiProperty({
     example: 1,
     description: 'ID del vehículo',

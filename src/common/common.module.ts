@@ -5,8 +5,8 @@ import { PdfGeneratorService } from './services/pdf-generator.service';
 import { SubscriptionCycleRenewalService } from './services/subscription-cycle-renewal.service';
 import { FailedOrderReassignmentService } from './services/failed-order-reassignment.service';
 import { PrismaClient } from '@prisma/client';
-import { CycleNumberingService } from '../customer-subscription/services/cycle-numbering.service';
-import { SubscriptionCycleCalculatorService } from '../customer-subscription/services/subscription-cycle-calculator.service';
+import { SubscriptionCycleNumberingService } from './services/subscription-cycle-numbering.service';
+import { SubscriptionCycleCalculatorService } from './services/subscription-cycle-calculator.service';
 
 @Module({
   imports: [],
@@ -16,7 +16,7 @@ import { SubscriptionCycleCalculatorService } from '../customer-subscription/ser
     PdfGeneratorService,
     SubscriptionCycleRenewalService,
     FailedOrderReassignmentService,
-    CycleNumberingService,
+    SubscriptionCycleNumberingService,
     SubscriptionCycleCalculatorService,
     PrismaClient,
   ],
@@ -26,7 +26,7 @@ import { SubscriptionCycleCalculatorService } from '../customer-subscription/ser
     PdfGeneratorService,
     SubscriptionCycleRenewalService,
     FailedOrderReassignmentService,
-    CycleNumberingService,
+    SubscriptionCycleNumberingService,
     SubscriptionCycleCalculatorService,
     PrismaClient,
   ],

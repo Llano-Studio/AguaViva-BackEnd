@@ -9,7 +9,7 @@ import {
   CreateRouteOptimizationDto,
   RouteOptimizationResponseDto,
   WaypointDto,
-} from '../dto/route-optimization.dto';
+} from '../../route-sheet/dto/route-optimization.dto';
 
 @Injectable()
 export class RouteOptimizationService extends PrismaClient {

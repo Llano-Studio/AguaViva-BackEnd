@@ -53,7 +53,7 @@ export class UpdateUserDto {
     if (typeof value === 'boolean') {
       return value;
     }
-    
+
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
@@ -64,12 +64,12 @@ export class UpdateUserDto {
         return false;
       }
     }
-    
+
     // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    
+
     // Para cualquier otro caso (null, undefined, etc.), devolver undefined
     // para que el campo sea opcional y no se actualice si no se envía
     return undefined;

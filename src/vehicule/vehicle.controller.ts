@@ -41,16 +41,59 @@ export class VehicleController {
 
   @Post()
   @Auth(Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Crear un nuevo vehículo' })
+  @ApiOperation({
+    summary: 'Registrar nuevo vehículo en la flota',
+    description: `Registra un nuevo vehículo en el sistema de gestión de flota para entregas y operaciones logísticas.
+
+## 🚚 GESTIÓN DE FLOTA
+
+**Información del Vehículo:**
+- Código único identificador
+- Nombre descriptivo del vehículo
+- Especificaciones técnicas
+- Capacidad de carga
+- Estado operativo
+
+## 📋 DATOS REQUERIDOS
+
+**Campos Obligatorios:**
+- **Código**: Identificador único (ej: VH-001)
+- **Nombre**: Descripción del vehículo
+- **Capacidad**: Límite de carga en unidades
+- **Estado**: Activo/Inactivo para operaciones
+
+## 🔧 CONFIGURACIÓN INICIAL
+
+**Después del Registro:**
+- Asignación de zonas de circulación
+- Asignación de conductores autorizados
+- Configuración de inventario móvil
+- Integración con hojas de ruta
+
+## 🎯 CASOS DE USO
+
+- **Expansión de Flota**: Nuevos vehículos de entrega
+- **Reemplazo de Unidades**: Actualización de flota
+- **Especialización**: Vehículos para zonas específicas
+- **Control Operativo**: Gestión centralizada de recursos`,
+  })
   @ApiResponse({
     status: 201,
-    description: 'Vehículo creado.',
+    description: 'Vehículo registrado exitosamente en la flota.',
     type: VehicleResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Entrada inválida.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos o incompletos.',
+  })
   @ApiResponse({
     status: 409,
-    description: 'Conflicto - El código del vehículo ya existe.',
+    description: 'Conflicto - Ya existe un vehículo con el mismo código.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - Solo usuarios SUPERADMIN pueden crear vehículos.',
   })
   createVehicle(
     @Body(ValidationPipe) createVehicleDto: CreateVehicleDto,
@@ -61,39 +104,83 @@ export class VehicleController {
   @Get()
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @UseInterceptors(CacheInterceptor)
-  @ApiOperation({ summary: 'Listar todos los vehículos o filtrar por código' })
+  @ApiOperation({
+    summary: 'Listar vehículos de la flota con filtros y paginación',
+    description: `Obtiene un listado paginado de vehículos con opciones de filtrado avanzado y búsqueda inteligente.
+
+## 🚚 GESTIÓN DE FLOTA
+
+**Información Incluida:**
+- Datos básicos del vehículo (ID, código, nombre)
+- Descripción y especificaciones técnicas
+- Estado operativo y disponibilidad
+- Metadatos de registro y actualización
+
+## 🔍 FILTROS DISPONIBLES
+
+**Búsqueda Inteligente:**
+- **search**: Búsqueda general por nombre, código o descripción
+- **code**: Filtro específico por código de vehículo
+
+**Ordenamiento Avanzado:**
+- **sortBy**: Múltiples campos de ordenamiento
+  - Ejemplos: \`code\`, \`-name\`, \`code,-name\`
+  - Prefijo \`-\` para orden descendente
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos del Vehículo:**
+- **Identificación**: ID único y código interno
+- **Descripción**: Nombre, modelo y especificaciones
+- **Estado**: Disponibilidad operativa
+- **Metadatos**: Fechas de registro y modificación
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Flota**: Control general de vehículos disponibles
+- **Asignación de Rutas**: Selección de vehículos para entregas
+- **Mantenimiento**: Identificación de vehículos para servicio
+- **Reportes Operativos**: Análisis de utilización de flota
+- **Administración**: Gestión centralizada de recursos móviles`,
+  })
   @ApiQuery({
     name: 'search',
     required: false,
-    description: 'Búsqueda general por nombre, código o descripción',
+    description:
+      'Búsqueda general por nombre, código o descripción del vehículo',
+    example: 'Mercedes',
   })
   @ApiQuery({
     name: 'code',
     required: false,
-    description: 'Filtrar por código de vehículo',
+    description: 'Filtrar por código específico de vehículo',
+    example: 'TRK-001',
   })
   @ApiQuery({
     name: 'sortBy',
     required: false,
-    description: 'Campos para ordenar. Ej: code,-name',
+    description:
+      'Campos para ordenar. Usar prefijo "-" para orden descendente. Ej: code,-name',
+    example: 'code,-name',
   })
   @ApiQuery({
     name: 'page',
     required: false,
     type: Number,
-    description: 'Número de página',
+    description: 'Número de página para paginación',
     example: 1,
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Resultados por página',
+    description: 'Cantidad de resultados por página (máximo 100)',
     example: 10,
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de vehículos.',
+    description:
+      'Lista paginada de vehículos de la flota con información completa.',
     type: PaginatedVehicleResponseDto,
   })
   getAllVehicles(
@@ -111,14 +198,50 @@ export class VehicleController {
 
   @Get(':id')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
-  @ApiOperation({ summary: 'Obtener un vehículo por su ID' })
-  @ApiParam({ name: 'id', description: 'ID del vehículo', type: Number })
+  @ApiOperation({
+    summary: 'Obtener información detallada de un vehículo específico',
+    description: `Recupera la información completa de un vehículo específico de la flota por su ID único.
+
+## 🚚 INFORMACIÓN DEL VEHÍCULO
+
+**Datos Incluidos:**
+- **Identificación**: ID único y código interno del vehículo
+- **Descripción**: Nombre, modelo y especificaciones técnicas
+- **Estado**: Disponibilidad operativa actual
+- **Metadatos**: Fechas de registro y última modificación
+
+## 📋 DETALLES OPERATIVOS
+
+**Información Disponible:**
+- Código único identificador para referencias rápidas
+- Nombre descriptivo con marca y modelo
+- Descripción detallada con características técnicas
+- Estado de disponibilidad para asignaciones
+
+## 🎯 CASOS DE USO
+
+- **Consulta Específica**: Verificación de datos de un vehículo particular
+- **Asignación de Rutas**: Validación antes de asignar a hojas de ruta
+- **Mantenimiento**: Consulta para programación de servicios
+- **Administración**: Gestión individual de vehículos de la flota
+- **Auditoría**: Verificación de información registrada`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID único del vehículo a consultar',
+    type: Number,
+    example: 1,
+  })
   @ApiResponse({
     status: 200,
-    description: 'Vehículo encontrado.',
+    description: 'Información completa del vehículo encontrado.',
     type: VehicleResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Vehículo no encontrado.' })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Vehículo no encontrado - El ID especificado no existe en la base de datos.',
+  })
   getVehicleById(
     @Param('id', ParseIntPipe) id: number,
   ): Promise<VehicleResponseDto> {

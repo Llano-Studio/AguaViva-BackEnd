@@ -11,8 +11,7 @@ export class CancellationOrderReassignmentService
     CancellationOrderReassignmentService.name,
   );
 
-  constructor(
-  ) {
+  constructor() {
     super();
   }
 

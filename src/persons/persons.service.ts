@@ -51,13 +51,12 @@ import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
-import { SubscriptionQuotaService } from '../orders/services/subscription-quota.service';
+import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import { CancellationOrderService } from '../orders/cancellation-order.service';
 import { InventoryService } from '../inventory/inventory.service';
-import { RecoveryOrderService } from '../services/recovery-order.service';
+import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { SubscriptionCycleCalculatorService } from '../customer-subscription/services/subscription-cycle-calculator.service';
-
+import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -225,7 +224,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       type: dto.type as PrismaPersonType,
       is_active: dto.is_active !== undefined ? dto.is_active : true,
       notes: dto.notes,
-      owns_returnable_containers: dto.owns_returnable_containers !== undefined ? dto.owns_returnable_containers : false,
+      owns_returnable_containers:
+        dto.owns_returnable_containers !== undefined
+          ? dto.owns_returnable_containers
+          : false,
     };
     if (dto.localityId)
       data.locality = { connect: { locality_id: dto.localityId } };
@@ -415,7 +417,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           await this.paymentSemaphoreService.preCalculateForPersons(personIds);
 
         // Procesar todas las personas con semáforos
-        let processedPersons: PersonResponseDto[] = [];
+        const processedPersons: PersonResponseDto[] = [];
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
 
@@ -646,7 +648,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       dataToUpdate.type = dto.type as PrismaPersonType;
     if (dto.is_active !== undefined) dataToUpdate.is_active = dto.is_active;
     if (dto.notes !== undefined) dataToUpdate.notes = dto.notes;
-    if (dto.owns_returnable_containers !== undefined) dataToUpdate.owns_returnable_containers = dto.owns_returnable_containers;
+    if (dto.owns_returnable_containers !== undefined)
+      dataToUpdate.owns_returnable_containers = dto.owns_returnable_containers;
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 
@@ -788,9 +791,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const cancellationDate = new Date(cancelDto.cancellation_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // Asegurar que la fecha de cancelación no sea anterior a hoy
-      const effectiveEndDate = cancellationDate < today ? today : cancellationDate;
+      const effectiveEndDate =
+        cancellationDate < today ? today : cancellationDate;
 
       const updatedSubscription = await tx.customer_subscription.update({
         where: { subscription_id: subscriptionId },
@@ -830,11 +834,17 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         try {
           const scheduledCollectionDate = effectiveEndDate;
 
-          await this.cancellationOrderService.createCancellationOrder({
-            subscription_id: subscriptionId,
-            scheduled_collection_date: scheduledCollectionDate.toISOString().split('T')[0],
-            notes: `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
-          }, tx);
+          await this.cancellationOrderService.createCancellationOrder(
+            {
+              subscription_id: subscriptionId,
+              scheduled_collection_date: scheduledCollectionDate
+                .toISOString()
+                .split('T')[0],
+              notes:
+                `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
+            },
+            tx,
+          );
         } catch (error) {
           // Log del error pero no fallar la cancelación de la suscripción
           console.error(
@@ -886,8 +896,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       // Generar órdenes de recuperación y una sola orden de retiro para todos los comodatos activos
       try {
-        console.log(`Buscando comodatos activos para la suscripción ${subscriptionId}...`);
-        
+        console.log(
+          `Buscando comodatos activos para la suscripción ${subscriptionId}...`,
+        );
+
         const activeComodatos = await tx.comodato.findMany({
           where: {
             person_id: personId,
@@ -899,7 +911,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           },
         });
 
-        console.log(`Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación y retiro`);
+        console.log(
+          `Encontrados ${activeComodatos.length} comodatos activos para generar órdenes de recuperación y retiro`,
+        );
 
         if (activeComodatos.length > 0) {
           // 1. Crear órdenes de recuperación individuales (como antes)
@@ -909,10 +923,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 comodato.comodato_id,
                 effectiveEndDate, // Usar la fecha de cancelación
                 `Orden de recuperación generada automáticamente por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId})`,
-                tx
+                tx,
               );
-              
-              console.log(`Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`);
+
+              console.log(
+                `Orden de recuperación creada exitosamente para comodato ${comodato.comodato_id}`,
+              );
             } catch (recoveryError) {
               console.error(
                 `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
@@ -922,7 +938,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           }
 
           // 2. Crear UNA SOLA orden de retiro con todos los productos
-          const orderItems = activeComodatos.map(comodato => ({
+          const orderItems = activeComodatos.map((comodato) => ({
             product_id: comodato.product_id,
             quantity: comodato.quantity,
             unit_price: 0, // Sin precio para retiro
@@ -940,7 +956,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               paid_amount: 0, // Sin pago para retiro
               order_type: 'HYBRID', // Tipo de orden híbrida como solicitado
               status: 'PENDING', // Estado pendiente
-              notes: `Pedido de retiro de comodatos por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
+              notes:
+                `Pedido de retiro de comodatos por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
               subscription_id: subscriptionId, // Asociar con la suscripción cancelada
               // Crear todos los items de orden en una sola transacción
               order_item: {
@@ -949,7 +966,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             },
           });
 
-          console.log(`Order de retiro única creada exitosamente con ${orderItems.length} productos - Order ID: ${withdrawalOrder.order_id}`);
+          console.log(
+            `Order de retiro única creada exitosamente con ${orderItems.length} productos - Order ID: ${withdrawalOrder.order_id}`,
+          );
         }
       } catch (error) {
         console.error(
@@ -1071,7 +1090,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           cycle_start: firstCycleStartDate,
           cycle_end: firstCycleEndDate,
           total_amount: 0, // Se calculará después
-          payment_due_date: new Date(firstCycleEndDate.getTime() + 10 * 24 * 60 * 60 * 1000), // 10 días después del final del ciclo
+          payment_due_date: new Date(
+            firstCycleEndDate.getTime() + 10 * 24 * 60 * 60 * 1000,
+          ), // 10 días después del final del ciclo
           notes: 'Primer ciclo post cambio de plan.',
         },
       });
@@ -1100,13 +1121,20 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           cycle_number: 1,
         },
       });
-      
+
       if (createdCycle) {
-        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(createdCycle.cycle_id);
-        console.log(`✅ Total calculado para ciclo de cambio de plan ${createdCycle.cycle_id}`);
+        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
+          createdCycle.cycle_id,
+        );
+        console.log(
+          `✅ Total calculado para ciclo de cambio de plan ${createdCycle.cycle_id}`,
+        );
       }
     } catch (error) {
-      console.error(`❌ Error calculando total para ciclo de cambio de plan:`, error);
+      console.error(
+        `❌ Error calculando total para ciclo de cambio de plan:`,
+        error,
+      );
     }
 
     return newSubscription;
@@ -1357,8 +1385,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       };
     },
   ): ComodatoResponseDto {
-    const firstSubscription =
-      comodatoEntity.person?.customer_subscription?.[0];
+    const firstSubscription = comodatoEntity.person?.customer_subscription?.[0];
 
     return {
       comodato_id: comodatoEntity.comodato_id,
@@ -1379,7 +1406,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       article_description: comodatoEntity.article_description || undefined,
       brand: comodatoEntity.brand || undefined,
       model: comodatoEntity.model || undefined,
-      contract_image_path: buildImageUrl(comodatoEntity.contract_image_path, 'contracts'),
+      contract_image_path: buildImageUrl(
+        comodatoEntity.contract_image_path,
+        'contracts',
+      ),
       is_active: comodatoEntity.is_active,
       created_at: comodatoEntity.created_at,
       updated_at: comodatoEntity.updated_at,
@@ -1481,10 +1511,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               },
               customer_subscription: {
                 where: {
-                  OR: [
-                    { status: 'ACTIVE' },
-                    { status: 'CANCELLED' }
-                  ]
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
                 },
                 include: {
                   subscription_plan: true,
@@ -1579,10 +1606,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               },
               customer_subscription: {
                 where: {
-                  OR: [
-                    { status: 'ACTIVE' },
-                    { status: 'CANCELLED' }
-                  ]
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
                 },
                 include: {
                   subscription_plan: true,
@@ -1803,10 +1827,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               },
               customer_subscription: {
                 where: {
-                  OR: [
-                    { status: 'ACTIVE' },
-                    { status: 'CANCELLED' }
-                  ]
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
                 },
                 include: {
                   subscription_plan: true,
@@ -1956,10 +1977,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               },
               customer_subscription: {
                 where: {
-                  OR: [
-                    { status: 'ACTIVE' },
-                    { status: 'CANCELLED' }
-                  ]
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
                 },
                 include: {
                   subscription_plan: true,
@@ -2013,7 +2031,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: {
           comodato_id: comodatoId,
         },
-        data: { is_active: false }
+        data: { is_active: false },
       });
 
       return {
@@ -2129,7 +2147,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             new Date().toISOString().split('T')[0],
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
-          notes: dto.comodato_notes 
+          notes: dto.comodato_notes
             ? `${dto.comodato_notes} - Suscripción ID: ${subscription.subscription_id}`
             : `Comodato creado para suscripción ID: ${subscription.subscription_id}`,
           deposit_amount: dto.comodato_deposit_amount,
@@ -2145,7 +2163,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       return {
         subscription,
-        comodato: comodato!,
+        comodato: comodato,
       };
     } catch (error) {
       if (
@@ -2200,7 +2218,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
 
         // 2. Verificar que la suscripción asociada sigue activa (si existe)
-        if (comodato.subscription && comodato.subscription.status !== SubscriptionStatus.ACTIVE) {
+        if (
+          comodato.subscription &&
+          comodato.subscription.status !== SubscriptionStatus.ACTIVE
+        ) {
           throw new BadRequestException(
             `No se puede retirar el comodato porque la suscripción asociada no está activa (Estado: ${comodato.subscription.status})`,
           );
@@ -2215,15 +2236,20 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         let recoveryOrderId: number | undefined;
         if (dto.create_recovery_order !== false) {
           try {
-            const recoveryOrder = await this.recoveryOrderService.createRecoveryOrder(
-              dto.comodato_id,
-              scheduledDate,
-              dto.withdrawal_reason || `Retiro independiente solicitado - ${dto.notes || 'Sin notas adicionales'}`,
-              tx,
-            );
+            const recoveryOrder =
+              await this.recoveryOrderService.createRecoveryOrder(
+                dto.comodato_id,
+                scheduledDate,
+                dto.withdrawal_reason ||
+                  `Retiro independiente solicitado - ${dto.notes || 'Sin notas adicionales'}`,
+                tx,
+              );
             recoveryOrderId = recoveryOrder.recovery_order_id;
           } catch (recoveryError) {
-            console.error(`Error al crear orden de recuperación para comodato ${dto.comodato_id}:`, recoveryError);
+            console.error(
+              `Error al crear orden de recuperación para comodato ${dto.comodato_id}:`,
+              recoveryError,
+            );
             // No fallar el proceso si no se puede crear la orden de recuperación
           }
         }
@@ -2239,7 +2265,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             paid_amount: 0, // Sin pago para retiro
             order_type: 'ONE_OFF', // Tipo de orden única
             status: 'PENDING', // Estado pendiente
-            notes: `Retiro independiente de comodato ${dto.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}). Motivo: ${dto.withdrawal_reason || 'No especificado'}. ${dto.notes || ''}`.trim(),
+            notes:
+              `Retiro independiente de comodato ${dto.comodato_id} - Producto: ${comodato.product.description} (Cantidad: ${comodato.quantity}). Motivo: ${dto.withdrawal_reason || 'No especificado'}. ${dto.notes || ''}`.trim(),
             subscription_id: comodato.subscription_id, // Asociar con la suscripción si existe
             // Crear item de orden para el retiro
             order_item: {
@@ -2260,7 +2287,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           where: { comodato_id: dto.comodato_id },
           data: {
             expected_return_date: scheduledDate,
-            notes: `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${scheduledDate.toISOString().split('T')[0]}`.trim(),
+            notes:
+              `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${scheduledDate.toISOString().split('T')[0]}`.trim(),
           },
         });
 
@@ -2285,28 +2313,35 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           response.subscription_info = {
             subscription_id: comodato.subscription.subscription_id,
             subscription_status: comodato.subscription.status,
-            plan_name: comodato.subscription.subscription_plan?.name || 'Plan sin nombre',
+            plan_name:
+              comodato.subscription.subscription_plan?.name ||
+              'Plan sin nombre',
           };
         }
 
-        console.log(`Retiro independiente procesado exitosamente para comodato ${dto.comodato_id} - Order ID: ${withdrawalOrder.order_id}`);
-        
+        console.log(
+          `Retiro independiente procesado exitosamente para comodato ${dto.comodato_id} - Order ID: ${withdrawalOrder.order_id}`,
+        );
+
         return response;
       });
     } catch (error) {
-      console.error(`Error al procesar retiro de comodato ${dto.comodato_id}:`, error);
-      
+      console.error(
+        `Error al procesar retiro de comodato ${dto.comodato_id}:`,
+        error,
+      );
+
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
       ) {
         throw error;
       }
-      
+
       if (error instanceof PrismaClientKnownRequestError) {
         handlePrismaError(error, this.entityName);
       }
-      
+
       throw new InternalServerErrorException(
         `Error al procesar retiro de comodato: ${error.message}`,
       );

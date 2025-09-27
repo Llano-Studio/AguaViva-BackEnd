@@ -44,7 +44,8 @@ export class UpdateCustomerSubscriptionDto {
   payment_mode?: PaymentMode;
 
   @ApiPropertyOptional({
-    description: 'Día específico de vencimiento para pagos vencidos (1-28). Solo aplica cuando payment_mode = ARREARS',
+    description:
+      'Día específico de vencimiento para pagos vencidos (1-28). Solo aplica cuando payment_mode = ARREARS',
     example: 10,
     minimum: 1,
     maximum: 28,

@@ -46,23 +46,23 @@ export class SubscriptionCycleCalculatorService {
       }
 
       const planPrice = cycle.customer_subscription.subscription_plan.price;
-      let totalAmount = planPrice ? new Decimal(planPrice) : new Decimal(0);
+      const totalAmount = planPrice ? new Decimal(planPrice) : new Decimal(0);
 
       // CORRECIÓN: Validar que el plan tenga precio definido
       if (!planPrice || totalAmount.equals(0)) {
         this.logger.error(
-          `❌ PROBLEMA: Plan de suscripción "${cycle.customer_subscription.subscription_plan.name}" (ID: ${cycle.customer_subscription.subscription_plan_id}) NO tiene precio definido.`
+          `❌ PROBLEMA: Plan de suscripción "${cycle.customer_subscription.subscription_plan.name}" (ID: ${cycle.customer_subscription.subscription_plan_id}) NO tiene precio definido.`,
         );
         this.logger.error(
-          `❌ Se debe asignar un precio al plan de suscripción para calcular correctamente los ciclos.`
+          `❌ Se debe asignar un precio al plan de suscripción para calcular correctamente los ciclos.`,
         );
         this.logger.error(
-          `❌ EVITANDO cálculo por productos - esto causaría facturación incorrecta.`
+          `❌ EVITANDO cálculo por productos - esto causaría facturación incorrecta.`,
         );
-        
+
         throw new Error(
           `El plan de suscripción "${cycle.customer_subscription.subscription_plan.name}" debe tener un precio definido. ` +
-          `Los ciclos deben calcularse basándose en el precio del plan, no en la suma de productos individuales.`
+            `Los ciclos deben calcularse basándose en el precio del plan, no en la suma de productos individuales.`,
         );
       }
 
@@ -81,9 +81,7 @@ export class SubscriptionCycleCalculatorService {
         },
       });
 
-      this.logger.log(
-        `Total calculado para ciclo ${cycleId}: ${totalAmount}`,
-      );
+      this.logger.log(`Total calculado para ciclo ${cycleId}: ${totalAmount}`);
     } catch (error) {
       this.logger.error(
         `Error calculando total_amount para ciclo ${cycleId}:`,
@@ -179,10 +177,7 @@ export class SubscriptionCycleCalculatorService {
 
     const pendingCycles = await this.prisma.subscription_cycle.findMany({
       where: {
-        OR: [
-          { total_amount: null },
-          { total_amount: 0 },
-        ],
+        OR: [{ total_amount: null }, { total_amount: 0 }],
       },
       select: {
         cycle_id: true,
@@ -191,7 +186,7 @@ export class SubscriptionCycleCalculatorService {
 
     this.logger.log(`Encontrados ${pendingCycles.length} ciclos pendientes`);
 
-    const cycleIds = pendingCycles.map(cycle => cycle.cycle_id);
+    const cycleIds = pendingCycles.map((cycle) => cycle.cycle_id);
     await this.calculateMultipleCycles(cycleIds);
 
     return pendingCycles.length;
@@ -209,10 +204,7 @@ export class SubscriptionCycleCalculatorService {
     const plansWithoutPrice = await this.prisma.subscription_plan.findMany({
       where: {
         is_active: true,
-        OR: [
-          { price: null },
-          { price: 0 },
-        ],
+        OR: [{ price: null }, { price: 0 }],
       },
       select: {
         subscription_plan_id: true,
@@ -223,18 +215,18 @@ export class SubscriptionCycleCalculatorService {
 
     if (plansWithoutPrice.length > 0) {
       this.logger.warn(
-        `❌ Encontrados ${plansWithoutPrice.length} planes sin precio definido:`
+        `❌ Encontrados ${plansWithoutPrice.length} planes sin precio definido:`,
       );
-      
-      plansWithoutPrice.forEach(plan => {
+
+      plansWithoutPrice.forEach((plan) => {
         this.logger.warn(
-          `   • Plan "${plan.name}" (ID: ${plan.subscription_plan_id}) - Precio: ${plan.price}`
+          `   • Plan "${plan.name}" (ID: ${plan.subscription_plan_id}) - Precio: ${plan.price}`,
         );
       });
 
       return {
         valid: false,
-        plansWithoutPrice: plansWithoutPrice.map(p => ({
+        plansWithoutPrice: plansWithoutPrice.map((p) => ({
           id: p.subscription_plan_id,
           name: p.name,
         })),
@@ -251,11 +243,13 @@ export class SubscriptionCycleCalculatorService {
   /**
    * Obtiene información sobre planes que están siendo usados en suscripciones activas pero no tienen precio
    */
-  async getActivePlansWithoutPrice(): Promise<Array<{
-    plan_id: number;
-    plan_name: string;
-    active_subscriptions_count: number;
-  }>> {
+  async getActivePlansWithoutPrice(): Promise<
+    Array<{
+      plan_id: number;
+      plan_name: string;
+      active_subscriptions_count: number;
+    }>
+  > {
     const plansInUse = await this.prisma.subscription_plan.findMany({
       where: {
         customer_subscription: {
@@ -263,10 +257,7 @@ export class SubscriptionCycleCalculatorService {
             status: 'ACTIVE',
           },
         },
-        OR: [
-          { price: null },
-          { price: 0 },
-        ],
+        OR: [{ price: null }, { price: 0 }],
       },
       include: {
         _count: {
@@ -281,7 +272,7 @@ export class SubscriptionCycleCalculatorService {
       },
     });
 
-    return plansInUse.map(plan => ({
+    return plansInUse.map((plan) => ({
       plan_id: plan.subscription_plan_id,
       plan_name: plan.name,
       active_subscriptions_count: plan._count.customer_subscription,
@@ -323,7 +314,7 @@ export class SubscriptionCycleCalculatorService {
 
       if (!planPrice || Number(planPrice) <= 0) {
         throw new Error(
-          `El plan "${cycle.customer_subscription.subscription_plan.name}" no tiene precio definido`
+          `El plan "${cycle.customer_subscription.subscription_plan.name}" no tiene precio definido`,
         );
       }
 
@@ -343,7 +334,7 @@ export class SubscriptionCycleCalculatorService {
       const corrected = oldTotal !== newTotal;
 
       this.logger.log(
-        `✅ Ciclo ${cycleId} recalculado: ${oldTotal} → ${newTotal} (${corrected ? 'CORREGIDO' : 'SIN CAMBIOS'})`
+        `✅ Ciclo ${cycleId} recalculado: ${oldTotal} → ${newTotal} (${corrected ? 'CORREGIDO' : 'SIN CAMBIOS'})`,
       );
 
       return {
@@ -351,7 +342,7 @@ export class SubscriptionCycleCalculatorService {
         old_total: oldTotal,
         new_total: newTotal,
         corrected,
-        message: corrected 
+        message: corrected
           ? `Ciclo corregido: total actualizado de ${oldTotal} a ${newTotal}`
           : `Ciclo ya tenía el total correcto: ${newTotal}`,
       };
@@ -402,13 +393,15 @@ export class SubscriptionCycleCalculatorService {
 
     for (const cycle of cycles) {
       const currentTotal = Number(cycle.total_amount || 0);
-      const correctTotal = Number(cycle.customer_subscription.subscription_plan.price);
+      const correctTotal = Number(
+        cycle.customer_subscription.subscription_plan.price,
+      );
 
       // Si el total actual difiere del precio del plan, corregir
       if (currentTotal !== correctTotal) {
         try {
           const result = await this.recalculateSpecificCycle(cycle.cycle_id);
-          
+
           if (result.corrected) {
             corrections.push({
               cycle_id: cycle.cycle_id,
@@ -422,14 +415,14 @@ export class SubscriptionCycleCalculatorService {
         } catch (error) {
           this.logger.error(
             `Error corrigiendo ciclo ${cycle.cycle_id}:`,
-            error.message
+            error.message,
           );
         }
       }
     }
 
     this.logger.log(
-      `🎯 Revisión completada: ${cycles.length} ciclos verificados, ${cyclesCorrected} corregidos`
+      `🎯 Revisión completada: ${cycles.length} ciclos verificados, ${cyclesCorrected} corregidos`,
     );
 
     return {

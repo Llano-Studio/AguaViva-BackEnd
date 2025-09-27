@@ -10,7 +10,7 @@ import {
   VehicleRouteInventoryResponseDto,
   VehicleInventoryItemResponseDto,
   InventoryTransactionDto,
-} from '../dto/vehicle-inventory.dto';
+} from '../../route-sheet/dto/vehicle-inventory.dto';
 import { DeliveryStatus } from '../../common/constants/enums';
 
 interface InventoryItemWithProduct {

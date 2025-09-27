@@ -16,8 +16,10 @@ import { DeliveryPreferences } from './customer-subscription-response.dto';
 
 export class CreateCustomerSubscriptionDto {
   @ApiProperty({
-    description: 'ID del cliente que se suscribe',
+    description:
+      'ID único del cliente que se suscribe al servicio. Debe ser un cliente registrado en el sistema.',
     example: 1,
+    minimum: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -26,8 +28,10 @@ export class CreateCustomerSubscriptionDto {
   customer_id: number;
 
   @ApiProperty({
-    description: 'ID del plan de suscripción',
+    description:
+      'ID del plan de suscripción seleccionado. Debe ser un plan activo y disponible en el sistema.',
     example: 1,
+    minimum: 1,
   })
   @IsInt()
   @IsNotEmpty()
@@ -36,8 +40,10 @@ export class CreateCustomerSubscriptionDto {
   subscription_plan_id: number;
 
   @ApiProperty({
-    description: 'Fecha de inicio de la suscripción (YYYY-MM-DD)',
+    description:
+      'Fecha de inicio de la suscripción en formato YYYY-MM-DD. Determina cuándo comienzan los ciclos de entrega.',
     example: '2024-01-01',
+    format: 'date',
   })
   @IsDateString()
   @IsNotEmpty()
@@ -69,7 +75,8 @@ export class CreateCustomerSubscriptionDto {
   payment_mode?: PaymentMode;
 
   @ApiPropertyOptional({
-    description: 'Día específico de vencimiento para pagos vencidos (1-28). Solo aplica cuando payment_mode = ARREARS',
+    description:
+      'Día específico de vencimiento para pagos vencidos (1-28). Solo aplica cuando payment_mode = ARREARS',
     example: 10,
     minimum: 1,
     maximum: 28,

@@ -24,7 +24,7 @@ import {
   OrderCollectionEditService,
   CollectionItemDto,
   AddCollectionResult,
-} from '../services/order-collection-edit.service';
+} from '../../common/services/order-collection-edit.service';
 
 export class AddCollectionToOrderDto {
   @ApiProperty({
@@ -101,9 +101,31 @@ export class OrderCollectionEditController {
 
   @Get('existing-orders')
   @ApiOperation({
-    summary: 'Obtener pedidos existentes editables para una fecha',
-    description:
-      'Busca todos los pedidos existentes en una fecha específica que pueden ser editados para agregar cobranzas',
+    summary: 'Obtener pedidos existentes editables para agregar cobranzas',
+    description: `Busca pedidos existentes en una fecha específica que pueden ser modificados para incluir cobranzas adicionales.
+
+## 📝 EDICIÓN DE PEDIDOS EXISTENTES
+
+**Funcionalidad Principal:**
+- Identifica pedidos activos en fecha específica
+- Permite agregar cobranzas sin crear nuevos pedidos
+- Optimiza rutas consolidando entregas y cobranzas
+- Mantiene eficiencia operativa
+
+## 🎯 CRITERIOS DE ELEGIBILIDAD
+
+**Pedidos Editables:**
+- Estado: PENDING, CONFIRMED, IN_PREPARATION
+- Fecha de entrega coincidente
+- Mismo cliente objetivo
+- Sin conflictos de programación
+
+## 💡 BENEFICIOS OPERATIVOS
+
+- **Consolidación de Rutas**: Menos viajes por cliente
+- **Eficiencia Logística**: Optimización de recursos
+- **Experiencia del Cliente**: Menos interrupciones
+- **Reducción de Costos**: Menor uso de vehículos`,
   })
   @ApiQuery({
     name: 'date',

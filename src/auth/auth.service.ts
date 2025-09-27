@@ -249,7 +249,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     try {
       const whereClause: Prisma.UserWhereInput = {
         // Por defecto solo mostrar usuarios activos, a menos que se especifique lo contrario
-        isActive: filters?.isActive !== undefined ? filters.isActive : true
+        isActive: filters?.isActive !== undefined ? filters.isActive : true,
       };
       if (filters) {
         if (filters.search) {
@@ -327,9 +327,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   async getUserById(id: number, includeInactive: boolean = false) {
     try {
       const user = await this.user.findFirst({
-        where: { 
+        where: {
           id,
-          ...(includeInactive ? {} : { isActive: true })
+          ...(includeInactive ? {} : { isActive: true }),
         },
         select: {
           id: true,
@@ -432,9 +432,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         );
       }
       // Soft delete: cambiar isActive a false en lugar de eliminar físicamente
-      await this.user.update({ 
+      await this.user.update({
         where: { id },
-        data: { isActive: false }
+        data: { isActive: false },
       });
       return { message: `${this.entityName} con ID ${id} desactivado.` };
     } catch (error) {
@@ -544,9 +544,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      return { 
+      return {
         success: true,
-        message: 'Contraseña restablecida correctamente.' 
+        message: 'Contraseña restablecida correctamente.',
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;

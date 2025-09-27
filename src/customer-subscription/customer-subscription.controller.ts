@@ -55,11 +55,43 @@ export class CustomerSubscriptionController {
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear nueva suscripción de cliente',
-    description:
-      'Crea una nueva suscripción asociando un cliente con un plan de suscripción. ' +
-      'El campo collection_day (1-28) define el día del mes para recolección de bidones. ' +
-      'El sistema generará automáticamente los ciclos basándose en este día. ' +
-      'Ejemplo: si collection_day=24 y hoy es 24 de septiembre, el ciclo será del 24 de septiembre al 24 de octubre.',
+    description: `Crea una nueva suscripción asociando un cliente con un plan específico y configurando ciclos automáticos.
+
+## 📋 GESTIÓN DE SUSCRIPCIONES
+
+**Funcionalidad Principal:**
+- Asociación cliente-plan de suscripción
+- Configuración automática de ciclos de facturación
+- Definición de días de recolección/entrega
+- Modalidades de pago flexibles
+
+## 📅 CONFIGURACIÓN DE CICLOS
+
+**Día de Recolección (collection_day):**
+- Rango válido: 1-28 del mes
+- Define cuándo se recolectan bidones
+- Base para cálculo de ciclos automáticos
+- Ejemplo: collection_day=15 → ciclos del 15 al 15
+
+**Modalidades de Pago:**
+- **ADVANCE**: Pago adelantado (antes del servicio)
+- **ARREARS**: Pago vencido (después del servicio)
+- **payment_due_day**: Día específico de vencimiento
+
+## 🔄 GENERACIÓN AUTOMÁTICA
+
+**Proceso del Sistema:**
+- Cálculo automático de fechas de ciclo
+- Generación de períodos de facturación
+- Configuración de fechas de vencimiento
+- Integración con sistema de cobranzas
+
+## 🎯 CASOS DE USO
+
+- **Nuevas Suscripciones**: Clientes que inician servicio
+- **Planes Personalizados**: Configuraciones específicas
+- **Gestión de Ciclos**: Control de períodos de servicio
+- **Modalidades Flexibles**: Adaptación a necesidades del cliente`,
   })
   @ApiBody({ type: CreateCustomerSubscriptionDto })
   @ApiResponse({
@@ -92,8 +124,39 @@ export class CustomerSubscriptionController {
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Listar suscripciones de clientes',
-    description:
-      'Obtiene una lista paginada de suscripciones con filtros opcionales',
+    description: `Obtiene una lista paginada de suscripciones con filtros avanzados y búsqueda inteligente.
+
+## 🔍 FILTROS AVANZADOS
+
+**Búsqueda Inteligente (search):**
+- Busca en nombres de clientes
+- Busca en nombres de planes
+- Busca en códigos de suscripción
+- Búsqueda parcial y sin distinción de mayúsculas
+
+**Filtros Específicos:**
+- **customer_id**: Suscripciones de un cliente específico
+- **subscription_plan_id**: Suscripciones de un plan específico
+- **status**: Estados (ACTIVE, PAUSED, CANCELLED, EXPIRED)
+- **start_date_from/to**: Rango de fechas de inicio
+- **only_active**: Solo suscripciones activas/no expiradas
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos de Suscripción:**
+- Información completa del cliente
+- Detalles del plan de suscripción
+- Estado actual y fechas importantes
+- Configuración de ciclos y pagos
+- Preferencias de entrega
+
+## 🎯 CASOS DE USO
+
+- **Gestión Comercial**: Análisis de suscripciones activas
+- **Seguimiento de Clientes**: Historial de suscripciones por cliente
+- **Control de Planes**: Popularidad y uso de planes
+- **Administración**: Gestión masiva de suscripciones
+- **Reportes**: Generación de informes comerciales`,
   })
   @ApiQuery({
     name: 'page',
@@ -188,7 +251,37 @@ export class CustomerSubscriptionController {
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener suscripción por ID',
-    description: 'Obtiene los detalles completos de una suscripción específica',
+    description: `Obtiene los detalles completos de una suscripción específica con toda la información relacionada.
+
+## 📋 INFORMACIÓN INCLUIDA
+
+**Datos del Cliente:**
+- Información personal completa
+- Datos de contacto y ubicación
+- Historial de suscripciones
+
+**Detalles del Plan:**
+- Configuración del plan de suscripción
+- Precios y modalidades de pago
+- Productos incluidos
+
+**Información de Suscripción:**
+- Estado actual (ACTIVE, PAUSED, CANCELLED, EXPIRED)
+- Fechas de inicio, fin y renovación
+- Configuración de ciclos de facturación
+- Día de recolección y modalidad de pago
+
+**Preferencias de Entrega:**
+- Horarios configurados por día
+- Preferencias especiales
+- Configuración de entregas
+
+## 🎯 CASOS DE USO
+
+- **Atención al Cliente**: Consulta completa de suscripción
+- **Gestión Operativa**: Planificación de entregas y recolecciones
+- **Administración**: Modificación de configuraciones
+- **Facturación**: Información para generación de facturas`,
   })
   @ApiParam({
     name: 'id',
@@ -216,7 +309,45 @@ export class CustomerSubscriptionController {
   @Auth(Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Actualizar suscripción',
-    description: 'Actualiza los datos de una suscripción existente',
+    description: `Actualiza los datos de una suscripción existente con validaciones de negocio y mantenimiento de integridad.
+
+## 🔧 CAMPOS ACTUALIZABLES
+
+**Configuración del Plan:**
+- **subscription_plan_id**: Cambio de plan de suscripción
+- Validación de plan activo y disponible
+- Recálculo automático de precios y ciclos
+
+**Configuración de Ciclos:**
+- **collection_day**: Día de recolección (1-28)
+- **payment_mode**: ADVANCE (adelantado) o ARREARS (vencido)
+- **payment_due_day**: Día de vencimiento para pagos vencidos
+
+**Estado y Configuración:**
+- **status**: ACTIVE, PAUSED, CANCELLED, EXPIRED
+- **notes**: Notas adicionales y observaciones
+- **delivery_preferences**: Horarios de entrega por día
+
+## ⚙️ VALIDACIONES AUTOMÁTICAS
+
+**Reglas de Negocio:**
+- Verificación de estado válido para cambios
+- Validación de fechas y rangos permitidos
+- Consistencia entre modalidad de pago y días de vencimiento
+- Integridad referencial con planes y clientes
+
+**Recálculos Automáticos:**
+- Ajuste de ciclos de facturación al cambiar collection_day
+- Actualización de fechas de vencimiento
+- Sincronización con órdenes pendientes
+
+## 🎯 CASOS DE USO
+
+- **Cambio de Plan**: Upgrade/downgrade de suscripciones
+- **Ajuste de Configuración**: Modificación de días y modalidades
+- **Gestión de Estado**: Pausar, reactivar o cancelar suscripciones
+- **Personalización**: Ajuste de preferencias de entrega
+- **Administración**: Corrección de datos y configuraciones`,
   })
   @ApiParam({
     name: 'id',

@@ -59,15 +59,15 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const totalCycleAmount = Number(cycle.total_amount);
     const creditBalance = Number(cycle.credit_balance);
     const pendingBalance = Number(cycle.pending_balance);
-    
+
     // Validación explícita: PERMITIR sobrepagos
     if (amount > totalCycleAmount) {
       this.logger.log(
         `✅ SOBREPAGO DETECTADO: Monto recibido ${amount} excede el total del ciclo ${totalCycleAmount}. ` +
-        `La diferencia de ${amount - totalCycleAmount} se acreditará como crédito a favor del cliente.`
+          `La diferencia de ${amount - totalCycleAmount} se acreditará como crédito a favor del cliente.`,
       );
     }
-    
+
     this.logger.log(
       `Procesando pago: Monto del ciclo ${totalCycleAmount}, Pendiente ${pendingBalance}, Crédito actual ${creditBalance}, Pago recibido ${amount}`,
     );
@@ -564,7 +564,11 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const cycles = await this.subscription_cycle.findMany({
       where: {
         payment_status: {
-          in: [PaymentStatus.PENDING, PaymentStatus.PARTIAL, PaymentStatus.OVERDUE],
+          in: [
+            PaymentStatus.PENDING,
+            PaymentStatus.PARTIAL,
+            PaymentStatus.OVERDUE,
+          ],
         },
         pending_balance: {
           gt: 0,

@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsDateString, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsDateString,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class WithdrawComodatoDto {
@@ -14,7 +21,8 @@ export class WithdrawComodatoDto {
   comodato_id: number;
 
   @ApiPropertyOptional({
-    description: 'Fecha programada para el retiro (YYYY-MM-DD). Si no se especifica, se programa para 7 días después',
+    description:
+      'Fecha programada para el retiro (YYYY-MM-DD). Si no se especifica, se programa para 7 días después',
     example: '2024-01-20',
   })
   @IsOptional()
@@ -38,7 +46,8 @@ export class WithdrawComodatoDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Indica si se debe crear automáticamente una orden de recuperación',
+    description:
+      'Indica si se debe crear automáticamente una orden de recuperación',
     example: true,
     default: true,
   })

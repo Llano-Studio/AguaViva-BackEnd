@@ -9,10 +9,10 @@ import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
 import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
-import { 
+import {
   CancellationOrderWithProductsDto,
   CancellationOrderCustomerDto,
-  CancellationOrderProductDto 
+  CancellationOrderProductDto,
 } from './dto/cancellation-order-with-products.dto';
 
 export interface CancellationOrderResponseDto {
@@ -537,7 +537,9 @@ export class CancellationOrderService extends PrismaClient {
   /**
    * Mapear entidad a DTO de respuesta con productos
    */
-  private mapToResponseWithProductsDto(order: any): CancellationOrderWithProductsDto {
+  private mapToResponseWithProductsDto(
+    order: any,
+  ): CancellationOrderWithProductsDto {
     const customer: CancellationOrderCustomerDto = {
       customer_id: order.customer_subscription.person.person_id,
       full_name: order.customer_subscription.person.name || 'Sin nombre',
@@ -545,14 +547,17 @@ export class CancellationOrderService extends PrismaClient {
       address: order.customer_subscription.person.address || '',
     };
 
-    const products: CancellationOrderProductDto[] = order.customer_subscription.subscription_plan.subscription_plan_product.map((planProduct: any) => ({
-      product_id: planProduct.product.product_id,
-      name: planProduct.product.description,
-      description: planProduct.product.description,
-      quantity: planProduct.product_quantity,
-      is_returnable: planProduct.product.is_returnable,
-      unit_price: planProduct.product.price,
-    }));
+    const products: CancellationOrderProductDto[] =
+      order.customer_subscription.subscription_plan.subscription_plan_product.map(
+        (planProduct: any) => ({
+          product_id: planProduct.product.product_id,
+          name: planProduct.product.description,
+          description: planProduct.product.description,
+          quantity: planProduct.product_quantity,
+          is_returnable: planProduct.product.is_returnable,
+          unit_price: planProduct.product.price,
+        }),
+      );
 
     return {
       cancellation_order_id: order.cancellation_order_id,

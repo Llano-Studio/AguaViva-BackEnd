@@ -9,7 +9,7 @@ import {
   CreateDeliveryEvidenceDto,
   DeliveryEvidenceResponseDto,
   EvidenceType,
-} from '../dto/delivery-evidence.dto';
+} from '../../route-sheet/dto/delivery-evidence.dto';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 

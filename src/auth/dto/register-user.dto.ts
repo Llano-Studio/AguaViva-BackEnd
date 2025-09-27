@@ -64,7 +64,7 @@ export class RegisterUserDto {
     if (typeof value === 'boolean') {
       return value;
     }
-    
+
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
@@ -75,12 +75,12 @@ export class RegisterUserDto {
         return false;
       }
     }
-    
+
     // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    
+
     return undefined;
   })
   isActive?: boolean;

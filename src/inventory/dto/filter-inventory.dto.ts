@@ -140,35 +140,78 @@ export class FilterInventoryDto extends PaginationQueryDto {
 }
 
 export class InventoryDetailDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: 'ID único del almacén donde se encuentra el producto',
+    example: 1,
+  })
   warehouse_id: number;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'ID único del producto en inventario',
+    example: 15,
+  })
   product_id: number;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'Cantidad actual disponible en stock',
+    example: 150,
+    minimum: 0,
+  })
   quantity: number;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'Descripción completa del producto',
+    example: 'Agua Mineral Natural 500ml',
+  })
   product_description: string;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'Categoría a la que pertenece el producto',
+    example: 'Bebidas',
+  })
   product_category: string;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'Nombre del almacén donde se almacena',
+    example: 'Almacén Principal',
+  })
   warehouse_name: string;
-  @ApiProperty()
+
+  @ApiProperty({
+    description: 'Localidad donde se ubica el almacén',
+    example: 'Rosario Centro',
+  })
   warehouse_locality: string;
 }
 
 export class PaginatedInventoryResponseDto {
-  @ApiProperty({ type: [InventoryDetailDto] })
+  @ApiProperty({
+    type: [InventoryDetailDto],
+    description: 'Lista de registros de inventario con información detallada',
+  })
   data: InventoryDetailDto[];
 
-  @ApiProperty({ example: 100 })
+  @ApiProperty({
+    example: 100,
+    description: 'Número total de registros de inventario disponibles',
+  })
   total: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'Página actual de los resultados',
+  })
   page: number;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({
+    example: 10,
+    description: 'Número de registros por página',
+  })
   limit: number;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({
+    example: 10,
+    description: 'Número total de páginas disponibles',
+  })
   totalPages: number;
 }

@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, SubscriptionStatus, PaymentStatus } from '@prisma/client';
-import { CustomerSubscriptionResponseDto } from '../dto/customer-subscription-response.dto';
+import {
+  PrismaClient,
+  SubscriptionStatus,
+  PaymentStatus,
+} from '@prisma/client';
+import { CustomerSubscriptionResponseDto } from '../../customer-subscription/dto/customer-subscription-response.dto';
 
 export interface MultipleSubscriptionSummaryDto {
   customer_id: number;

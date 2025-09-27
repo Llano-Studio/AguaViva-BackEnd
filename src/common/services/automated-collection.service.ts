@@ -2,8 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
 import { OrderType, OrderStatus } from '../../common/constants/enums';
-import { OrdersService } from '../orders.service';
-import { CreateOrderDto } from '../dto/create-order.dto';
+import { OrdersService } from '../../orders/orders.service';
+import { CreateOrderDto } from '../../orders/dto/create-order.dto';
 import {
   OrderCollectionEditService,
   CollectionItemDto,

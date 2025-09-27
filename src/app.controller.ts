@@ -8,14 +8,29 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Verificar si la API está en funcionamiento' })
-  @ApiResponse({ status: 200, description: 'API operativa' })
+  @ApiOperation({
+    summary: 'Verificar estado operativo de la API Sgarav',
+    description:
+      'Endpoint básico para verificar que la API está funcionando correctamente y responde a las solicitudes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'API operativa y funcionando correctamente',
+    schema: {
+      type: 'string',
+      example: 'API Sgarav funcionando correctamente',
+    },
+  })
   getHello(): string {
     return this.appService.getHello();
   }
 
   @Get('health')
-  @ApiOperation({ summary: 'Verificar el estado de salud de la API' })
+  @ApiOperation({
+    summary: 'Verificar estado de salud completo del sistema',
+    description:
+      'Endpoint de health check que verifica el estado de la API, base de datos y servicios críticos del sistema Sgarav.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Estado de salud de la API',

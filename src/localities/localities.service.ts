@@ -43,12 +43,15 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findById(id: number, includeInactive: boolean = false): Promise<locality> {
+  async findById(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<locality> {
     try {
       const record = await this.locality.findFirst({
-        where: { 
+        where: {
           locality_id: id,
-          ...(includeInactive ? {} : { is_active: true })
+          ...(includeInactive ? {} : { is_active: true }),
         },
         include: {
           province: {
@@ -213,7 +216,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.locality.update({
         where: { locality_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
 
       return {

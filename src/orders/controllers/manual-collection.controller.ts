@@ -19,21 +19,19 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ManualCollectionService } from '../services/manual-collection.service';
+import { ManualCollectionService } from '../../common/services/manual-collection.service';
 import {
   CustomerSearchDto,
   CustomerSearchResponseDto,
 } from '../dto/customer-search.dto';
-import {
-  PendingCyclesResponseDto,
-} from '../dto/pending-cycles.dto';
+import { PendingCyclesResponseDto } from '../dto/pending-cycles.dto';
 import {
   GenerateManualCollectionDto,
   GenerateManualCollectionResponseDto,
   ExistingOrderResponseDto,
 } from '../dto/generate-manual-collection.dto';
 
-@ApiTags('Manual Collection')
+@ApiTags('Generación de Órdenes de Cobranza Manuales')
 @Controller('manual-collection')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
@@ -46,9 +44,34 @@ export class ManualCollectionController {
 
   @Get('customers/search')
   @ApiOperation({
-    summary: 'Buscar clientes con ciclos pendientes',
-    description:
-      'Busca clientes que tengan suscripciones activas y ciclos con saldo pendiente. Permite filtrar por nombre, teléfono, ID, zona y localidad.',
+    summary: 'Buscar clientes con ciclos de suscripción pendientes de cobro',
+    description: `Busca clientes que tengan suscripciones activas con ciclos pendientes de pago para generar órdenes de cobranza manual.
+
+## 🔍 BÚSQUEDA AVANZADA DE CLIENTES
+
+**Criterios de Búsqueda:**
+- Clientes con suscripciones activas
+- Ciclos con saldo pendiente de pago
+- Filtrado por ubicación geográfica
+- Búsqueda por datos personales
+
+## 📊 FILTROS DISPONIBLES
+
+**Búsqueda de Texto:**
+- Nombre del cliente (búsqueda parcial)
+- Número de teléfono
+- ID específico del cliente
+
+**Filtros Geográficos:**
+- Por zona de entrega
+- Por localidad específica
+- Útil para planificación de rutas de cobranza
+
+## 🎯 CASOS DE USO
+
+- **Cobranza Selectiva**: Identificar clientes con deudas
+- **Planificación Geográfica**: Agrupar cobranzas por zona
+- **Gestión de Cartera**: Priorizar clientes por saldo pendiente`,
   })
   @ApiQuery({
     name: 'query',
@@ -92,14 +115,11 @@ export class ManualCollectionController {
   async searchCustomers(
     @Query() searchParams: CustomerSearchDto,
   ): Promise<CustomerSearchResponseDto> {
-    this.logger.log(
-      `🔍 Búsqueda de clientes: ${JSON.stringify(searchParams)}`,
-    );
+    this.logger.log(`🔍 Búsqueda de clientes: ${JSON.stringify(searchParams)}`);
 
     try {
-      const result = await this.manualCollectionService.searchCustomers(
-        searchParams,
-      );
+      const result =
+        await this.manualCollectionService.searchCustomers(searchParams);
 
       this.logger.log(
         `✅ Búsqueda completada: ${result.customers.length} clientes encontrados`,
@@ -148,9 +168,7 @@ export class ManualCollectionController {
 
     try {
       const result =
-        await this.manualCollectionService.getCustomerPendingCycles(
-          customerId,
-        );
+        await this.manualCollectionService.getCustomerPendingCycles(customerId);
 
       this.logger.log(
         `✅ Ciclos pendientes obtenidos: ${result.pending_cycles.length} ciclos, total: $${result.total_pending}`,

@@ -177,11 +177,14 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number, includeInactive: boolean = false): Promise<PriceListWithRelations> {
+  async findOne(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<PriceListWithRelations> {
     const priceList = await this.price_list.findFirst({
-      where: { 
+      where: {
         price_list_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: {
         price_list_item: {
@@ -262,7 +265,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.price_list.update({
         where: { price_list_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
       return {
         message: `${this.entityName} desactivada correctamente`,

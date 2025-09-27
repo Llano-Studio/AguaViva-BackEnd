@@ -16,10 +16,10 @@ import {
   UpdateSubscriptionDeliveryScheduleDto,
   SubscriptionDeliveryScheduleResponseDto,
 } from './dto';
-import { FirstCycleComodatoService } from '../orders/services/first-cycle-comodato.service';
-import { CycleNumberingService } from './services/cycle-numbering.service';
-import { SubscriptionCycleCalculatorService } from './services/subscription-cycle-calculator.service';
-import { RecoveryOrderService } from '../services/recovery-order.service';
+import { FirstCycleComodatoService } from '../common/services/first-cycle-comodato.service';
+import { SubscriptionCycleNumberingService } from '../common/services/subscription-cycle-numbering.service';
+import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
+import { RecoveryOrderService } from '../common/services/recovery-order.service';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -30,7 +30,7 @@ export class CustomerSubscriptionService
 
   constructor(
     private readonly firstCycleComodatoService: FirstCycleComodatoService,
-    private readonly cycleNumberingService: CycleNumberingService,
+    private readonly cycleNumberingService: SubscriptionCycleNumberingService,
     private readonly subscriptionCycleCalculatorService: SubscriptionCycleCalculatorService,
     private readonly recoveryOrderService: RecoveryOrderService,
   ) {
@@ -114,12 +114,20 @@ export class CustomerSubscriptionService
     );
 
     // Validar consistencia de modalidad de pago
-    if (createDto.payment_mode === 'ARREARS' && createDto.payment_due_day && (createDto.payment_due_day < 1 || createDto.payment_due_day > 28)) {
-      throw new BadRequestException('payment_due_day debe estar entre 1 y 28 cuando payment_mode es ARREARS');
+    if (
+      createDto.payment_mode === 'ARREARS' &&
+      createDto.payment_due_day &&
+      (createDto.payment_due_day < 1 || createDto.payment_due_day > 28)
+    ) {
+      throw new BadRequestException(
+        'payment_due_day debe estar entre 1 y 28 cuando payment_mode es ARREARS',
+      );
     }
 
     if (createDto.payment_mode === 'ADVANCE' && createDto.payment_due_day) {
-      throw new BadRequestException('payment_due_day no debe especificarse cuando payment_mode es ADVANCE');
+      throw new BadRequestException(
+        'payment_due_day no debe especificarse cuando payment_mode es ADVANCE',
+      );
     }
 
     // Verificar que el cliente existe
@@ -159,7 +167,7 @@ export class CustomerSubscriptionService
     if (!subscriptionPlan.price || Number(subscriptionPlan.price) <= 0) {
       throw new BadRequestException(
         `No se puede crear la suscripción: El plan "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) no tiene precio definido. ` +
-        `Debe asignar un precio al plan antes de crear suscripciones.`
+          `Debe asignar un precio al plan antes de crear suscripciones.`,
       );
     }
 
@@ -201,9 +209,9 @@ export class CustomerSubscriptionService
         createDto.collection_day || 0,
         true, // isNewSubscription = true para crear ciclo inmediato
         createDto.payment_mode || 'ADVANCE',
-        createDto.payment_due_day
+        createDto.payment_due_day,
       );
-      
+
       const firstCycleStartDate = cycleDates.cycle_start;
       const firstCycleEndDate = cycleDates.cycle_end;
 
@@ -234,7 +242,9 @@ export class CustomerSubscriptionService
 
       // Calcular el total_amount del ciclo basado en los productos del plan
       try {
-        await this.subscriptionCycleCalculatorService.calculateAndUpdateCycleAmount(firstCycle.cycle_id);
+        await this.subscriptionCycleCalculatorService.calculateAndUpdateCycleAmount(
+          firstCycle.cycle_id,
+        );
         this.logger.log(
           `✅ Total amount calculated for cycle ${firstCycle.cycle_id} of subscription ${subscription.subscription_id}`,
         );
@@ -378,13 +388,16 @@ export class CustomerSubscriptionService
     };
   }
 
-  async findOne(id: number, includeInactive: boolean = false): Promise<CustomerSubscriptionResponseDto> {
+  async findOne(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<CustomerSubscriptionResponseDto> {
     this.logger.log(`Finding subscription: ${id}`);
 
     const subscription = await this.customer_subscription.findFirst({
-      where: { 
+      where: {
         subscription_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: this.getIncludeClause(),
     });
@@ -561,7 +574,7 @@ export class CustomerSubscriptionService
         // 4. Soft delete: cambiar is_active a false en lugar de eliminar físicamente
         await prisma.customer_subscription.update({
           where: { subscription_id: id },
-          data: { is_active: false }
+          data: { is_active: false },
         });
 
         this.logger.log(`Successfully deactivated subscription ${id}`);
@@ -864,73 +877,119 @@ export class CustomerSubscriptionService
    * @returns Objeto con cycle_start, cycle_end y payment_due_date
    */
   private calculateCycleDates(
-    startDate: Date, 
-    collectionDay: number, 
+    startDate: Date,
+    collectionDay: number,
     isNewSubscription: boolean = false,
     paymentMode: string = 'ADVANCE',
-    paymentDueDay?: number
+    paymentDueDay?: number,
   ): { cycle_start: Date; cycle_end: Date; payment_due_date: Date } {
     const today = new Date();
     const subscriptionStart = new Date(startDate);
-    
+
     // Si no hay collection_day, usar la fecha de inicio como base
     if (!collectionDay) {
-      const cycleStart = new Date(Math.max(today.getTime(), subscriptionStart.getTime()));
+      const cycleStart = new Date(
+        Math.max(today.getTime(), subscriptionStart.getTime()),
+      );
       const cycleEnd = new Date(cycleStart);
       cycleEnd.setMonth(cycleEnd.getMonth() + 1);
-      
+
       // Calcular fecha de pago según modalidad
-      const paymentDueDate = this.calculatePaymentDueDate(cycleStart, cycleEnd, paymentMode, paymentDueDay);
-      
-      return { cycle_start: cycleStart, cycle_end: cycleEnd, payment_due_date: paymentDueDate };
+      const paymentDueDate = this.calculatePaymentDueDate(
+        cycleStart,
+        cycleEnd,
+        paymentMode,
+        paymentDueDay,
+      );
+
+      return {
+        cycle_start: cycleStart,
+        cycle_end: cycleEnd,
+        payment_due_date: paymentDueDate,
+      };
     }
 
     // LÓGICA ESPECIAL PARA SUSCRIPCIONES NUEVAS
     if (isNewSubscription) {
       // Para suscripciones nuevas, siempre crear un ciclo que comience inmediatamente
-      const cycleStart = new Date(Math.max(today.getTime(), subscriptionStart.getTime()));
-      
+      const cycleStart = new Date(
+        Math.max(today.getTime(), subscriptionStart.getTime()),
+      );
+
       // Calcular la fecha de fin basada en collection_day
       let cycleEnd: Date;
-      
+
       // Si el collection_day es mayor al día actual, usar este mes
       if (collectionDay > today.getDate()) {
-        cycleEnd = new Date(today.getFullYear(), today.getMonth(), collectionDay);
+        cycleEnd = new Date(
+          today.getFullYear(),
+          today.getMonth(),
+          collectionDay,
+        );
       } else {
         // Si el collection_day ya pasó este mes, usar el próximo mes
-        cycleEnd = new Date(today.getFullYear(), today.getMonth() + 1, collectionDay);
+        cycleEnd = new Date(
+          today.getFullYear(),
+          today.getMonth() + 1,
+          collectionDay,
+        );
       }
-      
+
       // Asegurar que el ciclo tenga al menos 7 días de duración
       const minCycleEnd = new Date(cycleStart);
       minCycleEnd.setDate(minCycleEnd.getDate() + 7);
-      
+
       if (cycleEnd < minCycleEnd) {
-        cycleEnd = new Date(today.getFullYear(), today.getMonth() + 1, collectionDay);
+        cycleEnd = new Date(
+          today.getFullYear(),
+          today.getMonth() + 1,
+          collectionDay,
+        );
       }
-      
+
       // Calcular fecha de pago según modalidad
-      const paymentDueDate = this.calculatePaymentDueDate(cycleStart, cycleEnd, paymentMode, paymentDueDay);
-      
-      return { cycle_start: cycleStart, cycle_end: cycleEnd, payment_due_date: paymentDueDate };
+      const paymentDueDate = this.calculatePaymentDueDate(
+        cycleStart,
+        cycleEnd,
+        paymentMode,
+        paymentDueDay,
+      );
+
+      return {
+        cycle_start: cycleStart,
+        cycle_end: cycleEnd,
+        payment_due_date: paymentDueDate,
+      };
     }
 
     // LÓGICA PARA CICLOS REGULARES (renovaciones)
     let cycleStart: Date;
-    
+
     // Si hoy es el día de recolección o después, el ciclo actual ya comenzó
     if (today.getDate() >= collectionDay) {
       // El ciclo actual va del collection_day de este mes al collection_day del próximo mes
-      cycleStart = new Date(today.getFullYear(), today.getMonth(), collectionDay);
+      cycleStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        collectionDay,
+      );
     } else {
       // El ciclo actual va del collection_day del mes pasado al collection_day de este mes
-      cycleStart = new Date(today.getFullYear(), today.getMonth() - 1, collectionDay);
+      cycleStart = new Date(
+        today.getFullYear(),
+        today.getMonth() - 1,
+        collectionDay,
+      );
     }
 
     // Asegurar que no sea anterior a la fecha de inicio de la suscripción
     if (cycleStart < subscriptionStart) {
-      cycleStart = new Date(subscriptionStart.getFullYear(), subscriptionStart.getMonth(), collectionDay);
-      
+      cycleStart = new Date(
+        subscriptionStart.getFullYear(),
+        subscriptionStart.getMonth(),
+        collectionDay,
+      );
+
       // Si el collection_day ya pasó en el mes de inicio, mover al siguiente mes
       if (cycleStart < subscriptionStart) {
         cycleStart.setMonth(cycleStart.getMonth() + 1);
@@ -942,9 +1001,18 @@ export class CustomerSubscriptionService
     cycleEnd.setMonth(cycleEnd.getMonth() + 1);
 
     // Calcular fecha de pago según modalidad
-    const paymentDueDate = this.calculatePaymentDueDate(cycleStart, cycleEnd, paymentMode, paymentDueDay);
+    const paymentDueDate = this.calculatePaymentDueDate(
+      cycleStart,
+      cycleEnd,
+      paymentMode,
+      paymentDueDay,
+    );
 
-    return { cycle_start: cycleStart, cycle_end: cycleEnd, payment_due_date: paymentDueDate };
+    return {
+      cycle_start: cycleStart,
+      cycle_end: cycleEnd,
+      payment_due_date: paymentDueDate,
+    };
   }
 
   /**
@@ -959,7 +1027,7 @@ export class CustomerSubscriptionService
     cycleStart: Date,
     cycleEnd: Date,
     paymentMode: string,
-    paymentDueDay?: number
+    paymentDueDay?: number,
   ): Date {
     if (paymentMode === 'ADVANCE') {
       // PAGO ADELANTADO: Se paga al inicio del ciclo
@@ -968,13 +1036,17 @@ export class CustomerSubscriptionService
       // PAGO VENCIDO (ARREARS): Se paga después del ciclo
       if (paymentDueDay) {
         // Usar día específico del mes siguiente al fin del ciclo
-        const paymentDate = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth(), paymentDueDay);
-        
+        const paymentDate = new Date(
+          cycleEnd.getFullYear(),
+          cycleEnd.getMonth(),
+          paymentDueDay,
+        );
+
         // Si el día específico es antes del fin del ciclo, mover al siguiente mes
         if (paymentDate <= cycleEnd) {
           paymentDate.setMonth(paymentDate.getMonth() + 1);
         }
-        
+
         return paymentDate;
       } else {
         // Sin día específico: pagar 10 días después del fin del ciclo (default)
@@ -1294,7 +1366,13 @@ export class CustomerSubscriptionService
           subscription_id: subscriptionId,
           scheduled_delivery_date: { gt: effectiveEndDate },
           status: {
-            in: ['PENDING', 'CONFIRMED', 'IN_PREPARATION', 'READY_FOR_DELIVERY', 'IN_DELIVERY'],
+            in: [
+              'PENDING',
+              'CONFIRMED',
+              'IN_PREPARATION',
+              'READY_FOR_DELIVERY',
+              'IN_DELIVERY',
+            ],
           },
         },
         data: {
@@ -1336,7 +1414,9 @@ export class CustomerSubscriptionService
                 customer_id: customerId,
                 sale_channel_id: 1, // Canal por defecto
                 order_date: new Date(),
-                scheduled_delivery_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días desde hoy
+                scheduled_delivery_date: new Date(
+                  Date.now() + 7 * 24 * 60 * 60 * 1000,
+                ), // 7 días desde hoy
                 total_amount: 0, // Sin costo para retiro
                 paid_amount: 0, // Sin pago para retiro
                 order_type: 'ONE_OFF', // Tipo de orden única
