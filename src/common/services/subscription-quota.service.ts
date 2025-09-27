@@ -142,20 +142,12 @@ export class SubscriptionQuotaService
       },
     });
 
-    console.log(`🆕 DEBUG - Ciclo creado con ID: ${newCycle.cycle_id}`);
-    console.log(
-      `🆕 DEBUG - Fechas: ${cycleStart.toISOString()} - ${cycleEnd.toISOString()}`,
-    );
+
 
     // Crear los detalles del ciclo con las cantidades planificadas
     for (const planProduct of subscription.subscription_plan
       .subscription_plan_product) {
-      console.log(
-        `🆕 DEBUG - Creando detalle para producto ${planProduct.product_id}:`,
-      );
-      console.log(`  - Cantidad planificada: ${planProduct.product_quantity}`);
-      console.log(`  - Cantidad entregada: 0`);
-      console.log(`  - Balance restante: ${planProduct.product_quantity}`);
+
 
       await prisma.subscription_cycle_detail.create({
         data: {
@@ -173,7 +165,7 @@ export class SubscriptionQuotaService
       await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
         newCycle.cycle_id,
       );
-      console.log(`🆕 DEBUG - Total calculado para ciclo ${newCycle.cycle_id}`);
+
     } catch (error) {
       console.error(
         `🆕 ERROR - No se pudo calcular total para ciclo ${newCycle.cycle_id}:`,
@@ -193,18 +185,8 @@ export class SubscriptionQuotaService
       },
     });
 
-    console.log(`🆕 DEBUG - Ciclo recargado:`);
-    console.log(`  - ID del ciclo: ${reloadedCycle?.cycle_id}`);
-    console.log(`  - Total amount: ${reloadedCycle?.total_amount}`);
-    console.log(
-      `  - Detalles del ciclo:`,
-      reloadedCycle?.subscription_cycle_detail.map((d) => ({
-        product_id: d.product_id,
-        planned_quantity: d.planned_quantity,
-        delivered_quantity: d.delivered_quantity,
-        remaining_balance: d.remaining_balance,
-      })),
-    );
+
+
 
     return reloadedCycle;
   }
@@ -219,14 +201,13 @@ export class SubscriptionQuotaService
   ): Promise<SubscriptionQuotaValidation> {
     const prisma = tx || this;
 
-    console.log(`🆕 DEBUG CUOTAS - Validando suscripción ${subscriptionId}`);
-    console.log(`🆕 Productos solicitados:`, requestedProducts);
+
 
     // Obtener o crear ciclo actual
     let currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
 
     if (!currentCycle) {
-      console.log(`🆕 No hay ciclo activo, creando nuevo ciclo...`);
+
       currentCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
       // Recargar con los detalles
       currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
@@ -242,38 +223,18 @@ export class SubscriptionQuotaService
     // no por agotamiento de créditos. Si no hay créditos disponibles,
     // los productos adicionales se cobran como productos individuales.
 
-    console.log(`🆕 Ciclo actual encontrado: ${currentCycle.cycle_id}`);
-    console.log(
-      `🆕 Detalles del ciclo:`,
-      currentCycle.subscription_cycle_detail.map((d) => ({
-        product_id: d.product_id,
-        product_name: d.product.description,
-        planned_quantity: d.planned_quantity,
-        remaining_balance: d.remaining_balance,
-      })),
-    );
-
     const productQuotas: ProductQuotaInfo[] = [];
     let hasAdditionalCharges = false;
 
     for (const requestedProduct of requestedProducts) {
-      console.log(
-        `🆕 Validando producto ${requestedProduct.product_id} (cantidad: ${requestedProduct.quantity})`,
-      );
+
 
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
         (detail) => detail.product_id === requestedProduct.product_id,
       );
 
       if (cycleDetail) {
-        console.log(
-          `🆕 ✅ Producto ${requestedProduct.product_id} ENCONTRADO en ciclo`,
-        );
-        console.log(`🆕   - Planificado: ${cycleDetail.planned_quantity}`);
-        console.log(`🆕   - Entregado: ${cycleDetail.delivered_quantity}`);
-        console.log(
-          `🆕   - Balance restante: ${cycleDetail.remaining_balance}`,
-        );
+
 
         // Producto está en el plan de suscripción
         const availableBalance = Math.max(0, cycleDetail.remaining_balance);
@@ -286,11 +247,7 @@ export class SubscriptionQuotaService
           requestedProduct.quantity - coveredBySubscription,
         );
 
-        console.log(`🆕   - Balance disponible: ${availableBalance}`);
-        console.log(
-          `🆕   - Cubierto por suscripción: ${coveredBySubscription}`,
-        );
-        console.log(`🆕   - Cantidad adicional: ${additionalQuantity}`);
+
 
         if (additionalQuantity > 0) {
           hasAdditionalCharges = true;
@@ -307,9 +264,7 @@ export class SubscriptionQuotaService
           additional_quantity: additionalQuantity,
         });
       } else {
-        console.log(
-          `🆕 ❌ Producto ${requestedProduct.product_id} NO encontrado en ciclo`,
-        );
+
         // Producto NO está en el plan → todo es adicional
         const product = await prisma.product.findUnique({
           where: { product_id: requestedProduct.product_id },
@@ -400,26 +355,14 @@ export class SubscriptionQuotaService
   async getAvailableCredits(
     subscriptionId: number,
   ): Promise<ProductQuotaInfo[]> {
-    console.log(`🆕 GET AVAILABLE CREDITS - Suscripción ${subscriptionId}`);
 
     const currentCycle = await this.getCurrentActiveCycle(subscriptionId);
-
     if (!currentCycle) {
-      console.log(`  - ❌ No hay ciclo activo`);
+
       return [];
     }
 
-    console.log(`  - ✅ Ciclo encontrado: ${currentCycle.cycle_id}`);
-    console.log(
-      `  - Detalles del ciclo:`,
-      currentCycle.subscription_cycle_detail.map((d) => ({
-        product_id: d.product_id,
-        product_name: d.product.description,
-        planned_quantity: d.planned_quantity,
-        delivered_quantity: d.delivered_quantity,
-        remaining_balance: d.remaining_balance,
-      })),
-    );
+
 
     return currentCycle.subscription_cycle_detail.map((detail) => ({
       product_id: detail.product_id,
@@ -444,28 +387,17 @@ export class SubscriptionQuotaService
   ): Promise<void> {
     const prisma = tx || this;
 
-    console.log(`🆕 REINICIANDO CRÉDITOS para suscripción ${subscriptionId}:`);
-    console.log(`  - Productos a reiniciar:`, orderItems);
 
     const currentCycle = await this.getCurrentActiveCycle(
       subscriptionId,
       prisma,
     );
     if (!currentCycle) {
-      console.log(`  - ❌ No hay ciclo activo, no hay nada que reiniciar`);
+
       return; // No hay ciclo activo, no hay nada que reiniciar
     }
 
-    console.log(`  - Ciclo actual: ${currentCycle.cycle_id}`);
-    console.log(
-      `  - Estado actual del ciclo:`,
-      currentCycle.subscription_cycle_detail.map((d) => ({
-        product_id: d.product_id,
-        planned_quantity: d.planned_quantity,
-        delivered_quantity: d.delivered_quantity,
-        remaining_balance: d.remaining_balance,
-      })),
-    );
+
 
     for (const orderItem of orderItems) {
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
@@ -473,11 +405,7 @@ export class SubscriptionQuotaService
       );
 
       if (cycleDetail) {
-        console.log(`  - Reiniciando producto ${orderItem.product_id}:`);
-        console.log(`    - Cantidad a reiniciar: ${orderItem.quantity}`);
-        console.log(
-          `    - Entregado actual: ${cycleDetail.delivered_quantity}`,
-        );
+
 
         // Solo reiniciar créditos para productos que están en el plan de suscripción
         // Los productos adicionales no afectan los créditos
@@ -490,8 +418,7 @@ export class SubscriptionQuotaService
           cycleDetail.planned_quantity - newDeliveredQuantity,
         );
 
-        console.log(`    - Nuevo entregado: ${newDeliveredQuantity}`);
-        console.log(`    - Nuevo balance restante: ${newRemainingBalance}`);
+
 
         await prisma.subscription_cycle_detail.update({
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
@@ -501,14 +428,11 @@ export class SubscriptionQuotaService
           },
         });
 
-        console.log(`    - ✅ Actualizado exitosamente`);
+
       } else {
-        console.log(
-          `  - ⚠️ Producto ${orderItem.product_id} no está en el plan de suscripción`,
-        );
+
       }
     }
 
-    console.log(`  - ✅ Reinicio de créditos completado`);
   }
 }

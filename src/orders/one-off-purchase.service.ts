@@ -304,16 +304,13 @@ export class OneOffPurchaseService
         }
 
         // Buscar o crear el cliente
-        console.log(
-          '🔍 Buscando cliente con teléfono:',
-          createDto.customer.phone,
-        );
+
         let person = await prismaTx.person.findFirst({
           where: { phone: createDto.customer.phone },
         });
 
         if (!person) {
-          console.log('✨ Cliente no encontrado, creando nuevo cliente');
+
           // Validar que se proporcionen los campos obligatorios para cliente nuevo
           if (!createDto.customer.name) {
             throw new BadRequestException(
@@ -351,15 +348,7 @@ export class OneOffPurchaseService
               type: (createDto.customer.type || 'INDIVIDUAL') as PersonType,
             },
           });
-          console.log(
-            '✅ Cliente creado exitosamente con ID:',
-            person.person_id,
-          );
         } else {
-          console.log(
-            '🔄 Cliente existente encontrado con ID:',
-            person.person_id,
-          );
         }
 
         // Calcular total_amount y preparar items
@@ -406,13 +395,7 @@ export class OneOffPurchaseService
                 `Compra One-Off: Stock insuficiente para ${product.description}. Disponible: ${stockDisponible}, Solicitado: ${item.quantity}.`,
               );
             }
-            console.log(
-              `✅ Stock verificado para producto NO retornable: ${product.description} (Disponible: ${stockDisponible}, Solicitado: ${item.quantity})`,
-            );
           } else {
-            console.log(
-              `⏭️ Verificación de stock omitida para producto retornable: ${product.description} (${item.quantity} unidades) - Es un PRÉSTAMO`,
-            );
           }
 
           // Verificar que existe la price_list
@@ -495,10 +478,7 @@ export class OneOffPurchaseService
           (createDto.requires_delivery === false ? 'DELIVERED' : 'PENDING');
 
         // 🆕 CREAR UNA SOLA ORDEN HEADER CON MÚLTIPLES ITEMS
-        console.log(
-          '💼 Creando compra one-off header para cliente ID:',
-          person.person_id,
-        );
+
         const newPurchaseHeader = await prismaTx.one_off_purchase_header.create(
           {
             data: {
@@ -575,13 +555,9 @@ export class OneOffPurchaseService
               stockMovement,
               prismaTx,
             );
-            console.log(
-              `✅ Movimiento de stock creado para producto NO retornable: ${product.description} (${item.quantity} unidades)`,
-            );
+
           } else if (product && product.is_returnable) {
-            console.log(
-              `⏭️ Producto retornable omitido del movimiento de stock: ${product.description} (${item.quantity} unidades) - Es un PRÉSTAMO`,
-            );
+
           }
         }
 
@@ -762,10 +738,7 @@ export class OneOffPurchaseService
 
     // Validación de rangos de fechas de compra
     if (purchaseDateFrom && purchaseDateTo) {
-      console.log('Validando fechas de compra:', {
-        purchaseDateFrom,
-        purchaseDateTo,
-      });
+
       const fromDate = new Date(purchaseDateFrom);
       const toDate = new Date(purchaseDateTo);
       if (toDate < fromDate) {
@@ -802,11 +775,7 @@ export class OneOffPurchaseService
 
       // Log para debugging del filtrado de fechas
       if (purchaseDateFrom && purchaseDateTo) {
-        console.log('Fechas convertidas:', {
-          fromDate: where.purchase_date.gte,
-          toDate: where.purchase_date.lte,
-          isInvalid: false,
-        });
+
       }
     }
 

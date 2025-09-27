@@ -471,9 +471,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             });
 
-          console.log(
-            `\n🆕 PROCESANDO PRODUCTO: ${itemDto.product_id} (${productDetails.description})`,
-          );
+
 
           let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
           let itemSubtotal = new Decimal(0);
@@ -514,26 +512,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             }
 
-            // 🆕 DEBUG: Log para entender el cálculo
-            console.log(
-              `DEBUG - Producto ${itemDto.product_id} (${productDetails.description}):`,
-            );
-            console.log(`  - Cantidad pedida: ${itemDto.quantity}`);
-            console.log(
-              `  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`,
-            );
-            console.log(
-              `  - Cantidad adicional: ${productQuota.additional_quantity}`,
-            );
-            console.log(
-              `  - Precio base del producto: ${productDetails.price}`,
-            );
-            console.log(
-              `  - ¿Está en plan de suscripción?: ${productQuota.covered_by_subscription > 0 ? 'SÍ' : 'NO'}`,
-            );
-            console.log(
-              `  - ¿Tiene cantidad adicional?: ${productQuota.additional_quantity > 0 ? 'SÍ' : 'NO'}`,
-            );
+            // DEBUG: Log para entender el cálculo
+
 
             // Calcular precio basado en cuotas
             if (productQuota.covered_by_subscription > 0) {
@@ -569,25 +549,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   productQuota.additional_quantity,
                 );
 
-                console.log(
-                  `  - Precio por unidad adicional: ${additionalPrice}`,
-                );
-                console.log(`  - Subtotal calculado: ${itemSubtotal}`);
+
               } else {
                 // Todo está cubierto por suscripción
                 itemPrice = new Decimal(0);
                 itemSubtotal = new Decimal(0);
-                console.log(`  - Todo cubierto por suscripción, subtotal: $0`);
+
               }
             } else {
               // Todo el producto es adicional (no está en el plan o no hay créditos)
-              console.log(
-                `DEBUG - Producto ${itemDto.product_id} (${productDetails.description}) NO está en plan de suscripción:`,
-              );
-              console.log(`  - Cantidad pedida: ${itemDto.quantity}`);
-              console.log(
-                `  - Precio base del producto: ${productDetails.price}`,
-              );
+
 
               if (itemDto.price_list_id) {
                 const customPriceItem =
@@ -601,9 +572,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 if (customPriceItem) {
                   itemPrice = new Decimal(customPriceItem.unit_price);
                   usedPriceListId = itemDto.price_list_id;
-                  console.log(
-                    `  - Usando lista de precios específica: ${customPriceItem.unit_price}`,
-                  );
+
                 } else {
                   throw new BadRequestException(
                     `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`,
@@ -623,33 +592,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   itemPrice = new Decimal(standardPriceItem.unit_price);
                   usedPriceListId =
                     BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
-                  console.log(
-                    `  - Usando lista de precios estándar: ${standardPriceItem.unit_price}`,
-                  );
                 } else {
-                  console.log(
-                    `  - Usando precio base del producto: ${productDetails.price}`,
-                  );
                 }
               }
               itemSubtotal = itemPrice.mul(itemDto.quantity);
-              console.log(`  - Subtotal calculado: ${itemSubtotal}`);
+
             }
 
-            // 🆕 NUEVO: Agregar el ítem al array de creación después de procesar suscripción
-            console.log(`  - DEBUG ANTES DE AGREGAR AL ARRAY:`);
-            console.log(`    - itemPrice: ${itemPrice}`);
-            console.log(`    - itemSubtotal: ${itemSubtotal}`);
-            console.log(`    - usedPriceListId: ${usedPriceListId}`);
+            // NUEVO: Agregar el ítem al array de creación después de procesar suscripción
 
             // 🆕 IMPORTANTE: Actualizar el total antes de continuar
             calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
-            console.log(
-              `  - Subtotal final para este producto: ${itemSubtotal}`,
-            );
-            console.log(
-              `  - Total acumulado hasta ahora: ${calculatedTotalFromDB}`,
-            );
+
 
             orderItemsDataForCreation.push({
               product_id: itemDto.product_id,
@@ -660,9 +614,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               notes: itemDto.notes,
             });
 
-            console.log(
-              `  - ✅ Producto agregado al array de creación: ${itemDto.product_id} - Subtotal: ${itemSubtotal}`,
-            );
+
 
             // 🆕 IMPORTANTE: Continuar al siguiente producto después de procesar suscripción
             continue;
@@ -684,9 +636,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             }
             itemSubtotal = itemPrice.mul(itemDto.quantity);
 
-            console.log(
-              `  - ✅ Producto agregado al array de creación (contrato): ${itemDto.product_id} - Subtotal: ${itemSubtotal}`,
-            );
+
           } else {
             // ✅ PRIORIDAD 4: Lista de precios estándar → último recurso
             const standardPriceItem = await prismaTx.price_list_item.findFirst({
@@ -706,11 +656,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
           calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
 
-          console.log(`  - Subtotal final para este producto: ${itemSubtotal}`);
-          console.log(
-            `  - Total acumulado hasta ahora: ${calculatedTotalFromDB}`,
-          );
-
           // 🆕 NUEVO: Incluir price_list_id y notes en los datos del ítem
           orderItemsDataForCreation.push({
             product_id: itemDto.product_id,
@@ -720,19 +665,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             price_list_id: usedPriceListId,
             notes: itemDto.notes,
           });
-
-          console.log(
-            `  - ✅ Producto agregado al array de creación: ${itemDto.product_id} - Subtotal: ${itemSubtotal}`,
-          );
         }
 
-        console.log(`\n🆕 RESUMEN: Se procesaron ${items.length} productos`);
-        console.log(`🆕 PRODUCTOS PROCESADOS:`);
-        orderItemsDataForCreation.forEach((item, index) => {
-          console.log(
-            `  ${index + 1}. Producto ${item.product_id}: ${item.quantity} unidades, Subtotal: ${item.subtotal}`,
-          );
-        });
+
 
         // 🆕 NUEVO: Aplicar recargo por mora del 20% si corresponde
         let lateFeeAmount = new Decimal(0);
@@ -747,23 +682,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           lateFeeAmount = calculatedTotalFromDB.mul(lateFeePercentage).div(100);
           calculatedTotalFromDB = calculatedTotalFromDB.plus(lateFeeAmount);
 
-          console.log(`🚨 RECARGO POR MORA APLICADO:`);
-          console.log(`  - Porcentaje de recargo: ${lateFeePercentage}%`);
-          console.log(`  - Monto del recargo: $${lateFeeAmount}`);
-          console.log(
-            `  - Fecha de vencimiento: ${subscriptionQuotaValidation.late_fee_info.payment_due_date}`,
-          );
         }
-
-        console.log(`🆕 DEBUG FINAL:`);
-        console.log(
-          `  - Total calculado desde BD (sin recargo): ${calculatedTotalFromDB.minus(lateFeeAmount)}`,
-        );
-        console.log(`  - Recargo por mora: $${lateFeeAmount}`);
-        console.log(`  - Total final (con recargo): ${calculatedTotalFromDB}`);
-        console.log(`  - Total enviado desde frontend: ${dtoTotalAmountStr}`);
-        console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
-        console.log(`  - ID de suscripción: ${subscription_id}`);
 
         let finalPaidAmount: Decimal;
         if (
@@ -771,9 +690,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           createOrderDto.order_type === 'ONE_OFF'
         ) {
           finalPaidAmount = new Decimal('0');
-          console.log(
-            `🆕 ${createOrderDto.order_type} ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`,
-          );
         } else {
           finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
         }
@@ -798,9 +714,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             dtoTotalAmountStr &&
             !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)
           ) {
-            console.log(
-              `⚠️ ADVERTENCIA: Total del frontend (${dtoTotalAmountStr}) no coincide con el calculado (${calculatedTotalFromDB}). Usando el calculado.`,
-            );
+
             // No lanzar error, usar el total calculado
           }
         } else {
@@ -844,16 +758,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               if (productQuota && productQuota.covered_by_subscription > 0) {
                 // Producto está en suscripción - solo validar la cantidad adicional
                 quantityToValidate = productQuota.additional_quantity;
-                console.log(
-                  `🆕 STOCK VALIDATION - Producto ${itemDto.product_id} (${productDetails.description}):`,
-                );
-                console.log(`  - Cantidad total pedida: ${itemDto.quantity}`);
-                console.log(
-                  `  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`,
-                );
-                console.log(
-                  `  - Cantidad adicional a validar: ${quantityToValidate}`,
-                );
+
               }
             }
 
@@ -872,13 +777,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             }
 
-            console.log(
-              `✅ Stock validado para producto NO retornable: ${productDetails.description} (Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate})`,
-            );
           } else {
-            console.log(
-              `🔄 Producto retornable ${productDetails.description} - No se valida stock porque no se descuenta del inventario`,
-            );
           }
         }
 
@@ -948,32 +847,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             if (productQuota && productQuota.covered_by_subscription > 0) {
               // Para órdenes SUBSCRIPTION puras, solo la cantidad adicional afecta el stock
               quantityForStockMovement = productQuota.additional_quantity;
-              console.log(
-                `🆕 STOCK MOVEMENT (SUBSCRIPTION) - Producto ${createdItem.product_id} (${productDesc}):`,
-              );
-              console.log(
-                `  - Cantidad total en orden: ${createdItem.quantity}`,
-              );
-              console.log(
-                `  - Cubierto por suscripción: ${productQuota.covered_by_subscription}`,
-              );
-              console.log(
-                `  - Cantidad adicional: ${productQuota.additional_quantity}`,
-              );
-              console.log(
-                `  - Cantidad para movimiento de stock: ${quantityForStockMovement}`,
-              );
+
             }
           }
           // Para órdenes HYBRID, ONE_OFF, o cualquier otra, SIEMPRE restar toda la cantidad
           else {
-            console.log(
-              `🆕 STOCK MOVEMENT (${createOrderDto.order_type || 'ONE_OFF'}) - Producto ${createdItem.product_id} (${productDesc}):`,
-            );
-            console.log(
-              `  - Cantidad total para movimiento de stock: ${quantityForStockMovement}`,
-            );
-            console.log(`  - Abono: ${finalPaidAmount.toString()}`);
           }
 
           // 🆕 CORRECCIÓN: Crear movimiento de stock SOLO para productos NO retornables
@@ -995,20 +873,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               stockMovementDto,
               prismaTx,
             );
-            console.log(
-              `✅ Movimiento de stock creado: ${quantityForStockMovement} unidades de ${productDesc} (NO retornable) - Abono: $${finalPaidAmount.toString()}`,
-            );
           } else if (
             quantityForStockMovement > 0 &&
             createdItem.product.is_returnable
           ) {
-            console.log(
-              `⏭️ No se crea movimiento de stock para ${productDesc} - producto RETORNABLE (préstamo)`,
-            );
-          } else {
-            console.log(
-              `⏭️ No se crea movimiento de stock para ${productDesc} - cantidad: ${quantityForStockMovement}`,
-            );
           }
         }
 
@@ -1760,18 +1628,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           );
 
         // 🆕 NUEVO: Reiniciar créditos de suscripción si el pedido no está en estado IN_DELIVERY o DELIVERED
-        console.log(`🆕 ELIMINANDO PEDIDO ${id}:`);
-        console.log(`  - Estado del pedido: ${orderToDelete.status}`);
-        console.log(
-          `  - Tiene suscripción: ${orderToDelete.customer_subscription ? 'SÍ' : 'NO'}`,
-        );
 
         if (
           orderToDelete.customer_subscription &&
           orderToDelete.status !== 'IN_DELIVERY' &&
           orderToDelete.status !== 'DELIVERED'
         ) {
-          console.log(`  - ✅ Aplicando reinicio de créditos...`);
+
 
           // Obtener información del plan de suscripción para determinar qué productos afectan los créditos
           const subscription = await tx.customer_subscription.findUnique({
@@ -1794,35 +1657,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 (spp) => spp.product_id,
               );
 
-            console.log(
-              `  - Productos en plan de suscripción:`,
-              planProductIds,
-            );
-
             // Solo reiniciar créditos para productos que están en el plan de suscripción
-            console.log(
-              `  - DEBUG: Todos los productos del pedido:`,
-              orderItems.map((item) => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-              })),
-            );
-            console.log(
-              `  - DEBUG: Productos en plan de suscripción:`,
-              planProductIds,
-            );
 
             const subscriptionItems = orderItems.filter((item) =>
               planProductIds.includes(item.product_id),
             );
 
-            console.log(
-              `  - Productos del pedido que están en plan:`,
-              subscriptionItems.map((item) => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-              })),
-            );
+
 
             if (subscriptionItems.length > 0) {
               const itemsForCreditReset = subscriptionItems.map((item) => ({
@@ -1830,43 +1671,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 quantity: item.quantity,
               }));
 
-              console.log(
-                `  - Reiniciando créditos para:`,
-                itemsForCreditReset,
-              );
-
               await this.subscriptionQuotaService.resetCreditsForDeletedOrder(
                 orderToDelete.customer_subscription.subscription_id,
                 itemsForCreditReset,
                 tx,
               );
 
-              console.log(`  - ✅ Créditos reiniciados exitosamente`);
             } else {
-              console.log(`  - ⚠️ No hay productos del plan en este pedido`);
             }
           } else {
-            console.log(`  - ❌ No se encontró información de suscripción`);
           }
         } else {
-          console.log(`  - ❌ No se reinician créditos porque:`);
-          console.log(`    - Estado: ${orderToDelete.status}`);
-          console.log(
-            `    - Tiene suscripción: ${orderToDelete.customer_subscription ? 'SÍ' : 'NO'}`,
-          );
         }
 
         for (const item of orderItems) {
           if (item.quantity > 0) {
-            console.log(
-              `🔄 CANCELACIÓN - Producto ${item.product_id} (${item.product.description}):`,
-            );
-            console.log(
-              `  - Es retornable: ${item.product.is_returnable ? 'SÍ' : 'NO'}`,
-            );
-            console.log(`  - Cantidad: ${item.quantity}`);
-            console.log(`  - Tipo de orden: ${orderToDelete.order_type}`);
-            console.log(`  - Monto pagado: $${orderToDelete.paid_amount}`);
+
 
             // 🔧 CORRECCIÓN: Determinar la cantidad correcta a devolver al stock
             const quantityToReturn = item.quantity;
@@ -1878,16 +1698,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             ) {
               // Para órdenes de suscripción pura, la cantidad que se restó del stock fue solo la adicional
               // Necesitamos calcular cuánto se restó realmente del stock cuando se creó la orden
-              console.log(
-                `  - ⚠️ Orden de suscripción: verificando cantidad que se restó del stock`,
-              );
               // En este caso, mantener la cantidad completa para devolución
               // porque el sistema de suscripción ya manejó los créditos
             }
-
-            console.log(
-              `  - Cantidad a devolver al stock: ${quantityToReturn}`,
-            );
 
             // 🔧 CORRECCIÓN: Crear movimiento de devolución SOLO para productos NO retornables
             // Los productos retornables nunca tuvieron stock descontado, por lo que no necesitan devolución
@@ -1906,13 +1719,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 tx,
               );
 
-              console.log(
-                `✅ Stock devuelto: ${quantityToReturn} unidades de ${item.product.description} (NO retornable) - Abono original: $${orderToDelete.paid_amount}`,
-              );
-            } else {
-              console.log(
-                `⏭️ No se devuelve stock para ${item.product.description} - producto RETORNABLE (nunca se descontó stock)`,
-              );
+
             }
           }
         }
