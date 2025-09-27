@@ -175,7 +175,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
       const where: Prisma.price_list_itemWhereInput = {
         price_list: { is_active: true },
-        product: { is_active: true }
+        product: { is_active: true },
       };
       if (price_list_id) where.price_list_id = price_list_id;
       if (product_id) where.product_id = product_id;
@@ -228,7 +228,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
       const where: Prisma.price_list_itemWhereInput = {
         price_list_id: paramPriceListId,
-        product: { is_active: true }
+        product: { is_active: true },
       };
       if (product_id) where.product_id = product_id;
 

@@ -1,9 +1,4 @@
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateStringFlexible } from '../../common/decorators/is-date-string-flexible.decorator';
 

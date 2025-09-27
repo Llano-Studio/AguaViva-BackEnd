@@ -1,5 +1,9 @@
 import { PrismaClient, RecoveryStatus, ComodatoStatus } from '@prisma/client';
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 
 @Injectable()
 export class RecoveryOrderService {
@@ -13,14 +17,15 @@ export class RecoveryOrderService {
    * @param tx Transacción opcional de Prisma
    * @returns La orden de recuperación creada
    */
-async createRecoveryOrder(
+  async createRecoveryOrder(
     comodatoId: number,
     scheduledDate?: Date,
     notes?: string,
-    tx?: any
+    tx?: any,
   ) {
     // Si no se proporciona fecha, programar para 7 días después
-    const defaultScheduledDate = scheduledDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const defaultScheduledDate =
+      scheduledDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const prisma = tx || this.prisma;
 
     try {
@@ -29,16 +34,20 @@ async createRecoveryOrder(
         where: { comodato_id: comodatoId },
         include: {
           recovery_order: true,
-          subscription: true
-        }
+          subscription: true,
+        },
       });
 
       if (!comodato) {
-        throw new NotFoundException(`Comodato con ID ${comodatoId} no encontrado`);
+        throw new NotFoundException(
+          `Comodato con ID ${comodatoId} no encontrado`,
+        );
       }
 
       if (comodato.status !== ComodatoStatus.ACTIVE || !comodato.is_active) {
-        throw new BadRequestException(`El comodato ${comodatoId} no está activo`);
+        throw new BadRequestException(
+          `El comodato ${comodatoId} no está activo`,
+        );
       }
 
       // Verificar si ya existe una orden de recuperación para este comodato
@@ -47,7 +56,9 @@ async createRecoveryOrder(
       });
 
       if (existingRecoveryOrder) {
-        throw new BadRequestException(`Ya existe una orden de recuperación para el comodato ${comodatoId}`);
+        throw new BadRequestException(
+          `Ya existe una orden de recuperación para el comodato ${comodatoId}`,
+        );
       }
 
       // Crear la orden de recuperación
@@ -56,16 +67,18 @@ async createRecoveryOrder(
           comodato_id: comodatoId,
           scheduled_recovery_date: defaultScheduledDate,
           status: RecoveryStatus.PENDING,
-          notes: notes || `Orden de recuperación automática para comodato ${comodatoId}`
-        }
+          notes:
+            notes ||
+            `Orden de recuperación automática para comodato ${comodatoId}`,
+        },
       });
 
       // Actualizar fecha esperada de devolución en el comodato
       await this.prisma.comodato.update({
         where: { comodato_id: comodatoId },
         data: {
-          expected_return_date: defaultScheduledDate
-        }
+          expected_return_date: defaultScheduledDate,
+        },
       });
 
       return recoveryOrder;
@@ -81,19 +94,16 @@ async createRecoveryOrder(
    * @param subscriptionId ID de suscripción (opcional)
    * @returns Lista de órdenes de recuperación
    */
-  async getRecoveryOrders(
-    status?: RecoveryStatus,
-    subscriptionId?: number
-  ) {
+  async getRecoveryOrders(status?: RecoveryStatus, subscriptionId?: number) {
     const where: any = {};
-    
+
     if (status) {
       where.status = status;
     }
-    
+
     if (subscriptionId) {
       where.comodato = {
-        subscription_id: subscriptionId
+        subscription_id: subscriptionId,
       };
     }
 
@@ -113,8 +123,8 @@ async createRecoveryOrder(
         },
       },
       orderBy: {
-        scheduled_recovery_date: 'asc'
-      }
+        scheduled_recovery_date: 'asc',
+      },
     });
   }
 
@@ -130,11 +140,11 @@ async createRecoveryOrder(
     recoveryOrderId: number,
     status: RecoveryStatus,
     actualRecoveryDate?: Date,
-    notes?: string
+    notes?: string,
   ) {
     const updateData: any = {
       status,
-      updated_at: new Date()
+      updated_at: new Date(),
     };
 
     if (actualRecoveryDate) {
@@ -149,16 +159,19 @@ async createRecoveryOrder(
     if (status === RecoveryStatus.COMPLETED) {
       const recoveryOrder = await this.prisma.recovery_order.findUnique({
         where: { recovery_order_id: recoveryOrderId },
-        include: { comodato: true }
+        include: { comodato: true },
       });
 
-      if (recoveryOrder?.comodato && recoveryOrder.comodato.status === ComodatoStatus.ACTIVE) {
+      if (
+        recoveryOrder?.comodato &&
+        recoveryOrder.comodato.status === ComodatoStatus.ACTIVE
+      ) {
         await this.prisma.comodato.update({
           where: { comodato_id: recoveryOrder.comodato.comodato_id },
           data: {
             status: ComodatoStatus.RETURNED,
-            return_date: actualRecoveryDate || new Date()
-          }
+            return_date: actualRecoveryDate || new Date(),
+          },
         });
       }
     }
@@ -169,10 +182,10 @@ async createRecoveryOrder(
       include: {
         comodato: {
           include: {
-            subscription: true
-          }
-        }
-      }
+            subscription: true,
+          },
+        },
+      },
     });
   }
 
@@ -186,10 +199,10 @@ async createRecoveryOrder(
   async rescheduleRecoveryOrder(
     recoveryOrderId: number,
     newScheduledDate: Date,
-    reason?: string
+    reason?: string,
   ) {
     const recoveryOrder = await this.prisma.recovery_order.findUnique({
-      where: { recovery_order_id: recoveryOrderId }
+      where: { recovery_order_id: recoveryOrderId },
     });
 
     if (!recoveryOrder) {
@@ -205,22 +218,24 @@ async createRecoveryOrder(
       data: {
         scheduled_recovery_date: newScheduledDate,
         status: RecoveryStatus.RESCHEDULED,
-        notes: reason ? `${recoveryOrder.notes || ''} | Reprogramada: ${reason}` : recoveryOrder.notes
+        notes: reason
+          ? `${recoveryOrder.notes || ''} | Reprogramada: ${reason}`
+          : recoveryOrder.notes,
       },
       include: {
-        comodato: true
-      }
+        comodato: true,
+      },
     });
 
     // Actualizar fecha esperada de devolución en el comodato asociado
     if (updatedOrder.comodato) {
       await this.prisma.comodato.update({
         where: {
-          comodato_id: updatedOrder.comodato.comodato_id
+          comodato_id: updatedOrder.comodato.comodato_id,
         },
         data: {
-          expected_return_date: newScheduledDate
-        }
+          expected_return_date: newScheduledDate,
+        },
       });
     }
 
@@ -235,7 +250,7 @@ async createRecoveryOrder(
   async getRecoveryOrdersByDate(date: Date) {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
@@ -243,11 +258,11 @@ async createRecoveryOrder(
       where: {
         scheduled_recovery_date: {
           gte: startOfDay,
-          lte: endOfDay
+          lte: endOfDay,
         },
         status: {
-          in: [RecoveryStatus.PENDING, RecoveryStatus.SCHEDULED]
-        }
+          in: [RecoveryStatus.PENDING, RecoveryStatus.SCHEDULED],
+        },
       },
       include: {
         comodato: {
@@ -263,8 +278,8 @@ async createRecoveryOrder(
         },
       },
       orderBy: {
-        scheduled_recovery_date: 'asc'
-      }
+        scheduled_recovery_date: 'asc',
+      },
     });
   }
 
@@ -274,12 +289,9 @@ async createRecoveryOrder(
    * @param reason Razón de la cancelación
    * @returns La orden cancelada
    */
-  async cancelRecoveryOrder(
-    recoveryOrderId: number,
-    reason?: string
-  ) {
+  async cancelRecoveryOrder(recoveryOrderId: number, reason?: string) {
     const recoveryOrder = await this.prisma.recovery_order.findUnique({
-      where: { recovery_order_id: recoveryOrderId }
+      where: { recovery_order_id: recoveryOrderId },
     });
 
     if (!recoveryOrder) {
@@ -291,19 +303,20 @@ async createRecoveryOrder(
     }
 
     // Limpiar fecha esperada de devolución del comodato asociado
-    const recoveryOrderWithComodato = await this.prisma.recovery_order.findUnique({
-      where: { recovery_order_id: recoveryOrderId },
-      include: { comodato: true }
-    });
+    const recoveryOrderWithComodato =
+      await this.prisma.recovery_order.findUnique({
+        where: { recovery_order_id: recoveryOrderId },
+        include: { comodato: true },
+      });
 
     if (recoveryOrderWithComodato?.comodato) {
       await this.prisma.comodato.update({
         where: {
-          comodato_id: recoveryOrderWithComodato.comodato.comodato_id
+          comodato_id: recoveryOrderWithComodato.comodato.comodato_id,
         },
         data: {
-          expected_return_date: null
-        }
+          expected_return_date: null,
+        },
       });
     }
 
@@ -311,9 +324,11 @@ async createRecoveryOrder(
       where: { recovery_order_id: recoveryOrderId },
       data: {
         status: RecoveryStatus.CANCELLED,
-        notes: reason ? `${recoveryOrder.notes || ''} | Cancelada: ${reason}` : recoveryOrder.notes,
-        updated_at: new Date()
-      }
+        notes: reason
+          ? `${recoveryOrder.notes || ''} | Cancelada: ${reason}`
+          : recoveryOrder.notes,
+        updated_at: new Date(),
+      },
     });
   }
 }

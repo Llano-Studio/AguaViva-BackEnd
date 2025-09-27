@@ -34,7 +34,7 @@ export class CancellationOrderProductDto {
 
   @ApiProperty({
     description: 'Precio unitario del producto',
-    example: 25.50,
+    example: 25.5,
   })
   unit_price: number;
 }

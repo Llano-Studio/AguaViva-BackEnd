@@ -7,9 +7,9 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Auth } from '../../auth/decorators/auth.decorator';
-import { OverdueOrderService } from '../services/overdue-order.service';
+import { OverdueOrderService } from '../../common/services/overdue-order.service';
 
-@ApiTags('Overdue Orders')
+@ApiTags('Órdenes de Cobranza Atrasadas')
 @ApiBearerAuth()
 @Controller('overdue-orders')
 export class OverdueOrderController {
@@ -20,8 +20,31 @@ export class OverdueOrderController {
   @Auth(Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Marcar pedidos atrasados manualmente',
-    description:
-      'Ejecuta manualmente el proceso de marcado de pedidos como atrasados (más de 2 días desde su creación)',
+    description: `Ejecuta manualmente el proceso de identificación y marcado de pedidos como atrasados.
+
+## ⏰ GESTIÓN DE PEDIDOS VENCIDOS
+
+**Criterios de Vencimiento:**
+- Pedidos con más de 2 días desde su creación
+- Estados elegibles: PENDING, CONFIRMED, IN_PREPARATION
+- Exclusión automática de pedidos ya DELIVERED o CANCELLED
+
+## 🔄 PROCESO AUTOMÁTICO
+
+**Acciones Realizadas:**
+1. Identifica pedidos que superan el límite de tiempo
+2. Cambia el estado a OVERDUE
+3. Registra el estado anterior para auditoría
+4. Calcula días de retraso
+5. Genera reporte de pedidos afectados
+
+## 📊 INFORMACIÓN RETORNADA
+
+- Cantidad total de pedidos marcados
+- Detalles de cada pedido afectado
+- Estado anterior de cada pedido
+- Días de retraso calculados
+- Información del cliente afectado`,
   })
   @ApiResponse({
     status: 200,

@@ -77,23 +77,24 @@ export class PaymentSemaphoreService
         },
       });
 
-
       if (!activeSubscription?.subscription_cycle?.length) return 'NONE';
 
       const lastCycle = activeSubscription.subscription_cycle[0];
-      
 
       const cycleEndDate = new Date(lastCycle.cycle_end);
-      const paymentDueDate = new Date(lastCycle.payment_due_date || lastCycle.cycle_end);
+      const paymentDueDate = new Date(
+        lastCycle.payment_due_date || lastCycle.cycle_end,
+      );
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       // Obtener información del ciclo
-      const pendingBalance = parseFloat(lastCycle.pending_balance?.toString() || '0');
+      const pendingBalance = parseFloat(
+        lastCycle.pending_balance?.toString() || '0',
+      );
       const paidAmount = parseFloat(lastCycle.paid_amount?.toString() || '0');
       const totalAmount = parseFloat(lastCycle.total_amount?.toString() || '0');
 
-      
       // Si el ciclo está marcado como PAID, el estado es GREEN
       if (lastCycle.payment_status === 'PAID') {
         return 'GREEN';
@@ -115,7 +116,6 @@ export class PaymentSemaphoreService
           const diffTime = today.getTime() - paymentDueDate.getTime();
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-
           if (diffDays > this.redThresholdDays) return 'RED';
           if (diffDays > this.yellowThresholdDays) return 'YELLOW';
           return 'GREEN';
@@ -125,7 +125,7 @@ export class PaymentSemaphoreService
         return 'YELLOW';
       }
 
-      // CORRECCIÓN ADICIONAL: Si pending_balance es 0 pero total_amount también es 0, 
+      // CORRECCIÓN ADICIONAL: Si pending_balance es 0 pero total_amount también es 0,
       // puede ser una suscripción recién creada sin cálculo de precios
       if (pendingBalance <= 0 && totalAmount <= 0) {
         return 'NONE';

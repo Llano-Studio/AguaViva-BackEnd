@@ -1,20 +1,19 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   InternalServerErrorException,
   OnModuleInit,
   BadRequestException,
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { CreateVehicleInventoryDto } from './dto/create-vehicule-inventory.dto';
-import { UpdateVehicleInventoryDto } from './dto/update-vehicule-inventory.dto';
-import { FilterVehicleInventoryDto } from './dto/filter-vehicle-inventory.dto';
+import { CreateVehiculeInventoryDto } from './dto/create-vehicule-inventory.dto';
+import { UpdateVehiculeInventoryDto } from './dto/update-vehicule-inventory.dto';
+import { FilterVehiculeInventoryDto } from './dto/filter-vehicle-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
-export class VehicleInventoryService
+export class VehiculeInventoryService
   extends PrismaClient
   implements OnModuleInit
 {
@@ -46,7 +45,7 @@ export class VehicleInventoryService
     }
   }
 
-  async createOrUpdateVehicleInventory(dto: CreateVehicleInventoryDto) {
+  async createOrUpdateVehicleInventory(dto: CreateVehiculeInventoryDto) {
     await this.validateVehicleExists(dto.vehicle_id);
     await this.validateProductExists(dto.product_id);
 
@@ -77,7 +76,7 @@ export class VehicleInventoryService
     }
   }
 
-  async getAllVehicleInventory(filters: FilterVehicleInventoryDto): Promise<{
+  async getAllVehicleInventory(filters: FilterVehiculeInventoryDto): Promise<{
     data: any[];
     total: number;
     page: number;
@@ -148,7 +147,7 @@ export class VehicleInventoryService
   async updateVehicleInventoryQuantities(
     vehicle_id: number,
     product_id: number,
-    dto: UpdateVehicleInventoryDto,
+    dto: UpdateVehiculeInventoryDto,
   ) {
     await this.getVehicleInventoryById(vehicle_id, product_id);
     try {

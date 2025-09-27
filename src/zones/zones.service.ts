@@ -116,11 +116,14 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getZoneById(id: number, includeInactive: boolean = false): Promise<zone> {
+  async getZoneById(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<zone> {
     const record = await this.zone.findFirst({
-      where: { 
+      where: {
         zone_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: {
         locality: {
@@ -256,7 +259,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.zone.update({
         where: { zone_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
       return {
         message: 'Zona desactivada correctamente',

@@ -275,9 +275,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           where: { payment_id: { in: cyclePaymentIds } },
         });
         if (cyclePayments.length !== cyclePaymentIds.length) {
-          const foundIds = cyclePayments.map(
-            (payment) => payment.payment_id,
-          );
+          const foundIds = cyclePayments.map((payment) => payment.payment_id);
           const missingIds = cyclePaymentIds.filter(
             (id) => !foundIds.includes(id),
           );
@@ -623,14 +621,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 },
               },
               cancellation_order: {
+                include: {
+                  customer_subscription: {
                     include: {
-                      customer_subscription: {
-                        include: {
-                          person: true,
-                        },
-                      },
+                      person: true,
                     },
                   },
+                },
+              },
               cycle_payment: {
                 include: {
                   subscription_cycle: {
@@ -673,11 +671,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number, includeInactive: boolean = false): Promise<RouteSheetResponseDto> {
+  async findOne(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<RouteSheetResponseDto> {
     const routeSheet = await this.route_sheet.findFirst({
-      where: { 
+      where: {
         route_sheet_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
       include: {
         driver: true,
@@ -969,9 +970,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.route_sheet.update({
         where: { route_sheet_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
-      
+
       return {
         message: `${this.entityName} con ID ${id} desactivada correctamente`,
         deleted: true,
@@ -1202,10 +1203,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         } else if (detail.cancellation_order) {
           // Orden de cancelación
           customerDto = {
-            person_id: detail.cancellation_order.customer_subscription.person.person_id,
-            name: detail.cancellation_order.customer_subscription.person.name || 'Sin nombre',
+            person_id:
+              detail.cancellation_order.customer_subscription.person.person_id,
+            name:
+              detail.cancellation_order.customer_subscription.person.name ||
+              'Sin nombre',
             phone: detail.cancellation_order.customer_subscription.person.phone,
-            address: detail.cancellation_order.customer_subscription.person.address || 'Sin dirección',
+            address:
+              detail.cancellation_order.customer_subscription.person.address ||
+              'Sin dirección',
           };
 
           // Para órdenes de cancelación, no tenemos productos específicos
@@ -1213,7 +1219,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
           orderDto = {
             order_id: detail.cancellation_order.cancellation_order_id,
-            order_date: detail.cancellation_order.scheduled_collection_date.toISOString(),
+            order_date:
+              detail.cancellation_order.scheduled_collection_date.toISOString(),
             total_amount: '0.00', // Las cancelaciones no tienen monto
             status: 'CANCELLED',
             customer: customerDto,
@@ -1222,10 +1229,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         } else if (detail.cycle_payment) {
           // Pedido de cobranza
           customerDto = {
-            person_id: detail.cycle_payment.subscription_cycle.customer_subscription.person.person_id,
-            name: detail.cycle_payment.subscription_cycle.customer_subscription.person.name || 'Sin nombre',
-            phone: detail.cycle_payment.subscription_cycle.customer_subscription.person.phone,
-            address: detail.cycle_payment.subscription_cycle.customer_subscription.person.address || 'Sin dirección',
+            person_id:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.person_id,
+            name:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.name || 'Sin nombre',
+            phone:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.phone,
+            address:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.address || 'Sin dirección',
           };
 
           // Para pedidos de cobranza, no tenemos productos específicos

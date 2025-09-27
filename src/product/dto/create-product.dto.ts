@@ -31,7 +31,12 @@ export class CreateProductDto {
     nullable: true,
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'volume_liters debe ser un número válido con máximo 2 decimales' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    {
+      message: 'volume_liters debe ser un número válido con máximo 2 decimales',
+    },
+  )
   @ValidateIf((o, v) => v !== null)
   @Transform(({ value }) => {
     if (value === null || value === undefined || value === '') {
@@ -53,7 +58,7 @@ export class CreateProductDto {
     if (typeof value === 'boolean') {
       return value;
     }
-    
+
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
@@ -64,12 +69,12 @@ export class CreateProductDto {
         return false;
       }
     }
-    
+
     // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    
+
     // Para cualquier otro caso, devolver false por defecto en creación
     return false;
   })

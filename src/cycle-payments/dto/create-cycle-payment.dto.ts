@@ -20,7 +20,8 @@ export class CreateCyclePaymentDto {
   cycle_id: number;
 
   @ApiProperty({
-    description: 'Monto del pago (se permiten sobrepagos que se acreditarán como crédito)',
+    description:
+      'Monto del pago (se permiten sobrepagos que se acreditarán como crédito)',
     example: 15000.0,
     type: 'number',
     format: 'float',

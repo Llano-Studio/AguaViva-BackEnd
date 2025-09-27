@@ -44,13 +44,38 @@ export class SubscriptionPlansController {
   @Post()
   @Auth(Role.SUPERADMIN)
   @ApiOperation({
-    summary: 'Crear un nuevo plan de suscripción',
-    description: `Crea un nuevo plan de suscripción con configuraciones por defecto que se aplicarán a nuevas suscripciones de clientes.
-    
-**Nuevos campos disponibles:**
-- \`default_cycle_days\`: Duración por defecto del ciclo en días (ej: 30 para mensual)
-- \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo (ej: 1 entrega por mes)
-- \`is_active\`: Si el plan está disponible para nuevas suscripciones`,
+    summary: 'Crear nuevo plan de suscripción',
+    description: `Crea un nuevo plan de suscripción con configuraciones personalizables para diferentes tipos de clientes.
+
+## 📋 CONFIGURACIÓN DE PLANES
+
+**Información Básica:**
+- Nombre descriptivo del plan
+- Descripción detallada del servicio
+- Precio fijo mensual del plan
+- Estado de disponibilidad
+
+## ⏰ CONFIGURACIÓN DE CICLOS
+
+**Parámetros de Entrega:**
+- **Duración del Ciclo**: Días entre facturaciones (ej: 30 días = mensual)
+- **Entregas por Ciclo**: Frecuencia de entregas (ej: 2 = quincenal)
+- **Flexibilidad**: Adaptable a diferentes necesidades
+
+## 📦 GESTIÓN DE PRODUCTOS
+
+**Después de Crear el Plan:**
+- Agregar productos específicos al plan
+- Definir cantidades por producto
+- Configurar productos retornables
+- Establecer precios por ítem
+
+## 🎯 TIPOS DE PLANES COMUNES
+
+- **Plan Básico**: 30 días, 1 entrega, productos esenciales
+- **Plan Premium**: 15 días, 2 entregas, productos premium
+- **Plan Familiar**: 30 días, 1 entrega, cantidades grandes
+- **Plan Corporativo**: Personalizado según necesidades`,
   })
   @ApiBody({
     type: CreateSubscriptionPlanDto,
@@ -119,11 +144,42 @@ export class SubscriptionPlansController {
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Obtener todos los planes de suscripción',
-    description: `Obtiene una lista paginada de todos los planes de suscripción con opções de filtrado y ordenamiento.
-    
-**Campos disponibles para ordenar:** \`name\`, \`price\`, \`default_cycle_days\`, \`default_deliveries_per_cycle\`, \`is_active\`, \`created_at\`, \`updated_at\`
+    description: `Obtiene una lista paginada de todos los planes de suscripción con filtros avanzados y ordenamiento personalizable.
 
-**Ejemplo de sortBy:** \`name,-price,default_cycle_days\` (ordena por nombre ascendente, precio descendente, y ciclo ascendente)`,
+## 🔍 FILTROS DISPONIBLES
+
+**Búsqueda Inteligente:**
+- **search**: Búsqueda general en nombre y descripción
+- **name**: Filtro exacto por nombre del plan
+- **is_active**: Filtrar por estado (activo/inactivo)
+
+## 📊 ORDENAMIENTO AVANZADO
+
+**Campos Disponibles:**
+- \`name\`: Nombre del plan
+- \`price\`: Precio del plan
+- \`default_cycle_days\`: Duración del ciclo
+- \`default_deliveries_per_cycle\`: Entregas por ciclo
+- \`is_active\`: Estado de activación
+- \`created_at\`, \`updated_at\`: Fechas
+
+**Sintaxis:** \`campo1,-campo2,campo3\` (- = descendente)
+
+## 📋 INFORMACIÓN INCLUIDA
+
+**Datos del Plan:**
+- Configuración de precios y ciclos
+- Estado de disponibilidad
+- Productos asociados con cantidades
+- Fechas de creación y actualización
+
+## 🎯 CASOS DE USO
+
+- **Gestión Comercial**: Visualizar todos los planes disponibles
+- **Configuración de Precios**: Comparar precios entre planes
+- **Análisis de Productos**: Revisar configuración de productos por plan
+- **Administración**: Control de planes activos/inactivos
+- **Reportes**: Información para análisis comercial`,
   })
   @ApiQuery({
     name: 'search',
@@ -624,7 +680,8 @@ export class SubscriptionPlansController {
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Diagnóstico: Planes sin precio definido',
-    description: 'Obtiene una lista de planes que no tienen precio definido, identificando casos críticos con suscripciones activas'
+    description:
+      'Obtiene una lista de planes que no tienen precio definido, identificando casos críticos con suscripciones activas',
   })
   @ApiResponse({
     status: 200,
@@ -639,14 +696,14 @@ export class SubscriptionPlansController {
               name: { type: 'string' },
               price: { type: 'number', nullable: true },
               is_active: { type: 'boolean' },
-              active_subscriptions_count: { type: 'number' }
-            }
-          }
+              active_subscriptions_count: { type: 'number' },
+            },
+          },
         },
         total_count: { type: 'number' },
-        critical_count: { type: 'number' }
-      }
-    }
+        critical_count: { type: 'number' },
+      },
+    },
   })
   async getPlansWithoutPrice() {
     return this.subscriptionPlansService.getPlansWithoutPrice();
@@ -656,20 +713,24 @@ export class SubscriptionPlansController {
   @Auth(Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Asignar precio a un plan',
-    description: 'Asigna un precio específico a un plan de suscripción'
+    description: 'Asigna un precio específico a un plan de suscripción',
   })
   @ApiParam({ name: 'id', description: 'ID del plan de suscripción' })
   @ApiBody({
     schema: {
       properties: {
-        price: { type: 'number', example: 18300.00, description: 'Precio a asignar al plan' }
-      }
-    }
+        price: {
+          type: 'number',
+          example: 18300.0,
+          description: 'Precio a asignar al plan',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
     description: 'Precio asignado exitosamente',
-    type: SubscriptionPlanResponseDto
+    type: SubscriptionPlanResponseDto,
   })
   async assignPriceToplan(
     @Param('id', ParseIntPipe) id: number,

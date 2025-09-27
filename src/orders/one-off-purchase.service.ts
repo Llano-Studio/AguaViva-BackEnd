@@ -34,7 +34,7 @@ export class OneOffPurchaseService
   }
 
   private readonly logger = new Logger(OneOffPurchaseService.name);
-  
+
   async onModuleInit() {
     await this.$connect();
   }
@@ -45,14 +45,14 @@ export class OneOffPurchaseService
   private async loadPaymentTransactions(
     customerId: number,
     orderIdValue: number,
-    isLegacyStructure: boolean
+    isLegacyStructure: boolean,
   ): Promise<any[]> {
     const documentNumberPattern = `ONE-OFF-${orderIdValue}`;
-    
+
     this.logger.log(
       `🔍 Buscando pagos para: customer_id=${customerId}, document_number=${documentNumberPattern}`,
     );
-    
+
     const payments = await this.payment_transaction.findMany({
       where: {
         customer_id: customerId,
@@ -66,11 +66,11 @@ export class OneOffPurchaseService
         transaction_date: 'desc',
       },
     });
-    
+
     this.logger.log(
       `✅ Encontrados ${payments.length} pagos para la orden ONE-OFF ${orderIdValue}`,
     );
-    
+
     return payments;
   }
 
@@ -849,27 +849,25 @@ export class OneOffPurchaseService
       });
       // Agrupar compras por orden (person_id + fecha)
       const groupedPurchases = this.groupPurchasesByOrder(purchases);
-      
+
       // Convertir a formato de respuesta consolidado con pagos cargados
       const consolidatedOrders = await Promise.all(
-        Array.from(groupedPurchases.values()).map(
-          async (group) => {
-            // Cargar pagos para cada grupo de compras
-            const basePurchase = group[0];
-            const payments = await this.loadPaymentTransactions(
-              basePurchase.person_id,
-              basePurchase.purchase_id,
-              true // isLegacyStructure = true
-            );
-            
-            // Agregar pagos a las compras
-            group.forEach(purchase => {
-              (purchase as any).payment_transaction = payments;
-            });
-            
-            return this.mapToConsolidatedOneOffPurchaseResponseDto(group);
-          }
-        )
+        Array.from(groupedPurchases.values()).map(async (group) => {
+          // Cargar pagos para cada grupo de compras
+          const basePurchase = group[0];
+          const payments = await this.loadPaymentTransactions(
+            basePurchase.person_id,
+            basePurchase.purchase_id,
+            true, // isLegacyStructure = true
+          );
+
+          // Agregar pagos a las compras
+          group.forEach((purchase) => {
+            purchase.payment_transaction = payments;
+          });
+
+          return this.mapToConsolidatedOneOffPurchaseResponseDto(group);
+        }),
       );
 
       return {
@@ -972,14 +970,14 @@ export class OneOffPurchaseService
         const payments = await this.loadPaymentTransactions(
           legacyPurchase.person_id,
           legacyPurchase.purchase_id,
-          true // isLegacyStructure = true
+          true, // isLegacyStructure = true
         );
-        
+
         // Agregar pagos a las compras
-        relatedPurchases.forEach(purchase => {
+        relatedPurchases.forEach((purchase) => {
           (purchase as any).payment_transaction = payments;
         });
-        
+
         return this.mapToConsolidatedOneOffPurchaseResponseDto(
           relatedPurchases,
         );
@@ -987,7 +985,9 @@ export class OneOffPurchaseService
 
       // Si se encuentra en header, usar mapeo directo
       if (headerPurchase) {
-        return await this.mapToHeaderItemsOneOffPurchaseResponseDto(headerPurchase);
+        return await this.mapToHeaderItemsOneOffPurchaseResponseDto(
+          headerPurchase,
+        );
       }
 
       // Si no se encuentra en ninguna estructura, lanzar error
@@ -1546,7 +1546,7 @@ export class OneOffPurchaseService
           // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
           await prismaTx.one_off_purchase.update({
             where: { purchase_id: id },
-            data: { is_active: false }
+            data: { is_active: false },
           });
         } else if (headerPurchase) {
           // Renovar stock para estructura header (múltiples items)
@@ -1565,7 +1565,7 @@ export class OneOffPurchaseService
           // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
           await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
-            data: { is_active: false }
+            data: { is_active: false },
           });
         }
       });
@@ -1664,7 +1664,7 @@ export class OneOffPurchaseService
     // Calcular información de pagos consolidada
     const paidAmount = new Decimal(basePurchase.paid_amount || 0);
     const remainingAmount = totalAmount.minus(paidAmount);
-    
+
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
     if (paidAmount.equals(0)) {
@@ -1674,17 +1674,23 @@ export class OneOffPurchaseService
     } else {
       paymentStatus = 'PARTIAL';
     }
-    
+
     // Consolidar transacciones de pago de todas las compras
-    const allPayments = purchases.flatMap(purchase => 
+    const allPayments = purchases.flatMap((purchase) =>
       (purchase.payment_transaction || []).map((payment: any) => ({
         payment_id: payment.transaction_id || payment.payment_id,
         amount: (payment.transaction_amount || payment.amount || 0).toString(),
-        payment_date: payment.transaction_date ? payment.transaction_date.toISOString() : new Date().toISOString(),
-        payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
-        transaction_reference: payment.receipt_number || payment.reference || undefined,
+        payment_date: payment.transaction_date
+          ? payment.transaction_date.toISOString()
+          : new Date().toISOString(),
+        payment_method:
+          payment.payment_method?.description ||
+          payment.payment_method ||
+          'No especificado',
+        transaction_reference:
+          payment.receipt_number || payment.reference || undefined,
         notes: payment.notes || undefined,
-      }))
+      })),
     );
 
     // Consolidar todos los productos
@@ -1770,13 +1776,13 @@ export class OneOffPurchaseService
 
   private async mapToOneOffPurchaseResponseDto(
     purchase: any,
-    payments?: any[]
+    payments?: any[],
   ): Promise<OneOffPurchaseResponseDto> {
     // Calcular información de pagos
     const totalAmount = new Decimal(purchase.total_amount);
     const paidAmount = new Decimal(purchase.paid_amount || 0);
     const remainingAmount = totalAmount.minus(paidAmount);
-    
+
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
     if (paidAmount.equals(0)) {
@@ -1786,7 +1792,7 @@ export class OneOffPurchaseService
     } else {
       paymentStatus = 'PARTIAL';
     }
-    
+
     // CORRECCIÓN: Siempre cargar pagos para asegurar que no estén vacíos
     let paymentTransactions = payments;
     if (!paymentTransactions) {
@@ -1795,7 +1801,7 @@ export class OneOffPurchaseService
         paymentTransactions = await this.loadPaymentTransactions(
           purchase.person_id,
           orderIdValue,
-          !!purchase.purchase_id
+          !!purchase.purchase_id,
         );
       } catch (error) {
         this.logger.error(
@@ -1805,14 +1811,28 @@ export class OneOffPurchaseService
         paymentTransactions = [];
       }
     }
-    
+
     // Mapear transacciones de pago con mejor manejo de errores
     const mappedPayments = (paymentTransactions || []).map((payment: any) => ({
-      payment_id: payment.transaction_id || payment.payment_transaction_id || payment.payment_id,
+      payment_id:
+        payment.transaction_id ||
+        payment.payment_transaction_id ||
+        payment.payment_id,
       amount: (payment.transaction_amount || payment.amount || 0).toString(),
-      payment_date: (payment.transaction_date || payment.payment_date || new Date()).toISOString(),
-      payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
-      transaction_reference: payment.receipt_number || payment.transaction_reference || payment.reference || undefined,
+      payment_date: (
+        payment.transaction_date ||
+        payment.payment_date ||
+        new Date()
+      ).toISOString(),
+      payment_method:
+        payment.payment_method?.description ||
+        payment.payment_method ||
+        'No especificado',
+      transaction_reference:
+        payment.receipt_number ||
+        payment.transaction_reference ||
+        payment.reference ||
+        undefined,
       notes: payment.notes || undefined,
     }));
 
@@ -1879,7 +1899,7 @@ export class OneOffPurchaseService
     const totalAmount = new Decimal(purchaseHeader.total_amount);
     const paidAmount = new Decimal(purchaseHeader.paid_amount || 0);
     const remainingAmount = totalAmount.minus(paidAmount);
-    
+
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
     if (paidAmount.equals(0)) {
@@ -1889,16 +1909,31 @@ export class OneOffPurchaseService
     } else {
       paymentStatus = 'PARTIAL';
     }
-    
+
     // CORRECCIÓN: Cargar pagos desde payment_transaction si no están incluidos
     let payments = [];
-    if (purchaseHeader.payment_transaction && purchaseHeader.payment_transaction.length > 0) {
+    if (
+      purchaseHeader.payment_transaction &&
+      purchaseHeader.payment_transaction.length > 0
+    ) {
       payments = purchaseHeader.payment_transaction.map((payment: any) => ({
-        payment_id: payment.payment_transaction_id || payment.transaction_id || payment.payment_id,
+        payment_id:
+          payment.payment_transaction_id ||
+          payment.transaction_id ||
+          payment.payment_id,
         amount: (payment.amount || payment.transaction_amount || 0).toString(),
-        payment_date: payment.payment_date ? payment.payment_date.toISOString() : new Date().toISOString(),
-        payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
-        transaction_reference: payment.transaction_reference || payment.receipt_number || payment.reference || undefined,
+        payment_date: payment.payment_date
+          ? payment.payment_date.toISOString()
+          : new Date().toISOString(),
+        payment_method:
+          payment.payment_method?.description ||
+          payment.payment_method ||
+          'No especificado',
+        transaction_reference:
+          payment.transaction_reference ||
+          payment.receipt_number ||
+          payment.reference ||
+          undefined,
         notes: payment.notes || undefined,
       }));
     } else {
@@ -1907,15 +1942,25 @@ export class OneOffPurchaseService
         const paymentTransactions = await this.loadPaymentTransactions(
           purchaseHeader.person_id,
           purchaseHeader.purchase_header_id,
-          false // Es estructura header
+          false, // Es estructura header
         );
-        
+
         payments = (paymentTransactions || []).map((payment: any) => ({
           payment_id: payment.transaction_id || payment.payment_id,
-          amount: (payment.transaction_amount || payment.amount || 0).toString(),
-          payment_date: payment.transaction_date ? payment.transaction_date.toISOString() : new Date().toISOString(),
-          payment_method: payment.payment_method?.description || payment.payment_method || 'No especificado',
-          transaction_reference: payment.receipt_number || payment.reference || undefined,
+          amount: (
+            payment.transaction_amount ||
+            payment.amount ||
+            0
+          ).toString(),
+          payment_date: payment.transaction_date
+            ? payment.transaction_date.toISOString()
+            : new Date().toISOString(),
+          payment_method:
+            payment.payment_method?.description ||
+            payment.payment_method ||
+            'No especificado',
+          transaction_reference:
+            payment.receipt_number || payment.reference || undefined,
           notes: payment.notes || undefined,
         }));
       } catch (error) {
@@ -2166,14 +2211,14 @@ export class OneOffPurchaseService
           const payments = await this.loadPaymentTransactions(
             header.person_id,
             header.purchase_header_id,
-            false // isLegacyStructure = false
+            false, // isLegacyStructure = false
           );
-          
+
           // Agregar pagos al header
           (header as any).payment_transaction = payments;
-          
+
           return this.mapToHeaderItemsOneOffPurchaseResponseDto(header);
-        })
+        }),
       );
 
       return {

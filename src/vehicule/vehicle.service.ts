@@ -114,11 +114,14 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async getVehicleById(id: number, includeInactive: boolean = false): Promise<VehicleResponseDto> {
+  async getVehicleById(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<VehicleResponseDto> {
     const vehicle = await this.vehicle.findFirst({
-      where: { 
+      where: {
         vehicle_id: id,
-        ...(includeInactive ? {} : { is_active: true })
+        ...(includeInactive ? {} : { is_active: true }),
       },
     });
     if (!vehicle) {
@@ -189,7 +192,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.vehicle.update({
         where: { vehicle_id: id },
-        data: { is_active: false }
+        data: { is_active: false },
       });
       return {
         message: `${this.entityName} desactivado correctamente`,

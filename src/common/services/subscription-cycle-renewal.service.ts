@@ -1,8 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { CycleNumberingService } from '../../customer-subscription/services/cycle-numbering.service';
-import { SubscriptionCycleCalculatorService } from '../../customer-subscription/services/subscription-cycle-calculator.service';
+import { SubscriptionCycleNumberingService } from './subscription-cycle-numbering.service';
+import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 
 @Injectable()
 export class SubscriptionCycleRenewalService
@@ -12,7 +12,7 @@ export class SubscriptionCycleRenewalService
   private readonly logger = new Logger(SubscriptionCycleRenewalService.name);
 
   constructor(
-    private readonly cycleNumberingService: CycleNumberingService,
+    private readonly cycleNumberingService: SubscriptionCycleNumberingService,
     private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
   ) {
     super();
@@ -105,7 +105,7 @@ export class SubscriptionCycleRenewalService
           cycle_end: cycleEndDate,
           payment_due_date: paymentDueDate,
           total_amount: 0, // Se calculará después
-        }
+        },
       );
 
       // Crear los detalles del ciclo basados en el plan de suscripción
@@ -124,10 +124,17 @@ export class SubscriptionCycleRenewalService
 
       // Calcular el total_amount del ciclo basado en los productos del plan
       try {
-        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(newCycle.cycle_id);
-        this.logger.log(`✅ Total calculado para ciclo renovado ${newCycle.cycle_id}`);
+        await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
+          newCycle.cycle_id,
+        );
+        this.logger.log(
+          `✅ Total calculado para ciclo renovado ${newCycle.cycle_id}`,
+        );
       } catch (error) {
-        this.logger.error(`❌ Error calculando total para ciclo renovado ${newCycle.cycle_id}:`, error);
+        this.logger.error(
+          `❌ Error calculando total para ciclo renovado ${newCycle.cycle_id}:`,
+          error,
+        );
       }
 
       this.logger.log(

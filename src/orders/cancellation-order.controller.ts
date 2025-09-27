@@ -29,10 +29,10 @@ import {
 import { CancellationOrderWithProductsDto } from './dto/cancellation-order-with-products.dto';
 import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
 import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
-import { CancellationOrderReassignmentService } from './services/cancellation-order-reassignment.service';
+import { CancellationOrderReassignmentService } from '../common/services/cancellation-order-reassignment.service';
 import { CancellationOrderStatus } from '@prisma/client';
 
-@ApiTags('Cancellation Orders')
+@ApiTags('Ordenes de Cancelacion')
 @ApiBearerAuth()
 @Controller('cancellation-orders')
 export class CancellationOrderController {
@@ -44,9 +44,30 @@ export class CancellationOrderController {
   @Post()
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
-    summary: 'Crear orden de cancelación',
-    description:
-      'Crea una nueva orden de cancelación para una suscripción cancelada',
+    summary: 'Crear orden de cancelación de suscripción',
+    description: `Crea una nueva orden de cancelación para gestionar la recolección de productos cuando una suscripción es cancelada.
+
+## 🔄 GESTIÓN DE CANCELACIONES
+
+**Proceso de Cancelación:**
+- Se genera automáticamente cuando una suscripción es cancelada
+- Programa la recolección de productos en comodato
+- Gestiona la devolución de stock al inventario
+- Coordina con hojas de ruta para logística
+
+## 📦 PRODUCTOS A RECOLECTAR
+
+**Tipos de Recolección:**
+- **Bidones Retornables**: Productos en comodato del cliente
+- **Dispensadores**: Equipos prestados durante la suscripción
+- **Accesorios**: Elementos adicionales asociados
+
+## 📅 PROGRAMACIÓN AUTOMÁTICA
+
+- Fecha de recolección programable
+- Asignación automática a hojas de ruta
+- Seguimiento del estado de recolección
+- Reasignación automática en caso de fallas`,
   })
   @ApiBody({
     schema: {
@@ -91,7 +112,15 @@ export class CancellationOrderController {
   })
   @ApiResponse({ status: 404, description: 'Suscripción no encontrada' })
   async create(
-    @Body(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true }, whitelist: true, skipMissingProperties: true })) createDto: CreateCancellationOrderDto,
+    @Body(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        whitelist: true,
+        skipMissingProperties: true,
+      }),
+    )
+    createDto: CreateCancellationOrderDto,
   ): Promise<CancellationOrderResponseDto> {
     return this.cancellationOrderService.createCancellationOrder(createDto);
   }

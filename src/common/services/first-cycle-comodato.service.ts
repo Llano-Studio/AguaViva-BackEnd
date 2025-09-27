@@ -240,7 +240,7 @@ export class FirstCycleComodatoService extends PrismaClient {
   private async isFirstCycle(subscriptionId: number): Promise<boolean> {
     // Verificar si ya existen comodatos para esta suscripción específica
     const existingComodatos = await this.comodato.count({
-      where: { 
+      where: {
         subscription_id: subscriptionId,
         status: ComodatoStatus.ACTIVE,
         is_active: true,
@@ -285,16 +285,17 @@ export class FirstCycleComodatoService extends PrismaClient {
           const subscriptionMatch = comodato.notes.match(/suscripción (\d+)/);
           if (subscriptionMatch) {
             const subscriptionId = parseInt(subscriptionMatch[1]);
-            const subscriptionData = await this.customer_subscription.findUnique({
-              where: { subscription_id: subscriptionId },
-              include: {
-                subscription_plan: {
-                  select: {
-                    name: true,
+            const subscriptionData =
+              await this.customer_subscription.findUnique({
+                where: { subscription_id: subscriptionId },
+                include: {
+                  subscription_plan: {
+                    select: {
+                      name: true,
+                    },
                   },
                 },
-              },
-            });
+              });
             if (subscriptionData) {
               subscription = {
                 subscription_id: subscriptionId,
@@ -319,7 +320,10 @@ export class FirstCycleComodatoService extends PrismaClient {
           article_description: comodato.article_description || '',
           brand: comodato.brand || '',
           model: comodato.model || '',
-          contract_image_path: buildImageUrl(comodato.contract_image_path, 'contracts'),
+          contract_image_path: buildImageUrl(
+            comodato.contract_image_path,
+            'contracts',
+          ),
           created_at: comodato.created_at,
           updated_at: comodato.updated_at,
           is_active: comodato.is_active,
@@ -330,7 +334,7 @@ export class FirstCycleComodatoService extends PrismaClient {
           },
           subscription: subscription,
         };
-      })
+      }),
     );
 
     return mappedComodatos;

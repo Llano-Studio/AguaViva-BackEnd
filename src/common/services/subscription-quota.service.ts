@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { SubscriptionCycleCalculatorService } from '../../customer-subscription/services/subscription-cycle-calculator.service';
+import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 
 export interface ProductQuotaInfo {
   product_id: number;
@@ -135,7 +135,9 @@ export class SubscriptionQuotaService
         cycle_start: cycleStart,
         cycle_end: cycleEnd,
         total_amount: 0, // Se calculará después
-        payment_due_date: new Date(cycleEnd.getTime() + 10 * 24 * 60 * 60 * 1000), // 10 días después del final del ciclo
+        payment_due_date: new Date(
+          cycleEnd.getTime() + 10 * 24 * 60 * 60 * 1000,
+        ), // 10 días después del final del ciclo
         notes: 'Ciclo creado automáticamente por sistema de cuotas',
       },
     });
@@ -168,10 +170,15 @@ export class SubscriptionQuotaService
 
     // Calcular el total_amount del ciclo basado en los productos del plan
     try {
-      await this.cycleCalculatorService.calculateAndUpdateCycleAmount(newCycle.cycle_id);
+      await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
+        newCycle.cycle_id,
+      );
       console.log(`🆕 DEBUG - Total calculado para ciclo ${newCycle.cycle_id}`);
     } catch (error) {
-      console.error(`🆕 ERROR - No se pudo calcular total para ciclo ${newCycle.cycle_id}:`, error);
+      console.error(
+        `🆕 ERROR - No se pudo calcular total para ciclo ${newCycle.cycle_id}:`,
+        error,
+      );
     }
 
     // Recargar el ciclo con todas las relaciones necesarias

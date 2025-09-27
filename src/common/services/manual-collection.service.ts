@@ -1,8 +1,21 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { CreateOrderDto } from '../../orders/dto/create-order.dto';
+import {
+  PrismaClient,
+  PaymentStatus,
+  SubscriptionStatus,
+  Prisma,
+} from '@prisma/client';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { SubscriptionQuotaService } from './subscription-quota.service';
+import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
+import { RecoveryOrderService } from './recovery-order.service';
 import { OrderType, OrderStatus } from '../../common/constants/enums';
-import { OrdersService } from '../orders.service';
-import { CreateOrderDto } from '../dto/create-order.dto';
+import { OrdersService } from '../../orders/orders.service';
 import {
   OrderCollectionEditService,
   CollectionItemDto,
@@ -11,18 +24,18 @@ import {
   CustomerSearchDto,
   CustomerSearchResponseDto,
   CustomerSearchResultDto,
-} from '../dto/customer-search.dto';
+} from '../../orders/dto/customer-search.dto';
 import {
   PendingCyclesResponseDto,
   PendingCycleDto,
   CustomerInfoDto,
-} from '../dto/pending-cycles.dto';
+} from '../../orders/dto/pending-cycles.dto';
 import {
   GenerateManualCollectionDto,
   GenerateManualCollectionResponseDto,
   ExistingOrderResponseDto,
   ExistingOrderInfoDto,
-} from '../dto/generate-manual-collection.dto';
+} from '../../orders/dto/generate-manual-collection.dto';
 
 @Injectable()
 export class ManualCollectionService extends PrismaClient {
@@ -83,7 +96,12 @@ export class ManualCollectionService extends PrismaClient {
         {
           person_id: isNaN(Number(query)) ? undefined : Number(query),
         },
-      ].filter(condition => condition.person_id !== undefined || condition.name || condition.phone);
+      ].filter(
+        (condition) =>
+          condition.person_id !== undefined ||
+          condition.name ||
+          condition.phone,
+      );
     }
 
     if (zone_id) {
@@ -132,7 +150,8 @@ export class ManualCollectionService extends PrismaClient {
       (customer) => {
         const activeSubscriptions = customer.customer_subscription.length;
         const pendingCycles = customer.customer_subscription.reduce(
-          (total, subscription) => total + subscription.subscription_cycle.length,
+          (total, subscription) =>
+            total + subscription.subscription_cycle.length,
           0,
         );
         const totalPending = customer.customer_subscription.reduce(
@@ -218,9 +237,12 @@ export class ManualCollectionService extends PrismaClient {
     const pendingCyclesDto: PendingCycleDto[] = pendingCycles.map((cycle) => {
       const dueDate = cycle.payment_due_date;
       const today = new Date();
-      const daysOverdue = dueDate && dueDate < today 
-        ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-        : 0;
+      const daysOverdue =
+        dueDate && dueDate < today
+          ? Math.floor(
+              (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+            )
+          : 0;
 
       let paymentStatus = 'PENDING';
       if (daysOverdue > 0) {
@@ -230,7 +252,8 @@ export class ManualCollectionService extends PrismaClient {
       return {
         cycle_id: cycle.cycle_id,
         subscription_id: cycle.subscription_id,
-        subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+        subscription_plan_name:
+          cycle.customer_subscription.subscription_plan.name,
         cycle_number: cycle.cycle_number,
         payment_due_date: dueDate?.toISOString().split('T')[0] || '',
         pending_balance: Number(cycle.pending_balance),
@@ -330,7 +353,8 @@ export class ManualCollectionService extends PrismaClient {
   async generateManualCollection(
     generateDto: GenerateManualCollectionDto,
   ): Promise<GenerateManualCollectionResponseDto> {
-    const { customer_id, selected_cycles, collection_date, notes } = generateDto;
+    const { customer_id, selected_cycles, collection_date, notes } =
+      generateDto;
 
     // Validar fecha
     const targetDate = new Date(collection_date);
@@ -428,7 +452,8 @@ export class ManualCollectionService extends PrismaClient {
             customer_id: customer_id,
             pending_balance: Number(cycle.pending_balance),
             payment_due_date: cycle.payment_due_date,
-            subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+            subscription_plan_name:
+              cycle.customer_subscription.subscription_plan.name,
             customer_name: customer.name,
           };
 
@@ -516,7 +541,8 @@ export class ManualCollectionService extends PrismaClient {
           customer_id: customer_id,
           pending_balance: Number(cycle.pending_balance),
           payment_due_date: cycle.payment_due_date,
-          subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+          subscription_plan_name:
+            cycle.customer_subscription.subscription_plan.name,
           customer_name: customer.name,
         };
 

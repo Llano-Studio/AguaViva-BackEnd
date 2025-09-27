@@ -2,7 +2,7 @@ import { PrismaClient, PaymentStatus } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
-export class CycleNumberingService {
+export class GeneralCycleNumberingService {
   constructor(private prisma: PrismaClient) {}
 
   /**
@@ -15,14 +15,14 @@ export class CycleNumberingService {
       // Buscar el último ciclo de la suscripción
       const lastCycle = await this.prisma.subscription_cycle.findFirst({
         where: {
-          subscription_id: subscriptionId
+          subscription_id: subscriptionId,
         },
         orderBy: {
-          cycle_number: 'desc'
+          cycle_number: 'desc',
         },
         select: {
-          cycle_number: true
-        }
+          cycle_number: true,
+        },
       });
 
       // Si no hay ciclos previos, empezar en 1
@@ -33,8 +33,13 @@ export class CycleNumberingService {
       // Retornar el siguiente número
       return lastCycle.cycle_number + 1;
     } catch (error) {
-      console.error(`Error obteniendo siguiente número de ciclo para suscripción ${subscriptionId}:`, error);
-      throw new Error(`No se pudo obtener el siguiente número de ciclo: ${error.message}`);
+      console.error(
+        `Error obteniendo siguiente número de ciclo para suscripción ${subscriptionId}:`,
+        error,
+      );
+      throw new Error(
+        `No se pudo obtener el siguiente número de ciclo: ${error.message}`,
+      );
     }
   }
 
@@ -54,12 +59,12 @@ export class CycleNumberingService {
     cycleEnd: Date,
     paymentDueDate?: Date,
     totalAmount?: number,
-    notes?: string
+    notes?: string,
   ) {
     try {
       // Verificar que la suscripción existe
       const subscription = await this.prisma.customer_subscription.findUnique({
-        where: { subscription_id: subscriptionId }
+        where: { subscription_id: subscriptionId },
       });
 
       if (!subscription) {
@@ -74,13 +79,15 @@ export class CycleNumberingService {
         where: {
           subscription_id_cycle_number: {
             subscription_id: subscriptionId,
-            cycle_number: nextCycleNumber
-          }
-        }
+            cycle_number: nextCycleNumber,
+          },
+        },
       });
 
       if (existingCycle) {
-        throw new Error(`Ya existe un ciclo ${nextCycleNumber} para la suscripción ${subscriptionId}`);
+        throw new Error(
+          `Ya existe un ciclo ${nextCycleNumber} para la suscripción ${subscriptionId}`,
+        );
       }
 
       // Crear el nuevo ciclo
@@ -98,18 +105,20 @@ export class CycleNumberingService {
           late_fee_applied: false,
           paid_amount: 0,
           pending_balance: totalAmount || 0,
-          credit_balance: 0
+          credit_balance: 0,
         },
         include: {
           customer_subscription: {
             include: {
-              person: true
-            }
-          }
-        }
+              person: true,
+            },
+          },
+        },
       });
 
-      console.log(`Ciclo ${nextCycleNumber} creado para suscripción ${subscriptionId}`);
+      console.log(
+        `Ciclo ${nextCycleNumber} creado para suscripción ${subscriptionId}`,
+      );
       return newCycle;
     } catch (error) {
       console.error('Error creando ciclo con numeración automática:', error);
@@ -125,37 +134,40 @@ export class CycleNumberingService {
    */
   async getCyclesBySubscription(
     subscriptionId: number,
-    includeDetails: boolean = false
+    includeDetails: boolean = false,
   ) {
     try {
       const include: any = {
         customer_subscription: {
           include: {
-            person: true
-          }
-        }
+            person: true,
+          },
+        },
       };
 
       if (includeDetails) {
         include.subscription_cycle_detail = {
           include: {
-            product: true
-          }
+            product: true,
+          },
         };
         include.cycle_payments = true;
       }
 
       return this.prisma.subscription_cycle.findMany({
         where: {
-          subscription_id: subscriptionId
+          subscription_id: subscriptionId,
         },
         include,
         orderBy: {
-          cycle_number: 'asc'
-        }
+          cycle_number: 'asc',
+        },
       });
     } catch (error) {
-      console.error(`Error obteniendo ciclos para suscripción ${subscriptionId}:`, error);
+      console.error(
+        `Error obteniendo ciclos para suscripción ${subscriptionId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -170,22 +182,22 @@ export class CycleNumberingService {
   async getCycleByNumber(
     subscriptionId: number,
     cycleNumber: number,
-    includeDetails: boolean = false
+    includeDetails: boolean = false,
   ) {
     try {
       const include: any = {
         customer_subscription: {
           include: {
-            person: true
-          }
-        }
+            person: true,
+          },
+        },
       };
 
       if (includeDetails) {
         include.subscription_cycle_detail = {
           include: {
-            product: true
-          }
+            product: true,
+          },
         };
         include.cycle_payments = true;
       }
@@ -194,13 +206,16 @@ export class CycleNumberingService {
         where: {
           subscription_id_cycle_number: {
             subscription_id: subscriptionId,
-            cycle_number: cycleNumber
-          }
+            cycle_number: cycleNumber,
+          },
         },
-        include
+        include,
       });
     } catch (error) {
-      console.error(`Error obteniendo ciclo ${cycleNumber} para suscripción ${subscriptionId}:`, error);
+      console.error(
+        `Error obteniendo ciclo ${cycleNumber} para suscripción ${subscriptionId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -213,37 +228,40 @@ export class CycleNumberingService {
    */
   async getCurrentCycle(
     subscriptionId: number,
-    includeDetails: boolean = false
+    includeDetails: boolean = false,
   ) {
     try {
       const include: any = {
         customer_subscription: {
           include: {
-            person: true
-          }
-        }
+            person: true,
+          },
+        },
       };
 
       if (includeDetails) {
         include.subscription_cycle_detail = {
           include: {
-            product: true
-          }
+            product: true,
+          },
         };
         include.cycle_payments = true;
       }
 
       return this.prisma.subscription_cycle.findFirst({
         where: {
-          subscription_id: subscriptionId
+          subscription_id: subscriptionId,
         },
         include,
         orderBy: {
-          cycle_number: 'desc'
-        }
+          cycle_number: 'desc',
+        },
       });
     } catch (error) {
-      console.error(`Error obteniendo ciclo actual para suscripción ${subscriptionId}:`, error);
+      console.error(
+        `Error obteniendo ciclo actual para suscripción ${subscriptionId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -257,15 +275,15 @@ export class CycleNumberingService {
     try {
       const cycles = await this.prisma.subscription_cycle.findMany({
         where: {
-          subscription_id: subscriptionId
+          subscription_id: subscriptionId,
         },
         select: {
           cycle_id: true,
-          cycle_number: true
+          cycle_number: true,
         },
         orderBy: {
-          cycle_number: 'asc'
-        }
+          cycle_number: 'asc',
+        },
       });
 
       const issues: string[] = [];
@@ -276,14 +294,16 @@ export class CycleNumberingService {
           isValid: true,
           issues: [],
           totalCycles: 0,
-          message: 'No hay ciclos para validar'
+          message: 'No hay ciclos para validar',
         };
       }
 
       // Verificar que la secuencia empiece en 1
       if (cycles[0].cycle_number !== 1) {
         isValid = false;
-        issues.push(`La secuencia no empieza en 1, empieza en ${cycles[0].cycle_number}`);
+        issues.push(
+          `La secuencia no empieza en 1, empieza en ${cycles[0].cycle_number}`,
+        );
       }
 
       // Verificar que no haya saltos en la secuencia
@@ -291,12 +311,14 @@ export class CycleNumberingService {
         const expectedNumber = cycles[i - 1].cycle_number + 1;
         if (cycles[i].cycle_number !== expectedNumber) {
           isValid = false;
-          issues.push(`Salto en la secuencia: después del ciclo ${cycles[i - 1].cycle_number} viene el ${cycles[i].cycle_number}, se esperaba ${expectedNumber}`);
+          issues.push(
+            `Salto en la secuencia: después del ciclo ${cycles[i - 1].cycle_number} viene el ${cycles[i].cycle_number}, se esperaba ${expectedNumber}`,
+          );
         }
       }
 
       // Verificar que no haya duplicados
-      const cycleNumbers = cycles.map(c => c.cycle_number);
+      const cycleNumbers = cycles.map((c) => c.cycle_number);
       const uniqueNumbers = [...new Set(cycleNumbers)];
       if (cycleNumbers.length !== uniqueNumbers.length) {
         isValid = false;
@@ -307,11 +329,17 @@ export class CycleNumberingService {
         isValid,
         issues,
         totalCycles: cycles.length,
-        expectedNextNumber: cycles.length > 0 ? Math.max(...cycleNumbers) + 1 : 1,
-        message: isValid ? 'La secuencia de ciclos es válida' : 'Se encontraron problemas en la secuencia'
+        expectedNextNumber:
+          cycles.length > 0 ? Math.max(...cycleNumbers) + 1 : 1,
+        message: isValid
+          ? 'La secuencia de ciclos es válida'
+          : 'Se encontraron problemas en la secuencia',
       };
     } catch (error) {
-      console.error(`Error validando secuencia de ciclos para suscripción ${subscriptionId}:`, error);
+      console.error(
+        `Error validando secuencia de ciclos para suscripción ${subscriptionId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -322,31 +350,29 @@ export class CycleNumberingService {
    * @param dryRun Si true, solo simula los cambios sin aplicarlos
    * @returns Resultado de la reparación
    */
-  async repairCycleSequence(
-    subscriptionId: number,
-    dryRun: boolean = true
-  ) {
+  async repairCycleSequence(subscriptionId: number, dryRun: boolean = true) {
     try {
       const cycles = await this.prisma.subscription_cycle.findMany({
         where: {
-          subscription_id: subscriptionId
+          subscription_id: subscriptionId,
         },
-        orderBy: [
-          { cycle_start: 'asc' },
-          { cycle_id: 'asc' }
-        ]
+        orderBy: [{ cycle_start: 'asc' }, { cycle_id: 'asc' }],
       });
 
       if (cycles.length === 0) {
         return {
           success: true,
           changes: [],
-          message: 'No hay ciclos para reparar'
+          message: 'No hay ciclos para reparar',
         };
       }
 
-      const changes: Array<{cycleId: number, oldNumber: number, newNumber: number}> = [];
-      
+      const changes: Array<{
+        cycleId: number;
+        oldNumber: number;
+        newNumber: number;
+      }> = [];
+
       // Renumerar secuencialmente
       for (let i = 0; i < cycles.length; i++) {
         const newNumber = i + 1;
@@ -354,7 +380,7 @@ export class CycleNumberingService {
           changes.push({
             cycleId: cycles[i].cycle_id,
             oldNumber: cycles[i].cycle_number,
-            newNumber: newNumber
+            newNumber: newNumber,
           });
         }
       }
@@ -363,7 +389,7 @@ export class CycleNumberingService {
         return {
           success: true,
           changes: [],
-          message: 'La secuencia ya es correcta, no se necesitan cambios'
+          message: 'La secuencia ya es correcta, no se necesitan cambios',
         };
       }
 
@@ -372,7 +398,7 @@ export class CycleNumberingService {
         for (const change of changes) {
           await this.prisma.subscription_cycle.update({
             where: { cycle_id: change.cycleId },
-            data: { cycle_number: change.newNumber }
+            data: { cycle_number: change.newNumber },
           });
         }
       }
@@ -380,12 +406,15 @@ export class CycleNumberingService {
       return {
         success: true,
         changes,
-        message: dryRun 
-          ? `Se encontraron ${changes.length} cambios necesarios (simulación)` 
-          : `Se aplicaron ${changes.length} cambios exitosamente`
+        message: dryRun
+          ? `Se encontraron ${changes.length} cambios necesarios (simulación)`
+          : `Se aplicaron ${changes.length} cambios exitosamente`,
       };
     } catch (error) {
-      console.error(`Error reparando secuencia de ciclos para suscripción ${subscriptionId}:`, error);
+      console.error(
+        `Error reparando secuencia de ciclos para suscripción ${subscriptionId}:`,
+        error,
+      );
       throw error;
     }
   }

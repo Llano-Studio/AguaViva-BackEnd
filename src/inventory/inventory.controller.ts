@@ -41,9 +41,35 @@ export class InventoryController {
 
   @Get('product/:productId/stock')
   @ApiOperation({
-    summary: 'Obtener el stock total de un producto',
-    description:
-      'Devuelve la cantidad total disponible en stock de un producto en todos los almacenes. Opcionalmente, si se provee warehouseId, devuelve el stock en ese almacén específico.',
+    summary: 'Consultar stock total de un producto específico',
+    description: `Obtiene la cantidad total disponible de un producto en el sistema de inventario.
+
+## 📦 CONSULTA DE STOCK
+
+**Funcionalidad Principal:**
+- Consulta stock total en todos los almacenes
+- Opción de consulta por almacén específico
+- Cálculo automático de disponibilidad
+- Información en tiempo real
+
+## 🏪 ALCANCE DE CONSULTA
+
+**Stock Total (sin warehouseId):**
+- Suma de todas las cantidades en todos los almacenes
+- Vista consolidada del producto
+- Útil para disponibilidad general
+
+**Stock Específico (con warehouseId):**
+- Cantidad en almacén particular
+- Útil para planificación de entregas
+- Control de stock por ubicación
+
+## 🎯 CASOS DE USO
+
+- **Verificación de Disponibilidad**: Antes de crear órdenes
+- **Planificación de Compras**: Identificar productos con stock bajo
+- **Distribución Logística**: Verificar stock por almacén
+- **Reportes de Inventario**: Análisis de disponibilidad`,
   })
   @ApiParam({
     name: 'productId',
@@ -101,9 +127,40 @@ export class InventoryController {
   @Post('movements')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Registrar un nuevo movimiento de stock',
-    description:
-      'Crea un nuevo movimiento de inventario afectando el stock disponible. Soporta diferentes tipos de movimientos.',
+    summary: 'Registrar movimiento de stock en inventario',
+    description: `Registra un movimiento de inventario que afecta el stock disponible de productos en almacenes.
+
+## 📊 GESTIÓN DE MOVIMIENTOS
+
+**Tipos de Movimiento:**
+- **ENTRADA**: Aumenta stock (compras, devoluciones)
+- **SALIDA**: Reduce stock (ventas, entregas)
+- **TRANSFERENCIA**: Movimiento entre almacenes
+- **AJUSTE**: Correcciones de inventario
+- **MERMA**: Pérdidas o productos dañados
+
+## 🔄 PROCESO AUTOMÁTICO
+
+**Validaciones:**
+- Verificación de stock suficiente para salidas
+- Validación de productos y almacenes existentes
+- Control de cantidades negativas
+- Registro de trazabilidad completa
+
+## 📝 INFORMACIÓN REGISTRADA
+
+- Fecha y hora del movimiento
+- Usuario responsable del movimiento
+- Motivo y observaciones
+- Impacto en stock actual
+- Referencias a documentos relacionados
+
+## 🎯 CASOS DE USO
+
+- **Recepción de Mercadería**: Registrar llegada de productos
+- **Entregas a Clientes**: Registrar salidas por ventas
+- **Ajustes de Inventario**: Correcciones por conteos físicos
+- **Transferencias**: Movimientos entre sucursales`,
   })
   @ApiResponse({
     status: 201,
@@ -124,8 +181,47 @@ export class InventoryController {
   @Get('stock/full')
   @ApiOperation({
     summary: 'Obtener el stock completo detallado y paginado',
-    description:
-      'Devuelve una lista de todo el inventario, mostrando detalles del producto y almacén, con paginación, filtros y ordenamiento.',
+    description: `Devuelve una lista completa del inventario con información detallada de productos y almacenes.
+
+## 📊 CONSULTA AVANZADA DE INVENTARIO
+
+**Filtros Disponibles:**
+- **Por Almacén**: warehouse_id, warehouse_ids (múltiples)
+- **Por Producto**: product_id, product_ids (múltiples), product_description (búsqueda inteligente)
+- **Por Categoría**: category_id, category_ids (múltiples)
+- **Por Cantidad**: min_quantity, max_quantity (rangos de stock)
+
+## 🔍 BÚSQUEDA INTELIGENTE
+
+**Búsqueda por Descripción:**
+- Búsqueda parcial insensible a mayúsculas
+- Coincidencias en cualquier parte del nombre
+- Útil para encontrar productos específicos
+
+**Filtros Múltiples:**
+- Soporte para arrays de IDs
+- Formato: [1,2,3] o "1,2,3"
+- Combinación de múltiples criterios
+
+## 📋 INFORMACIÓN INCLUIDA
+
+**Datos del Producto:**
+- ID y descripción completa
+- Categoría del producto
+- Cantidad actual en stock
+
+**Datos del Almacén:**
+- ID y nombre del almacén
+- Localidad de ubicación
+- Información geográfica
+
+## 🎯 CASOS DE USO
+
+- **Control de Inventario**: Vista general de todo el stock
+- **Planificación Logística**: Stock por almacén y ubicación
+- **Análisis de Productos**: Identificar productos con stock bajo/alto
+- **Reportes Gerenciales**: Información consolidada para toma de decisiones
+- **Auditorías**: Verificación de stock por categorías o almacenes`,
   })
   @ApiQuery({
     name: 'warehouse_id',

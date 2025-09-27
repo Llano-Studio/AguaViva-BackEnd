@@ -65,7 +65,7 @@ export class CreateUserDto {
     if (typeof value === 'boolean') {
       return value;
     }
-    
+
     // Si es string, convertir a boolean
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
@@ -76,12 +76,12 @@ export class CreateUserDto {
         return false;
       }
     }
-    
+
     // Si es number, convertir a boolean
     if (typeof value === 'number') {
       return value === 1;
     }
-    
+
     // Para cualquier otro caso, devolver true por defecto en creación
     return true;
   })

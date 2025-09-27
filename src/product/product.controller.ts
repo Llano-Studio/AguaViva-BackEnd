@@ -46,8 +46,48 @@ export class ProductController {
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({
     summary: 'Listar productos con filtros y paginación',
-    description:
-      'Obtiene un listado paginado de productos con opciones de filtrado por nombre, categoría, estado y más.',
+    description: `Obtiene un listado paginado de productos con filtros avanzados, búsqueda inteligente y información de inventario.
+
+## 🔍 FILTROS AVANZADOS
+
+**Búsqueda Inteligente (search):**
+- Busca en descripción del producto
+- Busca en número de serie
+- Busca en notas del producto
+- Búsqueda parcial y sin distinción de mayúsculas
+
+**Filtros Específicos:**
+- **description**: Filtro específico por descripción
+- **categoryId**: Productos de una categoría específica
+- **categoryIds**: Productos de múltiples categorías (formato: "1,2,3")
+- **includeInventory**: Incluye información detallada de stock por almacén
+
+**Ordenamiento Avanzado (sortBy):**
+- Múltiples campos separados por coma
+- Prefijo "-" para orden descendente
+- Ejemplos: "description", "-price", "description,-price"
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos del Producto:**
+- Información básica (descripción, precio, volumen)
+- Categoría del producto
+- Stock total calculado en tiempo real
+- Imagen del producto (si existe)
+- Características especiales (retornable, número de serie)
+
+**Información de Inventario (opcional):**
+- Stock detallado por almacén
+- Información de ubicación de almacenes
+- Cantidades disponibles por ubicación
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Inventario**: Control de stock y productos disponibles
+- **Ventas y Pedidos**: Selección de productos para órdenes
+- **Administración**: Gestión masiva de catálogo de productos
+- **Reportes**: Análisis de productos por categoría y stock
+- **Operaciones**: Planificación de entregas y recolecciones`,
   })
   @ApiQuery({
     name: 'search',
@@ -359,9 +399,13 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   ) {
     // DEBUG: Log para ver qué está llegando
     console.log('🔍 DEBUG - Datos recibidos en createProduct:');
-    console.log('  dto.is_returnable:', dto.is_returnable, typeof dto.is_returnable);
+    console.log(
+      '  dto.is_returnable:',
+      dto.is_returnable,
+      typeof dto.is_returnable,
+    );
     console.log('  dto completo:', JSON.stringify(dto, null, 2));
-    
+
     return this.service.createProduct(dto, productImage);
   }
 
@@ -513,9 +557,13 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   ) {
     // DEBUG: Log para ver qué está llegando
     console.log('🔍 DEBUG - Datos recibidos en updateProductById:');
-    console.log('  dto.is_returnable:', dto.is_returnable, typeof dto.is_returnable);
+    console.log(
+      '  dto.is_returnable:',
+      dto.is_returnable,
+      typeof dto.is_returnable,
+    );
     console.log('  dto completo:', JSON.stringify(dto, null, 2));
-    
+
     return this.service.updateProductById(id, dto, productImage);
   }
 

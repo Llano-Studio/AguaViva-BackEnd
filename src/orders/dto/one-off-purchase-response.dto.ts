@@ -41,38 +41,72 @@ export class OneOffPurchaseProductResponseDto {
 }
 
 export class OneOffPurchasePersonResponseDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'ID único del cliente que realizó la compra',
+  })
   person_id: number;
-  @ApiProperty({ example: 'Cliente Ocasional' })
+
+  @ApiProperty({
+    example: 'Cliente Ocasional',
+    description: 'Nombre completo del cliente',
+  })
   name: string;
-  @ApiProperty({ example: '1234567890', description: 'Teléfono del cliente' })
+
+  @ApiProperty({
+    example: '1234567890',
+    description: 'Número de teléfono principal del cliente para contacto',
+  })
   phone: string;
+
   @ApiProperty({
     example: 'Av. Principal 123, Centro',
     nullable: true,
-    description: 'Dirección del cliente',
+    description: 'Dirección registrada del cliente en el sistema',
   })
   address?: string;
 }
 
 export class OneOffPurchaseSaleChannelResponseDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'ID único del canal de venta utilizado',
+  })
   sale_channel_id: number;
-  @ApiProperty({ example: 'Venta Directa' })
+
+  @ApiProperty({
+    example: 'Venta Directa',
+    description:
+      'Nombre del canal de venta (ej: Venta Directa, Tienda Online, WhatsApp)',
+  })
   name: string;
 }
 
 export class OneOffPurchaseLocalityResponseDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'ID único de la localidad del cliente',
+  })
   locality_id: number;
-  @ApiProperty({ example: 'Centro' })
+
+  @ApiProperty({
+    example: 'Centro',
+    description: 'Nombre de la localidad donde reside el cliente',
+  })
   name: string;
 }
 
 export class OneOffPurchaseZoneResponseDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 1,
+    description: 'ID único de la zona de entrega asignada',
+  })
   zone_id: number;
-  @ApiProperty({ example: 'Zona 1' })
+
+  @ApiProperty({
+    example: 'Zona 1',
+    description: 'Nombre de la zona geográfica para planificación de entregas',
+  })
   name: string;
 }
 
@@ -163,8 +197,6 @@ export class OneOffPurchaseResponseDto {
     description: 'Monto restante por pagar',
   })
   remaining_amount: string;
-
-
 
   @ApiProperty({
     type: 'array',

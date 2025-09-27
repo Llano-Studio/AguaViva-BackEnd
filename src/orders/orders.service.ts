@@ -26,7 +26,7 @@ import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { ScheduleService } from '../common/services/schedule.service';
-import { SubscriptionQuotaService } from './services/subscription-quota.service';
+import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { OrderResponseDto } from './dto/order-response.dto';
 import {
@@ -196,14 +196,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     // Mapear historial de pagos
-    const payments = order.payment_transaction?.map((payment) => ({
-      payment_id: payment.transaction_id,
-      amount: payment.transaction_amount.toString(),
-      payment_date: payment.transaction_date.toISOString(),
-      payment_method: payment.payment_method?.description || 'No especificado',
-      transaction_reference: payment.receipt_number || undefined,
-      notes: payment.notes || undefined,
-    })) || [];
+    const payments =
+      order.payment_transaction?.map((payment) => ({
+        payment_id: payment.transaction_id,
+        amount: payment.transaction_amount.toString(),
+        payment_date: payment.transaction_date.toISOString(),
+        payment_method:
+          payment.payment_method?.description || 'No especificado',
+        transaction_reference: payment.receipt_number || undefined,
+        notes: payment.notes || undefined,
+      })) || [];
 
     return {
       order_id: order.order_id,
@@ -763,15 +765,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         console.log(`  - Tipo de orden: ${createOrderDto.order_type}`);
         console.log(`  - ID de suscripción: ${subscription_id}`);
 
-   
         let finalPaidAmount: Decimal;
-        if (createOrderDto.order_type === 'HYBRID' || createOrderDto.order_type === 'ONE_OFF') {
+        if (
+          createOrderDto.order_type === 'HYBRID' ||
+          createOrderDto.order_type === 'ONE_OFF'
+        ) {
           finalPaidAmount = new Decimal('0');
-          console.log(`🆕 ${createOrderDto.order_type} ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`);
+          console.log(
+            `🆕 ${createOrderDto.order_type} ORDER: Estableciendo paid_amount = 0 (ignorando valor del frontend: ${dtoPaidAmountStr})`,
+          );
         } else {
           finalPaidAmount = new Decimal(dtoPaidAmountStr || '0');
         }
-        
+
         if (finalPaidAmount.greaterThan(calculatedTotalFromDB)) {
           throw new BadRequestException(
             'El monto pagado no puede ser mayor al monto total del pedido calculado.',
@@ -1263,12 +1269,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  async findOne(id: number, includeInactive: boolean = false): Promise<OrderResponseDto> {
+  async findOne(
+    id: number,
+    includeInactive: boolean = false,
+  ): Promise<OrderResponseDto> {
     try {
       const order = await this.order_header.findFirstOrThrow({
-        where: { 
+        where: {
           order_id: id,
-          ...(includeInactive ? {} : { is_active: true })
+          ...(includeInactive ? {} : { is_active: true }),
         },
         include: {
           order_item: { include: { product: true } },
@@ -1911,7 +1920,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
         await tx.order_header.update({
           where: { order_id: id },
-          data: { is_active: false }
+          data: { is_active: false },
         });
       });
       return {
@@ -1955,7 +1964,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     processPaymentDto: ProcessPaymentDto,
     userId: number,
   ): Promise<Prisma.payment_transactionGetPayload<{}>> {
-    return this.processOrderPayment(orderId, processPaymentDto, userId, 'HYBRID');
+    return this.processOrderPayment(
+      orderId,
+      processPaymentDto,
+      userId,
+      'HYBRID',
+    );
   }
 
   /**
@@ -1992,12 +2006,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const order = headerPurchase || legacyPurchase;
 
       if (!order) {
-        throw new NotFoundException(`Orden ONE-OFF con ID ${orderId} no encontrada.`);
+        throw new NotFoundException(
+          `Orden ONE-OFF con ID ${orderId} no encontrada.`,
+        );
       }
 
       // Determinar si es estructura legacy o nueva
       const isLegacyStructure = !!legacyPurchase && !headerPurchase;
-      const orderIdField = isLegacyStructure ? 'purchase_id' : 'purchase_header_id';
+      const orderIdField = isLegacyStructure
+        ? 'purchase_id'
+        : 'purchase_header_id';
 
       // Validar método de pago
       const paymentMethod = await this.payment_method.findUnique({
@@ -2021,14 +2039,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const remainingBalance = orderTotalAmount.minus(orderCurrentPaidAmount);
 
         if (paymentAmount.greaterThan(remainingBalance.plus(0.001))) {
-          const orderIdValue = isLegacyStructure ? order.purchase_id : order.purchase_header_id;
+          const orderIdValue = isLegacyStructure
+            ? order.purchase_id
+            : order.purchase_header_id;
           throw new BadRequestException(
             `El monto del pago (${paymentAmount}) excede el saldo pendiente (${remainingBalance.toFixed(2)}) de la orden ONE-OFF ${orderIdValue}.`,
           );
         }
 
-        const orderIdValue = isLegacyStructure ? order.purchase_id : order.purchase_header_id;
-        
+        const orderIdValue = isLegacyStructure
+          ? order.purchase_id
+          : order.purchase_header_id;
+
         const paymentTransaction = await tx.payment_transaction.create({
           data: {
             transaction_date: processPaymentDto.payment_date
@@ -2051,10 +2073,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         });
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
-        
+
         // Actualizar payment_status si está completamente pagado
-        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(orderTotalAmount) 
-          ? 'PAID' 
+        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(
+          orderTotalAmount,
+        )
+          ? 'PAID'
           : 'PARTIAL';
 
         // Actualizar en la tabla correspondiente según la estructura
@@ -2177,14 +2201,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
         const newOrderStatus = order.status;
-        
+
         // Determinar payment_status basado en el monto pagado
-        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(orderTotalAmount) 
-          ? 'PAID' 
-          : newPaidAmount.equals(0) 
-            ? 'PENDING' 
+        const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(
+          orderTotalAmount,
+        )
+          ? 'PAID'
+          : newPaidAmount.equals(0)
+            ? 'PENDING'
             : 'PARTIAL';
-        
+
         // Note: Order status remains unchanged when fully paid
         // Payment completion doesn't automatically change delivery status
 
@@ -2239,7 +2265,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       // Validar y parsear la fecha
       const collectionDate = new Date(collectionDateStr);
       if (isNaN(collectionDate.getTime())) {
-        throw new BadRequestException('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
+        throw new BadRequestException(
+          'Fecha de cobranza inválida. Use formato YYYY-MM-DD',
+        );
       }
 
       // Obtener información del ciclo
@@ -2256,7 +2284,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       });
 
       if (!cycle) {
-        throw new NotFoundException(`Ciclo de suscripción con ID ${cycleId} no encontrado`);
+        throw new NotFoundException(
+          `Ciclo de suscripción con ID ${cycleId} no encontrado`,
+        );
       }
 
       const person = cycle.customer_subscription.person;
@@ -2271,14 +2301,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           },
           order_type: 'ONE_OFF',
           status: {
-            in: ['PENDING', 'CONFIRMED', 'IN_PREPARATION', 'READY_FOR_DELIVERY', 'IN_DELIVERY'],
+            in: [
+              'PENDING',
+              'CONFIRMED',
+              'IN_PREPARATION',
+              'READY_FOR_DELIVERY',
+              'IN_DELIVERY',
+            ],
           },
         },
       });
 
       if (existingCollectionOrder) {
         throw new BadRequestException(
-          `Ya existe una orden de cobranza activa para el ciclo ${cycleId} (Orden ID: ${existingCollectionOrder.order_id})`
+          `Ya existe una orden de cobranza activa para el ciclo ${cycleId} (Orden ID: ${existingCollectionOrder.order_id})`,
         );
       }
 
@@ -2286,7 +2322,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const pendingBalance = new Decimal(cycle.pending_balance || 0);
       if (pendingBalance.lessThanOrEqualTo(0)) {
         throw new BadRequestException(
-          `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`
+          `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,
         );
       }
 
@@ -2307,16 +2343,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           `Suscripción: ${subscription.subscription_plan.name}`,
           `Ciclo: ${cycleId}`,
           `Monto a cobrar: $${pendingBalance.toString()}`,
-          cycle.payment_due_date ? `Vencimiento: ${cycle.payment_due_date.toISOString().split('T')[0]}` : '',
+          cycle.payment_due_date
+            ? `Vencimiento: ${cycle.payment_due_date.toISOString().split('T')[0]}`
+            : '',
           notes ? `Notas adicionales: ${notes}` : '',
-        ].filter(Boolean).join(' - '),
+        ]
+          .filter(Boolean)
+          .join(' - '),
         items: [], // Sin productos, solo cobranza
       };
 
       const newOrder = await this.create(createOrderDto);
 
       this.logger.log(
-        `✅ Orden de cobranza generada: ID ${newOrder.order_id} para ciclo ${cycleId}, cliente ${person.name}, monto $${pendingBalance.toString()}`
+        `✅ Orden de cobranza generada: ID ${newOrder.order_id} para ciclo ${cycleId}, cliente ${person.name}, monto $${pendingBalance.toString()}`,
       );
 
       return {
@@ -2328,8 +2368,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         collection_date: collectionDateStr,
       };
     } catch (error) {
-      this.logger.error(`Error generando orden de cobranza para ciclo ${cycleId}:`, error);
-      
+      this.logger.error(
+        `Error generando orden de cobranza para ciclo ${cycleId}:`,
+        error,
+      );
+
       if (
         error instanceof BadRequestException ||
         error instanceof NotFoundException ||
@@ -2337,9 +2380,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       ) {
         throw error;
       }
-      
+
       throw new InternalServerErrorException(
-        `Error inesperado al generar orden de cobranza: ${error.message}`
+        `Error inesperado al generar orden de cobranza: ${error.message}`,
       );
     }
   }

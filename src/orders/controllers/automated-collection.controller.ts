@@ -22,23 +22,25 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import {
-  AutomatedCollectionService,
-} from '../services/automated-collection.service';
+import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
-    description: 'Fecha objetivo para generar las órdenes de cobranza en formato YYYY-MM-DD. Si la fecha cae en domingo, se ajusta automáticamente al sábado anterior.',
+    description:
+      'Fecha objetivo para generar las órdenes de cobranza en formato YYYY-MM-DD. Si la fecha cae en domingo, se ajusta automáticamente al sábado anterior.',
     example: '2024-01-15',
     type: String,
     pattern: '^\\d{4}-\\d{2}-\\d{2}$',
   })
   @IsNotEmpty({ message: 'La fecha objetivo es requerida' })
-  @IsDateString({}, { message: 'La fecha debe estar en formato YYYY-MM-DD válido' })
+  @IsDateString(
+    {},
+    { message: 'La fecha debe estar en formato YYYY-MM-DD válido' },
+  )
   target_date: string;
 }
 
-@ApiTags('Automated Collection Orders')
+@ApiTags('Generación de Órdenes de Cobranza')
 @Controller('automated-collection')
 @UseGuards(JwtAuthGuard, UserRolesGuard)
 @ApiBearerAuth()
@@ -53,9 +55,31 @@ export class AutomatedCollectionController {
   @Post('generate')
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
-    summary: 'Generar pedidos de cobranza manualmente',
-    description:
-      'Ejecuta manualmente la generación de pedidos de cobranza para una fecha específica. Este endpoint permite procesar cobranzas fuera del horario automático programado. Si la fecha especificada cae en domingo, se ajusta automáticamente al sábado anterior para mantener la consistencia del negocio.',
+    summary: 'Generar pedidos de cobranza automática para fecha específica',
+    description: `Ejecuta manualmente el proceso de generación automática de pedidos de cobranza para una fecha específica.
+
+## 🤖 GENERACIÓN AUTOMÁTICA DE COBRANZAS
+
+**Proceso Automatizado:**
+- Identifica ciclos de suscripción con vencimiento en la fecha objetivo
+- Genera automáticamente órdenes de cobranza
+- Ajusta fechas de domingo a sábado anterior
+- Consolida múltiples ciclos del mismo cliente
+- Aplica reglas de negocio automáticamente
+
+## 📅 LÓGICA DE FECHAS
+
+**Ajustes Automáticos:**
+- Si la fecha objetivo es domingo → se ajusta al sábado anterior
+- Respeta días hábiles para cobranzas
+- Mantiene consistencia en el calendario de cobranzas
+
+## 🎯 CASOS DE USO
+
+- **Procesamiento Fuera de Horario**: Ejecutar cobranzas manualmente
+- **Recuperación de Procesos**: Reprocesar fechas específicas
+- **Testing y Validación**: Verificar generación para fechas futuras
+- **Ajustes de Calendario**: Procesar días festivos o excepciones`,
   })
   @ApiBody({ type: GenerateCollectionOrdersDto })
   @ApiResponse({
@@ -153,8 +177,37 @@ export class AutomatedCollectionController {
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener próximas cobranzas',
-    description:
-      'Obtiene una lista detallada de los ciclos de suscripción que vencen en los próximos días y requieren generación de pedidos de cobranza. Útil para planificación y seguimiento de cobranzas pendientes.',
+    description: `Obtiene una lista detallada de los ciclos de suscripción que vencen en los próximos días y requieren generación de pedidos de cobranza.
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos del Ciclo:**
+- ID del ciclo y suscripción asociada
+- Información completa del cliente
+- Detalles del plan de suscripción
+- Fecha de vencimiento del pago
+- Saldo pendiente por cobrar
+
+**Estado de Procesamiento:**
+- Indicador si ya se generó orden de cobranza
+- ID de orden generada (si existe)
+- Notas y observaciones del proceso
+
+## 📈 MÉTRICAS AGREGADAS
+
+**Resumen del Período:**
+- Total de cobranzas próximas
+- Monto total a cobrar
+- Período de días consultado
+- Distribución temporal de vencimientos
+
+## 🎯 CASOS DE USO
+
+- **Planificación de Cobranzas**: Anticipar volumen de trabajo
+- **Gestión de Flujo de Caja**: Proyección de ingresos
+- **Seguimiento Operativo**: Monitoreo de ciclos pendientes
+- **Análisis de Tendencias**: Patrones de vencimientos
+- **Preparación de Rutas**: Organización de cobranzas por zona`,
   })
   @ApiQuery({
     name: 'days',
@@ -242,7 +295,8 @@ export class AutomatedCollectionController {
   })
   @ApiBody({
     required: false,
-    description: 'Este endpoint no requiere cuerpo de solicitud. Se ejecuta para la fecha actual automáticamente.',
+    description:
+      'Este endpoint no requiere cuerpo de solicitud. Se ejecuta para la fecha actual automáticamente.',
     schema: {
       type: 'object',
       properties: {},
@@ -322,8 +376,37 @@ export class AutomatedCollectionController {
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Estadísticas de cobranzas automáticas',
-    description:
-      'Proporciona estadísticas detalladas sobre el proceso de generación automática de pedidos de cobranza, incluyendo métricas de rendimiento, montos pendientes, ciclos vencidos y proyecciones para las próximas semanas.',
+    description: `Proporciona estadísticas detalladas y métricas clave sobre el proceso de generación automática de pedidos de cobranza.
+
+## 📊 MÉTRICAS PRINCIPALES
+
+**Ciclos de Facturación:**
+- **total_cycles_due**: Total de ciclos con vencimiento en el período
+- **overdue_cycles**: Ciclos vencidos que requieren atención inmediata
+- **upcoming_this_week**: Ciclos que vencen en la semana actual
+- **upcoming_next_week**: Ciclos que vencen en la próxima semana
+
+**Montos Financieros:**
+- **total_pending_amount**: Monto total pendiente de cobro
+- **overdue_amount**: Monto total de ciclos vencidos
+- Proyección de ingresos por período
+
+## 📈 ANÁLISIS TEMPORAL
+
+**Distribución de Vencimientos:**
+- Análisis de tendencias semanales
+- Identificación de picos de cobranza
+- Planificación de recursos operativos
+- Proyección de flujo de caja
+
+## 🎯 CASOS DE USO
+
+- **Dashboard Ejecutivo**: Métricas clave para toma de decisiones
+- **Planificación Operativa**: Asignación de recursos de cobranza
+- **Análisis Financiero**: Proyección de ingresos y flujo de caja
+- **Gestión de Riesgos**: Identificación de ciclos vencidos
+- **Reportes Gerenciales**: KPIs del proceso de cobranza
+- **Optimización de Procesos**: Análisis de eficiencia operativa`,
   })
   @ApiQuery({
     name: 'days',
