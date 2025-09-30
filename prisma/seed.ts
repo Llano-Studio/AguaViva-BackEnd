@@ -297,7 +297,26 @@ async function main() {
   // NOTA: Inventario inicial eliminado del seed
   // El inventario se creará automáticamente cuando se agreguen productos manualmente
 
-  // 8. Resetear secuencias de autoincrement
+  // 8. Crear métodos de pago por defecto
+  console.log('\n💳 Creando métodos de pago por defecto...');
+  const paymentMethods = [
+    { payment_method_id: 1, code: 'EFECTIVO', description: 'Pago en efectivo' },
+    { payment_method_id: 2, code: 'TRANSFERENCIA', description: 'Transferencia bancaria' },
+    { payment_method_id: 3, code: 'MERCADOPAGO', description: 'Mercado Pago' },
+    { payment_method_id: 4, code: 'TARJETA', description: 'Tarjeta de crédito/débito' },
+    { payment_method_id: 5, code: 'CHEQUE', description: 'Cheque' }
+  ];
+
+  for (const paymentMethod of paymentMethods) {
+    await prisma.payment_method.upsert({
+      where: { payment_method_id: paymentMethod.payment_method_id },
+      update: {},
+      create: paymentMethod
+    });
+    console.log(`  ✅ Método de pago: ${paymentMethod.code}`);
+  }
+
+  // 9. Resetear secuencias de autoincrement
   console.log('\n🔄 Reseteando secuencias de autoincrement...');
   
   // Resetear secuencia de country
@@ -325,6 +344,10 @@ async function main() {
   // Resetear secuencia de sale_channel
   await prisma.$executeRaw`SELECT setval('sale_channel_sale_channel_id_seq', (SELECT MAX(sale_channel_id) FROM sale_channel));`;
   console.log('  ✅ Secuencia de sale_channel reseteada');
+  
+  // Resetear secuencia de payment_method
+  await prisma.$executeRaw`SELECT setval('payment_method_payment_method_id_seq', (SELECT MAX(payment_method_id) FROM payment_method));`;
+  console.log('  ✅ Secuencia de payment_method reseteada');
 
   console.log('\n✅ Seed completado exitosamente!');
   console.log('\n📋 Datos creados:');
@@ -335,6 +358,7 @@ async function main() {
   console.log('  - Almacén principal');
   console.log('  - Lista de precios por defecto');
   console.log('  - Canales de venta (WEB, WHATSAPP)');
+  console.log('  - Métodos de pago por defecto (EFECTIVO, TRANSFERENCIA, MERCADOPAGO, TARJETA, CHEQUE)');
   console.log('  - Secuencias de autoincrement reseteadas (excepto localities)');
   console.log('\n📝 NOTA: Categorías, productos e inventario deben crearse manualmente');
   console.log('\n🚀 La aplicación está lista para usar!');
