@@ -265,7 +265,7 @@ export class OrderResponseDto {
 
   @ApiProperty({
     description: 'Estado de pago de la orden',
-    enum: ['PENDING', 'PARTIAL', 'PAID'],
+    enum: ['NONE', 'PENDING', 'PARTIAL', 'PAID'],
     example: 'PENDING',
   })
   payment_status: string;

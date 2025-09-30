@@ -33,6 +33,7 @@ export enum SubscriptionStatus {
 }
 
 export enum PaymentStatus {
+  NONE = 'NONE',
   PENDING = 'PENDING',
   PARTIAL = 'PARTIAL',
   PAID = 'PAID',
