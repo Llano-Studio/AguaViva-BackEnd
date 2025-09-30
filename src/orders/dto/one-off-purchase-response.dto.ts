@@ -188,7 +188,7 @@ export class OneOffPurchaseResponseDto {
 
   @ApiProperty({
     example: 'PENDING',
-    description: 'Estado de pago (PENDING, PARTIAL, PAID)',
+    description: 'Estado de pago (NONE, PENDING, PARTIAL, PAID)',
   })
   payment_status: string;
 

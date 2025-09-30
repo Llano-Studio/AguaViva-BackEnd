@@ -1636,7 +1636,10 @@ export class OneOffPurchaseService
 
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
-    if (paidAmount.equals(0)) {
+    if (totalAmount.equals(0)) {
+      // Si el total es 0, no hay nada que pagar
+      paymentStatus = 'NONE';
+    } else if (paidAmount.equals(0)) {
       paymentStatus = 'PENDING';
     } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
       paymentStatus = 'PAID';
@@ -1754,7 +1757,10 @@ export class OneOffPurchaseService
 
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
-    if (paidAmount.equals(0)) {
+    if (totalAmount.equals(0)) {
+      // Si el total es 0, no hay nada que pagar
+      paymentStatus = 'NONE';
+    } else if (paidAmount.equals(0)) {
       paymentStatus = 'PENDING';
     } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
       paymentStatus = 'PAID';
@@ -1871,7 +1877,10 @@ export class OneOffPurchaseService
 
     // Determinar estado de pago
     let paymentStatus = 'PENDING';
-    if (paidAmount.equals(0)) {
+    if (totalAmount.equals(0)) {
+      // Si el total es 0, no hay nada que pagar
+      paymentStatus = 'NONE';
+    } else if (paidAmount.equals(0)) {
       paymentStatus = 'PENDING';
     } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
       paymentStatus = 'PAID';

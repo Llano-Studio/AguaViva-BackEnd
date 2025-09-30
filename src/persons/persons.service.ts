@@ -1064,6 +1064,28 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         },
       });
 
+      // Verificar y actualizar el tipo de cliente si es INDIVIDUAL
+      const customer = await tx.person.findUnique({
+        where: { person_id: personId },
+        select: { type: true },
+      });
+
+      if (customer && customer.type === PrismaPersonType.INDIVIDUAL) {
+        // Actualizar el tipo de cliente de INDIVIDUAL a PLAN
+        await tx.person.update({
+          where: { person_id: personId },
+          data: { type: PrismaPersonType.PLAN },
+        });
+
+        // Actualizar el tipo de plan de suscripción a PLAN (si no lo está ya)
+        if (newPlan.type !== PrismaPersonType.PLAN) {
+          await tx.subscription_plan.update({
+            where: { subscription_plan_id: dto.new_plan_id },
+            data: { type: PrismaPersonType.PLAN },
+          });
+        }
+      }
+
       const firstCycleStartDate = new Date(newSubscriptionStartDate);
       const firstCycleEndDate = new Date(firstCycleStartDate);
       firstCycleEndDate.setMonth(firstCycleStartDate.getMonth() + 1);

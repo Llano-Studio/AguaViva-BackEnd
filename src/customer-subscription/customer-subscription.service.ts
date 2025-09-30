@@ -152,14 +152,27 @@ export class CustomerSubscriptionService
       );
     }
 
-    // CORRECCIÓN: Si el plan tiene tipo "INDIVIDUAL", cambiarlo automáticamente a "PLAN"
-    if (subscriptionPlan.type === 'INDIVIDUAL') {
-      await this.subscription_plan.update({
-        where: { subscription_plan_id: createDto.subscription_plan_id },
+    // CORRECCIÓN: Si el cliente tiene tipo "INDIVIDUAL", actualizar tanto cliente como plan a "PLAN"
+    if (customer.type === 'INDIVIDUAL') {
+      // Actualizar el tipo de cliente de INDIVIDUAL a PLAN
+      await this.person.update({
+        where: { person_id: createDto.customer_id },
         data: { type: 'PLAN' },
       });
+
+      // Actualizar el tipo de plan de suscripción a PLAN (si no lo está ya)
+      if (subscriptionPlan.type !== 'PLAN') {
+        await this.subscription_plan.update({
+          where: { subscription_plan_id: createDto.subscription_plan_id },
+          data: { type: 'PLAN' },
+        });
+        this.logger.log(
+          `Plan de suscripción "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) actualizado de tipo "${subscriptionPlan.type}" a "PLAN"`,
+        );
+      }
+
       this.logger.log(
-        `Plan de suscripción "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) actualizado de tipo "INDIVIDUAL" a "PLAN"`,
+        `Cliente "${customer.name || customer.phone}" (ID: ${customer.person_id}) actualizado de tipo "INDIVIDUAL" a "PLAN" al crear suscripción`,
       );
     }
 
