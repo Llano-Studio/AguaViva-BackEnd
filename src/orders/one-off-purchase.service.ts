@@ -433,18 +433,14 @@ export class OneOffPurchaseService
           finalTotalAmount = userTotalAmount;
         }
 
-        const finalPaidAmount = createDto.paid_amount
-          ? new Decimal(createDto.paid_amount)
-          : new Decimal(0);
+        // CORRECCIÓN: Las órdenes oneOff siempre se crean con paid_amount = 0
+        // Los pagos deben registrarse por separado a través del sistema de transacciones de pago
+        const finalPaidAmount = new Decimal(0);
 
         // Validación completada exitosamente
-
-        // Validar que paid_amount no sea mayor que total_amount
-        if (finalPaidAmount.gt(finalTotalAmount)) {
-          throw new BadRequestException(
-            `El monto pagado (${finalPaidAmount.toString()}) no puede ser mayor al monto total (${finalTotalAmount.toString()}).`,
-          );
-        }
+        
+        // NOTA: Se removió la validación de paid_amount vs total_amount ya que 
+        // las órdenes oneOff siempre se crean sin pagos registrados
 
         // Determinar dirección, localidad y zona según requires_delivery
         let deliveryAddress = null;

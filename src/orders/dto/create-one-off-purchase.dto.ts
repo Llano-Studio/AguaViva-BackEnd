@@ -237,8 +237,9 @@ Recomendación: Enviar un solo item en el array hasta que se implemente soporte 
 
   @ApiPropertyOptional({
     description:
-      'Monto pagado por el cliente (opcional, por defecto 0). ⚠️ VALIDACIÓN: Si se proporciona, debe ser menor o igual al total_amount.',
-    example: '1500.00',
+      '⚠️ DEPRECADO: Este campo se ignora al crear órdenes oneOff. Las órdenes siempre se crean con paid_amount = 0. Los pagos deben registrarse por separado a través del sistema de transacciones de pago.',
+    example: '0.00',
+    deprecated: true,
   })
   @IsOptional()
   @IsString()
