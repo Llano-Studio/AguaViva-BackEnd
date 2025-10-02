@@ -2111,22 +2111,6 @@ export class OneOffPurchaseService
         where.status = status;
       }
 
-      if (requires_delivery !== undefined) {
-        if (requires_delivery === true) {
-          // Si requiere entrega, debe tener delivery_address (no null y no vacío)
-          where.AND = [
-            { delivery_address: { not: null } },
-            { delivery_address: { not: '' } }
-          ];
-        } else {
-          // Si no requiere entrega, delivery_address debe ser null o vacío
-          where.OR = [
-            { delivery_address: null },
-            { delivery_address: '' }
-          ];
-        }
-      }
-
       const personFilter: Prisma.personWhereInput = {};
       if (customerName) {
         personFilter.name = { contains: customerName, mode: 'insensitive' };
@@ -2135,18 +2119,55 @@ export class OneOffPurchaseService
         where.person = personFilter;
       }
 
+      // Construir condiciones de búsqueda
+      let searchConditions: Prisma.one_off_purchase_headerWhereInput[] = [];
       if (search) {
         const searchNum = parseInt(search);
-        const orConditions: Prisma.one_off_purchase_headerWhereInput[] = [
+        searchConditions = [
           { person: { name: { contains: search, mode: 'insensitive' } } },
           { notes: { contains: search, mode: 'insensitive' } },
         ];
 
         if (!isNaN(searchNum)) {
-          orConditions.push({ purchase_header_id: searchNum });
+          searchConditions.push({ purchase_header_id: searchNum });
         }
+      }
 
-        where.OR = orConditions;
+      // Construir condiciones de requires_delivery
+      let deliveryConditions: Prisma.one_off_purchase_headerWhereInput[] = [];
+      if (requires_delivery !== undefined) {
+        if (requires_delivery === true) {
+          // Si requiere entrega, debe tener delivery_address (no null y no vacío)
+          deliveryConditions = [
+            { 
+              AND: [
+                { delivery_address: { not: null } },
+                { delivery_address: { not: '' } }
+              ]
+            }
+          ];
+        } else {
+          // Si no requiere entrega, delivery_address debe ser null o vacío
+          deliveryConditions = [
+            { delivery_address: null },
+            { delivery_address: '' }
+          ];
+        }
+      }
+
+      // Combinar condiciones de búsqueda y delivery
+      if (searchConditions.length > 0 && deliveryConditions.length > 0) {
+        // Si hay ambas condiciones, crear un AND que contenga ambas
+        where.AND = [
+          { OR: searchConditions },
+          { OR: deliveryConditions }
+        ];
+      } else if (searchConditions.length > 0) {
+        // Solo condiciones de búsqueda
+        where.OR = searchConditions;
+      } else if (deliveryConditions.length > 0) {
+        // Solo condiciones de delivery
+        where.OR = deliveryConditions;
       }
 
       if (purchaseDateFrom || purchaseDateTo) {
