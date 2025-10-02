@@ -2111,6 +2111,9 @@ export class OneOffPurchaseService
         where.status = status;
       }
 
+      if (requires_delivery !== undefined)
+        where.requires_delivery = requires_delivery;
+
       const personFilter: Prisma.personWhereInput = {};
       if (customerName) {
         personFilter.name = { contains: customerName, mode: 'insensitive' };
