@@ -491,16 +491,17 @@ export class ManualCollectionService extends PrismaClient {
 
       try {
         // Intentar crear pedido usando el servicio estándar
+        // CORRECCIÓN: Usar HYBRID para órdenes de cobranza y fechas correctas
         const createOrderDto: CreateOrderDto = {
           customer_id: customer_id,
           subscription_id: cycles[0].subscription_id, // Usar la primera suscripción
           sale_channel_id: 1, // Canal por defecto
-          order_date: adjustedDate.toISOString(),
-          scheduled_delivery_date: adjustedDate.toISOString(),
+          order_date: collection_date, // Usar la fecha original del DTO sin conversión a ISO
+          scheduled_delivery_date: collection_date, // Usar la fecha original del DTO
           delivery_time: '09:00-18:00',
           total_amount: '0.00', // Pedido de cobranza sin productos adicionales
           paid_amount: '0.00',
-          order_type: OrderType.ONE_OFF,
+          order_type: OrderType.HYBRID, // CORRECCIÓN: Usar HYBRID para órdenes de cobranza
           status: OrderStatus.PENDING,
           notes: orderNotes,
           items: [], // Sin productos, solo cobranza
@@ -519,12 +520,12 @@ export class ManualCollectionService extends PrismaClient {
             customer_id: customer_id,
             subscription_id: cycles[0].subscription_id,
             sale_channel_id: 1,
-            order_date: adjustedDate,
-            scheduled_delivery_date: adjustedDate,
+            order_date: new Date(collection_date),
+            scheduled_delivery_date: new Date(collection_date),
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(0),
             paid_amount: new Prisma.Decimal(0),
-            order_type: 'ONE_OFF',
+            order_type: 'HYBRID',
             status: 'PENDING',
             notes: orderNotes,
           },
