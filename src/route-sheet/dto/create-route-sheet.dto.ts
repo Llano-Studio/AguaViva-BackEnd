@@ -11,9 +11,10 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
   Validate,
+  IsEnum,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { DeliveryStatus } from '../../common/constants/enums';
+import { DeliveryStatus, OrderType } from '../../common/constants/enums';
 
 @ValidatorConstraint({ name: 'atLeastOneOrderId', async: false })
 export class AtLeastOneOrderIdConstraint
@@ -34,15 +35,65 @@ export class AtLeastOneOrderIdConstraint
   }
 }
 
+@ValidatorConstraint({ name: 'orderTypeRequired', async: false })
+export class OrderTypeRequiredConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(value: any, args: any) {
+    const object = args.object;
+    // Si se especifica order_id, entonces order_type es requerido
+    if (object.order_id && !object.order_type) {
+      return false;
+    }
+    return true;
+  }
+
+  defaultMessage() {
+    return 'order_type es requerido cuando se especifica order_id';
+  }
+}
+
 export class CreateRouteSheetDetailDto {
   @Validate(AtLeastOneOrderIdConstraint)
+  @Validate(OrderTypeRequiredConstraint)
   @ApiPropertyOptional({
-    description: 'ID del pedido de suscripción/contrato que debe ser entregado',
+    description: 'ID del pedido que debe ser entregado. REQUERIDO especificar order_type cuando se usa este campo.',
     example: 1,
   })
   @IsInt()
   @IsOptional()
   order_id?: number;
+
+  @ApiPropertyOptional({
+    description: `Tipo de orden cuando se especifica order_id. REQUERIDO cuando order_id está presente.
+    
+    Tipos disponibles:
+    - HYBRID: Órdenes de cobranza manual/suscripciones híbridas
+    - ONE_OFF: Compras únicas de clientes
+    
+    Ejemplos de uso:
+    - Para cobranzas manuales: order_type: "HYBRID"
+    - Para compras únicas: order_type: "ONE_OFF"`,
+    enum: OrderType,
+    example: OrderType.HYBRID,
+    examples: {
+      hybrid: {
+        value: OrderType.HYBRID,
+        description: 'Para órdenes de cobranza manual'
+      },
+      oneOff: {
+        value: OrderType.ONE_OFF,
+        description: 'Para compras únicas de clientes'
+      },
+      subscription: {
+        value: OrderType.SUBSCRIPTION,
+        description: 'Para órdenes de suscripción regulares'
+      }
+    }
+  })
+  @IsEnum(OrderType)
+  @IsOptional()
+  order_type?: OrderType;
 
   @ApiPropertyOptional({
     description: 'ID de la compra one-off individual que debe ser entregada',

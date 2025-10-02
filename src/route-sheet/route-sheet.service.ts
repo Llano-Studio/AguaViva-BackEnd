@@ -216,7 +216,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         .filter((detail) => detail.cycle_payment_id)
         .map((detail) => detail.cycle_payment_id);
 
-      // Validar órdenes de suscripción
+      // Validar órdenes de suscripción y híbridas
       if (orderIds.length > 0) {
         const orders = await this.order_header.findMany({
           where: { order_id: { in: orderIds } },
@@ -227,8 +227,20 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             (id) => !foundOrderIds.includes(id),
           );
           throw new BadRequestException(
-            `Los siguientes pedidos de suscripción no existen: ${missingOrderIds.join(', ')}`,
+            `Los siguientes pedidos no existen: ${missingOrderIds.join(', ')}`,
           );
+        }
+
+        // Validar que el tipo de orden especificado coincida con el tipo real en la base de datos
+        for (const detail of details) {
+          if (detail.order_id && detail.order_type) {
+            const order = orders.find(o => o.order_id === detail.order_id);
+            if (order && order.order_type !== detail.order_type) {
+              throw new BadRequestException(
+                `El pedido ${detail.order_id} es de tipo ${order.order_type}, pero se especificó como ${detail.order_type}`,
+              );
+            }
+          }
         }
       }
 
@@ -1685,7 +1697,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         return {
           isValid: false,
           type: 'rango',
-          error: 'Formato inválido para rango horario',
+          error: 'Formato de datos URI inválido.'
         };
       }
 
@@ -1707,7 +1719,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         return {
           isValid: false,
           type: 'puntual',
-          error: 'Formato inválido para horario puntual',
+          error: 'Formato de datos URI inválido.'
         };
       }
 
