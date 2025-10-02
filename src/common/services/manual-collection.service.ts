@@ -496,8 +496,8 @@ export class ManualCollectionService extends PrismaClient {
           customer_id: customer_id,
           subscription_id: cycles[0].subscription_id, // Usar la primera suscripción
           sale_channel_id: 1, // Canal por defecto
-          order_date: collection_date, // Usar la fecha original del DTO sin conversión a ISO
-          scheduled_delivery_date: collection_date, // Usar la fecha original del DTO
+          order_date: new Date().toISOString().split('T')[0], // Usar la fecha actual para order_date
+          scheduled_delivery_date: collection_date, // Usar collection_date para scheduled_delivery_date
           delivery_time: '09:00-18:00',
           total_amount: '0.00', // Pedido de cobranza sin productos adicionales
           paid_amount: '0.00',
@@ -520,8 +520,8 @@ export class ManualCollectionService extends PrismaClient {
             customer_id: customer_id,
             subscription_id: cycles[0].subscription_id,
             sale_channel_id: 1,
-            order_date: new Date(collection_date),
-            scheduled_delivery_date: new Date(collection_date),
+            order_date: new Date(), // Usar la fecha actual para order_date
+            scheduled_delivery_date: new Date(collection_date), // Usar collection_date para scheduled_delivery_date
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(0),
             paid_amount: new Prisma.Decimal(0),
