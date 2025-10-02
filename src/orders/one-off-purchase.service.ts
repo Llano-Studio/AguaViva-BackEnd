@@ -2111,8 +2111,15 @@ export class OneOffPurchaseService
         where.status = status;
       }
 
-      if (requires_delivery !== undefined)
-        where.requires_delivery = requires_delivery;
+      if (requires_delivery !== undefined) {
+        if (requires_delivery === true) {
+          // Si requiere entrega, debe tener delivery_address
+          where.delivery_address = { not: null };
+        } else {
+          // Si no requiere entrega, delivery_address debe ser null
+          where.delivery_address = null;
+        }
+      }
 
       const personFilter: Prisma.personWhereInput = {};
       if (customerName) {
