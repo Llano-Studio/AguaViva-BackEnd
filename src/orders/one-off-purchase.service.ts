@@ -2113,11 +2113,17 @@ export class OneOffPurchaseService
 
       if (requires_delivery !== undefined) {
         if (requires_delivery === true) {
-          // Si requiere entrega, debe tener delivery_address
-          where.delivery_address = { not: null };
+          // Si requiere entrega, debe tener delivery_address (no null y no vacío)
+          where.AND = [
+            { delivery_address: { not: null } },
+            { delivery_address: { not: '' } }
+          ];
         } else {
-          // Si no requiere entrega, delivery_address debe ser null
-          where.delivery_address = null;
+          // Si no requiere entrega, delivery_address debe ser null o vacío
+          where.OR = [
+            { delivery_address: null },
+            { delivery_address: '' }
+          ];
         }
       }
 
