@@ -39,7 +39,7 @@ export class PriceListController {
   constructor(private readonly priceListService: PriceListService) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear una nueva lista de precios',
     description: `Crea una nueva lista de precios con su información básica. Las listas de precios se utilizan para definir diferentes tarifas para los productos ofrecidos a los clientes.
@@ -124,7 +124,7 @@ export class PriceListController {
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener todas las listas de precios',
     description:
@@ -225,7 +225,7 @@ export class PriceListController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener una lista de precios por su ID',
     description:
@@ -352,7 +352,7 @@ export class PriceListController {
   }
 
   @Post(':id/apply-percentage')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Aplicar cambio porcentual a todos los precios de una lista',
     description: `Aplica un cambio porcentual a todos los ítems de una lista de precios específica, registrando el historial del cambio.
@@ -443,7 +443,7 @@ export class PriceListController {
   }
 
   @Post('undo-price-update')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Deshacer actualizaciones de precios',
     description: `Permite deshacer una o múltiples actualizaciones de precios previamente aplicadas, restaurando los precios anteriores.
@@ -527,7 +527,7 @@ export class PriceListController {
   }
 
   @Get(':id/history')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary:
       'Obtener historial de cambios de precios para una lista de precios',
@@ -596,7 +596,7 @@ export class PriceListController {
   }
 
   @Get('item/:itemId/history')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.BOSSADMINISTRATIVE, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Obtener historial de cambios de un ítem de lista de precios',
     description:

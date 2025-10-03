@@ -53,7 +53,7 @@ export class AutomatedCollectionController {
    * Ejecuta manualmente la generación de pedidos de cobranza para una fecha específica
    */
   @Post('generate')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Generar pedidos de cobranza automática para fecha específica',
     description: `Ejecuta manualmente el proceso de generación automática de pedidos de cobranza para una fecha específica.
@@ -174,7 +174,7 @@ export class AutomatedCollectionController {
    * Obtiene los próximos ciclos que requieren cobranza
    */
   @Get('upcoming')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener próximas cobranzas',
     description: `Obtiene una lista detallada de los ciclos de suscripción que vencen en los próximos días y requieren generación de pedidos de cobranza.
@@ -373,7 +373,7 @@ export class AutomatedCollectionController {
    * Obtiene estadísticas de la generación automática de cobranzas
    */
   @Get('stats')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Estadísticas de cobranzas automáticas',
     description: `Proporciona estadísticas detalladas y métricas clave sobre el proceso de generación automática de pedidos de cobranza.

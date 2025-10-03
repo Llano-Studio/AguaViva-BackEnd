@@ -12,11 +12,14 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import {
   FirstCycleComodatoService,
   FirstCycleComodatoResult,
 } from '../../common/services/first-cycle-comodato.service';
+import { Auth } from '../../auth/decorators/auth.decorator';
+import { Role } from '@prisma/client';
 
 export class ProcessFirstCycleDto {
   subscription_id: number;
@@ -24,6 +27,8 @@ export class ProcessFirstCycleDto {
 }
 
 @ApiTags('Ciclos de Comodatos')
+@ApiBearerAuth()
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('first-cycle-comodato')
 export class FirstCycleComodatoController {
   constructor(

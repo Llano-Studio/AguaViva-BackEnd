@@ -52,7 +52,7 @@ export class CustomerSubscriptionController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear nueva suscripción de cliente',
     description: `Crea una nueva suscripción asociando un cliente con un plan específico y configurando ciclos automáticos.
@@ -121,7 +121,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get()
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Listar suscripciones de clientes',
     description: `Obtiene una lista paginada de suscripciones con filtros avanzados y búsqueda inteligente.
@@ -248,7 +248,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener suscripción por ID',
     description: `Obtiene los detalles completos de una suscripción específica con toda la información relacionada.
@@ -306,7 +306,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar suscripción',
     description: `Actualiza los datos de una suscripción existente con validaciones de negocio y mantenimiento de integridad.
@@ -384,7 +384,7 @@ export class CustomerSubscriptionController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar suscripción',
@@ -419,7 +419,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get('customer/:customerId')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener suscripciones por cliente',
     description: 'Obtiene todas las suscripciones de un cliente específico',
@@ -485,7 +485,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch(':id/delivery-preferences')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar preferencias de horario de entrega',
     description:
@@ -510,7 +510,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id/delivery-preferences')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener preferencias de horario de entrega',
     description:
@@ -537,7 +537,7 @@ export class CustomerSubscriptionController {
   // =============================================================================
 
   @Post(':id/delivery-schedules')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear horario de entrega para suscripción',
     description:
@@ -584,7 +584,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get(':id/delivery-schedules')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener horarios de entrega de una suscripción',
     description:
@@ -605,7 +605,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch('delivery-schedules/:scheduleId')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar horario de entrega',
     description: 'Actualiza un horario de entrega específico',
@@ -631,7 +631,7 @@ export class CustomerSubscriptionController {
   }
 
   @Delete('delivery-schedules/:scheduleId')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar horario de entrega',
     description: 'Elimina un horario de entrega específico',
@@ -653,7 +653,7 @@ export class CustomerSubscriptionController {
   }
 
   @Get('delivery-schedules/by-day/:dayOfWeek')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener horarios de entrega por día',
     description:
@@ -677,7 +677,7 @@ export class CustomerSubscriptionController {
   }
 
   @Post('admin/force-cycle-renewal')
-  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Forzar renovación de ciclos',

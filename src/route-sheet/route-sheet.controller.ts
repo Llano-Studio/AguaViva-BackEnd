@@ -62,7 +62,7 @@ export class RouteSheetController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Crear una nueva hoja de ruta' })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({
@@ -77,7 +77,7 @@ export class RouteSheetController {
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Listar hojas de ruta con filtros avanzados',
     description: `Obtiene un listado completo de hojas de ruta con capacidades avanzadas de filtrado, búsqueda y paginación para gestión logística.
@@ -209,7 +209,7 @@ export class RouteSheetController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener hoja de ruta específica por ID',
     description: `Devuelve la información completa y detallada de una hoja de ruta específica según su ID único.
@@ -266,7 +266,7 @@ export class RouteSheetController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Actualizar una hoja de ruta' })
   @ApiParam({
     name: 'id',
@@ -290,7 +290,7 @@ export class RouteSheetController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Eliminar una hoja de ruta' })
   @ApiParam({
     name: 'id',
@@ -314,7 +314,7 @@ export class RouteSheetController {
   }
 
   @Post('print')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Generar e imprimir una hoja de ruta',
     description:
@@ -347,7 +347,7 @@ export class RouteSheetController {
   // Endpoints de optimización de rutas
 
   @Post(':id/optimize')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Optimizar una hoja de ruta',
     description: 'Calcula la ruta óptima para las entregas',
@@ -374,7 +374,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/optimization')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener la optimización de una hoja de ruta',
     description:
@@ -402,7 +402,7 @@ export class RouteSheetController {
   // Endpoints de inventario móvil
 
   @Post(':id/inventory')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Inicializar inventario para una hoja de ruta',
     description: 'Registra el inventario inicial cargado en el vehículo',
@@ -432,7 +432,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/inventory')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener el inventario de una hoja de ruta',
     description: 'Muestra el estado actual del inventario en el vehículo',
@@ -457,7 +457,7 @@ export class RouteSheetController {
   }
 
   @Post(':id/inventory/transaction')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Registrar una transacción de inventario',
     description:
@@ -490,7 +490,7 @@ export class RouteSheetController {
   }
 
   @Get(':id/inventory/alerts')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Verificar alertas de inventario bajo',
     description:
@@ -530,7 +530,7 @@ export class RouteSheetController {
   }
 
   @Post(':id/reconcile-driver')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Registrar la rendición de una hoja de ruta por el chofer',
     description:
@@ -637,7 +637,7 @@ export class RouteSheetController {
   }
 
   @Post('validate-delivery-times')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Validar horarios de entrega contra preferencias de suscripción',
     description:
@@ -690,7 +690,7 @@ export class RouteSheetController {
   }
 
   @Patch(':detailId/delivery-time')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar horario de entrega de un detalle de hoja de ruta',
     description:
@@ -729,7 +729,7 @@ export class RouteSheetController {
   }
 
   @Post('failed-orders/reassign')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Ejecutar manualmente la reasignación de pedidos fallidos',
   })
@@ -755,7 +755,7 @@ export class RouteSheetController {
   }
 
   @Get('failed-orders/stats')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Obtener estadísticas de pedidos fallidos' })
   @ApiResponse({
     status: 200,

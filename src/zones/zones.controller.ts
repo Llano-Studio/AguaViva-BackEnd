@@ -467,6 +467,7 @@ export class ZonesController {
   }
 
   @Delete(':id')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiParam({
     name: 'id',
     type: Number,

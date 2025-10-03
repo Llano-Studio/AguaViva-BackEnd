@@ -42,7 +42,7 @@ export class SubscriptionPlansController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear nuevo plan de suscripción',
     description: `Crea un nuevo plan de suscripción con configuraciones personalizables para diferentes tipos de clientes.
@@ -141,7 +141,7 @@ export class SubscriptionPlansController {
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener todos los planes de suscripción',
     description: `Obtiene una lista paginada de todos los planes de suscripción con filtros avanzados y ordenamiento personalizable.
@@ -264,7 +264,7 @@ export class SubscriptionPlansController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener un plan de suscripción por su ID',
     description: `Obtiene los detalles completos de un plan de suscripción específico, incluyendo todos los productos asociados y la configuración de ciclos.`,
@@ -470,7 +470,7 @@ export class SubscriptionPlansController {
   }
 
   @Post(':planId/products')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Añadir un producto a un plan de suscripción' })
   @ApiParam({
     name: 'planId',
@@ -490,7 +490,7 @@ export class SubscriptionPlansController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos o el producto ya existe en el plan.',
+    description: 'Datos inválidos o el producto ya existe en el plan.', 
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
@@ -508,7 +508,7 @@ export class SubscriptionPlansController {
   }
 
   @Patch(':planId/products/:productId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar la cantidad de un producto en un plan de suscripción',
   })
@@ -557,7 +557,7 @@ export class SubscriptionPlansController {
   }
 
   @Delete(':planId/products/:productId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Eliminar un producto de un plan de suscripción' })
   @ApiParam({
     name: 'planId',
@@ -597,7 +597,7 @@ export class SubscriptionPlansController {
   }
 
   @Post('adjust-prices')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary:
       'Ajustar el precio de todos los planes de suscripción por un porcentaje o monto fijo',
@@ -634,7 +634,7 @@ export class SubscriptionPlansController {
   }
 
   @Post(':planId/adjust-product-quantities')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary:
       'Ajustar las cantidades de múltiples productos en un plan de suscripción específico',
@@ -712,7 +712,7 @@ export class SubscriptionPlansController {
   }
 
   @Patch(':id/assign-price')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Asignar precio a un plan',
     description: 'Asigna un precio específico a un plan de suscripción',

@@ -42,7 +42,7 @@ export class CancellationOrderController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear orden de cancelación de suscripción',
     description: `Crea una nueva orden de cancelación para gestionar la recolección de productos cuando una suscripción es cancelada.
@@ -126,7 +126,7 @@ export class CancellationOrderController {
   }
 
   @Get()
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener órdenes de cancelación',
     description:
@@ -206,7 +206,7 @@ export class CancellationOrderController {
   }
 
   @Get('with-products')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener órdenes de cancelación con información de productos',
     description:
@@ -260,7 +260,7 @@ export class CancellationOrderController {
   }
 
   @Get('pending')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener órdenes pendientes',
     description:
@@ -289,7 +289,7 @@ export class CancellationOrderController {
   }
 
   @Get('by-date/:date')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener órdenes por fecha',
     description:
@@ -324,7 +324,7 @@ export class CancellationOrderController {
   }
 
   @Get(':id')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener orden de cancelación por ID',
     description: 'Obtiene una orden de cancelación específica por su ID',
@@ -380,7 +380,7 @@ export class CancellationOrderController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar orden de cancelación',
     description: 'Actualiza una orden de cancelación existente',
@@ -445,7 +445,7 @@ export class CancellationOrderController {
   }
 
   @Patch(':id/assign-route/:routeSheetId')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Asignar orden a hoja de ruta',
     description:
@@ -479,7 +479,7 @@ export class CancellationOrderController {
   }
 
   @Post(':id/complete')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Completar orden de cancelación',
     description:
@@ -551,7 +551,7 @@ export class CancellationOrderController {
   }
 
   @Post(':id/mark-failed')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.DRIVERS)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({ summary: 'Marcar orden de cancelación como fallida' })
   @ApiResponse({
     status: 200,
@@ -572,7 +572,7 @@ export class CancellationOrderController {
   }
 
   @Post('reassignment/force')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Forzar reasignación de órdenes de cancelación fallidas',
   })
@@ -585,7 +585,7 @@ export class CancellationOrderController {
   }
 
   @Get('reassignment/stats')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener estadísticas de reasignación de órdenes de cancelación',
   })

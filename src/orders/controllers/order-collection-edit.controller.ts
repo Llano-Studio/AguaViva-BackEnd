@@ -25,7 +25,9 @@ import {
   CollectionItemDto,
   AddCollectionResult,
 } from '../../common/services/order-collection-edit.service';
-
+import { Role } from '@prisma/client';
+import { Auth } from '../../auth/decorators/auth.decorator';
+import { ApiBearerAuth } from '@nestjs/swagger';
 export class AddCollectionToOrderDto {
   @ApiProperty({
     description: 'ID del ciclo de suscripción',
@@ -94,6 +96,8 @@ export class AddCollectionToOrderDto {
 
 @ApiTags('Edición de Pedidos - Cobranzas')
 @Controller('orders/collection-edit')
+@ApiBearerAuth()
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 export class OrderCollectionEditController {
   constructor(
     private readonly orderCollectionEditService: OrderCollectionEditService,
