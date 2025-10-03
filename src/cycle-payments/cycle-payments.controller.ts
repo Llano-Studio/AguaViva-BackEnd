@@ -42,7 +42,7 @@ export class CyclePaymentsController {
   ) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Registrar pago de ciclo de suscripción',
@@ -75,7 +75,9 @@ export class CyclePaymentsController {
 - El monto no puede exceder el saldo pendiente
 - Se calculan recargos por mora automáticamente
 - Se valida la existencia del ciclo de suscripción
-- Se registra el usuario que procesa el pago`,
+- Se registra el usuario que procesa el pago
+
+**Disponible para:** SUPERADMIN, Jefe Administrativo y Administrativo.`,
   })
   @ApiBody({
     type: CreateCyclePaymentDto,
@@ -121,7 +123,7 @@ export class CyclePaymentsController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - Solo usuarios SUPERADMIN pueden registrar pagos.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   async createCyclePayment(
     @Body(
@@ -144,7 +146,7 @@ export class CyclePaymentsController {
   }
 
   @Get('cycle/:cycleId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener resumen de pagos de un ciclo',
     description:
@@ -165,6 +167,7 @@ export class CyclePaymentsController {
     status: 404,
     description: 'Ciclo de suscripción no encontrado',
   })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
   async getCyclePaymentSummary(
     @Param('cycleId', ParseIntPipe) cycleId: number,
   ): Promise<CyclePaymentSummaryDto> {
@@ -172,7 +175,7 @@ export class CyclePaymentsController {
   }
 
   @Get('customer/:personId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener pagos de un cliente',
     description:
@@ -189,6 +192,7 @@ export class CyclePaymentsController {
     description: 'Pagos del cliente obtenidos exitosamente',
     type: [CyclePaymentSummaryDto],
   })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
   async getCustomerPayments(
     @Param('personId', ParseIntPipe) personId: number,
   ): Promise<CyclePaymentSummaryDto[]> {
@@ -196,7 +200,7 @@ export class CyclePaymentsController {
   }
 
   @Get('pending')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener ciclos con pagos pendientes',
     description:
@@ -207,6 +211,7 @@ export class CyclePaymentsController {
     description: 'Ciclos con pagos pendientes obtenidos exitosamente',
     type: [CyclePaymentSummaryDto],
   })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
   async getPendingPaymentCycles(): Promise<CyclePaymentSummaryDto[]> {
     return this.cyclePaymentsService.getPendingPaymentCycles();
   }

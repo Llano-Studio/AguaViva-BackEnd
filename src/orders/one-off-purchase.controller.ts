@@ -323,6 +323,7 @@ export class OneOffPurchaseController {
   }
 
   @Delete('one-off/:id')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Eliminar una compra one-off por su ID',
@@ -336,7 +337,9 @@ export class OneOffPurchaseController {
 🔍 **VALIDACIONES APLICADAS:**
 • Verificación de existencia de la compra
 • Verificación de referencias en hojas de ruta activas
-• Restauración automática de stock para productos no retornables`,
+• Restauración automática de stock para productos no retornables
+
+**Disponible para:** SUPERADMIN y Jefe Administrativo`,
   })
   @ApiParam({
     name: 'id',
@@ -363,6 +366,10 @@ export class OneOffPurchaseController {
     status: 409,
     description:
       'Conflicto: La compra está incluida en hojas de ruta activas y no puede ser eliminada. El mensaje incluye detalles específicos de las hojas de ruta afectadas.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   async removeOneOffPurchase(
     @Param('id', ParseIntPipe) id: number,
