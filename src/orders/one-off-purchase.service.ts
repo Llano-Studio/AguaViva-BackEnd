@@ -588,11 +588,13 @@ export class OneOffPurchaseService
 
   async findAllOneOff(filters: FilterOneOffPurchasesDto): Promise<any> {
     try {
+      
       // 🆕 NUEVA LÓGICA: Combinar resultados de ambas estructuras
       const [legacyResults, headerResults] = await Promise.all([
         this.findAllLegacyOneOff(filters),
         this.findAllHeaderOneOff(filters),
       ]);
+
 
       // Combinar y ordenar resultados por fecha
       const allOrders = [...legacyResults.data, ...headerResults.data];
@@ -694,8 +696,7 @@ export class OneOffPurchaseService
       where.status = status;
     }
 
-    if (requires_delivery !== undefined)
-      where.requires_delivery = requires_delivery;
+
 
     const personFilter: Prisma.personWhereInput = {};
     if (customerName) {
@@ -714,6 +715,12 @@ export class OneOffPurchaseService
     }
     if (Object.keys(productFilter).length > 0) {
       where.product = productFilter;
+    }
+
+    // Filtrar por requires_delivery
+    // La tabla one_off_purchase SÍ tiene el campo requires_delivery directo
+    if (requires_delivery !== undefined) {
+      where.requires_delivery = requires_delivery;
     }
 
     if (search) {
@@ -2134,40 +2141,46 @@ export class OneOffPurchaseService
       }
 
       // Construir condiciones de requires_delivery
-      let deliveryConditions: Prisma.one_off_purchase_headerWhereInput[] = [];
+      // NOTA: one_off_purchase_header no tiene campo requires_delivery directo
+      // Se infiere basado en delivery_address: si tiene dirección, requiere entrega
+      let deliveryConditions = null;
       if (requires_delivery !== undefined) {
         if (requires_delivery === true) {
-          // Si requiere entrega, debe tener delivery_address (no null y no vacío)
-          deliveryConditions = [
-            { 
-              AND: [
-                { delivery_address: { not: null } },
-                { delivery_address: { not: '' } }
-              ]
-            }
-          ];
+          // Si requiere entrega, debe tener delivery_address válida (no null y no vacío)
+          deliveryConditions = {
+            AND: [
+              { delivery_address: { not: null } },
+              { delivery_address: { not: '' } }
+            ]
+          };
         } else {
           // Si no requiere entrega, delivery_address debe ser null o vacío
-          deliveryConditions = [
-            { delivery_address: null },
-            { delivery_address: '' }
-          ];
+          deliveryConditions = {
+            OR: [
+              { delivery_address: null },
+              { delivery_address: '' }
+            ]
+          };
         }
       }
 
-      // Combinar condiciones de búsqueda y delivery
-      if (searchConditions.length > 0 && deliveryConditions.length > 0) {
-        // Si hay ambas condiciones, crear un AND que contenga ambas
-        where.AND = [
-          { OR: searchConditions },
-          { OR: deliveryConditions }
-        ];
+      // Aplicar condiciones de búsqueda y delivery de forma combinada
+      if (searchConditions.length > 0 && deliveryConditions) {
+        // Ambas condiciones presentes: usar AND para combinarlas
+        where.AND = where.AND || [];
+        if (Array.isArray(where.AND)) {
+          where.AND.push(deliveryConditions);
+          where.AND.push({ OR: searchConditions });
+        }
       } else if (searchConditions.length > 0) {
-        // Solo condiciones de búsqueda
+        // Solo búsqueda
         where.OR = searchConditions;
-      } else if (deliveryConditions.length > 0) {
-        // Solo condiciones de delivery
-        where.OR = deliveryConditions;
+      } else if (deliveryConditions) {
+        // Solo delivery: agregar al where
+        where.AND = where.AND || [];
+        if (Array.isArray(where.AND)) {
+          where.AND.push(deliveryConditions);
+        }
       }
 
       if (purchaseDateFrom || purchaseDateTo) {

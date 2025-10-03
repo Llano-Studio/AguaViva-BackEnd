@@ -203,8 +203,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       }
 
       // Validar que existan las órdenes según su tipo
-      const orderIds = details
-        .filter((detail) => detail.order_id)
+      // Separar órdenes ONE_OFF de las demás cuando se usa order_id
+      const regularOrderIds = details
+        .filter((detail) => detail.order_id && detail.order_type !== 'ONE_OFF')
+        .map((detail) => detail.order_id);
+      const oneOffOrderIds = details
+        .filter((detail) => detail.order_id && detail.order_type === 'ONE_OFF')
         .map((detail) => detail.order_id);
       const oneOffPurchaseIds = details
         .filter((detail) => detail.one_off_purchase_id)
@@ -216,14 +220,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         .filter((detail) => detail.cycle_payment_id)
         .map((detail) => detail.cycle_payment_id);
 
-      // Validar órdenes de suscripción y híbridas
-      if (orderIds.length > 0) {
+      // Validar órdenes regulares (SUBSCRIPTION, HYBRID, CONTRACT_DELIVERY)
+      if (regularOrderIds.length > 0) {
         const orders = await this.order_header.findMany({
-          where: { order_id: { in: orderIds } },
+          where: { order_id: { in: regularOrderIds } },
         });
-        if (orders.length !== orderIds.length) {
+        if (orders.length !== regularOrderIds.length) {
           const foundOrderIds = orders.map((order) => order.order_id);
-          const missingOrderIds = orderIds.filter(
+          const missingOrderIds = regularOrderIds.filter(
             (id) => !foundOrderIds.includes(id),
           );
           throw new BadRequestException(
@@ -244,7 +248,25 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         }
       }
 
-      // Validar órdenes one-off
+      // Validar órdenes ONE_OFF que usan order_id con order_type
+      if (oneOffOrderIds.length > 0) {
+        const oneOffPurchases = await this.one_off_purchase.findMany({
+          where: { purchase_id: { in: oneOffOrderIds } },
+        });
+        if (oneOffPurchases.length !== oneOffOrderIds.length) {
+          const foundIds = oneOffPurchases.map(
+            (purchase) => purchase.purchase_id,
+          );
+          const missingIds = oneOffOrderIds.filter(
+            (id) => !foundIds.includes(id),
+          );
+          throw new BadRequestException(
+            `Las siguientes compras one-off no existen: ${missingIds.join(', ')}`,
+          );
+        }
+      }
+
+      // Validar órdenes one-off legacy (usando one_off_purchase_id directamente)
       if (oneOffPurchaseIds.length > 0) {
         const oneOffPurchases = await this.one_off_purchase.findMany({
           where: { purchase_id: { in: oneOffPurchaseIds } },
@@ -301,7 +323,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const existingAssignments = await this.route_sheet_detail.findMany({
         where: {
           OR: [
-            orderIds.length > 0 ? { order_id: { in: orderIds } } : {},
+            regularOrderIds.length > 0 ? { order_id: { in: regularOrderIds } } : {},
             oneOffPurchaseIds.length > 0
               ? { one_off_purchase_id: { in: oneOffPurchaseIds } }
               : {},

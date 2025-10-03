@@ -237,7 +237,15 @@ export class OneOffPurchaseController {
     },
   })
   async findAllOneOffPurchases(
-    @Query() filterOneOffPurchasesDto: FilterOneOffPurchasesDto,
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: false },
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    filterOneOffPurchasesDto: FilterOneOffPurchasesDto,
   ): Promise<any> {
     return this.oneOffPurchaseService.findAllOneOff(filterOneOffPurchasesDto);
   }
