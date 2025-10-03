@@ -14,7 +14,7 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Comodatos')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
 @Controller('comodatos')
 export class ComodatoController {
   constructor(private readonly personsService: PersonsService) {}

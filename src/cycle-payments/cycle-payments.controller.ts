@@ -217,7 +217,7 @@ export class CyclePaymentsController {
   }
 
   @Post('transfer-credits/:subscriptionId/:newCycleId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Transferir créditos acumulados al nuevo ciclo',
     description: `Transfiere créditos acumulados de pagos en exceso hacia un nuevo ciclo de la misma suscripción.
@@ -284,7 +284,7 @@ export class CyclePaymentsController {
   }
 
   @Post('apply-credits/:subscriptionId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Aplicar créditos acumulados a deudas pendientes',
     description: `Aplica automáticamente los créditos disponibles de una suscripción a sus ciclos con deudas pendientes.
@@ -347,7 +347,7 @@ export class CyclePaymentsController {
   }
 
   @Get('overdue')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener ciclos vencidos',
     description:
@@ -371,7 +371,7 @@ export class CyclePaymentsController {
   }
 
   @Get('statistics')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener estadísticas de pagos',
     description:
@@ -428,7 +428,7 @@ export class CyclePaymentsController {
   }
 
   @Post('recalculate/:cycleId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Recalcular ciclo específico',

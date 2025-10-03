@@ -90,7 +90,7 @@ class PaginatedPersonsResponseDto {
 
 @ApiTags('Clientes')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('persons')
 export class PersonsController {
   constructor(private readonly personsService: PersonsService) {}

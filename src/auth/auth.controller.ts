@@ -416,7 +416,7 @@ export class AuthController {
   }
 
   @Post('update-password')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Actualizar contraseña del usuario logueado',
@@ -516,8 +516,6 @@ export class AuthController {
   }
 
   @Post('resend-confirmation')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Reenviar email de confirmación',
     description:
@@ -542,8 +540,6 @@ export class AuthController {
   }
 
   @Get('check')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Verificar estado de autenticación y obtener nuevos tokens',
     description:
@@ -598,7 +594,7 @@ export class AuthController {
   // Endpoints de gestión de vehículos
 
   @Post('users/:id/vehicles')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Asignar vehículos a un usuario',
@@ -649,7 +645,7 @@ export class AuthController {
   }
 
   @Get('users/:id/vehicles')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Obtener vehículos asignados a un usuario',
@@ -679,7 +675,7 @@ export class AuthController {
   }
 
   @Delete('users/:userId/vehicles/:vehicleId')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Remover vehículo de un usuario',

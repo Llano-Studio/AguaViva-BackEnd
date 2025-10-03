@@ -31,12 +31,12 @@ import { Auth } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Compras de Una Vez')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('one-off-purchases')
 export class OneOffPurchaseController {
   constructor(private readonly oneOffPurchaseService: OneOffPurchaseService) {}
 
   @Post('one-off')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary:
       'Crear una nueva compra one-off (con verificación automática de cliente)',
@@ -102,6 +102,7 @@ export class OneOffPurchaseController {
   }
 
   @Get('one-off')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener todas las compras one-off con filtros opcionales',
     description: `Retorna una lista paginada de compras one-off con opciones de filtrado avanzado.
@@ -251,6 +252,7 @@ export class OneOffPurchaseController {
   }
 
   @Get('one-off/:id')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener una compra one-off por su ID',
     description: `Retorna los detalles completos de una compra one-off específica.
@@ -282,6 +284,7 @@ export class OneOffPurchaseController {
   }
 
   @Patch('one-off/:id')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Actualizar una compra one-off por su ID',
     description: `Actualiza los detalles de una compra one-off existente.

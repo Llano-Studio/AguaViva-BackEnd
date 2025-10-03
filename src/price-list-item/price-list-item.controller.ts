@@ -36,7 +36,7 @@ export class PriceListItemController {
   constructor(private readonly priceListItemService: PriceListItemService) {}
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Crear un nuevo ítem en una lista de precios',
     description: `Crea un nuevo ítem en una lista de precios específica.
@@ -73,7 +73,7 @@ export class PriceListItemController {
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener todos los ítems de todas las listas de precios',
   })
@@ -142,7 +142,7 @@ export class PriceListItemController {
   }
 
   @Get('by-list/:priceListId')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener todos los ítems de una lista de precios específica',
   })
@@ -222,7 +222,7 @@ export class PriceListItemController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Obtener un ítem de lista de precios por su ID' })
   @ApiParam({
     name: 'id',
@@ -247,7 +247,7 @@ export class PriceListItemController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary:
       'Actualizar un ítem de lista de precios por su ID (solo precio unitario)',
@@ -294,7 +294,7 @@ export class PriceListItemController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Eliminar un ítem de lista de precios por su ID' })
   @ApiParam({
     name: 'id',

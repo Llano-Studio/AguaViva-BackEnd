@@ -35,7 +35,7 @@ export class ProductCategoryController {
   constructor(private readonly service: ProductCategoryService) {}
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({
     summary: 'Listar categorías de productos con filtros y paginación',
@@ -160,7 +160,7 @@ export class ProductCategoryController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener información detallada de una categoría específica',
     description: `Recupera la información completa de una categoría de productos específica por su ID único, incluyendo todos los productos asociados.
@@ -230,8 +230,8 @@ export class ProductCategoryController {
   }
 
   @Post()
-  @Auth(Role.SUPERADMIN)
-  @ApiOperation({
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @ApiOperation({ 
     summary: 'Crear una nueva categoría de productos',
     description:
       'Crea una nueva categoría para clasificar productos. Solo disponible para administradores.',
@@ -272,7 +272,7 @@ export class ProductCategoryController {
   }
 
   @Put(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar una categoría de productos por ID',
     description:
@@ -319,7 +319,7 @@ export class ProductCategoryController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar una categoría de productos por ID',
     description:

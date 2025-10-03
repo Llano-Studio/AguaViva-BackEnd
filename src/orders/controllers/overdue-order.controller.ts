@@ -11,6 +11,7 @@ import { OverdueOrderService } from '../../common/services/overdue-order.service
 
 @ApiTags('Órdenes de Cobranza Atrasadas')
 @ApiBearerAuth()
+@Auth(Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('overdue-orders')
 export class OverdueOrderController {
   constructor(private readonly overdueOrderService: OverdueOrderService) {}

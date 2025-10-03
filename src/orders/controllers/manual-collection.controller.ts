@@ -30,10 +30,13 @@ import {
   GenerateManualCollectionResponseDto,
   ExistingOrderResponseDto,
 } from '../dto/generate-manual-collection.dto';
+import { Role } from '@prisma/client';
+import { Auth } from '../../auth/decorators/auth.decorator';
 
 @ApiTags('Generación de Órdenes de Cobranza Manuales')
 @Controller('manual-collection')
 @UseGuards(JwtAuthGuard)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @ApiBearerAuth()
 export class ManualCollectionController {
   private readonly logger = new Logger(ManualCollectionController.name);

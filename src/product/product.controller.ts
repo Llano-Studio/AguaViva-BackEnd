@@ -43,7 +43,7 @@ export class ProductController {
   constructor(private readonly service: ProductService) {}
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({
     summary: 'Listar productos con filtros y paginación',
@@ -179,7 +179,7 @@ export class ProductController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener un producto por su id',
     description:
@@ -259,7 +259,7 @@ La respuesta incluye stock actual calculado en tiempo real:
   }
 
   @Post()
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
     FormDataPreserveInterceptor,
@@ -405,7 +405,7 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   }
 
   @Put(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @UseInterceptors(
     FileInterceptor('productImage', fileUploadConfigs.productImages),
     FormDataPreserveInterceptor,
@@ -595,7 +595,7 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   }
 
   @Delete(':id/image')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar imagen de un producto',
     description:

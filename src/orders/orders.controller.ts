@@ -38,7 +38,6 @@ import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
 @Controller('orders')
 export class OrdersController {
   constructor(
@@ -48,6 +47,7 @@ export class OrdersController {
   ) {}
 
   @Post()
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: '🆕 Crear una nueva orden (híbrida por defecto)',
     description: `Crea una nueva orden que AHORA ES HÍBRIDA POR DEFECTO con soporte completo para listas de precios individuales por producto.
@@ -212,6 +212,7 @@ export class OrdersController {
   }
 
   @Get()
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener todos los pedidos regulares',
     description: `Obtiene una lista paginada de pedidos regulares con filtros avanzados y búsqueda inteligente.
@@ -367,6 +368,7 @@ export class OrdersController {
   }
 
   @Get(':id')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener un pedido regular por ID',
     description: `Obtiene los detalles completos de un pedido específico incluyendo toda su información comercial y operativa.
@@ -436,6 +438,7 @@ export class OrdersController {
   }
 
   @Patch(':id')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Actualizar un pedido regular',
     description:
@@ -507,6 +510,7 @@ export class OrdersController {
   }
 
   @Get('customer/:customerId/history')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Obtener historial completo de pedidos de un cliente',
     description:
@@ -613,6 +617,7 @@ export class OrdersController {
    * Obtener horarios disponibles para entrega
    */
   @Get('available-time-slots')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({ summary: 'Obtener horarios disponibles para entrega' })
   @ApiResponse({
     status: 200,
@@ -650,6 +655,7 @@ export class OrdersController {
    * Validar horario de entrega
    */
   @Post('validate-schedule')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({ summary: 'Validar horario de entrega' })
   @ApiBody({
     schema: {
@@ -704,6 +710,7 @@ export class OrdersController {
   }
 
   @Get('subscription/:subscriptionId/available-credits')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({ summary: 'Obtener créditos disponibles de suscripción' })
   @ApiParam({ name: 'subscriptionId', description: 'ID de la suscripción' })
   @ApiResponse({
@@ -726,6 +733,7 @@ export class OrdersController {
   }
 
   @Post(':id/payments')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Procesar pago de orden híbrida',
     description:
@@ -799,6 +807,7 @@ export class OrdersController {
   }
 
   @Post('one-off/:id/payments')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Procesar pago de orden ONE_OFF',
     description:
@@ -876,6 +885,7 @@ export class OrdersController {
   }
 
   @Post('generate-collection/:cycleId')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Generar orden de cobranza automática por cycle_id',
     description:

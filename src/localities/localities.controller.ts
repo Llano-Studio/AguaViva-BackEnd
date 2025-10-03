@@ -25,7 +25,7 @@ import { Role } from '@prisma/client';
 
 @ApiTags('Localidades')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('localities')
 export class LocalitiesController {
   constructor(private readonly localitiesService: LocalitiesService) {}

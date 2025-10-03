@@ -32,7 +32,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 
 @ApiTags('Inventario de Vehículos')
 @ApiBearerAuth()
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('vehicle-inventories')
 export class VehiculeInventoryController {
   constructor(
