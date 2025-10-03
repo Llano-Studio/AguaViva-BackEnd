@@ -306,7 +306,7 @@ export class CustomerSubscriptionController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar suscripción',
     description: `Actualiza los datos de una suscripción existente con validaciones de negocio y mantenimiento de integridad.
@@ -347,7 +347,9 @@ export class CustomerSubscriptionController {
 - **Ajuste de Configuración**: Modificación de días y modalidades
 - **Gestión de Estado**: Pausar, reactivar o cancelar suscripciones
 - **Personalización**: Ajuste de preferencias de entrega
-- **Administración**: Corrección de datos y configuraciones`,
+- **Administración**: Corrección de datos y configuraciones
+
+**Disponible para:** SUPERADMIN y Jefe Administrativo.`,
   })
   @ApiParam({
     name: 'id',
@@ -372,7 +374,7 @@ export class CustomerSubscriptionController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   async update(
     @Param('id', ParseIntPipe) id: number,
@@ -382,11 +384,11 @@ export class CustomerSubscriptionController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar suscripción',
-    description: 'Elimina permanentemente una suscripción del sistema',
+    description: 'Elimina permanentemente una suscripción del sistema. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({
     name: 'id',
@@ -410,7 +412,7 @@ export class CustomerSubscriptionController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de SUPERADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.customerSubscriptionService.remove(id);

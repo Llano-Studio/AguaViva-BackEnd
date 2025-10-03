@@ -311,7 +311,7 @@ export class SubscriptionPlansController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar un plan de suscripción por su ID',
     description: `Actualiza los campos de un plan de suscripción existente. Todos los campos son opcionales.
@@ -324,7 +324,8 @@ export class SubscriptionPlansController {
 - \`default_deliveries_per_cycle\`: Número de entregas por defecto por ciclo
 - \`is_active\`: Si el plan está disponible para nuevas suscripciones
 
-**Nota:** Los cambios no afectan suscripciones existentes, solo se aplican a nuevas suscripciones.`,
+**Nota:** Los cambios no afectan suscripciones existentes, solo se aplican a nuevas suscripciones.
+**Disponible para:** SUPERADMIN y Jefe Administrativo.`,
   })
   @ApiParam({
     name: 'id',
@@ -396,7 +397,7 @@ export class SubscriptionPlansController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   @ApiResponse({
     status: 409,
@@ -410,7 +411,7 @@ export class SubscriptionPlansController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar un plan de suscripción por su ID',
     description: `Elimina un plan de suscripción y todos sus productos asociados.
@@ -419,7 +420,8 @@ export class SubscriptionPlansController {
 - No se puede eliminar un plan que tiene suscripciones de clientes activas o pausadas
 - Primero debe cancelar todas las suscripciones asociadas al plan
 
-**Efecto:** Elimina el plan y todas las relaciones producto-plan automáticamente.`,
+**Efecto:** Elimina el plan y todas las relaciones producto-plan automáticamente.
+**Disponible para:** SUPERADMIN y Jefe Administrativo.`,
   })
   @ApiParam({
     name: 'id',
@@ -448,7 +450,7 @@ export class SubscriptionPlansController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   @ApiResponse({
     status: 409,

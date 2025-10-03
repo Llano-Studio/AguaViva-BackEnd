@@ -557,11 +557,11 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar un producto por su id',
     description:
-      'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Solo disponible para administradores.',
+      'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({
     name: 'id',
@@ -582,7 +582,7 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
   @ApiResponse({

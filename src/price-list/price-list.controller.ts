@@ -263,11 +263,11 @@ export class PriceListController {
   }
 
   @Patch(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar una lista de precios por su ID',
     description:
-      'Actualiza la información básica de una lista de precios existente. No modifica los precios de los ítems asociados.',
+      'Actualiza la información básica de una lista de precios existente. No modifica los precios de los ítems asociados. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({
     name: 'id',
@@ -296,7 +296,7 @@ export class PriceListController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   @ApiResponse({
     status: 409,
@@ -311,11 +311,11 @@ export class PriceListController {
   }
 
   @Delete(':id')
-  @Auth(Role.SUPERADMIN)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Eliminar una lista de precios por su ID',
     description:
-      'Elimina una lista de precios. No se puede eliminar la lista predeterminada ni listas que están siendo utilizadas.',
+      'Elimina una lista de precios. No se puede eliminar la lista predeterminada ni listas que están siendo utilizadas. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({
     name: 'id',
@@ -340,7 +340,7 @@ export class PriceListController {
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   @ApiResponse({
     status: 400,

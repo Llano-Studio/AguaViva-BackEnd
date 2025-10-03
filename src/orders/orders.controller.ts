@@ -468,11 +468,12 @@ export class OrdersController {
   }
 
   @Delete(':id')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Eliminar un pedido regular',
     description:
-      'Elimina un pedido regular y sus ítems asociados. Solo permite eliminar pedidos en estado PENDING.',
+      'Elimina un pedido regular y sus ítems asociados. Solo permite eliminar pedidos en estado PENDING. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({ name: 'id', description: 'ID del pedido' })
   @ApiResponse({
@@ -494,6 +495,10 @@ export class OrdersController {
     status: 409,
     description:
       'No se puede eliminar un pedido que no está en estado PENDING.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
   })
   async removeOrder(
     @Param('id', ParseIntPipe) id: number,
