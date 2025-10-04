@@ -630,15 +630,96 @@ export class PersonsController {
 
   // Endpoints de Comodato
   @Post(':personId/comodatos')
+  @UseInterceptors(
+    FileInterceptor('contract_image', fileUploadConfigs.contractImages),
+    CleanupFileOnErrorInterceptor,
+  )
   @ApiOperation({
     summary: 'Crear un nuevo comodato para una persona',
     description:
-      'Registra un nuevo comodato de productos para el cliente especificado',
+      'Registra un nuevo comodato de productos para el cliente especificado. Puede incluir una imagen del contrato.',
   })
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiParam({
     name: 'personId',
     type: Number,
     description: 'ID de la persona/cliente',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        product_id: {
+          type: 'integer',
+          example: 1,
+          description: 'ID del producto en comodato',
+        },
+        subscription_id: {
+          type: 'integer',
+          example: 1,
+          description: 'ID de la suscripción asociada (opcional)',
+        },
+        quantity: {
+          type: 'integer',
+          example: 2,
+          description: 'Cantidad de productos en comodato',
+        },
+        delivery_date: {
+          type: 'string',
+          format: 'date',
+          example: '2025-01-15',
+          description: 'Fecha de entrega del comodato',
+        },
+        expected_return_date: {
+          type: 'string',
+          format: 'date',
+          example: '2025-12-15',
+          description: 'Fecha esperada de devolución (opcional)',
+        },
+        status: {
+          type: 'string',
+          enum: ['ACTIVE', 'INACTIVE', 'RETURNED', 'DAMAGED', 'LOST'],
+          example: 'ACTIVE',
+          description: 'Estado del comodato',
+        },
+        notes: {
+          type: 'string',
+          example: 'Comodato de bidones para cliente nuevo',
+          description: 'Notas adicionales (opcional)',
+        },
+        deposit_amount: {
+          type: 'number',
+          example: 5000.0,
+          description: 'Monto del depósito en garantía (opcional)',
+        },
+        monthly_fee: {
+          type: 'number',
+          example: 500.0,
+          description: 'Cuota mensual del comodato (opcional)',
+        },
+        article_description: {
+          type: 'string',
+          example: 'Dispensador de agua fría/caliente',
+          description: 'Descripción del artículo (opcional)',
+        },
+        brand: {
+          type: 'string',
+          example: 'Samsung',
+          description: 'Marca del artículo (opcional)',
+        },
+        model: {
+          type: 'string',
+          example: 'XYZ-123',
+          description: 'Modelo del artículo (opcional)',
+        },
+        contract_image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Imagen del contrato (opcional, JPG, PNG, etc.)',
+        },
+      },
+      required: ['product_id', 'quantity', 'delivery_date', 'status'],
+    },
   })
   @ApiResponse({
     status: 201,
@@ -653,10 +734,17 @@ export class PersonsController {
   async createComodato(
     @Param('personId', ParseIntPipe) personId: number,
     @Body(ValidationPipe) createComodatoDto: CreateComodatoDto,
+    @UploadedFile() file?: any,
   ): Promise<ComodatoResponseDto> {
+    // Si se subió un archivo, generar la URL
+    const contract_image_path = file
+      ? buildImageUrl(file.filename, 'contracts')
+      : createComodatoDto.contract_image_path;
+
     return this.personsService.createComodato({
       ...createComodatoDto,
       person_id: personId,
+      contract_image_path,
     });
   }
 

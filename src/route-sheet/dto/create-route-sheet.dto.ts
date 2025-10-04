@@ -57,8 +57,11 @@ export class CreateRouteSheetDetailDto {
   @Validate(AtLeastOneOrderIdConstraint)
   @Validate(OrderTypeRequiredConstraint)
   @ApiPropertyOptional({
-    description: 'ID del pedido que debe ser entregado. REQUERIDO especificar order_type cuando se usa este campo.',
-    example: 1,
+    description: `ID del pedido que debe ser entregado. REQUERIDO especificar order_type cuando se usa este campo.
+    
+    🔹 Usar para órdenes HYBRID, SUBSCRIPTION, CONTRACT_DELIVERY
+    ⚠️ NO usar para compras one-off (usar one_off_purchase_id o one_off_purchase_header_id en su lugar)`,
+    example: 21,
   })
   @IsInt()
   @IsOptional()
@@ -69,11 +72,10 @@ export class CreateRouteSheetDetailDto {
     
     Tipos disponibles:
     - HYBRID: Órdenes de cobranza manual/suscripciones híbridas
-    - ONE_OFF: Compras únicas de clientes
+    - SUBSCRIPTION: Órdenes de suscripción regulares
+    - CONTRACT_DELIVERY: Entregas por contrato
     
-    Ejemplos de uso:
-    - Para cobranzas manuales: order_type: "HYBRID"
-    - Para compras únicas: order_type: "ONE_OFF"`,
+    ⚠️ NO usar ONE_OFF aquí. Para compras one-off usar one_off_purchase_id o one_off_purchase_header_id`,
     enum: OrderType,
     example: OrderType.HYBRID,
     examples: {
@@ -81,13 +83,13 @@ export class CreateRouteSheetDetailDto {
         value: OrderType.HYBRID,
         description: 'Para órdenes de cobranza manual'
       },
-      oneOff: {
-        value: OrderType.ONE_OFF,
-        description: 'Para compras únicas de clientes'
-      },
       subscription: {
         value: OrderType.SUBSCRIPTION,
         description: 'Para órdenes de suscripción regulares'
+      },
+      contractDelivery: {
+        value: OrderType.CONTRACT_DELIVERY,
+        description: 'Para entregas por contrato'
       }
     }
   })
@@ -96,24 +98,48 @@ export class CreateRouteSheetDetailDto {
   order_type?: OrderType;
 
   @ApiPropertyOptional({
-    description: 'ID de la compra one-off individual que debe ser entregada',
-    example: 1,
+    description: `ID de la compra one-off individual (tabla one_off_purchase).
+    
+    🔹 Usar para compras one-off de UN SOLO PRODUCTO
+    ⚠️ NO incluir order_type cuando uses este campo
+    ⚠️ NO usar order_id cuando uses este campo
+    
+    Ejemplo de uso en payload:
+    {
+      "one_off_purchase_id": 5,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }`,
+    example: 5,
   })
   @IsInt()
   @IsOptional()
   one_off_purchase_id?: number;
 
   @ApiPropertyOptional({
-    description:
-      'ID de la compra one-off con múltiples productos que debe ser entregada',
-    example: 1,
+    description: `ID de la compra one-off con múltiples productos (tabla one_off_purchase_header).
+    
+    🔹 Usar para compras one-off de MÚLTIPLES PRODUCTOS
+    ⚠️ NO incluir order_type cuando uses este campo
+    ⚠️ NO usar order_id cuando uses este campo
+    
+    Ejemplo de uso en payload:
+    {
+      "one_off_purchase_header_id": 3,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }`,
+    example: 3,
   })
   @IsInt()
   @IsOptional()
   one_off_purchase_header_id?: number;
 
   @ApiPropertyOptional({
-    description: 'ID del pedido de cobranza que debe ser procesado',
+    description: `ID del pedido de cobranza que debe ser procesado.
+    
+    🔹 Usar para pagos de ciclos de suscripción
+    ⚠️ NO incluir order_type cuando uses este campo`,
     example: 1,
   })
   @IsInt()
@@ -181,7 +207,45 @@ export class CreateRouteSheetDto {
   route_notes?: string;
 
   @ApiProperty({
-    description: 'Detalles de los pedidos a entregar',
+    description: `Detalles de los pedidos a entregar. Puedes mezclar diferentes tipos de órdenes en la misma hoja de ruta.
+    
+    📋 TIPOS DE ÓRDENES SOPORTADAS:
+    
+    1️⃣ Órdenes HYBRID/SUBSCRIPTION/CONTRACT (usar order_id + order_type):
+    {
+      "order_id": 21,
+      "order_type": "HYBRID",
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+    
+    2️⃣ Compras one-off de un solo producto (usar one_off_purchase_id):
+    {
+      "one_off_purchase_id": 5,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+    
+    3️⃣ Compras one-off con múltiples productos (usar one_off_purchase_header_id):
+    {
+      "one_off_purchase_header_id": 3,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+    
+    4️⃣ Cobros de ciclo de suscripción (usar cycle_payment_id):
+    {
+      "cycle_payment_id": 1,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+    
+    ✅ EJEMPLO COMPLETO MEZCLANDO TIPOS:
+    "details": [
+      { "order_id": 21, "order_type": "HYBRID", "delivery_status": "PENDING", "delivery_time": "08:00-12:00" },
+      { "one_off_purchase_id": 5, "delivery_status": "PENDING", "delivery_time": "08:00-12:00" },
+      { "one_off_purchase_header_id": 3, "delivery_status": "PENDING", "delivery_time": "12:00-16:00" }
+    ]`,
     type: [CreateRouteSheetDetailDto],
   })
   @IsArray()

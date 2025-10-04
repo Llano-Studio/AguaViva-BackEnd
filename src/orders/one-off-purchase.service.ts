@@ -1816,6 +1816,8 @@ export class OneOffPurchaseService
 
     return {
       purchase_id: purchase.purchase_id,
+      one_off_purchase_id: purchase.purchase_id, // 🆕 ID real de la tabla legacy
+      purchase_type: 'LEGACY', // 🆕 Identificar el tipo de estructura
       person_id: purchase.person_id,
       purchase_date: purchase.purchase_date.toISOString(),
       scheduled_delivery_date: purchase.scheduled_delivery_date?.toISOString(),
@@ -1955,6 +1957,8 @@ export class OneOffPurchaseService
 
     return {
       purchase_id: purchaseHeader.purchase_header_id,
+      purchase_header_id: purchaseHeader.purchase_header_id, // 🆕 ID real de la tabla header
+      purchase_type: 'HEADER', // 🆕 Identificar el tipo de estructura
       person_id: purchaseHeader.person_id,
       purchase_date: purchaseHeader.purchase_date.toISOString(),
       scheduled_delivery_date:

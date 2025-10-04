@@ -133,6 +133,7 @@ async function bootstrap() {
     './public/uploads/evidence',
     './public/uploads/delivery-evidence',
     './public/uploads/reconciliations',
+    './public/uploads/contracts',
     './public/pdfs', // 🆕 Directorio para PDFs generados
   ];
 
