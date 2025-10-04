@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrderType } from '../../common/constants/enums';
 
 export class OneOffPurchaseProductResponseDto {
@@ -111,8 +111,111 @@ export class OneOffPurchaseZoneResponseDto {
 }
 
 export class OneOffPurchaseResponseDto {
-  @ApiProperty({ example: 1 })
+  @ApiProperty({ 
+    example: 1, 
+    description: `ID genérico de la compra para referencia general.
+    
+⚠️ IMPORTANTE: NO usar este campo para crear hojas de ruta.
+Use purchase_type para determinar qué ID específico usar.` 
+  })
   purchase_id: number;
+
+  @ApiPropertyOptional({ 
+    example: 5, 
+    description: `🔹 ID de la tabla one_off_purchase (compras de UN SOLO producto).
+    
+✅ CUÁNDO USAR:
+- Solo presente cuando purchase_type = "LEGACY"
+- Usar este campo en hojas de ruta: { "one_off_purchase_id": 5, ... }
+
+❌ NO USAR si purchase_type = "HEADER"
+
+📋 EJEMPLO DE USO EN HOJA DE RUTA:
+{
+  "details": [
+    {
+      "one_off_purchase_id": 5,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+  ]
+}` 
+  })
+  one_off_purchase_id?: number;
+
+  @ApiPropertyOptional({ 
+    example: 3, 
+    description: `🔹 ID de la tabla one_off_purchase_header (compras de MÚLTIPLES productos).
+    
+✅ CUÁNDO USAR:
+- Solo presente cuando purchase_type = "HEADER"
+- Usar este campo en hojas de ruta: { "one_off_purchase_header_id": 3, ... }
+
+❌ NO USAR si purchase_type = "LEGACY"
+
+📋 EJEMPLO DE USO EN HOJA DE RUTA:
+{
+  "details": [
+    {
+      "one_off_purchase_header_id": 3,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+  ]
+}` 
+  })
+  purchase_header_id?: number;
+
+  @ApiPropertyOptional({ 
+    example: 'HEADER', 
+    enum: ['LEGACY', 'HEADER'],
+    description: `🎯 CAMPO CLAVE para determinar qué ID usar en hojas de ruta.
+
+📊 TIPOS:
+- "LEGACY": Compra de UN SOLO producto → Usar one_off_purchase_id
+- "HEADER": Compra de MÚLTIPLES productos → Usar purchase_header_id
+
+✅ LÓGICA FRONTEND:
+\`\`\`javascript
+if (purchase.purchase_type === 'LEGACY') {
+  // Usar one_off_purchase_id
+  routeDetail = {
+    one_off_purchase_id: purchase.one_off_purchase_id,
+    delivery_status: "PENDING",
+    delivery_time: "08:00-12:00"
+  };
+} else if (purchase.purchase_type === 'HEADER') {
+  // Usar purchase_header_id
+  routeDetail = {
+    one_off_purchase_header_id: purchase.purchase_header_id,
+    delivery_status: "PENDING",
+    delivery_time: "08:00-12:00"
+  };
+}
+\`\`\`
+
+📋 EJEMPLO COMPLETO:
+Respuesta del API:
+{
+  "purchase_id": 4,
+  "purchase_header_id": 4,
+  "purchase_type": "HEADER",  ← Usar este campo
+  "person_id": 10,
+  ...
+}
+
+Payload para hoja de ruta:
+{
+  "details": [
+    {
+      "one_off_purchase_header_id": 4,  ← Usar purchase_header_id porque es HEADER
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+  ]
+}` 
+  })
+  purchase_type?: string;
 
   @ApiProperty({ example: 1 })
   person_id: number;

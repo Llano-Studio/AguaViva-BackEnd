@@ -217,9 +217,60 @@ export class OneOffPurchaseController {
   })
   @ApiResponse({
     status: 200,
-    description:
-      'Lista de compras one-off obtenida exitosamente. Cada elemento incluye información detallada del producto y lista de precios.',
+    description: `Lista de compras one-off obtenida exitosamente.
+
+🎯 IMPORTANTE PARA HOJAS DE RUTA:
+Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear hojas de ruta:
+- Si purchase_type = "LEGACY" → usar one_off_purchase_id
+- Si purchase_type = "HEADER" → usar purchase_header_id
+
+✅ EJEMPLO DE RESPUESTA con ambos tipos:`,
     schema: {
+      example: {
+        data: [
+          {
+            purchase_id: 5,
+            one_off_purchase_id: 5,
+            purchase_type: 'LEGACY',
+            person_id: 10,
+            purchase_date: '2025-10-04T00:00:00.000Z',
+            total_amount: '1920',
+            paid_amount: '1920',
+            status: 'PENDING',
+            order_type: 'ONE_OFF',
+            requires_delivery: true,
+            person: { name: 'Juan Pérez', phone: '3625123456' },
+            products: [
+              { product_id: 1, description: 'Botella 500ml', quantity: 2 }
+            ],
+            _comment: '⬆️ Compra LEGACY (1 producto) - Usar one_off_purchase_id: 5 en hoja de ruta'
+          },
+          {
+            purchase_id: 4,
+            purchase_header_id: 4,
+            purchase_type: 'HEADER',
+            person_id: 8,
+            purchase_date: '2025-10-03T00:00:00.000Z',
+            total_amount: '25920',
+            paid_amount: '25920',
+            status: 'PENDING',
+            order_type: 'ONE_OFF',
+            requires_delivery: true,
+            person: { name: 'María García', phone: '3625987654' },
+            products: [
+              { product_id: 1, description: 'Botella 500ml', quantity: 2 },
+              { product_id: 2, description: 'Dispenser', quantity: 1 }
+            ],
+            _comment: '⬆️ Compra HEADER (múltiples productos) - Usar purchase_header_id: 4 en hoja de ruta'
+          }
+        ],
+        meta: {
+          total: 2,
+          page: 1,
+          limit: 10,
+          totalPages: 1
+        }
+      },
       properties: {
         data: {
           type: 'array',

@@ -63,14 +63,142 @@ export class RouteSheetController {
 
   @Post()
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
-  @ApiOperation({ summary: 'Crear una nueva hoja de ruta' })
+  @ApiOperation({ 
+    summary: 'Crear una nueva hoja de ruta',
+    description: `Crea una nueva hoja de ruta con múltiples tipos de entregas.
+
+📋 TIPOS DE ÓRDENES SOPORTADAS (pueden mezclarse en una misma hoja):
+
+1️⃣ **Órdenes HYBRID/SUBSCRIPTION/CONTRACT**: Usar order_id + order_type
+   - HYBRID: Cobranzas manuales/suscripciones híbridas
+   - SUBSCRIPTION: Órdenes de suscripción regulares
+   - CONTRACT_DELIVERY: Entregas por contrato
+
+2️⃣ **Compras one-off de un solo producto**: Usar one_off_purchase_id
+   - Para compras individuales de la tabla one_off_purchase
+   - NO incluir order_type
+
+3️⃣ **Compras one-off con múltiples productos**: Usar one_off_purchase_header_id
+   - Para compras con múltiples items de la tabla one_off_purchase_header
+   - NO incluir order_type
+
+4️⃣ **Cobros de ciclo de suscripción**: Usar cycle_payment_id
+   - Para pagos de ciclos de suscripción
+   - NO incluir order_type
+
+✅ EJEMPLO DE PAYLOAD MEZCLANDO TIPOS:
+\`\`\`json
+{
+  "driver_id": 3,
+  "vehicle_id": 1,
+  "delivery_date": "2025-10-03",
+  "route_notes": "Salir por Sarmiento",
+  "details": [
+    {
+      "order_id": 21,
+      "order_type": "HYBRID",
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    },
+    {
+      "one_off_purchase_id": 5,
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    },
+    {
+      "one_off_purchase_header_id": 3,
+      "delivery_status": "PENDING",
+      "delivery_time": "12:00-16:00"
+    }
+  ]
+}
+\`\`\`
+
+⚠️ IMPORTANTE - CÓMO OBTENER IDs CORRECTOS:
+
+1️⃣ **Consultar compras one-off disponibles:**
+   GET /api/one-off-purchases/one-off?status=PENDING&requires_delivery=true
+
+2️⃣ **Verificar el campo 'purchase_type' en la respuesta:**
+   - Si purchase_type = "LEGACY" → Usar one_off_purchase_id
+   - Si purchase_type = "HEADER" → Usar purchase_header_id
+
+3️⃣ **Lógica Frontend para mapear compras:**
+\`\`\`javascript
+// Ejemplo de cómo procesar la respuesta del API
+const oneOffPurchases = response.data.filter(p => p.status === 'PENDING');
+
+const routeDetails = oneOffPurchases.map(purchase => {
+  const detail = {
+    delivery_status: 'PENDING',
+    delivery_time: '08:00-12:00',
+  };
+  
+  // Usar el ID correcto según el tipo
+  if (purchase.purchase_type === 'LEGACY') {
+    detail.one_off_purchase_id = purchase.one_off_purchase_id;
+  } else if (purchase.purchase_type === 'HEADER') {
+    detail.one_off_purchase_header_id = purchase.purchase_header_id;
+  }
+  
+  return detail;
+});
+\`\`\`
+
+📋 **EJEMPLO DE RESPUESTA DEL API:**
+{
+  "data": [
+    {
+      "purchase_id": 5,
+      "one_off_purchase_id": 5,     ← Usar este ID
+      "purchase_type": "LEGACY",     ← Tipo LEGACY
+      "status": "PENDING",
+      ...
+    },
+    {
+      "purchase_id": 4,
+      "purchase_header_id": 4,       ← Usar este ID
+      "purchase_type": "HEADER",     ← Tipo HEADER
+      "status": "PENDING",
+      ...
+    }
+  ]
+}
+
+📋 **PAYLOAD PARA HOJA DE RUTA:**
+{
+  "driver_id": 2,
+  "vehicle_id": 1,
+  "delivery_date": "2025-10-04",
+  "details": [
+    {
+      "one_off_purchase_id": 5,      ← Del registro LEGACY
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    },
+    {
+      "one_off_purchase_header_id": 4, ← Del registro HEADER
+      "delivery_status": "PENDING",
+      "delivery_time": "08:00-12:00"
+    }
+  ]
+}
+
+✅ REGLAS:
+- Cada detalle debe tener al menos uno de: order_id, one_off_purchase_id, one_off_purchase_header_id, o cycle_payment_id
+- Solo incluir order_type cuando uses order_id
+- NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)`
+  })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({
     status: 201,
     description: 'Hoja de ruta creada exitosamente',
     type: RouteSheetResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Datos de entrada inválidos. Posibles causas: IDs no existen, order_type faltante, órdenes ya asignadas a otra ruta' 
+  })
   @ApiResponse({ status: 401, description: 'No autorizado' })
   create(@Body() createRouteSheetDto: CreateRouteSheetDto) {
     return this.routeSheetService.create(createRouteSheetDto);
