@@ -1518,6 +1518,40 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         newOrderStatus = 'DELIVERED';
       }
 
+      // ✅ PUNTO 2: Si la orden cambia a DELIVERED y tiene suscripción asociada,
+      // eliminar automáticamente los comodatos activos de esa suscripción
+      if (newOrderStatus === 'DELIVERED' && order.subscription_id) {
+        const activeComodatos = await tx.comodato.findMany({
+          where: {
+            subscription_id: order.subscription_id,
+            status: 'ACTIVE',
+          },
+        });
+
+        if (activeComodatos.length > 0) {
+          console.log(
+            `🔄 Eliminando ${activeComodatos.length} comodatos activos al completar orden ${order.order_id}`,
+          );
+
+          // Marcar todos los comodatos como devueltos automáticamente
+          await tx.comodato.updateMany({
+            where: {
+              subscription_id: order.subscription_id,
+              status: 'ACTIVE',
+            },
+            data: {
+              status: 'RETURNED',
+              return_date: new Date(),
+              notes: `Devolución automática al completar orden ${order.order_id}`,
+            },
+          });
+
+          console.log(
+            `✅ ${activeComodatos.length} comodatos marcados como devueltos automáticamente`,
+          );
+        }
+      }
+
       await tx.order_header.update({
         where: { order_id: order.order_id },
         data: {

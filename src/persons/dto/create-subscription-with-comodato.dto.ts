@@ -42,7 +42,7 @@ export class CreateSubscriptionWithComodatoDto {
   subscription_plan_id: number;
 
   @ApiProperty({
-    description: 'Fecha de inicio de la suscripción (YYYY-MM-DD)',
+    description: 'Fecha de inicio de la suscripción (YYYY-MM-DD). ✅ PERMITIDO: Fechas anteriores a la fecha actual para casos de suscripciones retroactivas.',
     example: '2024-01-01',
   })
   @IsDateString()

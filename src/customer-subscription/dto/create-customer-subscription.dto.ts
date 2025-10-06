@@ -41,7 +41,7 @@ export class CreateCustomerSubscriptionDto {
 
   @ApiProperty({
     description:
-      'Fecha de inicio de la suscripción en formato YYYY-MM-DD. Determina cuándo comienzan los ciclos de entrega.',
+      'Fecha de inicio de la suscripción en formato YYYY-MM-DD. Determina cuándo comienzan los ciclos de entrega. ✅ PERMITIDO: Fechas anteriores a la fecha actual para casos de suscripciones retroactivas.',
     example: '2024-01-01',
     format: 'date',
   })

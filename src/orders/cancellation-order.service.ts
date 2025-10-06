@@ -403,6 +403,42 @@ export class CancellationOrderService extends PrismaClient {
       }
     }
 
+    // ✅ PUNTO 2: Eliminar automáticamente los comodatos asociados a la suscripción
+    // cuando la orden de cancelación se completa
+    const activeComodatos = await prisma.comodato.findMany({
+      where: {
+        subscription_id: order.subscription_id,
+        status: 'ACTIVE',
+      },
+    });
+
+    if (activeComodatos.length > 0) {
+      this.logger.log(
+        `🔄 Eliminando ${activeComodatos.length} comodatos activos asociados a la suscripción ${order.subscription_id}`,
+      );
+
+      // Marcar todos los comodatos como devueltos automáticamente
+      await prisma.comodato.updateMany({
+        where: {
+          subscription_id: order.subscription_id,
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'RETURNED',
+          return_date: actualCollectionDate,
+          notes: `Devolución automática por cancelación de suscripción - Orden de cancelación: ${id}`,
+        },
+      });
+
+      this.logger.log(
+        `✅ ${activeComodatos.length} comodatos marcados como devueltos automáticamente`,
+      );
+    } else {
+      this.logger.log(
+        `ℹ️ No se encontraron comodatos activos para la suscripción ${order.subscription_id}`,
+      );
+    }
+
     // Actualizar la orden como completada
     const updatedOrder = await this.update(
       id,

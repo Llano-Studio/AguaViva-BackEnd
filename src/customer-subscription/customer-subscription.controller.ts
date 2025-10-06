@@ -64,6 +64,7 @@ export class CustomerSubscriptionController {
 - Configuración automática de ciclos de facturación
 - Definición de días de recolección/entrega
 - Modalidades de pago flexibles
+- ✅ **SUSCRIPCIONES RETROACTIVAS**: Permite fechas de inicio anteriores a la fecha actual
 
 ## 📅 CONFIGURACIÓN DE CICLOS
 
@@ -91,7 +92,8 @@ export class CustomerSubscriptionController {
 - **Nuevas Suscripciones**: Clientes que inician servicio
 - **Planes Personalizados**: Configuraciones específicas
 - **Gestión de Ciclos**: Control de períodos de servicio
-- **Modalidades Flexibles**: Adaptación a necesidades del cliente`,
+- **Modalidades Flexibles**: Adaptación a necesidades del cliente
+- **✅ Suscripciones Retroactivas**: Registro de servicios iniciados en fechas pasadas`,
   })
   @ApiBody({ type: CreateCustomerSubscriptionDto })
   @ApiResponse({
