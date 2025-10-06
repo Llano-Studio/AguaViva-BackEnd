@@ -410,6 +410,13 @@ export class ManualCollectionService extends PrismaClient {
       0,
     );
 
+    // ✅ PUNTO 1: Validar que el monto total no sea 0
+    if (totalAmount <= 0) {
+      throw new BadRequestException(
+        'No se puede generar un pedido de cobranza con monto total de $0. Verifique que los ciclos seleccionados tengan saldo pendiente.',
+      );
+    }
+
     // Verificar si ya existe un pedido para la fecha
     const existingOrder = await this.order_header.findFirst({
       where: {
