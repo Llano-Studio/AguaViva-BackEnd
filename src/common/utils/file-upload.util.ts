@@ -38,6 +38,25 @@ export const imageFileFilter = (
 };
 
 /**
+ * Filtro para validar archivos de contrato (imágenes y PDFs)
+ */
+export const contractFileFilter = (
+  req: any,
+  file: any,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) => {
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/i)) {
+    return callback(
+      new Error(
+        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o documentos PDF!',
+      ),
+      false,
+    );
+  }
+  callback(null, true);
+};
+
+/**
  * Configuraciones predefinidas para diferentes tipos de archivos
  */
 export const fileUploadConfigs = {
@@ -84,14 +103,14 @@ export const fileUploadConfigs = {
   },
 
   /**
-   * Configuración para contratos de comodato
+   * Configuración para contratos de comodato (imágenes y PDFs)
    */
   contractImages: {
     storage: diskStorage({
       destination: './public/uploads/contracts',
       filename: editFileName,
     }),
-    fileFilter: imageFileFilter,
+    fileFilter: contractFileFilter,
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB para contratos
     },
