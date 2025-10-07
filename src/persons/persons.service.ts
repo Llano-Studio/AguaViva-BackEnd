@@ -1398,6 +1398,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       person_id: comodatoEntity.person_id,
       product_id: comodatoEntity.product_id,
       quantity: comodatoEntity.quantity,
+      max_quantity: comodatoEntity.max_quantity || undefined,
       delivery_date: comodatoEntity.delivery_date,
       expected_return_date: comodatoEntity.expected_return_date || undefined,
       actual_return_date: comodatoEntity.return_date || undefined,
@@ -1489,6 +1490,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           product_id: dto.product_id,
           subscription_id: dto.subscription_id || null, // ← Agregar subscription_id
           quantity: dto.quantity,
+          max_quantity: dto.max_quantity || null, // ← Cantidad máxima permitida
           delivery_date: new Date(dto.delivery_date),
           expected_return_date: dto.expected_return_date
             ? new Date(dto.expected_return_date)
@@ -2144,15 +2146,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           person_id: dto.customer_id,
           product_id: dto.comodato_product_id,
           subscription_id: subscription.subscription_id, // ← Agregar subscription_id
-          quantity: dto.comodato_quantity || 1,
+          quantity: 0, // ← Inicializar con 0 items - se incrementará con cada entrega
+          max_quantity: dto.comodato_quantity || 1, // ← Cantidad máxima según la suscripción
           delivery_date:
             dto.comodato_delivery_date ||
             new Date().toISOString().split('T')[0],
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
           notes: dto.comodato_notes
-            ? `${dto.comodato_notes} - Suscripción ID: ${subscription.subscription_id}`
-            : `Comodato creado para suscripción ID: ${subscription.subscription_id}`,
+            ? `${dto.comodato_notes} - Suscripción ID: ${subscription.subscription_id} - Cantidad máxima: ${dto.comodato_quantity || 1}`
+            : `Comodato creado para suscripción ID: ${subscription.subscription_id} - Cantidad máxima: ${dto.comodato_quantity || 1}`,
           deposit_amount: dto.comodato_deposit_amount,
           monthly_fee: dto.comodato_monthly_fee,
           article_description: dto.comodato_article_description,

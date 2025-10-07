@@ -30,10 +30,19 @@ export class CreateComodatoDto {
   @IsOptional()
   subscription_id?: number;
 
-  @ApiProperty({ example: 2, description: 'Cantidad de productos en comodato' })
+  @ApiProperty({ example: 2, description: 'Cantidad actual de productos en comodato' })
   @IsInt()
-  @Min(1)
+  @Min(0)
   quantity: number;
+
+  @ApiPropertyOptional({
+    example: 7,
+    description: 'Cantidad máxima permitida según la suscripción',
+  })
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  max_quantity?: number;
 
   @ApiProperty({
     example: '2025-01-15',

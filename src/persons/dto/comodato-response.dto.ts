@@ -11,8 +11,14 @@ export class ComodatoResponseDto {
   @ApiProperty({ example: 1, description: 'ID del producto' })
   product_id: number;
 
-  @ApiProperty({ example: 2, description: 'Cantidad de productos en comodato' })
+  @ApiProperty({ example: 2, description: 'Cantidad actual de productos en comodato' })
   quantity: number;
+
+  @ApiPropertyOptional({
+    example: 7,
+    description: 'Cantidad máxima permitida según la suscripción',
+  })
+  max_quantity?: number;
 
   @ApiProperty({
     example: '2025-01-15T00:00:00.000Z',

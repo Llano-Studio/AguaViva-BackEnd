@@ -882,6 +882,7 @@ model comodato {
   product_id           Int
   subscription_id      Int?
   quantity             Int
+  max_quantity         Int?           // Cantidad máxima permitida según la suscripción
   delivery_date        DateTime       @db.Date
   return_date          DateTime?      @db.Date
   expected_return_date DateTime?      @db.Date

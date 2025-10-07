@@ -1518,37 +1518,49 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         newOrderStatus = 'DELIVERED';
       }
 
-      // ✅ PUNTO 2: Si la orden cambia a DELIVERED y tiene suscripción asociada,
-      // eliminar automáticamente los comodatos activos de esa suscripción
+      // ✅ NUEVA LÓGICA: Si la orden cambia a DELIVERED y tiene suscripción asociada,
+      // incrementar la cantidad de comodatos activos según los productos entregados
       if (newOrderStatus === 'DELIVERED' && order.subscription_id) {
-        const activeComodatos = await tx.comodato.findMany({
-          where: {
-            subscription_id: order.subscription_id,
-            status: 'ACTIVE',
-          },
+        // Obtener los items de la orden para saber qué productos se entregaron
+        const orderItems = await tx.order_item.findMany({
+          where: { order_id: order.order_id },
+          include: { product: true },
         });
 
-        if (activeComodatos.length > 0) {
-          console.log(
-            `🔄 Eliminando ${activeComodatos.length} comodatos activos al completar orden ${order.order_id}`,
-          );
+        for (const item of orderItems) {
+          // Solo procesar productos retornables (que pueden estar en comodato)
+          if (item.product.is_returnable) {
+            // Buscar comodato activo para este producto y suscripción
+            const activeComodato = await tx.comodato.findFirst({
+              where: {
+                subscription_id: order.subscription_id,
+                product_id: item.product_id,
+                status: 'ACTIVE',
+              },
+            });
 
-          // Marcar todos los comodatos como devueltos automáticamente
-          await tx.comodato.updateMany({
-            where: {
-              subscription_id: order.subscription_id,
-              status: 'ACTIVE',
-            },
-            data: {
-              status: 'RETURNED',
-              return_date: new Date(),
-              notes: `Devolución automática al completar orden ${order.order_id}`,
-            },
-          });
+            if (activeComodato) {
+              const newQuantity = activeComodato.quantity + item.quantity;
+              const maxQuantity = activeComodato.max_quantity || item.quantity;
 
-          console.log(
-            `✅ ${activeComodatos.length} comodatos marcados como devueltos automáticamente`,
-          );
+              // Validar que no se exceda la cantidad máxima
+              const finalQuantity = Math.min(newQuantity, maxQuantity);
+
+              await tx.comodato.update({
+                where: { comodato_id: activeComodato.comodato_id },
+                data: {
+                  quantity: finalQuantity,
+                  notes: activeComodato.notes 
+                    ? `${activeComodato.notes} | Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`
+                    : `Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`,
+                },
+              });
+
+              console.log(
+                `✅ Comodato ${activeComodato.comodato_id} actualizado: ${activeComodato.quantity} → ${finalQuantity} (máx: ${maxQuantity}) para producto ${item.product.description}`,
+              );
+            }
+          }
         }
       }
 
