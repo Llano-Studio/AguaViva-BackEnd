@@ -715,7 +715,7 @@ export class PersonsController {
         contract_image: {
           type: 'string',
           format: 'binary',
-          description: 'Imagen del contrato (opcional, JPG, PNG, etc.)',
+          description: 'Archivo del contrato (opcional, JPG, PNG, GIF, WEBP, PDF)',
         },
       },
       required: ['product_id', 'quantity', 'delivery_date', 'status'],
@@ -833,10 +833,15 @@ export class PersonsController {
   }
 
   @Patch(':personId/comodatos/:comodatoId')
+  @UseInterceptors(
+    FileInterceptor('contract_image', fileUploadConfigs.contractImages),
+    CleanupFileOnErrorInterceptor,
+  )
   @ApiOperation({
     summary: 'Actualizar un comodato',
-    description: 'Actualiza los datos de un comodato existente',
+    description: 'Actualiza los datos de un comodato existente. Puede incluir una nueva imagen del contrato.',
   })
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiParam({
     name: 'personId',
     type: Number,
@@ -846,6 +851,81 @@ export class PersonsController {
     name: 'comodatoId',
     type: Number,
     description: 'ID del comodato',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        product_id: {
+          type: 'integer',
+          example: 1,
+          description: 'ID del producto en comodato',
+        },
+        subscription_id: {
+          type: 'integer',
+          example: 1,
+          description: 'ID de la suscripción asociada (opcional)',
+        },
+        quantity: {
+          type: 'integer',
+          example: 2,
+          description: 'Cantidad de productos en comodato',
+        },
+        delivery_date: {
+          type: 'string',
+          format: 'date',
+          example: '2025-01-15',
+          description: 'Fecha de entrega del comodato',
+        },
+        expected_return_date: {
+          type: 'string',
+          format: 'date',
+          example: '2025-12-15',
+          description: 'Fecha esperada de devolución (opcional)',
+        },
+        status: {
+          type: 'string',
+          enum: ['ACTIVE', 'INACTIVE', 'RETURNED', 'DAMAGED', 'LOST'],
+          example: 'ACTIVE',
+          description: 'Estado del comodato',
+        },
+        notes: {
+          type: 'string',
+          example: 'Comodato de bidones para cliente nuevo',
+          description: 'Notas adicionales (opcional)',
+        },
+        deposit_amount: {
+          type: 'number',
+          example: 5000.0,
+          description: 'Monto del depósito en garantía (opcional)',
+        },
+        monthly_fee: {
+          type: 'number',
+          example: 500.0,
+          description: 'Cuota mensual del comodato (opcional)',
+        },
+        article_description: {
+          type: 'string',
+          example: 'Dispensador de agua fría/caliente',
+          description: 'Descripción del artículo (opcional)',
+        },
+        brand: {
+          type: 'string',
+          example: 'Samsung',
+          description: 'Marca del artículo (opcional)',
+        },
+        model: {
+          type: 'string',
+          example: 'XYZ-123',
+          description: 'Modelo del artículo (opcional)',
+        },
+        contract_image: {
+           type: 'string',
+           format: 'binary',
+           description: 'Archivo del contrato (opcional, JPG, PNG, GIF, WEBP, PDF)',
+         },
+      },
+    },
   })
   @ApiResponse({
     status: 200,
@@ -858,11 +938,20 @@ export class PersonsController {
     @Param('personId', ParseIntPipe) personId: number,
     @Param('comodatoId', ParseIntPipe) comodatoId: number,
     @Body(ValidationPipe) updateComodatoDto: UpdateComodatoDto,
+    @UploadedFile() file?: any,
   ): Promise<ComodatoResponseDto> {
+    // Si se subió un archivo, generar la URL
+    const contract_image_path = file
+      ? buildImageUrl(file.filename, 'contracts')
+      : updateComodatoDto.contract_image_path;
+
     return this.personsService.updateComodato(
       personId,
       comodatoId,
-      updateComodatoDto,
+      {
+        ...updateComodatoDto,
+        contract_image_path,
+      },
     );
   }
 
@@ -1064,9 +1153,9 @@ export class PersonsController {
     CleanupFileOnErrorInterceptor,
   )
   @ApiOperation({
-    summary: 'Subir imagen de contrato de comodato',
+    summary: 'Subir archivo de contrato de comodato',
     description:
-      'Sube una imagen de contrato y devuelve la URL para usar en comodatos',
+      'Sube un archivo de contrato (imagen o PDF) y devuelve la URL para usar en comodatos',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -1076,25 +1165,25 @@ export class PersonsController {
         contract_image: {
           type: 'string',
           format: 'binary',
-          description: 'Archivo de imagen del contrato (JPG, PNG, etc.)',
+          description: 'Archivo del contrato (JPG, PNG, GIF, WEBP, PDF)',
         },
       },
     },
   })
   @ApiResponse({
     status: 201,
-    description: 'Imagen subida exitosamente',
+    description: 'Archivo subido exitosamente',
     schema: {
       properties: {
         message: {
           type: 'string',
-          example: 'Imagen de contrato subida exitosamente',
+          example: 'Archivo de contrato subido exitosamente',
         },
-        filename: { type: 'string', example: 'contrato-abc123.jpg' },
+        filename: { type: 'string', example: 'contrato-abc123.pdf' },
         url: {
           type: 'string',
           example:
-            'http://localhost:3000/public/uploads/contracts/contrato-abc123.jpg',
+            'http://localhost:3000/public/uploads/contracts/contrato-abc123.pdf',
         },
       },
     },
