@@ -96,6 +96,7 @@ export class PersonsController {
   constructor(private readonly personsService: PersonsService) {}
 
   @Post()
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Registrar nuevo cliente en el sistema',
     description: `Registra un nuevo cliente con toda su información personal y comercial para gestión integral.
@@ -151,6 +152,7 @@ export class PersonsController {
   }
 
   @Get()
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Listar personas con filtros y paginación',
     description: `Obtiene un listado paginado de clientes con opciones de filtrado avanzado y búsqueda inteligente.
@@ -323,6 +325,7 @@ export class PersonsController {
   }
 
   @Get(':id')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiParam({ name: 'id', type: Number, description: 'ID de la persona' })
   @ApiOperation({
     summary: 'Obtener una persona por ID',
@@ -370,6 +373,7 @@ export class PersonsController {
   }
 
   @Patch(':id')
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiParam({ name: 'id', type: Number })
   @ApiOperation({ summary: 'Actualizar datos de una persona' })
   @ApiResponse({
@@ -394,6 +398,7 @@ export class PersonsController {
   }
 
   @Delete(':id')
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiParam({ name: 'id', type: Number })
   @ApiOperation({ summary: 'Eliminar una persona' })
   @ApiResponse({
@@ -414,6 +419,7 @@ export class PersonsController {
   }
 
   @Patch(':personId/subscriptions/:subscriptionId/cancel')
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Cancelar una suscripción de un cliente' })
   @ApiParam({
     name: 'personId',
@@ -452,6 +458,7 @@ export class PersonsController {
   }
 
   @Patch(':personId/contracts/:contractId/cancel')
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Cancelar un contrato de un cliente' })
   @ApiParam({
     name: 'personId',
@@ -481,6 +488,7 @@ export class PersonsController {
   }
 
   @Post(':personId/subscriptions/change-plan')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({ summary: 'Cambiar el plan de una suscripción de un cliente' })
   @ApiParam({
     name: 'personId',
@@ -513,6 +521,7 @@ export class PersonsController {
   }
 
   @Post(':personId/contracts/change-price-list')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Cambiar la lista de precios de un contrato de un cliente',
     description: `Cambia la lista de precios asignada a un contrato específico de un cliente. Esto afecta los precios que se aplicarán en futuros pedidos del contrato.
@@ -608,7 +617,7 @@ export class PersonsController {
   }
 
   @Get(':id/loaned-products-detail')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary:
       'Obtener los productos en comodato/alquiler con información detallada para una persona',
@@ -629,6 +638,7 @@ export class PersonsController {
   }
 
   // Endpoints de Comodato
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @Post(':personId/comodatos')
   @UseInterceptors(
     FileInterceptor('contract_image', fileUploadConfigs.contractImages),
@@ -749,6 +759,7 @@ export class PersonsController {
   }
 
   @Get(':personId/comodatos')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener comodatos de una persona con filtros',
     description:
@@ -805,6 +816,7 @@ export class PersonsController {
   }
 
   @Get(':personId/comodatos/:comodatoId')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Obtener un comodato específico',
     description: 'Obtiene los detalles de un comodato específico',
@@ -833,6 +845,7 @@ export class PersonsController {
   }
 
   @Patch(':personId/comodatos/:comodatoId')
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @UseInterceptors(
     FileInterceptor('contract_image', fileUploadConfigs.contractImages),
     CleanupFileOnErrorInterceptor,
@@ -954,7 +967,7 @@ export class PersonsController {
       },
     );
   }
-
+ @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @Delete(':personId/comodatos/:comodatoId')
   @ApiOperation({
     summary: 'Eliminar un comodato',
@@ -986,6 +999,7 @@ export class PersonsController {
   }
 
   @Post(':personId/comodatos/withdraw')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: '🆕 Retirar comodato sin cancelar suscripción',
     description: `Procesa el retiro independiente de un comodato específico manteniendo la suscripción activa.
@@ -1148,6 +1162,7 @@ export class PersonsController {
   }
 
   @Post('upload-contract-image')
+   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @UseInterceptors(
     FileInterceptor('contract_image', fileUploadConfigs.contractImages),
     CleanupFileOnErrorInterceptor,
