@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Bienvenido a Agua Viva Rica!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 10px;
+        }
+        .title {
+            color: #2c5aa0;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #2c5aa0;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #1e3d6f;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .highlight {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-left: 4px solid #2c5aa0;
+            margin: 20px 0;
+        }
+        .features {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .feature-item {
+            margin: 10px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        .feature-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">💧 Agua Viva Rica</div>
+            <p>Sistema de Gestión de Agua</p>
+        </div>
+        
+        <h1 class="title">¡Bienvenido a nuestra plataforma!</h1>
+        
+        <div class="content">
+            <p>Hola <strong>{{name}}</strong>,</p>
+            
+            <p>¡Tu cuenta ha sido confirmada exitosamente! Nos complace darte la bienvenida a Agua Viva Rica, tu plataforma de confianza para la gestión de servicios de agua.</p>
+            
+            <div class="highlight">
+                <p><strong>🎉 ¡Tu cuenta está lista!</strong></p>
+                <p>Ya puedes acceder a todos nuestros servicios y comenzar a gestionar tus pedidos de agua.</p>
+            </div>
+            
+            <p>Para comenzar, simplemente inicia sesión en tu cuenta:</p>
+            
+            <div style="text-align: center;">
+                <a href="{{loginUrl}}" class="button">Iniciar Sesión</a>
+            </div>
+            
+            <div class="highlight">
+                <p><strong>💡 Consejo:</strong> Te recomendamos completar tu perfil con tu información de contacto y dirección de entrega para una mejor experiencia.</p>
+            </div>
+            
+            <p>Si tienes alguna pregunta o necesitas ayuda, no dudes en contactarnos. Nuestro equipo está aquí para ayudarte.</p>
+            
+            <p>¡Gracias por confiar en Agua Viva Rica!</p>
+            <p><strong>El equipo de Agua Viva Rica</strong></p>
+        </div>
+        
+        <div class="footer">
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p>© {{currentYear}} Agua Viva Rica. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+</html>

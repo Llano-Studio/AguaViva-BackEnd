@@ -7,4 +7,4 @@ export * from './reset-password.dto';
 export * from './create-user.dto';
 export * from './filter-users.dto';
 export * from './user-response.dto';
-export * from './assign-vehicles.dto'; 
+export * from './assign-vehicles.dto';

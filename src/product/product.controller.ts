@@ -1,7 +1,29 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe, Query, ValidationPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  ParseIntPipe,
+  Query,
+  ValidationPipe,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+  ApiBody,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -10,6 +32,9 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
+import { FormDataPreserveInterceptor } from '../common/interceptors/form-data-preserve.interceptor';
+import { FormDataBody } from '../common/decorators/form-data-body.decorator';
+import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
 @ApiTags('Productos & Artículos')
 @ApiBearerAuth()
@@ -18,27 +43,115 @@ export class ProductController {
   constructor(private readonly service: ProductService) {}
 
   @Get()
-  @Auth(Role.ADMIN, Role.USER)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @UseInterceptors(CacheInterceptor)
-  @ApiOperation({ 
-    summary: 'Listar productos con filtros y paginación', 
-    description: 'Obtiene un listado paginado de productos con opciones de filtrado por nombre, categoría, estado y más.' 
+  @ApiOperation({
+    summary: 'Listar productos con filtros y paginación',
+    description: `Obtiene un listado paginado de productos con filtros avanzados, búsqueda inteligente y información de inventario.
+
+## 🔍 FILTROS AVANZADOS
+
+**Búsqueda Inteligente (search):**
+- Busca en descripción del producto
+- Busca en número de serie
+- Busca en notas del producto
+- Búsqueda parcial y sin distinción de mayúsculas
+
+**Filtros Específicos:**
+- **description**: Filtro específico por descripción
+- **categoryId**: Productos de una categoría específica
+- **categoryIds**: Productos de múltiples categorías (formato: "1,2,3")
+- **includeInventory**: Incluye información detallada de stock por almacén
+
+**Ordenamiento Avanzado (sortBy):**
+- Múltiples campos separados por coma
+- Prefijo "-" para orden descendente
+- Ejemplos: "description", "-price", "description,-price"
+
+## 📊 INFORMACIÓN INCLUIDA
+
+**Datos del Producto:**
+- Información básica (descripción, precio, volumen)
+- Categoría del producto
+- Stock total calculado en tiempo real
+- Imagen del producto (si existe)
+- Características especiales (retornable, número de serie)
+
+**Información de Inventario (opcional):**
+- Stock detallado por almacén
+- Información de ubicación de almacenes
+- Cantidades disponibles por ubicación
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Inventario**: Control de stock y productos disponibles
+- **Ventas y Pedidos**: Selección de productos para órdenes
+- **Administración**: Gestión masiva de catálogo de productos
+- **Reportes**: Análisis de productos por categoría y stock
+- **Operaciones**: Planificación de entregas y recolecciones`,
   })
-  @ApiQuery({ name: 'search', required: false, description: 'Búsqueda general por descripción, número de serie o notas' })
-  @ApiQuery({ name: 'description', required: false, description: 'Filtrar por descripción del producto (búsqueda parcial)' })
-  @ApiQuery({ name: 'categoryId', required: false, type: Number, description: 'Filtrar por ID de categoría' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Número de página', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Resultados por página', example: 10 })
-  @ApiQuery({ name: 'sortBy', required: false, type: String, description: 'Campos para ordenar (separados por coma). Prefijo \'-\' para descendente. Ej: description,-price', example: 'description,-price' })
-  @ApiQuery({ name: 'includeInventory', required: false, type: Boolean, description: 'Incluir información detallada del inventario por almacén', example: true })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Listado de productos paginado con información de inventario por almacén.', 
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Búsqueda general por descripción, número de serie o notas',
+  })
+  @ApiQuery({
+    name: 'description',
+    required: false,
+    description: 'Filtrar por descripción del producto (búsqueda parcial)',
+  })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    type: Number,
+    description: 'Filtrar por ID de categoría (para compatibilidad)',
+  })
+  @ApiQuery({
+    name: 'categoryIds',
+    required: false,
+    type: String,
+    description:
+      "Filtrar por IDs de categorías múltiples. Formato: '1,2,3' o array [1,2,3]",
+    example: '1,2,3',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Resultados por página',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description:
+      "Campos para ordenar (separados por coma). Prefijo '-' para descendente. Ej: description,-price",
+    example: 'description,-price',
+  })
+  @ApiQuery({
+    name: 'includeInventory',
+    required: false,
+    type: Boolean,
+    description: 'Incluir información detallada del inventario por almacén',
+    example: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Listado de productos paginado con información de inventario por almacén.',
     schema: {
       properties: {
         data: {
           type: 'array',
-          items: { $ref: '#/components/schemas/ProductResponseDto' }
+          items: { $ref: '#/components/schemas/ProductResponseDto' },
         },
         meta: {
           type: 'object',
@@ -46,30 +159,47 @@ export class ProductController {
             total: { type: 'number' },
             page: { type: 'number' },
             limit: { type: 'number' },
-            totalPages: { type: 'number' }
-          }
-        }
-      }
-    }
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   getAllProducts(
-    @Query(new ValidationPipe({ transform: true, transformOptions: { enableImplicitConversion: true } }))
-    filterDto: FilterProductsDto
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    )
+    filterDto: FilterProductsDto,
   ) {
     return this.service.getAllProducts(filterDto);
   }
 
   @Get(':id')
-  @Auth(Role.ADMIN, Role.USER)
-  @ApiOperation({ 
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
     summary: 'Obtener un producto por su id',
-    description: 'Devuelve toda la información detallada de un producto específico según su ID, con opción de incluir inventario por almacén.' 
+    description:
+      'Devuelve toda la información detallada de un producto específico según su ID, con opción de incluir inventario por almacén.',
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
-  @ApiQuery({ name: 'includeInventory', required: false, type: Boolean, description: 'Incluir información detallada del inventario por almacén', example: true })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: 'ID del producto',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'includeInventory',
+    required: false,
+    type: Boolean,
+    description: 'Incluir información detallada del inventario por almacén',
+    example: true,
+  })
+  @ApiResponse({
+    status: 200,
     description: `Producto encontrado con información de stock actualizada.
 
 **📊 Información de Stock Incluida:**
@@ -117,22 +247,26 @@ La respuesta incluye stock actual calculado en tiempo real:
 - Usar \`total_stock\` para mostrar stock disponible
 - Usar \`inventory\` para desglose por almacén
 - Útil para formularios de actualización de stock`,
-    type: ProductResponseDto 
+    type: ProductResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   getProductById(
     @Param('id', ParseIntPipe) id: number,
-    @Query('includeInventory') includeInventory?: boolean
+    @Query('includeInventory') includeInventory?: boolean,
   ): Promise<ProductResponseDto> {
     return this.service.getProductById(id, includeInventory);
   }
 
   @Post()
-  @Auth(Role.ADMIN)
-  @UseInterceptors(FileInterceptor('productImage', fileUploadConfigs.productImages))
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @UseInterceptors(
+    FileInterceptor('productImage', fileUploadConfigs.productImages),
+    FormDataPreserveInterceptor,
+    CleanupFileOnErrorInterceptor,
+  )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear un nuevo producto',
     description: `Crea un nuevo producto en el sistema con imagen opcional y stock inicial. Solo disponible para administradores.
 
@@ -157,9 +291,9 @@ La respuesta incluye stock actual calculado en tiempo real:
 **Casos de Uso:**
 - El \`product.price\` sirve como precio de referencia/fallback
 - La Lista General define el precio público real
-- Las listas específicas pueden tener precios diferentes para contratos`
+- Las listas específicas pueden tener precios diferentes para contratos`,
   })
-  @ApiBody({ 
+  @ApiBody({
     description: `Datos del producto a crear incluyendo imagen opcional y stock inicial.
 
 **📦 NUEVO: Gestión de Stock Inicial**
@@ -197,11 +331,11 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
 **3. Producto con imagen (FormData):**
 - Campo: \`productImage\` (file)
 - Resto de campos como JSON
-`, 
-    type: CreateProductDto 
+`,
+    type: CreateProductDto,
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: `Producto creado exitosamente con inventario inicial (si se especificó).
 
 **Respuesta incluye:**
@@ -244,24 +378,41 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
   ]
 }
 \`\`\``,
-    type: ProductResponseDto 
+    type: ProductResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - Restricción de unicidad violada (ej. número de serie duplicado si se requiere que sea único).' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflicto - Restricción de unicidad violada (ej. número de serie duplicado si se requiere que sea único).',
+  })
   createProduct(
-    @Body() dto: CreateProductDto,
-    @UploadedFile() productImage?: any
+    @FormDataBody(CreateProductDto) dto: CreateProductDto,
+    @UploadedFile() productImage?: any,
   ) {
+    // DEBUG: Log para ver qué está llegando
+
     return this.service.createProduct(dto, productImage);
   }
 
   @Put(':id')
-  @Auth(Role.ADMIN)
-  @UseInterceptors(FileInterceptor('productImage', fileUploadConfigs.productImages))
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @UseInterceptors(
+    FileInterceptor('productImage', fileUploadConfigs.productImages),
+    FormDataPreserveInterceptor,
+    CleanupFileOnErrorInterceptor,
+  )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Actualizar un producto por su id',
     description: `Actualiza la información de un producto existente incluyendo imagen opcional y ajustes de stock. Solo disponible para administradores.
 
@@ -269,10 +420,15 @@ El campo \`total_stock\` permite definir inventario inicial automáticamente.
 - Si se especifica \`total_stock\`, se calculará la diferencia con el stock actual
 - Se creará automáticamente un movimiento de ajuste (positivo o negativo)
 - Si no existe inventario previo y \`total_stock > 0\`, se crea inventario inicial
-- Todos los ajustes se registran en el almacén por defecto para trazabilidad` 
+- Todos los ajustes se registran en el almacén por defecto para trazabilidad`,
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a actualizar', example: 1 })
-  @ApiBody({ 
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: 'ID del producto a actualizar',
+    example: 1,
+  })
+  @ApiBody({
     description: `Datos del producto a actualizar incluyendo imagen opcional y ajustes de stock.
 
 **📦 NUEVO: Gestión Automática de Stock**
@@ -320,11 +476,11 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
 - Obtener stock actual con GET /products/:id
 - Mostrar stock actual vs nuevo stock en confirmación
 - El backend calculará y aplicará la diferencia automáticamente
-`, 
-    type: UpdateProductDto 
+`,
+    type: UpdateProductDto,
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: `Producto actualizado exitosamente con ajustes de stock aplicados (si se especificaron).
 
 **Respuesta incluye:**
@@ -372,89 +528,128 @@ El campo \`total_stock\` permite ajustar el inventario automáticamente.
 - Tipo: "AJUSTE_POSITIVO"
 - Cantidad: 50 (diferencia entre 150 y 100)
 - Observaciones: "Ajuste de stock - Agua Mineral Premium 500ml. Stock anterior: 100, Stock nuevo: 150"`,
-    type: ProductResponseDto
+    type: ProductResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos de entrada inválidos (ej. campo faltante, tipo incorrecto).',
+  })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - Restricción de unicidad violada al actualizar (ej. número de serie duplicado si se requiere que sea único).' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflicto - Restricción de unicidad violada al actualizar (ej. número de serie duplicado si se requiere que sea único).',
+  })
   updateProductById(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateProductDto,
-    @UploadedFile() productImage?: any
+    @FormDataBody(UpdateProductDto) dto: UpdateProductDto,
+    @UploadedFile() productImage?: any,
   ) {
+    // DEBUG: Log para ver qué está llegando
+
     return this.service.updateProductById(id, dto, productImage);
   }
 
   @Delete(':id')
-  @Auth(Role.ADMIN)
-  @ApiOperation({ 
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
     summary: 'Eliminar un producto por su id',
-    description: 'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Solo disponible para administradores.' 
+    description:
+      'Elimina un producto del sistema. Solo se puede eliminar productos que no estén asociados a otros registros. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto a eliminar', example: 1 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: 'ID del producto a eliminar',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Producto eliminado exitosamente.',
     schema: {
       properties: {
         message: { type: 'string' },
-        deleted: { type: 'boolean' }
-      }
-    }
+        deleted: { type: 'boolean' },
+      },
+    },
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene permisos suficientes.',
+  })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
-  @ApiResponse({ status: 409, description: 'Conflicto - El producto está en uso y no puede ser eliminado.' })
-  deleteProductById(
-    @Param('id', ParseIntPipe) id: number) {
+  @ApiResponse({
+    status: 409,
+    description:
+      'Conflicto - El producto está en uso y no puede ser eliminado.',
+  })
+  deleteProductById(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteProductById(id);
   }
 
   @Delete(':id/image')
-  @Auth(Role.ADMIN)
-  @ApiOperation({ 
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
     summary: 'Eliminar imagen de un producto',
-    description: 'Elimina la imagen asociada a un producto específico. Solo disponible para administradores.' 
+    description:
+      'Elimina la imagen asociada a un producto específico. Solo disponible para administradores.',
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: 'ID del producto',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'Imagen eliminada exitosamente.',
-    type: ProductResponseDto
+    type: ProductResponseDto,
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
-  @ApiResponse({ status: 403, description: 'Prohibido - El usuario no tiene rol de ADMIN.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene rol de ADMIN.',
+  })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
-  deleteProductImage(
-    @Param('id', ParseIntPipe) id: number
-  ) {
+  deleteProductImage(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteProductImage(id);
   }
 
   @Get(':id/image')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Obtener URL de imagen de un producto',
-    description: 'Devuelve la URL de la imagen de un producto específico.' 
+    description: 'Devuelve la URL de la imagen de un producto específico.',
   })
-  @ApiParam({ name: 'id', type: 'integer', description: 'ID del producto', example: 1 })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiParam({
+    name: 'id',
+    type: 'integer',
+    description: 'ID del producto',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
     description: 'URL de imagen obtenida exitosamente.',
     schema: {
       type: 'object',
       properties: {
         product_id: { type: 'number', example: 1 },
-        image_url: { type: 'string', example: '/public/uploads/products/producto-abc123.jpg', nullable: true }
-      }
-    }
+        image_url: {
+          type: 'string',
+          example: '/public/uploads/products/producto-abc123.jpg',
+          nullable: true,
+        },
+      },
+    },
   })
   @ApiResponse({ status: 404, description: 'Producto no encontrado.' })
-  getProductImage(
-    @Param('id', ParseIntPipe) id: number
-  ) {
+  getProductImage(@Param('id', ParseIntPipe) id: number) {
     return this.service.getProductImage(id);
   }
 }

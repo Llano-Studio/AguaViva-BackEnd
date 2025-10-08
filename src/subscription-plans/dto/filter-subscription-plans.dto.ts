@@ -21,18 +21,20 @@ export class FilterSubscriptionPlansDto extends PaginationQueryDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado de activación del plan. true = solo planes activos, false = solo planes inactivos, sin especificar = todos',
+    description:
+      'Filtrar por estado de activación del plan. true = solo planes activos, false = solo planes inactivos, sin especificar = todos',
     example: true,
-    type: 'boolean'
+    type: 'boolean',
   })
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    return value;
+    if (typeof value === 'boolean') return value;
+    return false;
   })
   is_active?: boolean;
 
   // sortBy, page, limit se heredan de PaginationQueryDto
-} 
+}

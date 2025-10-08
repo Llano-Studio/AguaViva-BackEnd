@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, IsOptional, Min, Max, Matches } from 'class-validator';
+import {
+  IsInt,
+  IsString,
+  IsOptional,
+  Min,
+  Max,
+  Matches,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateSubscriptionDeliveryScheduleDto {
@@ -8,7 +15,7 @@ export class UpdateSubscriptionDeliveryScheduleDto {
     example: 1,
     minimum: 1,
     maximum: 7,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsInt()
@@ -18,24 +25,29 @@ export class UpdateSubscriptionDeliveryScheduleDto {
   day_of_week?: number;
 
   @ApiProperty({
-    description: 'Hora programada de entrega. Soporta horario puntual (HH:MM) o rango horario (HH:MM-HH:MM)',
+    description:
+      'Hora programada de entrega. Soporta horario puntual (HH:MM) o rango horario (HH:MM-HH:MM)',
     examples: {
       puntual: {
         summary: 'Horario puntual',
-        value: '10:00'
+        value: '10:00',
       },
       rango: {
         summary: 'Rango horario',
-        value: '14:00-16:00'
-      }
+        value: '14:00-16:00',
+      },
     },
     example: '10:00',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
-  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9](-([0-1]?[0-9]|2[0-3]):[0-5][0-9])?$/, {
-    message: 'scheduled_time debe estar en formato HH:MM para horario puntual o HH:MM-HH:MM para rango horario'
-  })
+  @Matches(
+    /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](-([0-1]?[0-9]|2[0-3]):[0-5][0-9])?$/,
+    {
+      message:
+        'scheduled_time debe estar en formato HH:MM para horario puntual o HH:MM-HH:MM para rango horario',
+    },
+  )
   scheduled_time?: string;
-} 
+}

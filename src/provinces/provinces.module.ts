@@ -7,4 +7,4 @@ import { ProvincesController } from './provinces.controller';
   providers: [ProvincesService],
   exports: [ProvincesService],
 })
-export class ProvincesModule {} 
+export class ProvincesModule {}

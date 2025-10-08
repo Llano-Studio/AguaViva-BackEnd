@@ -1,12 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsOptional, IsString, IsBoolean } from 'class-validator';
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AssignVehiclesToUserDto {
   @ApiProperty({
     description: 'IDs de los vehículos a asignar al usuario',
     example: [1, 2, 3],
-    type: [Number]
+    type: [Number],
   })
   @IsArray()
   @IsInt({ each: true })
@@ -16,7 +22,7 @@ export class AssignVehiclesToUserDto {
   @ApiProperty({
     description: 'Notas sobre la asignación de vehículos',
     example: 'Asignación para conductor de turno matutino',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -26,7 +32,7 @@ export class AssignVehiclesToUserDto {
     description: 'Estado activo de la asignación',
     example: true,
     default: true,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsBoolean()
@@ -67,4 +73,4 @@ export class UserVehicleResponseDto {
     email: string;
     role: string;
   };
-} 
+}

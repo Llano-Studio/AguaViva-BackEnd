@@ -18,12 +18,18 @@ import { RolesService } from './roles.service';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         return {
-          secret: configService.get('app.jwt.secret') || configService.get('JWT_SECRET') || 'sgarav-secret-key',
-          signOptions: { 
-            expiresIn: configService.get('app.jwt.expiresIn') || configService.get('JWT_EXPIRES_IN') || '4h' 
+          secret:
+            configService.get('app.jwt.secret') ||
+            configService.get('JWT_SECRET') ||
+            'sgarav-secret-key',
+          signOptions: {
+            expiresIn:
+              configService.get('app.jwt.expiresIn') ||
+              configService.get('JWT_EXPIRES_IN') ||
+              '4h',
           },
         };
-      }
+      },
     }),
     MailModule,
   ],

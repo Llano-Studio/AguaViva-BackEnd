@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateInventoryDto {
   @ApiProperty({
     example: 1,
-    description: 'ID del producto'
+    description: 'ID del producto',
   })
   @IsInt()
   @Min(1)
@@ -12,7 +12,7 @@ export class CreateInventoryDto {
 
   @ApiProperty({
     example: 1,
-    description: 'ID del almacén'
+    description: 'ID del almacén',
   })
   @IsInt()
   @Min(1)
@@ -20,7 +20,7 @@ export class CreateInventoryDto {
 
   @ApiProperty({
     example: 100,
-    description: 'Cantidad inicial de stock'
+    description: 'Cantidad inicial de stock',
   })
   @IsInt()
   @Min(0)
@@ -29,9 +29,9 @@ export class CreateInventoryDto {
   @ApiProperty({
     example: 'Inventario inicial del producto',
     description: 'Observaciones sobre la creación del inventario',
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
   remarks?: string;
-} 
+}

@@ -14,8 +14,8 @@ export class FilterProductsDto extends PaginationQueryDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'ID de categoría para filtrar productos',
-    example: 1
+    description: 'ID de categoría para filtrar productos (para compatibilidad)',
+    example: 1,
   })
   @IsOptional()
   @IsInt()
@@ -23,8 +23,36 @@ export class FilterProductsDto extends PaginationQueryDto {
   categoryId?: number;
 
   @ApiPropertyOptional({
+    description:
+      'Filtrar por IDs de categorías múltiples. Puede ser un array [1,2,3] o string separado por comas "1,2,3"',
+    example: [1, 2, 3],
+    type: [Number],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    // Si no hay valor, retornar undefined
+    if (!value) return undefined;
+
+    if (typeof value === 'string') {
+      // Si viene como string separado por comas, convertir a array
+      const ids = value
+        .split(',')
+        .map((id) => parseInt(id.trim()))
+        .filter((id) => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    if (Array.isArray(value)) {
+      // Si ya es array, asegurar que sean números
+      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+      return ids.length > 0 ? ids : undefined;
+    }
+    return undefined;
+  })
+  categoryIds?: number[];
+
+  @ApiPropertyOptional({
     description: 'Filtrar por descripción del producto (búsqueda parcial)',
-    example: 'Botella'
+    example: 'Botella',
   })
   @IsOptional()
   @IsString()
@@ -32,21 +60,30 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filtrar por productos retornables',
-    example: true
+    example: true,
   })
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
     }
-    return value;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return undefined;
   })
   isReturnable?: boolean;
 
   @ApiPropertyOptional({
     description: 'Número de serie del producto',
-    example: 'SN123456'
+    example: 'SN123456',
   })
   @IsOptional()
   @IsString()
@@ -54,15 +91,24 @@ export class FilterProductsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description: 'Incluir información detallada del inventario por almacén',
-    example: true
+    example: true,
   })
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
     }
-    return value;
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return undefined;
   })
   includeInventory?: boolean;
-} 
+}

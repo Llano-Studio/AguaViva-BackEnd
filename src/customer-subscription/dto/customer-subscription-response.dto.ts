@@ -1,34 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus, PaymentMode } from '@prisma/client';
 import { IsOptional, IsString, IsArray } from 'class-validator';
 
 export class CustomerResponseDto {
   @ApiProperty({
     description: 'ID del cliente',
-    example: 1
+    example: 1,
   })
   person_id: number;
 
   @ApiProperty({
     description: 'Nombre del cliente',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   name: string;
 
   @ApiProperty({
     description: 'Teléfono del cliente',
-    example: '+541155556666'
+    example: '+541155556666',
   })
   phone: string;
 
   @ApiPropertyOptional({
     description: 'Dirección del cliente',
-    example: 'Av. Rivadavia 1234'
+    example: 'Av. Rivadavia 1234',
   })
   address?: string;
 
   @ApiPropertyOptional({
-    description: 'Información de la zona del cliente'
+    description: 'Información de la zona del cliente',
   })
   zone?: {
     zone_id: number;
@@ -43,89 +43,136 @@ export class CustomerResponseDto {
 export class SubscriptionPlanResponseDto {
   @ApiProperty({
     description: 'ID del plan de suscripción',
-    example: 1
+    example: 1,
   })
   subscription_plan_id: number;
 
   @ApiProperty({
     description: 'Nombre del plan',
-    example: 'Plan Básico Mensual'
+    example: 'Plan Básico Mensual',
   })
   name: string;
 
   @ApiPropertyOptional({
     description: 'Descripción del plan',
-    example: 'Incluye entrega mensual de productos básicos'
+    example: 'Incluye entrega mensual de productos básicos',
   })
   description?: string;
 
   @ApiPropertyOptional({
     description: 'Precio del plan',
-    example: '1500.00'
+    example: '1500.00',
   })
   price?: string;
+}
+
+export class SubscriptionCycleDetailResponseDto {
+  @ApiProperty({
+    description: 'ID del detalle del ciclo',
+    example: 1,
+  })
+  cycle_detail_id: number;
+
+  @ApiProperty({
+    description: 'ID del producto',
+    example: 1,
+  })
+  product_id: number;
+
+  @ApiProperty({
+    description: 'Cantidad planificada',
+    example: 4,
+  })
+  planned_quantity: number;
+
+  @ApiProperty({
+    description: 'Cantidad entregada',
+    example: 2,
+  })
+  delivered_quantity: number;
+
+  @ApiProperty({
+    description: 'Saldo restante',
+    example: 2,
+  })
+  remaining_balance: number;
+
+  @ApiPropertyOptional({
+    description: 'Información del producto',
+  })
+  product?: {
+    product_id: number;
+    description: string;
+    price?: number;
+  };
 }
 
 export class SubscriptionCycleResponseDto {
   @ApiProperty({
     description: 'ID del ciclo',
-    example: 1
+    example: 1,
   })
   cycle_id: number;
 
   @ApiProperty({
     description: 'Fecha de inicio del ciclo',
-    example: '2024-01-01'
+    example: '2024-01-01',
   })
   cycle_start: string;
 
   @ApiProperty({
     description: 'Fecha de fin del ciclo',
-    example: '2024-01-31'
+    example: '2024-01-31',
   })
   cycle_end: string;
 
   @ApiPropertyOptional({
     description: 'Notas del ciclo',
-    example: 'Primer ciclo de la suscripción'
+    example: 'Primer ciclo de la suscripción',
   })
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detalles de productos del ciclo',
+    type: [SubscriptionCycleDetailResponseDto],
+  })
+  subscription_cycle_detail?: SubscriptionCycleDetailResponseDto[];
 }
 
 export class DeliveryPreferences {
-  @ApiProperty({ 
-    example: "09:00-12:00", 
+  @ApiProperty({
+    example: '09:00-12:00',
     description: 'Rango de tiempo preferido para entregas',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
   preferred_time_range?: string;
 
-  @ApiProperty({ 
-    example: ["MONDAY", "WEDNESDAY", "FRIDAY"], 
+  @ApiProperty({
+    example: ['MONDAY', 'WEDNESDAY', 'FRIDAY'],
     description: 'Días preferidos de la semana',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   preferred_days?: string[];
 
-  @ApiProperty({ 
-    example: ["12:00-13:00"], 
+  @ApiProperty({
+    example: ['12:00-13:00'],
     description: 'Horarios a evitar',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   avoid_times?: string[];
 
-  @ApiProperty({ 
-    example: "Llamar antes de llegar", 
+  @ApiProperty({
+    example: 'Llamar antes de llegar',
     description: 'Instrucciones especiales',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -145,22 +192,42 @@ export class CustomerSubscriptionResponseDto {
   @ApiProperty({ example: '2024-01-01' })
   start_date: string;
 
-  @ApiProperty({ example: '2024-12-31', required: false })
-  end_date?: string;
+  // end_date field removed - not present in schema
+
+  @ApiProperty({
+    example: 15,
+    required: false,
+    description: 'Día del mes para recolección (1-28)',
+  })
+  collection_day?: number;
+
+  @ApiProperty({
+    enum: PaymentMode,
+    example: PaymentMode.ADVANCE,
+    description: 'Modalidad de pago: ADVANCE (adelantado) o ARREARS (vencido)',
+  })
+  payment_mode: PaymentMode;
+
+  @ApiProperty({
+    example: 10,
+    required: false,
+    description: 'Día específico de vencimiento para pagos vencidos (1-28)',
+  })
+  payment_due_day?: number;
 
   @ApiProperty({ enum: SubscriptionStatus, example: SubscriptionStatus.ACTIVE })
   status: SubscriptionStatus;
 
-  @ApiProperty({ 
-    example: 'Cliente VIP - entrega prioritaria', 
-    required: false 
+  @ApiProperty({
+    example: 'Cliente VIP - entrega prioritaria',
+    required: false,
   })
   notes?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     type: DeliveryPreferences,
     description: 'Preferencias de horario de entrega extraídas de notes',
-    required: false
+    required: false,
   })
   delivery_preferences?: DeliveryPreferences;
 
@@ -179,42 +246,68 @@ export class CustomerSubscriptionResponseDto {
     address?: string;
   };
 
+  @ApiProperty({
+    type: [SubscriptionCycleResponseDto],
+    description: 'Ciclos de suscripción con detalles de productos',
+    required: false,
+  })
+  subscription_cycle?: SubscriptionCycleResponseDto[];
+
+  @ApiProperty({
+    description: 'Número total de órdenes',
+    example: 5,
+    required: false,
+  })
+  orders_count?: number;
+
   constructor(partial: Partial<any>) {
     Object.assign(this, partial);
-    
+
     // Convert dates to strings
     if (partial.start_date instanceof Date) {
       this.start_date = partial.start_date.toISOString().split('T')[0];
     }
-    if (partial.end_date instanceof Date) {
-      this.end_date = partial.end_date.toISOString().split('T')[0];
-    }
-    
+    // end_date field removed - not present in schema
+
     // Handle null values
     if (partial.notes === null) {
       this.notes = undefined;
     }
-    if (partial.end_date === null) {
-      this.end_date = undefined;
-    }
+    // end_date field removed - not present in schema
   }
 }
 
 export class PaginatedCustomerSubscriptionResponseDto {
-  @ApiProperty({ 
+  @ApiProperty({
     type: [CustomerSubscriptionResponseDto],
-    description: 'Lista de suscripciones de clientes'
+    description: 'Lista de suscripciones de clientes',
   })
   data: CustomerSubscriptionResponseDto[];
 
   @ApiProperty({
     type: 'object',
     properties: {
-      total: { type: 'number', example: 100, description: 'Total de suscripciones disponibles' },
-      page: { type: 'number', example: 1, description: 'Número de la página actual' },
-      limit: { type: 'number', example: 10, description: 'Número de suscripciones por página' },
-      totalPages: { type: 'number', example: 10, description: 'Total de páginas disponibles' }
-    }
+      total: {
+        type: 'number',
+        example: 100,
+        description: 'Total de suscripciones disponibles',
+      },
+      page: {
+        type: 'number',
+        example: 1,
+        description: 'Número de la página actual',
+      },
+      limit: {
+        type: 'number',
+        example: 10,
+        description: 'Número de suscripciones por página',
+      },
+      totalPages: {
+        type: 'number',
+        example: 10,
+        description: 'Total de páginas disponibles',
+      },
+    },
   })
   meta: {
     total: number;
@@ -222,4 +315,4 @@ export class PaginatedCustomerSubscriptionResponseDto {
     limit: number;
     totalPages: number;
   };
-} 
+}

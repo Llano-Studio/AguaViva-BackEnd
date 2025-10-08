@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
@@ -19,7 +20,10 @@ import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
 import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
 import { CustomerSubscriptionModule } from './customer-subscription/customer-subscription.module';
+import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
 import { CommonModule } from './common/common.module';
+import { ComodatoModule } from './comodato/comodato.module';
+import { ServicesModule } from './common/services/services.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -27,8 +31,10 @@ import environmentConfig from './common/config/environment.config';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
+    ServicesModule,
     CommonModule,
-    PersonsModule, 
+    PersonsModule,
     AuthModule,
     MailModule,
     ZonesModule,
@@ -46,6 +52,8 @@ import environmentConfig from './common/config/environment.config';
     RouteSheetModule,
     SubscriptionPlansModule,
     CustomerSubscriptionModule,
+    CyclePaymentsModule,
+    ComodatoModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 60,
@@ -56,9 +64,6 @@ import environmentConfig from './common/config/environment.config';
     }),
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    DatabaseConnectionService,
-  ],
+  providers: [AppService, DatabaseConnectionService],
 })
 export class AppModule {}

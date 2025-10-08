@@ -1,5 +1,13 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsString, IsBoolean, IsOptional, IsNumber, ValidateIf, Min } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsNumber,
+  ValidateIf,
+  Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { parseInteger, parseDecimal } from '../../common/utils/parse-number';
 
@@ -10,14 +18,26 @@ export class UpdateProductDto {
   @Transform(({ value }) => parseInteger(value))
   category_id?: number;
 
-  @ApiPropertyOptional({ example: 'Agua mineral', description: 'Descripción del producto' })
+  @ApiPropertyOptional({
+    example: 'Agua mineral',
+    description: 'Descripción del producto',
+  })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ example: 1.5, description: 'Volumen en litros', nullable: true })
+  @ApiPropertyOptional({
+    example: 0.5,
+    description: 'Volumen en litros (permite decimales como 0.5)',
+    nullable: true,
+  })
   @IsOptional()
-  @IsNumber()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    {
+      message: 'volume_liters debe ser un número válido con máximo 2 decimales',
+    },
+  )
   @ValidateIf((o, v) => v !== null)
   @Transform(({ value }) => {
     if (value === null || value === undefined || value === '') {
@@ -37,27 +57,52 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
     }
-    return value;
+
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
+    }
+
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    return undefined;
   })
   is_returnable?: boolean;
 
-  @ApiPropertyOptional({ example: 'SN123456', description: 'Número de serie', nullable: true })
+  @ApiPropertyOptional({
+    example: 'SN123456',
+    description: 'Número de serie',
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @ValidateIf((o, v) => v !== null)
   serial_number?: string | null;
 
-  @ApiPropertyOptional({ example: 'Producto importado', description: 'Notas adicionales', nullable: true })
+  @ApiPropertyOptional({
+    example: 'Producto importado',
+    description: 'Notas adicionales',
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @ValidateIf((o, v) => v !== null)
   notes?: string | null;
 
-  @ApiPropertyOptional({ 
-    example: 150, 
+  @ApiPropertyOptional({
+    example: 150,
     description: `Nuevo stock total deseado del producto en el almacén por defecto.
 
 **⚠️ IMPORTANTE - Gestión Automática de Stock:**
@@ -84,7 +129,7 @@ export class UpdateProductDto {
 - Validar que el usuario confirme el cambio de stock
 - Campo opcional: omitir del payload si no se quiere modificar stock`,
     minimum: 0,
-    type: 'integer'
+    type: 'integer',
   })
   @IsOptional()
   @IsInt()
@@ -100,8 +145,8 @@ export class UpdateProductDto {
   @ApiPropertyOptional({
     description: 'Archivo de imagen del producto (opcional)',
     type: 'string',
-    format: 'binary'
+    format: 'binary',
   })
   @IsOptional()
-  productImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
+  productImage?: any;
 }

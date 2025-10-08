@@ -21,16 +21,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload) {
     const { id } = payload;
+    const userId = typeof id === 'string' ? parseInt(id, 10) : id;
 
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: { id: userId },
     });
 
     if (!user) {
       throw new UnauthorizedException('Token no válido');
     }
 
-    if(!user.isActive){
+    if (!user.isActive) {
       throw new UnauthorizedException('Usuario no activo');
     }
 
@@ -41,4 +42,4 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: user.role,
     };
   }
-} 
+}

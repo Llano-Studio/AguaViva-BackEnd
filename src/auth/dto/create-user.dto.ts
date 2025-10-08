@@ -1,12 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, IsNotEmpty, IsEnum, MinLength, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  MinLength,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({
     description: 'Correo electrónico del usuario',
-    example: 'usuario@example.com'
+    example: 'usuario@example.com',
   })
   @IsEmail()
   @IsNotEmpty()
@@ -14,7 +22,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Nombre completo del usuario',
-    example: 'Juan Pérez'
+    example: 'Juan Pérez',
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +30,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Contraseña del usuario (mínimo 6 caracteres)',
-    example: 'Password123'
+    example: 'Password123',
   })
   @IsString()
   @MinLength(6)
@@ -32,7 +40,7 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Rol del usuario',
     enum: Role,
-    example: Role.USER
+    example: Role.ADMINISTRATIVE,
   })
   @IsEnum(Role)
   @IsNotEmpty()
@@ -48,22 +56,41 @@ export class CreateUserDto {
     description: 'Estado activo/inactivo del usuario',
     example: true,
     default: true,
-    required: false
+    required: false,
   })
   @IsBoolean()
   @IsOptional()
   @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value.toLowerCase() === 'true';
+    // Si ya es boolean, devolverlo tal como está
+    if (typeof value === 'boolean') {
+      return value;
     }
-    return value;
+
+    // Si es string, convertir a boolean
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') {
+        return true;
+      }
+      if (lowerValue === 'false' || lowerValue === '0') {
+        return false;
+      }
+    }
+
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+
+    // Para cualquier otro caso, devolver true por defecto en creación
+    return true;
   })
   isActive?: boolean = true;
 
   @ApiProperty({
     description: 'Notas sobre el usuario',
     example: 'Operador de ventas zona sur',
-    required: false
+    required: false,
   })
   @IsString()
   @IsOptional()
@@ -73,7 +100,7 @@ export class CreateUserDto {
     description: 'Archivo de imagen de perfil (opcional)',
     type: 'string',
     format: 'binary',
-    required: false
+    required: false,
   })
   @IsOptional()
   profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador

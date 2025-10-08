@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, MinLength, Matches, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsString,
+  MinLength,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class LoginUserDto {
   @ApiProperty({
@@ -18,9 +25,9 @@ export class LoginUserDto {
   @IsNotEmpty()
   @MinLength(6)
   @MaxLength(50)
-  @Matches(
-    /(?:(?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-    message: 'La contraseña debe tener una letra mayuscula, letra miniscula y un numero'
+  @Matches(/(?:(?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+    message:
+      'La contraseña debe tener una letra mayuscula, letra miniscula y un numero',
   })
   password: string;
 }
@@ -55,4 +62,4 @@ export class LoginResponseDto {
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
   refreshToken: string;
-} 
+}

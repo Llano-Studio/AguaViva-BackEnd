@@ -8,17 +8,20 @@ datasource db {
 }
 
 model User {
-  id                   Int                   @id @default(autoincrement())
-  email                String                @unique
-  password             String
-  name                 String
-  role                 Role                  @default(ADMIN)
-  isActive             Boolean               @default(true)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime?
-  recoveryToken        String?               @unique
-  recoveryTokenExpires DateTime?
-  profileImageUrl      String?
+  id                     Int                   @id @default(autoincrement())
+  email                  String                @unique
+  password               String
+  name                   String
+  role                   Role                  @default(SUPERADMIN)
+  isActive               Boolean               @default(true)
+  isEmailConfirmed       Boolean               @default(false)
+  emailConfirmationToken String?               @unique
+  emailTokenExpires      DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime?
+  recoveryToken          String?               @unique
+  recoveryTokenExpires   DateTime?
+  profileImageUrl        String?
   refresh_tokens       RefreshToken[]
   incidents_created    delivery_incident[]   @relation("incidentCreator")
   incidents_resolved   delivery_incident[]   @relation("incidentResolver")
@@ -27,6 +30,7 @@ model User {
   route_sheet          route_sheet[]
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
+  comodato_changes     comodato_change[]
 }
 
 model RefreshToken {
@@ -55,27 +59,32 @@ model province {
 }
 
 model locality {
-  locality_id      Int                @id @default(autoincrement()) @db.SmallInt
-  province_id      Int                @db.SmallInt
-  code             String             @db.VarChar(10)
-  name             String             @db.VarChar(100)
-  province         province           @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
-  one_off_purchase one_off_purchase[]
-  person           person[]
-  warehouse        warehouse[]
-  zones            zone[]
+  locality_id              Int                       @id @default(autoincrement()) @db.SmallInt
+  province_id              Int                       @db.SmallInt
+  code                     String                    @unique @db.VarChar(10)
+  name                     String                    @db.VarChar(100)
+  is_active                Boolean                   @default(true)
+  province                 province                  @relation(fields: [province_id], references: [province_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locality_province")
+  one_off_purchase         one_off_purchase[]
+  one_off_purchase_headers one_off_purchase_header[]
+  person                   person[]
+  warehouse                warehouse[]
+  zones                    zone[]
 }
 
 model zone {
-  zone_id          Int                @id @default(autoincrement()) @db.SmallInt
-  code             String             @db.VarChar(10)
-  name             String             @db.VarChar(100)
-  locality_id      Int                @db.SmallInt
-  delivery_stats   delivery_stats[]
-  one_off_purchase one_off_purchase[]
-  person           person[]
-  vehicle_zone     vehicle_zone[]
-  locality         locality           @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
+  zone_id                  Int                       @id @default(autoincrement()) @db.SmallInt
+  code                     String                    @db.VarChar(10)
+  name                     String                    @db.VarChar(100)
+  locality_id              Int                       @db.SmallInt
+  is_active                Boolean                   @default(true)
+  delivery_stats           delivery_stats[]
+  one_off_purchase         one_off_purchase[]
+  one_off_purchase_headers one_off_purchase_header[]
+  order_header             order_header[]
+  person                   person[]
+  vehicle_zone             vehicle_zone[]
+  locality                 locality                  @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_zone_locality")
 
   @@unique([locality_id, code], name: "unique_zone_code_per_locality")
   @@unique([locality_id, name], name: "unique_zone_name_per_locality")
@@ -97,12 +106,15 @@ model product {
   serial_number             String?                     @db.VarChar(50)
   notes                     String?
   image_url                 String?                     @db.VarChar(255)
+  is_active                 Boolean                     @default(true)
   inventory                 inventory[]
   inventory_transaction     inventory_transaction[]
   one_off_purchase          one_off_purchase[]
+  one_off_purchase_items    one_off_purchase_item[]
   order_item                order_item[]
   payment_line              payment_line[]
   price_list_item           price_list_item[]
+  comodatos                 comodato[]
   product_category          product_category            @relation(fields: [category_id], references: [category_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_product_category")
   stock_movement            stock_movement[]
   subscription_cycle_detail subscription_cycle_detail[]
@@ -112,16 +124,21 @@ model product {
 }
 
 model price_list {
-  price_list_id   Int               @id @default(autoincrement())
-  name            String            @db.VarChar(50)
-  effective_date  DateTime          @db.Date
-  active          Boolean           @default(true)
-  created_at      DateTime          @default(now())
-  description     String?           @db.VarChar(255)
-  is_default      Boolean           @default(false)
-  updated_at      DateTime          @updatedAt
-  client_contract client_contract[]
-  price_list_item price_list_item[]
+  price_list_id                     Int                       @id @default(autoincrement())
+  name                              String                    @db.VarChar(50)
+  effective_date                    DateTime                  @db.Date
+  active                            Boolean                   @default(true)
+  created_at                        DateTime                  @default(now())
+  description                       String?                   @db.VarChar(255)
+  is_default                        Boolean                   @default(false)
+  updated_at                        DateTime                  @updatedAt
+  is_active                         Boolean                   @default(true)
+  client_contract                   client_contract[]
+  one_off_purchases                 one_off_purchase[]
+  one_off_purchase_headers          one_off_purchase_header[]
+  one_off_purchase_items_individual one_off_purchase_item[]   @relation("ItemPriceList")
+  order_items_individual            order_item[]              @relation("OrderItemPriceList")
+  price_list_item                   price_list_item[]
 }
 
 model price_list_item {
@@ -197,23 +214,30 @@ model stock_movement {
 }
 
 model person {
-  person_id             Int                     @id @default(autoincrement())
-  phone                 String                  @unique @db.VarChar(20)
-  name                  String?                 @db.VarChar(100)
-  tax_id                String?                 @db.VarChar(20)
-  address               String?                 @db.VarChar(200)
-  locality_id           Int?                    @db.SmallInt
-  zone_id               Int?                    @db.SmallInt
-  registration_date     DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
-  type                  PersonType
-  alias                 String?                 @db.VarChar(100)
-  client_contract       client_contract[]
-  customer_subscription customer_subscription[]
-  one_off_purchase      one_off_purchase[]
-  orders                order_header[]          @relation("OrderHeaderToPerson")
-  paymentInstallments   payment_installment[]   @relation("PaymentInstallmentToPerson")
-  locality              locality?               @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
-  zone                  zone?                   @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  person_id                Int                       @id @default(autoincrement())
+  phone                    String                    @unique @db.VarChar(20)
+  additional_phones        String?                   @db.VarChar(200)
+  secondary_phone          String?                   @db.VarChar(20)
+  name                     String?                   @db.VarChar(100)
+  tax_id                   String?                   @db.VarChar(20)
+  address                  String?                   @db.VarChar(200)
+  locality_id              Int?                      @db.SmallInt
+  zone_id                  Int?                      @db.SmallInt
+  registration_date        DateTime                  @default(dbgenerated("CURRENT_DATE")) @db.Date
+  type                     PersonType
+  alias                    String?                   @db.VarChar(100)
+  notes                    String?                   @db.Text
+  is_active                Boolean                   @default(true)
+  owns_returnable_containers Boolean                 @default(false)
+  client_contract          client_contract[]
+  customer_subscription    customer_subscription[]
+  one_off_purchase         one_off_purchase[]
+  one_off_purchase_headers one_off_purchase_header[]
+  orders                   order_header[]            @relation("OrderHeaderToPerson")
+  paymentInstallments      payment_installment[]     @relation("PaymentInstallmentToPerson")
+  comodatos                comodato[]
+  locality                 locality?                 @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                     zone?                     @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([name])
   @@index([alias])
@@ -247,6 +271,7 @@ model subscription_plan {
   name                         String                      @db.VarChar(50)
   description                  String?
   price                        Decimal?                    @db.Decimal(10, 2)
+  type                         PersonType                  @default(PLAN)
   created_at                   DateTime                    @default(now())
   default_cycle_days           Int                         @default(30)
   default_deliveries_per_cycle Int                         @default(1)
@@ -270,14 +295,23 @@ model customer_subscription {
   customer_id                    Int
   subscription_plan_id           Int                              @db.SmallInt
   start_date                     DateTime                         @db.Date
-  end_date                       DateTime?                        @db.Date
+  collection_day                 Int?                             @db.SmallInt
+  payment_mode                   PaymentMode                      @default(ADVANCE)
+  payment_due_day                Int?                             @db.SmallInt
   status                         SubscriptionStatus
   notes                          String?
+  cancellation_reason            String?                          @db.Text
+  cancellation_date              DateTime?                        @db.Date
+  collection_scheduled_date      DateTime?                        @db.Date
+  collection_completed           Boolean                          @default(false)
+  is_active                      Boolean                          @default(true)
   subscription_plan              subscription_plan                @relation(fields: [subscription_plan_id], references: [subscription_plan_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cust_sub_plan")
   person                         person                           @relation(fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_customer_subscription_person")
   order_header                   order_header[]
   subscription_cycle             subscription_cycle[]
   subscription_delivery_schedule subscription_delivery_schedule[]
+  cancellation_orders            cancellation_order[]
+  comodatos                      comodato[]
 
   @@index([status])
 }
@@ -285,11 +319,24 @@ model customer_subscription {
 model subscription_cycle {
   cycle_id                  Int                         @id @default(autoincrement())
   subscription_id           Int
+  cycle_number              Int
   cycle_start               DateTime                    @db.Date
   cycle_end                 DateTime                    @db.Date
+  payment_due_date          DateTime?                   @db.Date
+  is_overdue                Boolean                     @default(false)
+  late_fee_applied          Boolean                     @default(false)
+  late_fee_percentage       Decimal?                    @db.Decimal(5,2)
   notes                     String?
+  total_amount              Decimal?                    @db.Decimal(10, 2)
+  paid_amount               Decimal                     @default(0) @db.Decimal(10, 2)
+  pending_balance           Decimal                     @default(0) @db.Decimal(10, 2)
+  credit_balance            Decimal                     @default(0) @db.Decimal(10, 2)
+  payment_status            PaymentStatus               @default(PENDING)
   customer_subscription     customer_subscription       @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_cycle_subscription")
   subscription_cycle_detail subscription_cycle_detail[]
+  cycle_payments            cycle_payment[]
+
+  @@unique([subscription_id, cycle_number])
 }
 
 model subscription_cycle_detail {
@@ -312,11 +359,12 @@ model subscription_delivery_schedule {
 }
 
 model sale_channel {
-  sale_channel_id  Int                @id @default(autoincrement()) @db.SmallInt
-  code             String             @unique @db.VarChar(20)
-  description      String             @db.VarChar(100)
-  one_off_purchase one_off_purchase[]
-  order_header     order_header[]
+  sale_channel_id          Int                       @id @default(autoincrement()) @db.SmallInt
+  code                     String                    @unique @db.VarChar(20)
+  description              String                    @db.VarChar(100)
+  one_off_purchase         one_off_purchase[]
+  one_off_purchase_headers one_off_purchase_header[]
+  order_header             order_header[]
 }
 
 model order_header {
@@ -331,13 +379,17 @@ model order_header {
   paid_amount             Decimal                  @db.Decimal(10, 2)
   order_type              OrderType
   status                  OrderStatus
+  payment_status          String                   @default("PENDING")
   notes                   String?
   subscription_id         Int?
+  zone_id                 Int?                     @db.SmallInt
+  is_active               Boolean                  @default(true)
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
   customer                person                   @relation("OrderHeaderToPerson", fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
   customer_subscription   customer_subscription?   @relation(fields: [subscription_id], references: [subscription_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                    zone?                    @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
   order_item              order_item[]
   payment_transaction     payment_transaction[]
   route_sheet_detail      route_sheet_detail[]
@@ -353,31 +405,104 @@ model order_item {
   product_id             Int
   quantity               Int
   subtotal               Decimal                  @db.Decimal(10, 2)
+  notes                  String?
+  price_list_id          Int?
+  unit_price             Decimal                  @db.Decimal(10, 2)
   delivered_quantity     Int?                     @default(0)
   returned_quantity      Int?                     @default(0)
-  amount_paid            Decimal                  @db.Decimal(10, 2)
-  total_amount           Decimal                  @db.Decimal(10, 2)
   installment_order_link installment_order_link[]
-  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_order")
-  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orderitem_product")
+  order_header           order_header             @relation(fields: [order_id], references: [order_id], onDelete: Cascade, onUpdate: NoAction)
+  price_list             price_list?              @relation("OrderItemPriceList", fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  product                product                  @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([order_id])
+  @@index([product_id])
+  @@index([price_list_id])
 }
 
 model one_off_purchase {
-  purchase_id      Int          @id @default(autoincrement())
-  person_id        Int
-  product_id       Int
-  quantity         Int
-  total_amount     Decimal      @db.Decimal(10, 2)
-  purchase_date    DateTime     @default(now()) @db.Timestamp(6)
-  sale_channel_id  Int          @db.SmallInt
-  delivery_address String?
-  locality_id      Int?         @db.SmallInt
-  zone_id          Int?         @db.SmallInt
-  locality         locality?    @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
-  person           person       @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
-  product          product      @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
-  sale_channel     sale_channel @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
-  zone             zone?        @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_id             Int          @id @default(autoincrement())
+  person_id               Int
+  product_id              Int
+  quantity                Int
+  total_amount            Decimal      @db.Decimal(10, 2)
+  purchase_date           DateTime     @default(now()) @db.Timestamp(6)
+  sale_channel_id         Int          @db.SmallInt
+  delivery_address        String?
+  locality_id             Int?         @db.SmallInt
+  zone_id                 Int?         @db.SmallInt
+  scheduled_delivery_date DateTime?    @db.Timestamp(6)
+  delivery_time           String?      @db.VarChar(50)
+  notes                   String?
+  paid_amount             Decimal      @default(0) @db.Decimal(10, 2)
+  price_list_id           Int?
+  delivered_quantity      Int?         @default(0)
+  requires_delivery       Boolean      @default(false)
+  returned_quantity       Int?         @default(0)
+  status                  String       @default("PENDING") @db.VarChar(20)
+  is_active               Boolean      @default(true)
+  locality                locality?              @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
+  person                  person                 @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list              price_list?            @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  product                 product                @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  sale_channel            sale_channel           @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                    zone?                  @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  route_sheet_detail      route_sheet_detail[]   
+
+  @@index([status])
+  @@index([requires_delivery])
+}
+
+model one_off_purchase_header {
+  purchase_header_id      Int                     @id @default(autoincrement())
+  person_id               Int
+  sale_channel_id         Int                     @db.SmallInt
+  purchase_date           DateTime                @default(now()) @db.Timestamp(6)
+  total_amount            Decimal                 @db.Decimal(10, 2)
+  paid_amount             Decimal                 @default(0) @db.Decimal(10, 2)
+  delivery_address        String?
+  locality_id             Int?                    @db.SmallInt
+  zone_id                 Int?                    @db.SmallInt
+  price_list_id           Int?
+  notes                   String?
+  status                  String                  @default("PENDING") @db.VarChar(20)
+  payment_status          String                  @default("PENDING") @db.VarChar(20)
+  delivery_status         String                  @default("PENDING") @db.VarChar(20)
+  created_at              DateTime                @default(now())
+  updated_at              DateTime                @updatedAt
+  scheduled_delivery_date DateTime?               @db.Timestamp(6)
+  delivery_time           String?                 @db.VarChar(50)
+  is_active               Boolean                 @default(true)
+  locality                locality?               @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
+  person                  person                  @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  price_list              price_list?             @relation(fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  sale_channel            sale_channel            @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction)
+  zone                    zone?                   @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_items          one_off_purchase_item[]
+  route_sheet_detail      route_sheet_detail[]    
+
+  @@index([purchase_date])
+  @@index([scheduled_delivery_date])
+  @@index([status])
+  @@index([person_id])
+}
+
+model one_off_purchase_item {
+  purchase_item_id   Int                     @id @default(autoincrement())
+  purchase_header_id Int
+  product_id         Int
+  quantity           Int
+  unit_price         Decimal                 @db.Decimal(10, 2)
+  subtotal           Decimal                 @db.Decimal(10, 2)
+  notes              String?
+  price_list_id      Int?
+  price_list         price_list?             @relation("ItemPriceList", fields: [price_list_id], references: [price_list_id], onDelete: NoAction, onUpdate: NoAction)
+  product            product                 @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  purchase_header    one_off_purchase_header @relation(fields: [purchase_header_id], references: [purchase_header_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([purchase_header_id])
+  @@index([product_id])
+  @@index([price_list_id])
 }
 
 model payment_method {
@@ -401,6 +526,7 @@ model payment_transaction {
   payment_method_id  Int            @default(1) @db.SmallInt
   notes              String?
   user_id            Int?
+  is_active          Boolean        @default(true)
   payment_line       payment_line[]
   order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
   payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
@@ -445,6 +571,7 @@ model vehicle {
   code              String              @unique @db.VarChar(20)
   name              String              @db.VarChar(50)
   description       String?
+  is_active         Boolean             @default(true)
   delivery_stats    delivery_stats[]
   route_sheet       route_sheet[]
   user_vehicle      user_vehicle[]
@@ -503,6 +630,7 @@ model route_sheet {
   route_notes                          String?
   driver_reconciliation_signature_path String?
   reconciliation_at                    DateTime?
+  is_active                            Boolean                   @default(true)
   delivery_stats                       delivery_stats[]
   inventory_transaction                inventory_transaction[]
   route_optimization                   route_optimization[]
@@ -510,30 +638,39 @@ model route_sheet {
   vehicle                              vehicle                   @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_vehicle")
   route_sheet_detail                   route_sheet_detail[]
   vehicle_route_inventory              vehicle_route_inventory[]
+  cancellation_order cancellation_order[]
 }
 
 model route_sheet_detail {
-  route_sheet_detail_id  Int                     @id @default(autoincrement())
-  route_sheet_id         Int
-  order_id               Int
-  delivery_status        String                  @db.VarChar(20)
-  delivery_time          DateTime?               @db.Timestamp(6)
-  comments               String?
-  digital_signature_id   String?                 @db.VarChar(100)
-  actual_arrival_time    DateTime?
-  delivery_notes         String?
-  estimated_arrival_time DateTime?
-  lat                    Decimal?                @db.Decimal(10, 8)
-  lng                    Decimal?                @db.Decimal(10, 8)
-  recipient_name         String?
-  rejection_reason       String?
-  reschedule_date        DateTime?
-  sequence_number        Int?
-  delivery_evidence      delivery_evidence[]
-  delivery_incident      delivery_incident[]
-  inventory_transaction  inventory_transaction[]
-  order_header           order_header            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
-  route_sheet            route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+  route_sheet_detail_id      Int                      @id @default(autoincrement())
+  route_sheet_id             Int
+  order_id                   Int?                    
+  one_off_purchase_id        Int?                     
+  one_off_purchase_header_id Int?                     
+  cancellation_order_id      Int?
+  cycle_payment_id           Int?
+  delivery_status            String                   @db.VarChar(20)
+  delivery_time              String?                  @db.VarChar(50)
+  comments                   String?
+  digital_signature_id       String?                  @db.VarChar(100)
+  actual_arrival_time        DateTime?
+  delivery_notes             String?
+  estimated_arrival_time     DateTime?
+  lat                        Decimal?                 @db.Decimal(10, 8)
+  lng                        Decimal?                 @db.Decimal(10, 8)
+  recipient_name             String?
+  rejection_reason           String?
+  reschedule_date            DateTime?
+  sequence_number            Int?
+  delivery_evidence          delivery_evidence[]
+  delivery_incident          delivery_incident[]
+  inventory_transaction      inventory_transaction[]
+  order_header               order_header?            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
+  one_off_purchase           one_off_purchase?        @relation(fields: [one_off_purchase_id], references: [purchase_id], onDelete: NoAction, onUpdate: NoAction)
+  one_off_purchase_header    one_off_purchase_header? @relation(fields: [one_off_purchase_header_id], references: [purchase_header_id], onDelete: NoAction, onUpdate: NoAction)
+  cancellation_order         cancellation_order?      @relation(fields: [cancellation_order_id], references: [cancellation_order_id], onDelete: NoAction, onUpdate: NoAction)
+  cycle_payment              cycle_payment?           @relation(fields: [cycle_payment_id], references: [payment_id], onDelete: NoAction, onUpdate: NoAction)
+  route_sheet                route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
 }
 
 model route_optimization {
@@ -617,24 +754,30 @@ model delivery_stats {
 }
 
 enum Role {
-  USER
-  ADMIN
+  DRIVERS
+  ADMINISTRATIVE
+  SUPERADMIN
+  BOSSADMINISTRATIVE
 }
 
 enum OrderType {
   SUBSCRIPTION
   ONE_OFF
   CONTRACT_DELIVERY
+  HYBRID
 }
 
 enum OrderStatus {
   PENDING
-  PROCESSING
-  SHIPPED
+  CONFIRMED
+  IN_PREPARATION
+  READY_FOR_DELIVERY
+  IN_DELIVERY
   DELIVERED
+  RETIRADO
   CANCELLED
-  PAID
-  PARTIALLY_PAID
+  REFUNDED
+  OVERDUE
 }
 
 enum SubscriptionStatus {
@@ -656,4 +799,145 @@ enum ContractStatus {
   EXPIRED
   PENDING_ACTIVATION
   ON_HOLD
+}
+
+enum ComodatoStatus {
+  ACTIVE
+  INACTIVE
+  RETURNED
+  DAMAGED
+  LOST
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CREDITED
+}
+
+enum PaymentMode {
+  ADVANCE     // Pago adelantado (inicio de mes)
+  ARREARS     // Pago vencido (fin de mes o fechas específicas)
+}
+
+model cycle_payment {
+  payment_id      Int                 @id @default(autoincrement())
+  cycle_id        Int
+  payment_date    DateTime            @default(now())
+  amount          Decimal             @db.Decimal(10, 2)
+  payment_method  String              @db.VarChar(50)
+  reference       String?             @db.VarChar(100)
+  notes           String?
+  created_by      Int?
+  subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: Cascade, onUpdate: NoAction)
+  route_sheet_detail route_sheet_detail[]
+  
+  @@index([cycle_id])
+  @@index([payment_date])
+}
+
+model cancellation_order {
+  cancellation_order_id    Int                   @id @default(autoincrement())
+  subscription_id          Int
+  scheduled_collection_date DateTime             @db.Date
+  actual_collection_date   DateTime?            @db.Date
+  status                   CancellationOrderStatus @default(PENDING)
+  route_sheet_id           Int?
+  notes                    String?              @db.Text
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  rescheduled_count        Int                  @default(0)
+  customer_subscription    customer_subscription @relation(fields: [subscription_id], references: [subscription_id], onDelete: Cascade, onUpdate: NoAction)
+  route_sheet              route_sheet?         @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: SetNull, onUpdate: NoAction)
+  route_sheet_detail       route_sheet_detail[]
+  
+  @@index([subscription_id])
+  @@index([scheduled_collection_date])
+  @@index([status])
+}
+
+enum CancellationOrderStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum RecoveryStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  RESCHEDULED
+  CANCELLED
+}
+
+model comodato {
+  comodato_id          Int            @id @default(autoincrement())
+  person_id            Int
+  product_id           Int
+  subscription_id      Int?
+  quantity             Int
+  max_quantity         Int?           // Cantidad máxima permitida según la suscripción
+  delivery_date        DateTime       @db.Date
+  return_date          DateTime?      @db.Date
+  expected_return_date DateTime?      @db.Date
+  status               ComodatoStatus @default(ACTIVE)
+  notes                String?        @db.Text
+  deposit_amount       Decimal?       @db.Decimal(10, 2)
+  monthly_fee          Decimal?       @db.Decimal(10, 2)
+  article_description  String?        @db.VarChar(255)
+  brand                String?        @db.VarChar(100)
+  model                String?        @db.VarChar(100)
+  contract_image_path  String?        @db.VarChar(500)
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
+  is_active            Boolean        @default(true)
+  person               person         @relation(fields: [person_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  product              product        @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction)
+  subscription         customer_subscription? @relation(fields: [subscription_id], references: [subscription_id], onDelete: SetNull, onUpdate: NoAction)
+  recovery_order       recovery_order?
+  comodato_changes     comodato_change[]
+  
+  @@index([person_id])
+  @@index([subscription_id])
+  @@index([status])
+  @@index([delivery_date])
+  @@index([is_active])
+}
+
+model recovery_order {
+  recovery_order_id        Int                   @id @default(autoincrement())
+  comodato_id              Int                   @unique
+  scheduled_recovery_date  DateTime             @db.Date
+  actual_recovery_date     DateTime?            @db.Date
+  status                   RecoveryStatus       @default(PENDING)
+  notes                    String?              @db.Text
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  comodato                 comodato             @relation(fields: [comodato_id], references: [comodato_id], onDelete: Cascade, onUpdate: NoAction)
+  
+  @@index([comodato_id])
+  @@index([scheduled_recovery_date])
+  @@index([status])
+}
+
+model comodato_change {
+  change_id     Int      @id @default(autoincrement())
+  comodato_id   Int
+  change_date   DateTime @default(now())
+  change_reason String   @db.Text
+  old_status    ComodatoStatus?
+  new_status    ComodatoStatus?
+  changed_by    Int?
+  notes         String?  @db.Text
+  comodato      comodato @relation(fields: [comodato_id], references: [comodato_id], onDelete: Cascade, onUpdate: NoAction)
+  user          User?    @relation(fields: [changed_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  
+  @@index([comodato_id])
+  @@index([change_date])
 }

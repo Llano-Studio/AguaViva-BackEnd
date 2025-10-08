@@ -7,66 +7,81 @@ export class SubscriptionDeliveryScheduleResponseDto {
   @ApiProperty({ example: 1 })
   subscription_id: number;
 
-  @ApiProperty({ 
-    example: 1, 
-    description: 'Día de la semana (1=Lunes, 2=Martes, ..., 7=Domingo)' 
+  @ApiProperty({
+    example: 1,
+    description: 'Día de la semana (1=Lunes, 2=Martes, ..., 7=Domingo)',
   })
   day_of_week: number;
 
-  @ApiProperty({ 
+  @ApiProperty({
     examples: {
       puntual: {
         summary: 'Horario puntual',
-        value: '09:30'
+        value: '09:30',
       },
       rango: {
         summary: 'Rango horario',
-        value: '09:00-12:00'
-      }
+        value: '09:00-12:00',
+      },
     },
-    description: 'Hora programada de entrega. Puede ser horario puntual (HH:MM) o rango horario (HH:MM-HH:MM)' 
+    description:
+      'Hora programada de entrega. Puede ser horario puntual (HH:MM) o rango horario (HH:MM-HH:MM)',
   })
   scheduled_time: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'Lunes',
-    description: 'Nombre del día de la semana' 
+    description: 'Nombre del día de la semana',
   })
   day_name?: string;
 
   @ApiProperty({
     example: 'puntual',
-    description: 'Tipo de horario: "puntual" para hora específica, "rango" para período de tiempo',
-    enum: ['puntual', 'rango']
+    description:
+      'Tipo de horario: "puntual" para hora específica, "rango" para período de tiempo',
+    enum: ['puntual', 'rango'],
   })
   schedule_type?: string;
 
   @ApiProperty({
     example: '09:30',
-    description: 'Hora de inicio (para rangos) o hora específica (para puntuales)',
-    required: false
+    description:
+      'Hora de inicio (para rangos) o hora específica (para puntuales)',
+    required: false,
   })
   start_time?: string;
 
   @ApiProperty({
     example: '12:00',
     description: 'Hora de fin (solo para rangos horarios)',
-    required: false
+    required: false,
   })
   end_time?: string;
 
   constructor(partial: Partial<any>) {
     Object.assign(this, partial);
-    
+
     // Convert time to string if it's a Date (for backward compatibility)
     if (partial.scheduled_time instanceof Date) {
-      this.scheduled_time = partial.scheduled_time.toTimeString().split(' ')[0].substring(0, 5);
+      this.scheduled_time = partial.scheduled_time
+        .toTimeString()
+        .split(' ')[0]
+        .substring(0, 5);
     }
-    
+
     // Add day name
-    const dayNames = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const dayNames = [
+      '',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
+    ];
     this.day_name = dayNames[this.day_of_week] || '';
-    
+
     // Parse schedule type and times
     if (this.scheduled_time) {
       if (this.scheduled_time.includes('-')) {
@@ -83,4 +98,4 @@ export class SubscriptionDeliveryScheduleResponseDto {
       }
     }
   }
-} 
+}

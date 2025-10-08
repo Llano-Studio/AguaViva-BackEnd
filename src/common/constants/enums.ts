@@ -2,14 +2,14 @@ import { Role } from '@prisma/client';
 
 export enum PersonType {
   INDIVIDUAL = 'INDIVIDUAL',
-  PLAN = 'PLAN'
+  PLAN = 'PLAN',
 }
 
 export enum OrderType {
   SUBSCRIPTION = 'SUBSCRIPTION',
   ONE_OFF = 'ONE_OFF',
   CONTRACT_DELIVERY = 'CONTRACT_DELIVERY',
-  HYBRID = 'HYBRID'
+  HYBRID = 'HYBRID',
 }
 
 export enum OrderStatus {
@@ -19,22 +19,26 @@ export enum OrderStatus {
   READY_FOR_DELIVERY = 'READY_FOR_DELIVERY',
   IN_DELIVERY = 'IN_DELIVERY',
   DELIVERED = 'DELIVERED',
+  RETIRADO = 'RETIRADO',
   CANCELLED = 'CANCELLED',
-  REFUNDED = 'REFUNDED'
+  REFUNDED = 'REFUNDED',
+  OVERDUE = 'OVERDUE',
 }
 
 export enum SubscriptionStatus {
   ACTIVE = 'ACTIVE',
   PAUSED = 'PAUSED',
   CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED'
+  EXPIRED = 'EXPIRED',
 }
 
 export enum PaymentStatus {
+  NONE = 'NONE',
   PENDING = 'PENDING',
-  PARTIALLY_PAID = 'PARTIALLY_PAID',
+  PARTIAL = 'PARTIAL',
   PAID = 'PAID',
-  REFUNDED = 'REFUNDED'
+  OVERDUE = 'OVERDUE',
+  CREDITED = 'CREDITED',
 }
 
 export enum PaymentMethod {
@@ -42,7 +46,7 @@ export enum PaymentMethod {
   CREDIT_CARD = 'CREDIT_CARD',
   DEBIT_CARD = 'DEBIT_CARD',
   BANK_TRANSFER = 'BANK_TRANSFER',
-  MOBILE_PAYMENT = 'MOBILE_PAYMENT'
+  MOBILE_PAYMENT = 'MOBILE_PAYMENT',
 }
 
 export enum DeliveryStatus {
@@ -50,15 +54,15 @@ export enum DeliveryStatus {
   ASSIGNED = 'ASSIGNED',
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',
-  FAILED = 'FAILED'
+  FAILED = 'FAILED',
 }
 
 export enum DeliveryPriority {
   LOW = 'LOW',
   MEDIUM = 'MEDIUM',
   HIGH = 'HIGH',
-  URGENT = 'URGENT'
+  URGENT = 'URGENT',
 }
 
 // Re-exportamos Role para tenerlo todo centralizado
-export { Role }; 
+export { Role };

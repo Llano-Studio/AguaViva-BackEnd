@@ -7,4 +7,4 @@ import { LocalitiesController } from './localities.controller';
   providers: [LocalitiesService],
   exports: [LocalitiesService],
 })
-export class LocalitiesModule {} 
+export class LocalitiesModule {}

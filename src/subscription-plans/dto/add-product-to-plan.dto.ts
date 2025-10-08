@@ -6,8 +6,11 @@ export class AddProductToPlanDto {
   @IsInt()
   product_id: number;
 
-  @ApiProperty({ example: 10, description: 'Cantidad del producto en este plan' })
+  @ApiProperty({
+    example: 10,
+    description: 'Cantidad del producto en este plan',
+  })
   @IsInt()
   @IsPositive()
   product_quantity: number;
-} 
+}

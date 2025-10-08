@@ -3,7 +3,7 @@ import { IsInt, IsOptional, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto'; // Ruta corregida
 
-export class FilterVehicleInventoryDto extends PaginationQueryDto {
+export class FilterVehiculeInventoryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Filtrar por ID del vehículo',
     example: 1,
@@ -23,4 +23,4 @@ export class FilterVehicleInventoryDto extends PaginationQueryDto {
   @Type(() => Number)
   @Min(1)
   product_id?: number;
-} 
+}

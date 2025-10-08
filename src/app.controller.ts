@@ -8,33 +8,48 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Verificar si la API está en funcionamiento' })
-  @ApiResponse({ status: 200, description: 'API operativa' })
+  @ApiOperation({
+    summary: 'Verificar estado operativo de la API Sgarav',
+    description:
+      'Endpoint básico para verificar que la API está funcionando correctamente y responde a las solicitudes.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'API operativa y funcionando correctamente',
+    schema: {
+      type: 'string',
+      example: 'API Sgarav funcionando correctamente',
+    },
+  })
   getHello(): string {
     return this.appService.getHello();
   }
 
   @Get('health')
-  @ApiOperation({ summary: 'Verificar el estado de salud de la API' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Estado de salud de la API', 
+  @ApiOperation({
+    summary: 'Verificar estado de salud completo del sistema',
+    description:
+      'Endpoint de health check que verifica el estado de la API, base de datos y servicios críticos del sistema Sgarav.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado de salud de la API',
     schema: {
       type: 'object',
       properties: {
         status: { type: 'string', example: 'ok' },
         timestamp: { type: 'string', example: '2023-07-01T12:00:00Z' },
         database: { type: 'boolean', example: true },
-        uptime: { type: 'number', example: 3600 }
-      }
-    }
+        uptime: { type: 'number', example: 3600 },
+      },
+    },
   })
   async checkHealth() {
     return this.appService.checkHealth();
   }
 
   @Get('pricing-system-docs')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Documentación del Sistema de Precios Diferenciados',
     description: `Documentación completa del sistema de precios diferenciados implementado en la API.
 
@@ -52,7 +67,7 @@ El sistema permite diferentes precios para los mismos productos según el tipo d
 ### 2. **Compras Únicas (one_off_purchase)**
 - **Flujo**: \`Lista General (ID: 1) → price_list_item.unit_price → product.price\` (fallback)
 - **Uso**: Clientes ocasionales sin contrato, usan la lista estándar/pública
-- **Endpoint**: \`POST /api/orders/one-off\`
+- **Endpoint**: \`POST /api/one-off-purchases/one-off\`
 
 ### 3. **Suscripciones (customer_subscription)**
 - **Flujo**: \`subscription_plan.price\` (precio fijo del paquete)
@@ -106,29 +121,41 @@ PRICING: {
 2. **Cliente Ocasional**: Compra única usando lista general/pública
 3. **Cliente Suscriptor**: Plan fijo mensual con precio cerrado
 4. **Actualización Estacional**: Aplicar 10% de aumento a lista general por inflación
-5. **Renegociación**: Migrar contrato de lista estándar a lista corporativa`
+5. **Renegociación**: Migrar contrato de lista estándar a lista corporativa`,
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Documentación del sistema de precios',
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Documentación del Sistema de Precios Diferenciados' },
+        message: {
+          type: 'string',
+          example: 'Documentación del Sistema de Precios Diferenciados',
+        },
         version: { type: 'string', example: '1.0' },
         last_updated: { type: 'string', format: 'date' },
         endpoints: {
           type: 'object',
           properties: {
             contracts: { type: 'string', example: 'POST /api/orders' },
-            one_off_purchases: { type: 'string', example: 'POST /api/orders/one-off' },
-            subscriptions: { type: 'string', example: 'POST /api/customer-subscriptions' },
+            one_off_purchases: {
+              type: 'string',
+              example: 'POST /api/one-off-purchases/one-off',
+            },
+            subscriptions: {
+              type: 'string',
+              example: 'POST /api/customer-subscriptions',
+            },
             price_lists: { type: 'string', example: 'GET /api/price-list' },
-            price_management: { type: 'string', example: 'POST /api/price-list/:id/apply-percentage' }
-          }
-        }
-      }
-    }
+            price_management: {
+              type: 'string',
+              example: 'POST /api/price-list/:id/apply-percentage',
+            },
+          },
+        },
+      },
+    },
   })
   getPricingSystemDocs() {
     return {
@@ -138,25 +165,28 @@ PRICING: {
       system_overview: {
         contracts: 'Usan listas de precios específicas del contrato',
         one_off_purchases: 'Usan Lista General/Estándar (ID: 1)',
-        subscriptions: 'Usan precio fijo del plan de suscripción'
+        subscriptions: 'Usan precio fijo del plan de suscripción',
       },
       price_flow: {
-        contracts: 'client_contract.price_list_id → price_list_item.unit_price → product.price (fallback)',
-        one_off: 'Lista General (ID: 1) → price_list_item.unit_price → product.price (fallback)',
-        subscriptions: 'subscription_plan.price (precio cerrado)'
+        contracts:
+          'client_contract.price_list_id → price_list_item.unit_price → product.price (fallback)',
+        one_off:
+          'Lista General (ID: 1) → price_list_item.unit_price → product.price (fallback)',
+        subscriptions: 'subscription_plan.price (precio cerrado)',
       },
       key_endpoints: {
         contracts: 'POST /api/orders',
-        one_off_purchases: 'POST /api/orders/one-off',
+        one_off_purchases: 'POST /api/one-off-purchases/one-off',
         subscriptions: 'POST /api/customer-subscriptions',
         price_lists: 'GET /api/price-list',
         price_management: 'POST /api/price-list/:id/apply-percentage',
-        contract_price_change: 'POST /api/persons/:personId/contracts/change-price-list'
+        contract_price_change:
+          'POST /api/persons/:personId/contracts/change-price-list',
       },
       configuration: {
         default_price_list_id: 1,
-        standard_price_list_name: 'Lista General/Estándar'
-      }
+        standard_price_list_name: 'Lista General/Estándar',
+      },
     };
   }
-} 
+}

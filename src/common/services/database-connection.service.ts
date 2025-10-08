@@ -21,20 +21,32 @@ export class DatabaseConnectionService implements OnModuleInit {
     } catch (error) {
       if (error instanceof PrismaClientInitializationError) {
         if (attempt <= this.MAX_RETRIES) {
-          this.logger.warn(`No se pudo conectar a la base de datos. Reintento ${attempt} de ${this.MAX_RETRIES} en ${this.RETRY_DELAY_MS / 1000} segundos...`);
-          
+          this.logger.warn(
+            `No se pudo conectar a la base de datos. Reintento ${attempt} de ${this.MAX_RETRIES} en ${this.RETRY_DELAY_MS / 1000} segundos...`,
+          );
+
           // Esperar antes de reintentar
-          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY_MS));
-          
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.RETRY_DELAY_MS),
+          );
+
           // Reintentar conexión
           return this.connectWithRetry(attempt + 1);
         } else {
-          this.logger.error(`No se pudo conectar a la base de datos después de ${this.MAX_RETRIES} intentos.`);
-          this.logger.error('Por favor, verifique que el servidor de base de datos está en funcionamiento:');
+          this.logger.error(
+            `No se pudo conectar a la base de datos después de ${this.MAX_RETRIES} intentos.`,
+          );
+          this.logger.error(
+            'Por favor, verifique que el servidor de base de datos está en funcionamiento:',
+          );
           this.logger.error('1. Compruebe que PostgreSQL está activo');
-          this.logger.error('2. Verifique la cadena de conexión en el archivo .env');
-          this.logger.error('3. Asegúrese de que las credenciales sean correctas');
-          
+          this.logger.error(
+            '2. Verifique la cadena de conexión en el archivo .env',
+          );
+          this.logger.error(
+            '3. Asegúrese de que las credenciales sean correctas',
+          );
+
           // Aquí puedes decidir si quieres dejar que la aplicación continúe o terminarla
           // Si quieres terminar la aplicación:
           // process.exit(1);
@@ -51,8 +63,11 @@ export class DatabaseConnectionService implements OnModuleInit {
       await this.prisma.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      this.logger.error('Error al verificar la salud de la base de datos:', error);
+      this.logger.error(
+        'Error al verificar la salud de la base de datos:',
+        error,
+      );
       return false;
     }
   }
-} 
+}

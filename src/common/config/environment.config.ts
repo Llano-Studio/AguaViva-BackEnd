@@ -47,9 +47,18 @@ export default registerAs('app', () => ({
 
   // Configuración de semáforo de pagos (puede ser sobrescrita por variables de entorno)
   paymentSemaphore: {
-    yellowThresholdDays: parseInt(process.env.PAYMENT_YELLOW_THRESHOLD_DAYS || '5', 10),
-    redThresholdDays: parseInt(process.env.PAYMENT_RED_THRESHOLD_DAYS || '7', 10),
-    cacheTtlMinutes: parseInt(process.env.PAYMENT_SEMAPHORE_CACHE_TTL || '30', 10),
+    yellowThresholdDays: parseInt(
+      process.env.PAYMENT_YELLOW_THRESHOLD_DAYS || '5',
+      10,
+    ),
+    redThresholdDays: parseInt(
+      process.env.PAYMENT_RED_THRESHOLD_DAYS || '7',
+      10,
+    ),
+    cacheTtlMinutes: parseInt(
+      process.env.PAYMENT_SEMAPHORE_CACHE_TTL || '30',
+      10,
+    ),
   },
 
   // Configuración de inventario
@@ -63,4 +72,4 @@ export default registerAs('app', () => ({
     defaultLimit: parseInt(process.env.DEFAULT_LIMIT || '10', 10),
     maxLimit: parseInt(process.env.MAX_LIMIT || '100', 10),
   },
-})); 
+}));
