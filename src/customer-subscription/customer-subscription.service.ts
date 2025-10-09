@@ -20,6 +20,7 @@ import { FirstCycleComodatoService } from '../common/services/first-cycle-comoda
 import { SubscriptionCycleNumberingService } from '../common/services/subscription-cycle-numbering.service';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
+import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -33,6 +34,7 @@ export class CustomerSubscriptionService
     private readonly cycleNumberingService: SubscriptionCycleNumberingService,
     private readonly subscriptionCycleCalculatorService: SubscriptionCycleCalculatorService,
     private readonly recoveryOrderService: RecoveryOrderService,
+    private readonly paymentSemaphoreService: PaymentSemaphoreService,
   ) {
     super();
   }
@@ -333,6 +335,9 @@ export class CustomerSubscriptionService
       response.delivery_preferences = this.parseDeliveryPreferences(
         subscription.notes,
       );
+
+      // 🆕 CORRECCIÓN: Invalidar cache del semáforo de pago para que se recalcule con la nueva suscripción
+      this.paymentSemaphoreService.invalidateCache(createDto.customer_id);
 
       return response;
     } catch (error) {

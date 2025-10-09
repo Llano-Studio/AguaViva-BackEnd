@@ -1519,7 +1519,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       }
 
       // ✅ NUEVA LÓGICA: Si la orden cambia a DELIVERED y tiene suscripción asociada,
-      // incrementar la cantidad de comodatos activos según los productos entregados
+      // procesar comodatos según el tipo de orden
       if (newOrderStatus === 'DELIVERED' && order.subscription_id) {
         // Obtener los items de la orden para saber qué productos se entregaron
         const orderItems = await tx.order_item.findMany({
@@ -1527,38 +1527,118 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           include: { product: true },
         });
 
-        for (const item of orderItems) {
-          // Solo procesar productos retornables (que pueden estar en comodato)
-          if (item.product.is_returnable) {
-            // Buscar comodato activo para este producto y suscripción
-            const activeComodato = await tx.comodato.findFirst({
-              where: {
-                subscription_id: order.subscription_id,
-                product_id: item.product_id,
-                status: 'ACTIVE',
-              },
-            });
+        // 🆕 DETECTAR ÓRDENES DE RETIRO DE COMODATOS
+        // Las órdenes de retiro tienen total_amount = 0 y notas que contienen "retiro de comodato"
+        const isWithdrawalOrder = 
+          new Decimal(order.total_amount).equals(0) && 
+          order.notes?.toLowerCase().includes('retiro de comodato');
 
-            if (activeComodato) {
-              const newQuantity = activeComodato.quantity + item.quantity;
-              const maxQuantity = activeComodato.max_quantity || item.quantity;
-
-              // Validar que no se exceda la cantidad máxima
-              const finalQuantity = Math.min(newQuantity, maxQuantity);
-
-              await tx.comodato.update({
-                where: { comodato_id: activeComodato.comodato_id },
-                data: {
-                  quantity: finalQuantity,
-                  notes: activeComodato.notes 
-                    ? `${activeComodato.notes} | Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`
-                    : `Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`,
+        if (isWithdrawalOrder) {
+          // LÓGICA DE RETIRO: Eliminar/reducir comodatos según los productos retirados
+          console.log(`🔄 Procesando orden de retiro de comodatos: ${order.order_id}`);
+          
+          for (const item of orderItems) {
+            // Solo procesar productos retornables (que pueden estar en comodato)
+            if (item.product.is_returnable) {
+              // Buscar comodato activo para este producto y suscripción
+              const activeComodato = await tx.comodato.findFirst({
+                where: {
+                  subscription_id: order.subscription_id,
+                  product_id: item.product_id,
+                  status: 'ACTIVE',
                 },
               });
 
-              console.log(
-                `✅ Comodato ${activeComodato.comodato_id} actualizado: ${activeComodato.quantity} → ${finalQuantity} (máx: ${maxQuantity}) para producto ${item.product.description}`,
-              );
+              if (activeComodato) {
+                const currentQuantity = activeComodato.quantity;
+                const withdrawalQuantity = item.quantity;
+                
+                if (currentQuantity >= withdrawalQuantity) {
+                  // Reducir la cantidad del comodato
+                  const newQuantity = currentQuantity - withdrawalQuantity;
+                  
+                  if (newQuantity > 0) {
+                    // Actualizar cantidad
+                    await tx.comodato.update({
+                      where: { comodato_id: activeComodato.comodato_id },
+                      data: {
+                        quantity: newQuantity,
+                        notes: activeComodato.notes 
+                          ? `${activeComodato.notes} | Retiro orden ${order.order_id}: -${withdrawalQuantity} (Total: ${newQuantity})`
+                          : `Retiro orden ${order.order_id}: -${withdrawalQuantity} (Total: ${newQuantity})`,
+                      },
+                    });
+                    
+                    console.log(
+                      `✅ Comodato ${activeComodato.comodato_id} reducido: ${currentQuantity} → ${newQuantity} (retiro: ${withdrawalQuantity}) para producto ${item.product.description}`,
+                    );
+                  } else {
+                    // Eliminar completamente el comodato
+                    await tx.comodato.update({
+                      where: { comodato_id: activeComodato.comodato_id },
+                      data: {
+                        status: 'RETURNED',
+                        return_date: new Date(),
+                        is_active: false,
+                        notes: activeComodato.notes 
+                          ? `${activeComodato.notes} | Retiro completo orden ${order.order_id}: eliminado (cantidad: ${currentQuantity})`
+                          : `Retiro completo orden ${order.order_id}: eliminado (cantidad: ${currentQuantity})`,
+                      },
+                    });
+                    
+                    console.log(
+                      `✅ Comodato ${activeComodato.comodato_id} eliminado completamente por retiro orden ${order.order_id} para producto ${item.product.description}`,
+                    );
+                  }
+                } else {
+                  console.warn(
+                    `⚠️ No se puede retirar ${withdrawalQuantity} del comodato ${activeComodato.comodato_id} que solo tiene ${currentQuantity} para producto ${item.product.description}`,
+                  );
+                }
+              } else {
+                console.warn(
+                  `⚠️ No se encontró comodato activo para producto ${item.product_id} en suscripción ${order.subscription_id}`,
+                );
+              }
+            }
+          }
+        } else {
+          // LÓGICA DE ENTREGA: Incrementar la cantidad de comodatos activos según los productos entregados
+          console.log(`📦 Procesando orden de entrega: ${order.order_id}`);
+          
+          for (const item of orderItems) {
+            // Solo procesar productos retornables (que pueden estar en comodato)
+            if (item.product.is_returnable) {
+              // Buscar comodato activo para este producto y suscripción
+              const activeComodato = await tx.comodato.findFirst({
+                where: {
+                  subscription_id: order.subscription_id,
+                  product_id: item.product_id,
+                  status: 'ACTIVE',
+                },
+              });
+
+              if (activeComodato) {
+                const newQuantity = activeComodato.quantity + item.quantity;
+                const maxQuantity = activeComodato.max_quantity || item.quantity;
+
+                // Validar que no se exceda la cantidad máxima
+                const finalQuantity = Math.min(newQuantity, maxQuantity);
+
+                await tx.comodato.update({
+                  where: { comodato_id: activeComodato.comodato_id },
+                  data: {
+                    quantity: finalQuantity,
+                    notes: activeComodato.notes 
+                      ? `${activeComodato.notes} | Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`
+                      : `Entrega orden ${order.order_id}: +${item.quantity} (Total: ${finalQuantity}/${maxQuantity})`,
+                  },
+                });
+
+                console.log(
+                  `✅ Comodato ${activeComodato.comodato_id} actualizado: ${activeComodato.quantity} → ${finalQuantity} (máx: ${maxQuantity}) para producto ${item.product.description}`,
+                );
+              }
             }
           }
         }

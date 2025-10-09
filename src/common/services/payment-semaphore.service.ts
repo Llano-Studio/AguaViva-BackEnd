@@ -117,9 +117,10 @@ export class PaymentSemaphoreService
         return 'NONE';
       }
 
-      // Si no hay deuda pendiente (está totalmente pagado) y el monto total es mayor a 0
-      if (pendingBalance <= 0 && totalAmount > 0) {
-        return 'GREEN';
+      // 🆕 CORRECCIÓN CRÍTICA: Para suscripciones con monto total pero sin pagos
+      // (posiblemente esperando confirmación de pago inicial)
+      if (totalAmount > 0 && paidAmount <= 0) {
+        return 'YELLOW';
       }
 
       // Si hay deuda pendiente, verificar si está vencido
@@ -137,10 +138,9 @@ export class PaymentSemaphoreService
         return 'YELLOW';
       }
 
-      // 🆕 CORRECCIÓN ADICIONAL: Para suscripciones con monto total pero sin pagos
-      // (posiblemente esperando confirmación de pago inicial)
-      if (totalAmount > 0 && paidAmount <= 0) {
-        return 'YELLOW';
+      // Si no hay deuda pendiente (está totalmente pagado) y el monto total es mayor a 0
+      if (pendingBalance <= 0 && totalAmount > 0) {
+        return 'GREEN';
       }
 
       // Caso por defecto
