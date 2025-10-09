@@ -340,15 +340,21 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
     summary: 'Actualizar una compra one-off por su ID',
     description: `Actualiza los detalles de una compra one-off existente.
         
-⚠️ CAMPOS REQUERIDOS PARA ACTUALIZACIÓN:
-• items: Array con al menos un producto (product_id, quantity, price_list_id opcional)
-• sale_channel_id: ID del canal de venta
+✅ ACTUALIZACIONES FLEXIBLES:
+• **Actualización de estado únicamente**: Solo enviar { "status": "DELIVERED" }
+• **Actualización de productos**: Requiere items y sale_channel_id
+• **Actualización de cliente**: Solo campos del cliente
+• **Actualización mixta**: Cualquier combinación de campos
+
+⚠️ CAMPOS REQUERIDOS SEGÚN TIPO DE ACTUALIZACIÓN:
+• **Solo estado/notas/dirección**: No requiere items ni sale_channel_id
+• **Modificación de productos**: Requiere items (array con al menos un producto) y sale_channel_id
 
 🔍 VALIDACIONES APLICADAS:
-• Verificación de existencia de product_id
+• Verificación de existencia de product_id (si se proporcionan items)
 • Verificación de existencia de price_list_id (si se proporciona)
 • Validación de que paid_amount sea igual a total_amount (si se proporciona)
-• Recálculo automático de total_amount basado en precio y cantidad
+• Recálculo automático de total_amount basado en precio y cantidad (si se modifican items)
 • Actualización automática de movimientos de stock para productos no retornables`,
   })
   @ApiParam({
@@ -367,7 +373,7 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
   @ApiResponse({
     status: 400,
     description:
-      'Datos de entrada inválidos. Posibles errores: product_id no existe, price_list_id no existe, paid_amount no coincide con total_amount, falta items o sale_channel_id.',
+      'Datos de entrada inválidos. Posibles errores: product_id no existe, price_list_id no existe, paid_amount no coincide con total_amount, falta items o sale_channel_id (solo cuando se modifican productos).',
   })
   updateOneOffPurchase(
     @Param('id', ParseIntPipe) id: number,

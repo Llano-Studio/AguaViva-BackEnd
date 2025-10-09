@@ -2016,32 +2016,40 @@ export class OneOffPurchaseService
   ) {
     const prisma = tx || this;
 
-    // Validar que hay items
-    if (!dto.items || dto.items.length === 0) {
+    // Para actualizaciones, permitir validaciones parciales
+    const isUpdate = 'status' in dto || 'customer' in dto || 'delivery_address' in dto || 'notes' in dto || 'paid_amount' in dto;
+    const isStatusOnlyUpdate = isUpdate && dto.items === undefined && dto.sale_channel_id === undefined;
+
+    // Validar que hay items (solo requerido para creación o actualizaciones que incluyen items)
+    if (!isStatusOnlyUpdate && (!dto.items || dto.items.length === 0)) {
       throw new BadRequestException(
         'Debe especificar al menos un producto en la compra.',
       );
     }
 
-    // Validar productos por item
-    for (const item of dto.items) {
-      const product = await prisma.product.findUnique({
-        where: { product_id: item.product_id },
-      });
-      if (!product)
-        throw new NotFoundException(
-          `Producto con ID ${item.product_id} no encontrado.`,
-        );
+    // Validar productos por item (solo si hay items)
+    if (dto.items && dto.items.length > 0) {
+      for (const item of dto.items) {
+        const product = await prisma.product.findUnique({
+          where: { product_id: item.product_id },
+        });
+        if (!product)
+          throw new NotFoundException(
+            `Producto con ID ${item.product_id} no encontrado.`,
+          );
+      }
     }
 
-    // Validar canal de venta
-    const saleChannel = await prisma.sale_channel.findUnique({
-      where: { sale_channel_id: dto.sale_channel_id },
-    });
-    if (!saleChannel)
-      throw new NotFoundException(
-        `Canal de venta con ID ${dto.sale_channel_id} no encontrado.`,
-      );
+    // Validar canal de venta (solo si se especifica)
+    if (dto.sale_channel_id) {
+      const saleChannel = await prisma.sale_channel.findUnique({
+        where: { sale_channel_id: dto.sale_channel_id },
+      });
+      if (!saleChannel)
+        throw new NotFoundException(
+          `Canal de venta con ID ${dto.sale_channel_id} no encontrado.`,
+        );
+    }
 
     // Validar localidad si se especifica
     if (dto.locality_id) {

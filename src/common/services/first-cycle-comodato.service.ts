@@ -168,11 +168,11 @@ export class FirstCycleComodatoService extends PrismaClient {
         const comodatoDto: CreateComodatoDto = {
           person_id: subscription.customer_id,
           product_id: planProduct.product_id,
-          quantity: planProduct.product_quantity,
+          quantity: 0, // 🆕 CORRECCIÓN: Inicializar con 0 items - se incrementará con cada entrega
           delivery_date: deliveryDate.toISOString().split('T')[0],
           expected_return_date: expectedReturnDate.toISOString().split('T')[0],
           status: ComodatoStatus.ACTIVE,
-          notes: `Comodato automático - Primer ciclo de suscripción ${subscriptionId}`,
+          notes: `Comodato automático - Primer ciclo de suscripción ${subscriptionId} - Cantidad máxima: ${planProduct.product_quantity}`,
           article_description: planProduct.product.description,
           deposit_amount: 0, // Sin depósito en primer ciclo
           monthly_fee: 0, // Sin cuota mensual en primer ciclo
@@ -183,7 +183,8 @@ export class FirstCycleComodatoService extends PrismaClient {
             person_id: comodatoDto.person_id,
             product_id: comodatoDto.product_id,
             subscription_id: subscriptionId, // ← Agregar subscription_id
-            quantity: comodatoDto.quantity,
+            quantity: comodatoDto.quantity, // Inicializado con 0
+            max_quantity: planProduct.product_quantity, // 🆕 Cantidad máxima según el plan de suscripción
             delivery_date: new Date(comodatoDto.delivery_date),
             expected_return_date: comodatoDto.expected_return_date
               ? new Date(comodatoDto.expected_return_date)

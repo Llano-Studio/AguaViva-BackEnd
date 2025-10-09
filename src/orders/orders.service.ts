@@ -2144,7 +2144,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         order_date: new Date().toISOString(),
         scheduled_delivery_date: collectionDate.toISOString(),
         delivery_time: '09:00-18:00',
-        total_amount: '0.00', // Pedido de cobranza sin productos adicionales
+        total_amount: pendingBalance.toString(), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
         paid_amount: '0.00',
         order_type: 'ONE_OFF' as any,
         status: 'PENDING' as any,
