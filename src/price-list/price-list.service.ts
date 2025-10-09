@@ -191,6 +191,9 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           include: {
             product: true,
           },
+          orderBy: {
+            price_list_item_id: 'asc', // 🆕 CORRECCIÓN: Ordenar por price_list_item_id ascendente
+          },
         },
       },
     });
