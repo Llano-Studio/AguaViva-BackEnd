@@ -711,13 +711,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
           }
         } else if (createOrderDto.order_type === 'HYBRID' && subscription_id) {
-          // 🆕 NUEVO: Para órdenes HYBRID con suscripción, validar que el total coincida
-          // pero permitir que el frontend envíe 0 si no calcula correctamente
-          if (
+          // 🆕 CORRECCIÓN: Para órdenes HYBRID con suscripción (incluyendo cobranzas)
+          // Si no hay items (órdenes de cobranza), usar el total_amount del DTO
+          if (items.length === 0 && dtoTotalAmountStr) {
+            // Para órdenes de cobranza sin items, usar el total_amount enviado
+            calculatedTotalFromDB = new Decimal(dtoTotalAmountStr);
+          } else if (
             dtoTotalAmountStr &&
             !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)
           ) {
-
             // No lanzar error, usar el total calculado
           }
         } else {
