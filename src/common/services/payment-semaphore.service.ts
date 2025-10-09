@@ -43,104 +43,139 @@ export class PaymentSemaphoreService
 
   /**
    * Calcula el estado del semáforo de pagos para una persona específica
+   * 🔧 CORRECCIÓN CRÍTICA: Ahora verifica TODOS los ciclos activos, no solo el último
    */
   async calculatePaymentSemaphoreStatus(
     personId: number,
   ): Promise<PaymentSemaphoreStatus> {
     try {
-      const activeSubscription = await this.customer_subscription.findFirst({
-        where: {
-          customer_id: personId,
-          status: SubscriptionStatus.ACTIVE,
-        },
-        orderBy: {
-          start_date: 'desc',
-        },
-        include: {
-          subscription_cycle: {
-            orderBy: {
-              cycle_end: 'desc',
-            },
-            take: 1,
-            select: {
-              cycle_id: true,
-              cycle_start: true,
-              cycle_end: true,
-              payment_due_date: true,
-              total_amount: true,
-              paid_amount: true,
-              pending_balance: true,
-              credit_balance: true,
-              payment_status: true,
-            },
-          },
-        },
-      });
-
-      if (!activeSubscription?.subscription_cycle?.length) return 'NONE';
-
-      const lastCycle = activeSubscription.subscription_cycle[0];
-
-      const cycleEndDate = new Date(lastCycle.cycle_end);
-      const paymentDueDate = new Date(
-        lastCycle.payment_due_date || lastCycle.cycle_end,
-      );
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Obtener información del ciclo
-      const pendingBalance = parseFloat(
-        lastCycle.pending_balance?.toString() || '0',
-      );
-      const paidAmount = parseFloat(lastCycle.paid_amount?.toString() || '0');
-      const totalAmount = parseFloat(lastCycle.total_amount?.toString() || '0');
+      // 🔧 CAMBIO CRÍTICO: Obtener TODOS los ciclos activos del cliente, no solo el último
+      // IMPORTANTE: Incluir ciclos terminados que aún tengan pagos pendientes
+      const activeCycles = await this.subscription_cycle.findMany({
+        where: {
+          customer_subscription: {
+            customer_id: personId,
+            status: SubscriptionStatus.ACTIVE,
+          },
+          // Incluir ciclos que:
+          // 1. No han terminado (cycle_end >= today), O
+          // 2. Han terminado pero tienen pagos pendientes (pending_balance > 0)
+          OR: [
+            { cycle_end: { gte: today } }, // Ciclos activos
+            { 
+              cycle_end: { lt: today },
+              pending_balance: { gt: 0 }
+            } // Ciclos terminados con deuda
+          ]
+        },
+        include: {
+          customer_subscription: {
+            select: {
+              subscription_id: true,
+              start_date: true,
+            },
+          },
+        },
+        orderBy: {
+          cycle_end: 'desc',
+        },
+      });
 
-      // Si el ciclo está marcado como PAID, el estado es GREEN
-      if (lastCycle.payment_status === 'PAID') {
-        return 'GREEN';
+      // Si no hay ciclos activos, retornar NONE
+      if (!activeCycles || activeCycles.length === 0) return 'NONE';
+
+      // 🔧 VALIDACIÓN CRÍTICA: Verificar el estado de TODOS los ciclos
+      let hasAnyPendingOrPartial = false;
+      let hasAnyOverdue = false;
+      let hasAnyWithAmount = false;
+      let earliestDueDate: Date | null = null;
+      let maxOverdueDays = 0;
+
+      for (const cycle of activeCycles) {
+        const pendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
+        const totalAmount = parseFloat(cycle.total_amount?.toString() || '0');
+        const paidAmount = parseFloat(cycle.paid_amount?.toString() || '0');
+        const paymentDueDate = cycle.payment_due_date ? new Date(cycle.payment_due_date) : new Date(cycle.cycle_end);
+
+        // Si hay monto total, marcar que tiene actividad
+        if (totalAmount > 0) {
+          hasAnyWithAmount = true;
+        }
+
+        // 🔧 VERIFICACIÓN CRÍTICA: Si algún ciclo tiene estado PENDING o PARTIAL, no puede ser GREEN
+        if (cycle.payment_status === 'PENDING' || cycle.payment_status === 'PARTIAL') {
+          hasAnyPendingOrPartial = true;
+
+          // Verificar si está vencido
+          if (paymentDueDate < today) {
+            hasAnyOverdue = true;
+            const diffTime = today.getTime() - paymentDueDate.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            maxOverdueDays = Math.max(maxOverdueDays, diffDays);
+          } else {
+            // Rastrear la fecha de vencimiento más próxima
+            if (!earliestDueDate || paymentDueDate < earliestDueDate) {
+              earliestDueDate = paymentDueDate;
+            }
+          }
+        }
+
+        // También verificar si hay saldo pendiente (doble validación)
+        if (pendingBalance > 0) {
+          hasAnyPendingOrPartial = true;
+          if (paymentDueDate < today) {
+            hasAnyOverdue = true;
+            const diffTime = today.getTime() - paymentDueDate.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            maxOverdueDays = Math.max(maxOverdueDays, diffDays);
+          }
+        }
       }
 
-      // 🆕 CORRECCIÓN: Para nuevas suscripciones sin pagos confirmados, mostrar AMARILLO
-      // Esto incluye suscripciones recién creadas donde aún no se ha confirmado el primer pago
-      if (totalAmount <= 0 && paidAmount <= 0 && pendingBalance <= 0) {
-        // Verificar si es una suscripción realmente nueva (creada recientemente)
-        const subscriptionStartDate = new Date(activeSubscription.start_date);
-        const daysSinceStart = Math.ceil((today.getTime() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Si la suscripción fue creada hace menos de 30 días y no tiene montos calculados,
-        // es probable que sea nueva y esté esperando confirmación de pago
-        if (daysSinceStart <= 30) {
-          return 'YELLOW';
+      // 🔧 LÓGICA CORREGIDA: Solo GREEN si TODOS los ciclos están completamente pagados
+      if (!hasAnyPendingOrPartial && hasAnyWithAmount) {
+        // Verificar que TODOS los ciclos tengan payment_status === 'PAID'
+        const allCyclesPaid = activeCycles.every(cycle => {
+          const pendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
+          return cycle.payment_status === 'PAID' && pendingBalance === 0;
+        });
+        if (allCyclesPaid) {
+          return 'GREEN';
+        }
+      }
+
+      // Si hay pagos vencidos, determinar el color según los días de retraso
+      if (hasAnyOverdue) {
+        if (maxOverdueDays > this.redThresholdDays) return 'RED';
+        if (maxOverdueDays > this.yellowThresholdDays) return 'YELLOW';
+        return 'YELLOW'; // Por defecto YELLOW si hay vencidos pero no superan umbrales
+      }
+
+      // Si hay pagos pendientes pero no vencidos, es YELLOW
+      if (hasAnyPendingOrPartial) {
+        return 'YELLOW';
+      }
+
+      // 🔧 MANEJO DE SUSCRIPCIONES NUEVAS: Si no hay montos pero es reciente
+      if (!hasAnyWithAmount) {
+        // Obtener la suscripción más reciente para verificar si es nueva
+        const latestSubscription = activeCycles[0]?.customer_subscription;
+        if (latestSubscription) {
+          const subscriptionStartDate = new Date(latestSubscription.start_date);
+          const daysSinceStart = Math.ceil((today.getTime() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Si la suscripción fue creada hace menos de 30 días y no tiene montos calculados,
+          // es probable que sea nueva y esté esperando confirmación de pago
+          if (daysSinceStart <= 30) {
+            return 'YELLOW';
+          }
         }
         
         // Si es muy antigua sin montos, entonces es NONE
         return 'NONE';
-      }
-
-      // 🆕 CORRECCIÓN CRÍTICA: Para suscripciones con monto total pero sin pagos
-      // (posiblemente esperando confirmación de pago inicial)
-      if (totalAmount > 0 && paidAmount <= 0) {
-        return 'YELLOW';
-      }
-
-      // Si hay deuda pendiente, verificar si está vencido
-      if (pendingBalance > 0) {
-        if (paymentDueDate < today) {
-          const diffTime = today.getTime() - paymentDueDate.getTime();
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          if (diffDays > this.redThresholdDays) return 'RED';
-          if (diffDays > this.yellowThresholdDays) return 'YELLOW';
-          return 'GREEN';
-        }
-
-        // Si tiene deuda pero no está vencido, es YELLOW (advertencia)
-        return 'YELLOW';
-      }
-
-      // Si no hay deuda pendiente (está totalmente pagado) y el monto total es mayor a 0
-      if (pendingBalance <= 0 && totalAmount > 0) {
-        return 'GREEN';
       }
 
       // Caso por defecto
