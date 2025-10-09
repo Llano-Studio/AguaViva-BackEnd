@@ -10,12 +10,13 @@ import {
   CyclePaymentResponseDto,
   CyclePaymentSummaryDto,
 } from './dto/cycle-payment-response.dto';
+import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 
 @Injectable()
 export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger(CyclePaymentsService.name);
 
-  constructor() {
+  constructor(private readonly paymentSemaphoreService: PaymentSemaphoreService) {
     super();
   }
 
@@ -181,6 +182,9 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     this.logger.log(
       `Pago registrado exitosamente para el ciclo ${cycle_id} por monto ${amount}`,
     );
+
+    // 🆕 CORRECCIÓN: Invalidar cache del semáforo de pago para que se recalcule inmediatamente
+    this.paymentSemaphoreService.invalidateCache(cycle.customer_subscription.customer_id);
 
     return {
       payment_id: result.payment_id,

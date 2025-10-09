@@ -173,8 +173,23 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Determinar payment_status
     let paymentStatus = 'PENDING';
-    if (totalAmount.equals(0)) {
-      // Si el total es 0, no hay nada que pagar
+    
+    // 🔧 CORRECCIÓN CRÍTICA: Lógica mejorada para pedidos híbridos con cobranzas
+    if (order.order_type === 'HYBRID' && order.notes && 
+        (order.notes.includes('COBRANZA') || order.notes.includes('Ciclo'))) {
+      // Para pedidos híbridos con cobranzas, usar la lógica basada en montos
+      if (totalAmount.equals(0)) {
+        // Si no hay monto total, no hay nada que pagar
+        paymentStatus = 'NONE';
+      } else if (paidAmount.equals(0)) {
+        paymentStatus = 'PENDING';
+      } else if (paidAmount.greaterThanOrEqualTo(totalAmount)) {
+        paymentStatus = 'PAID';
+      } else {
+        paymentStatus = 'PARTIAL';
+      }
+    } else if (totalAmount.equals(0)) {
+      // Para pedidos normales sin monto, no hay nada que pagar
       paymentStatus = 'NONE';
     } else if (paidAmount.equals(0)) {
       paymentStatus = 'PENDING';
