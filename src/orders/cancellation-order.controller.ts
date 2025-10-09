@@ -383,7 +383,18 @@ export class CancellationOrderController {
   @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Actualizar orden de cancelación',
-    description: 'Actualiza una orden de cancelación existente',
+    description: `Actualiza una orden de cancelación existente.
+
+🆕 **FUNCIONALIDAD AUTOMÁTICA DE COMODATOS:**
+Cuando el estado de la orden cambia a 'COMPLETED' (equivalente a DELIVERED), se eliminan automáticamente todos los comodatos activos asociados a la suscripción:
+
+• **Eliminación Automática**: Los comodatos se marcan como 'RETURNED'
+• **Fecha de Devolución**: Se establece automáticamente la fecha actual
+• **Desactivación**: Los comodatos se marcan como inactivos (is_active = false)
+• **Trazabilidad**: Se agrega una nota explicativa del proceso automático
+• **Logging**: Se registra la acción en los logs del sistema
+
+⚠️ **IMPORTANTE**: Esta acción es irreversible y se ejecuta automáticamente al cambiar el estado a COMPLETED.`,
   })
   @ApiParam({ name: 'id', description: 'ID de la orden de cancelación' })
   @ApiBody({

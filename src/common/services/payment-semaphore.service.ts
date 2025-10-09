@@ -100,8 +100,20 @@ export class PaymentSemaphoreService
         return 'GREEN';
       }
 
-      // CORRECCIÓN: Para nuevas suscripciones sin montos calculados aún, devolver NONE
+      // 🆕 CORRECCIÓN: Para nuevas suscripciones sin pagos confirmados, mostrar AMARILLO
+      // Esto incluye suscripciones recién creadas donde aún no se ha confirmado el primer pago
       if (totalAmount <= 0 && paidAmount <= 0 && pendingBalance <= 0) {
+        // Verificar si es una suscripción realmente nueva (creada recientemente)
+        const subscriptionStartDate = new Date(activeSubscription.start_date);
+        const daysSinceStart = Math.ceil((today.getTime() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Si la suscripción fue creada hace menos de 30 días y no tiene montos calculados,
+        // es probable que sea nueva y esté esperando confirmación de pago
+        if (daysSinceStart <= 30) {
+          return 'YELLOW';
+        }
+        
+        // Si es muy antigua sin montos, entonces es NONE
         return 'NONE';
       }
 
@@ -125,10 +137,10 @@ export class PaymentSemaphoreService
         return 'YELLOW';
       }
 
-      // CORRECCIÓN ADICIONAL: Si pending_balance es 0 pero total_amount también es 0,
-      // puede ser una suscripción recién creada sin cálculo de precios
-      if (pendingBalance <= 0 && totalAmount <= 0) {
-        return 'NONE';
+      // 🆕 CORRECCIÓN ADICIONAL: Para suscripciones con monto total pero sin pagos
+      // (posiblemente esperando confirmación de pago inicial)
+      if (totalAmount > 0 && paidAmount <= 0) {
+        return 'YELLOW';
       }
 
       // Caso por defecto

@@ -253,7 +253,7 @@ export class AutomatedCollectionService
         order_date: targetDate.toISOString(),
         scheduled_delivery_date: targetDate.toISOString(),
         delivery_time: '09:00-18:00',
-        total_amount: '0.00', // Pedido de cobranza sin productos adicionales
+        total_amount: cycle.pending_balance.toString(), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
         paid_amount: '0.00',
         order_type: OrderType.ONE_OFF, // Tipo de pedido para cobranzas
         status: OrderStatus.PENDING,
@@ -279,7 +279,7 @@ export class AutomatedCollectionService
             order_date: targetDate,
             scheduled_delivery_date: targetDate,
             delivery_time: '09:00-18:00',
-            total_amount: new Prisma.Decimal(0),
+            total_amount: new Prisma.Decimal(cycle.pending_balance), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
             paid_amount: new Prisma.Decimal(0),
             order_type: 'ONE_OFF', // Tipo de pedido para cobranzas automáticas
             status: 'PENDING',

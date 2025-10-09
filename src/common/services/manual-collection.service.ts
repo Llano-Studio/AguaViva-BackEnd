@@ -506,7 +506,7 @@ export class ManualCollectionService extends PrismaClient {
           order_date: new Date().toISOString().split('T')[0], // Usar la fecha actual para order_date
           scheduled_delivery_date: collection_date, // Usar collection_date para scheduled_delivery_date
           delivery_time: '09:00-18:00',
-          total_amount: '0.00', // Pedido de cobranza sin productos adicionales
+          total_amount: totalAmount.toString(), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas
           paid_amount: '0.00',
           order_type: OrderType.HYBRID, // CORRECCIÓN: Usar HYBRID para órdenes de cobranza
           status: OrderStatus.PENDING,
@@ -530,7 +530,7 @@ export class ManualCollectionService extends PrismaClient {
             order_date: new Date(), // Usar la fecha actual para order_date
             scheduled_delivery_date: new Date(collection_date), // Usar collection_date para scheduled_delivery_date
             delivery_time: '09:00-18:00',
-            total_amount: new Prisma.Decimal(0),
+            total_amount: new Prisma.Decimal(totalAmount), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas
             paid_amount: new Prisma.Decimal(0),
             order_type: 'HYBRID',
             status: 'PENDING',
