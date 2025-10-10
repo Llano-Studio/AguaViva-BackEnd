@@ -1271,9 +1271,6 @@ export class OneOffPurchaseService
               ...(updatedPersonId !== headerPurchase.person_id && {
                 person: { connect: { person_id: updatedPersonId } },
               }),
-              ...(updateDto.requires_delivery !== undefined && {
-                requires_delivery: updateDto.requires_delivery,
-              }),
               ...(updateDto.delivery_address !== undefined && {
                 delivery_address: updateDto.delivery_address,
               }),

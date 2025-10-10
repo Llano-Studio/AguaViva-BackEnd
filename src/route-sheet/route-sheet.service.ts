@@ -475,21 +475,109 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
 
-        // Crear los detalles de la hoja de ruta
-        for (const detail of validatedDetails) {
-          await tx.route_sheet_detail.create({
+        // Crear los detalles de la hoja de ruta con MERGE de cobranzas:
+        // 1) Crear detalles de pedidos (order_id) y mapear persona -> detalle
+        // 2) Crear detalles one-off y otros normalmente
+        // 3) Para cycle_payment, si existe detalle de pedido del mismo cliente, asociar en ese detalle en vez de crear uno nuevo
+
+        const orderDetails = validatedDetails.filter((d) => d.order_id);
+        const cycleDetails = validatedDetails.filter((d) => d.cycle_payment_id);
+        const otherDetails = validatedDetails.filter(
+          (d) => !d.order_id && !d.cycle_payment_id,
+        );
+
+        // Mapa persona -> detalle creado para pedidos
+        const personToDetailId = new Map<number, number>();
+
+        // Pre-cargar personas de pedidos
+        const orderIds = orderDetails.map((d) => d.order_id!)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        const ordersWithCustomer = orderIds.length
+          ? await tx.order_header.findMany({
+              where: { order_id: { in: orderIds } },
+              include: { customer: true },
+            })
+          : [];
+        const orderIdToPersonId = new Map<number, number>();
+        for (const o of ordersWithCustomer) {
+          orderIdToPersonId.set(o.order_id, o.customer.person_id);
+        }
+
+        // 1) Crear detalles de pedidos y llenar mapa persona -> detalle
+        for (const detail of orderDetails) {
+          const created = await tx.route_sheet_detail.create({
             data: {
               route_sheet_id: routeSheet.route_sheet_id,
-              order_id: detail.order_id || undefined,
-              one_off_purchase_id: detail.one_off_purchase_id || undefined,
-              one_off_purchase_header_id:
-                detail.one_off_purchase_header_id || undefined,
-              cycle_payment_id: detail.cycle_payment_id || undefined,
+              order_id: detail.order_id!,
               delivery_status: detail.delivery_status,
               delivery_time: detail.delivery_time || undefined,
               comments: detail.comments,
             },
           });
+          const personId = orderIdToPersonId.get(detail.order_id!);
+          if (personId) {
+            personToDetailId.set(personId, created.route_sheet_detail_id);
+          }
+        }
+
+        // 2) Crear otros detalles (one-off, headers, etc.)
+        for (const detail of otherDetails) {
+          await tx.route_sheet_detail.create({
+            data: {
+              route_sheet_id: routeSheet.route_sheet_id,
+              one_off_purchase_id: detail.one_off_purchase_id || undefined,
+              one_off_purchase_header_id:
+                detail.one_off_purchase_header_id || undefined,
+              delivery_status: detail.delivery_status,
+              delivery_time: detail.delivery_time || undefined,
+              comments: detail.comments,
+            },
+          });
+        }
+
+        // Pre-cargar personas de cobranzas
+        const cyclePaymentIds = cycleDetails.map((d) => d.cycle_payment_id!)
+          .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        const cyclePayments = cyclePaymentIds.length
+          ? await tx.cycle_payment.findMany({
+              where: { payment_id: { in: cyclePaymentIds } },
+              include: {
+                subscription_cycle: {
+                  include: { customer_subscription: true },
+                },
+              },
+            })
+          : [];
+        const cyclePaymentIdToPersonId = new Map<number, number>();
+        for (const cp of cyclePayments) {
+          const personId = cp.subscription_cycle.customer_subscription.customer_id;
+          if (personId) cyclePaymentIdToPersonId.set(cp.payment_id, personId);
+        }
+
+        // 3) Asociar cobranzas al detalle de pedido del mismo cliente si existe; si no, crear detalle nuevo
+        for (const detail of cycleDetails) {
+          const personId = cyclePaymentIdToPersonId.get(detail.cycle_payment_id!);
+          const existingDetailId = personId ? personToDetailId.get(personId) : undefined;
+
+          if (existingDetailId) {
+            await tx.route_sheet_detail.update({
+              where: { route_sheet_detail_id: existingDetailId },
+              data: {
+                cycle_payment_id: detail.cycle_payment_id!,
+                // Mantener delivery_time/comentarios del detalle existente
+              },
+            });
+          } else {
+            await tx.route_sheet_detail.create({
+              data: {
+                route_sheet_id: routeSheet.route_sheet_id,
+                cycle_payment_id: detail.cycle_payment_id!,
+                delivery_status: detail.delivery_status,
+                delivery_time: detail.delivery_time || undefined,
+                comments: detail.comments,
+              },
+            });
+          }
         }
 
         // 🆕 CORRECCIÓN: Cambiar estado de órdenes de PENDING a READY_FOR_DELIVERY al asignar a hoja de ruta
@@ -501,6 +589,40 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           await tx.order_header.updateMany({
             where: {
               order_id: { in: orderIdsToUpdate },
+              status: 'PENDING',
+            },
+            data: {
+              status: 'READY_FOR_DELIVERY',
+            },
+          });
+        }
+
+        // 🆕 CORRECCIÓN: Cambiar estado de compras one-off (LEGACY) a READY_FOR_DELIVERY al asignar a hoja de ruta
+        const oneOffIdsToUpdate = validatedDetails
+          .filter((detail) => detail.one_off_purchase_id)
+          .map((detail) => detail.one_off_purchase_id);
+
+        if (oneOffIdsToUpdate.length > 0) {
+          await tx.one_off_purchase.updateMany({
+            where: {
+              purchase_id: { in: oneOffIdsToUpdate },
+              status: 'PENDING',
+            },
+            data: {
+              status: 'READY_FOR_DELIVERY',
+            },
+          });
+        }
+
+        // 🆕 CORRECCIÓN: Cambiar estado de compras one-off con header a READY_FOR_DELIVERY al asignar a hoja de ruta
+        const oneOffHeaderIdsToUpdate = validatedDetails
+          .filter((detail) => detail.one_off_purchase_header_id)
+          .map((detail) => detail.one_off_purchase_header_id);
+
+        if (oneOffHeaderIdsToUpdate.length > 0) {
+          await tx.one_off_purchase_header.updateMany({
+            where: {
+              purchase_header_id: { in: oneOffHeaderIdsToUpdate },
               status: 'PENDING',
             },
             data: {
