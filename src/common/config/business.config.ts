@@ -50,7 +50,7 @@ export const BUSINESS_CONFIG = {
   // Configuración de semáforo de pagos
   PAYMENT_SEMAPHORE: {
     YELLOW_THRESHOLD_DAYS: 5, // Días para estado amarillo
-    RED_THRESHOLD_DAYS: 7, // Días para estado rojo
+    RED_THRESHOLD_DAYS: 10, // Días para estado rojo
   },
 
   // Configuración de paginación por defecto

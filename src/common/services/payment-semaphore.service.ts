@@ -58,7 +58,8 @@ export class PaymentSemaphoreService
         where: {
           customer_subscription: {
             customer_id: personId,
-            status: SubscriptionStatus.ACTIVE,
+            // Incluir suscripciones ACTIVAS y CANCELADAS que todavía tengan ciclos con deuda
+            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED] },
           },
           // Incluir ciclos que:
           // 1. No han terminado (cycle_end >= today), O
