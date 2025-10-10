@@ -21,6 +21,10 @@ export class SubscriptionCycleRenewalService
   async onModuleInit() {
     await this.$connect();
     this.logger.log('SubscriptionCycleRenewalService initialized');
+    
+    // Aplicar recargos pendientes al iniciar el servicio
+    this.logger.log('🔍 Verificando recargos pendientes al iniciar...');
+    await this.checkAndApplyLateFees();
   }
 
   /**
@@ -28,7 +32,10 @@ export class SubscriptionCycleRenewalService
    */
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async renewExpiredCycles() {
+    // Primero aplicar recargos por mora antes de renovar ciclos
+    this.logger.log('💰 Aplicando recargos por mora antes de renovar ciclos...');
     await this.checkAndApplyLateFees();
+    
     this.logger.log(
       '🔄 Iniciando renovación automática de ciclos de suscripción...',
     );
@@ -77,6 +84,17 @@ export class SubscriptionCycleRenewalService
         error,
       );
     }
+  }
+
+  /**
+   * Verifica y aplica recargos por mora cada 6 horas para asegurar aplicación oportuna
+   */
+  @Cron(CronExpression.EVERY_6_HOURS)
+  async checkLateFeesPeriodic() {
+    this.logger.log(
+      '⏰ Ejecutando verificación periódica de recargos por mora...',
+    );
+    await this.checkAndApplyLateFees();
   }
 
   /**
@@ -159,15 +177,18 @@ export class SubscriptionCycleRenewalService
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Umbral de 10 días después de la fecha de vencimiento
+    // Umbral de 10 días después de la fecha de vencimiento (incluye exactamente 10 días)
     const thresholdDate = new Date(today);
     thresholdDate.setDate(thresholdDate.getDate() - 10);
 
     try {
-      // Buscar ciclos que han pasado 10 días desde la fecha de vencimiento de pago, tienen saldo y no tienen recargo aplicado
+      // Buscar ciclos que han pasado 10 días o más desde la fecha de vencimiento de pago, 
+      // tienen saldo pendiente y no tienen recargo aplicado
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
-          payment_due_date: { lte: thresholdDate },
+          payment_due_date: { 
+            lte: thresholdDate  // Incluye exactamente 10 días de atraso
+          },
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {
@@ -252,5 +273,103 @@ export class SubscriptionCycleRenewalService
   async forceLateFeeCheck() {
     this.logger.log('🔧 Ejecutando verificación manual de recargos...');
     await this.checkAndApplyLateFees();
+  }
+
+  /**
+   * Verifica y aplica recargos por mora para una suscripción específica
+   */
+  async checkAndApplyLateFeesForSubscription(subscriptionId: number): Promise<void> {
+    this.logger.log(
+      `🔍 Verificando recargos por mora para suscripción ${subscriptionId}...`,
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Umbral de 10 días después de la fecha de vencimiento
+    const thresholdDate = new Date(today);
+    thresholdDate.setDate(thresholdDate.getDate() - 10);
+
+    try {
+      // Buscar ciclos vencidos de esta suscripción específica
+      const overdueCycles = await this.subscription_cycle.findMany({
+        where: {
+          subscription_id: subscriptionId,
+          payment_due_date: { 
+            lte: thresholdDate  // Incluye exactamente 10 días de atraso
+          },
+          late_fee_applied: false,
+          pending_balance: { gt: 0 },
+          customer_subscription: {
+            status: SubscriptionStatus.ACTIVE,
+          },
+        },
+        include: {
+          customer_subscription: {
+            include: {
+              subscription_plan: true,
+            },
+          },
+        },
+      });
+
+      if (overdueCycles.length === 0) {
+        this.logger.log(
+          `✅ No se encontraron ciclos vencidos para suscripción ${subscriptionId}`,
+        );
+        return;
+      }
+
+      this.logger.log(
+        `📋 Encontrados ${overdueCycles.length} ciclos vencidos para suscripción ${subscriptionId}`,
+      );
+
+      for (const cycle of overdueCycles) {
+        try {
+          // Determinar el precio base y calcular recargo del 20%
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan?.price as any;
+          const currentTotalRaw = cycle.total_amount as any;
+          const paidAmountRaw = cycle.paid_amount as any;
+
+          const planPrice = parseFloat(planPriceRaw?.toString() || '0');
+          const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
+          const paidAmount = parseFloat(paidAmountRaw?.toString() || '0');
+
+          // Si no tenemos total actual, usar el precio del plan como base
+          const baseAmount = currentTotal > 0 ? currentTotal : planPrice;
+          const lateFeePercentage = 0.2; // 20%
+          const surcharge = Math.round(baseAmount * lateFeePercentage * 100) / 100;
+          const newTotal = Math.round((baseAmount + surcharge) * 100) / 100;
+          const newPending = Math.max(0, Math.round((newTotal - paidAmount) * 100) / 100);
+
+          // Marcar como vencido, aplicar recargo y actualizar montos
+          await this.subscription_cycle.update({
+            where: { cycle_id: cycle.cycle_id },
+            data: {
+              is_overdue: true,
+              late_fee_applied: true,
+              late_fee_percentage: lateFeePercentage,
+              total_amount: newTotal,
+              pending_balance: newPending,
+              payment_status: newPending > 0 ? 'OVERDUE' : 'PAID',
+            },
+          });
+
+          this.logger.log(
+            `✅ Recargo aplicado al ciclo ${cycle.cycle_id} de suscripción ${subscriptionId}: +$${surcharge} (20% de $${baseAmount})`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error al aplicar recargo al ciclo ${cycle.cycle_id} de suscripción ${subscriptionId}:`,
+            error,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `❌ Error al buscar ciclos vencidos para suscripción ${subscriptionId}:`,
+        error,
+      );
+    }
   }
 }

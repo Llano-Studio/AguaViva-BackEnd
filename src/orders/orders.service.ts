@@ -2280,7 +2280,40 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       }
 
       // Verificar que el ciclo tenga saldo pendiente
-      const pendingBalance = new Decimal(cycle.pending_balance || 0);
+      let pendingBalance = new Decimal(cycle.pending_balance || 0);
+      
+      // 🆕 Aplicar recargo por mora si el ciclo está vencido y no tiene recargo aplicado
+      if (cycle.is_overdue && !cycle.late_fee_applied && pendingBalance.greaterThan(0)) {
+        const today = new Date();
+        const paymentDueDate = new Date(cycle.payment_due_date);
+        const daysLate = Math.floor((today.getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysLate >= 10) {
+          const lateFeePercentage = 0.2; // 20%
+          const currentTotal = new Decimal(cycle.total_amount || 0);
+          const surcharge = currentTotal.mul(lateFeePercentage);
+          const newTotal = currentTotal.plus(surcharge);
+          const newPending = newTotal.minus(new Decimal(cycle.paid_amount || 0));
+          
+          // Actualizar el ciclo con el recargo
+          await this.subscription_cycle.update({
+            where: { cycle_id: cycleId },
+            data: {
+              late_fee_applied: true,
+              late_fee_percentage: lateFeePercentage,
+              total_amount: newTotal.toString(),
+              pending_balance: newPending.toString(),
+            },
+          });
+          
+          pendingBalance = newPending;
+          
+          this.logger.log(
+            `✅ Recargo por mora aplicado al ciclo ${cycleId}: +$${surcharge.toString()} (20% de $${currentTotal.toString()})`,
+          );
+        }
+      }
+      
       if (pendingBalance.lessThanOrEqualTo(0)) {
         throw new BadRequestException(
           `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,

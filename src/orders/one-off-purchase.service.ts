@@ -1114,9 +1114,12 @@ export class OneOffPurchaseService
         const isLegacyStructure = !!legacyPurchase;
         const isHeaderStructure = !!headerPurchase;
 
-        let newQuantity =
-          existingPurchase.quantity ||
-          (headerPurchase ? headerPurchase.purchase_items[0]?.quantity : 0);
+        // Obtener cantidad actual según estructura
+        const currentQuantity = isLegacyStructure 
+          ? legacyPurchase.quantity 
+          : (headerPurchase.purchase_items[0]?.quantity || 0);
+          
+        let newQuantity = currentQuantity;
         let newTotalAmount =
           existingPurchase.total_amount || headerPurchase?.total_amount;
         let quantityChange = 0;
@@ -1136,7 +1139,7 @@ export class OneOffPurchaseService
           });
 
           newQuantity = firstItem.quantity;
-          quantityChange = newQuantity - existingPurchase.quantity;
+          quantityChange = newQuantity - currentQuantity;
 
           // Determinar la lista de precios a usar
           priceListId =

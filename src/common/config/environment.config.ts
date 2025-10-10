@@ -52,7 +52,7 @@ export default registerAs('app', () => ({
       10,
     ),
     redThresholdDays: parseInt(
-      process.env.PAYMENT_RED_THRESHOLD_DAYS || '7',
+      process.env.PAYMENT_RED_THRESHOLD_DAYS || '10',
       10,
     ),
     cacheTtlMinutes: parseInt(
