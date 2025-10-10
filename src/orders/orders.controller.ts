@@ -259,7 +259,7 @@ export class OrdersController {
   @ApiQuery({
     name: 'search',
     required: false,
-    description: 'Búsqueda general por cliente, número de pedido, etc.',
+    description: 'Búsqueda general por cliente, número de pedido, teléfono, etc.',
   })
   @ApiQuery({
     name: 'customerName',

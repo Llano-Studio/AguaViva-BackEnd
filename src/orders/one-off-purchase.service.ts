@@ -728,6 +728,9 @@ export class OneOffPurchaseService
       const orConditions: Prisma.one_off_purchaseWhereInput[] = [
         { person: { name: { contains: search, mode: 'insensitive' } } },
         { product: { description: { contains: search, mode: 'insensitive' } } },
+        { person: { phone: { contains: search, mode: 'insensitive' } } },
+        { person: { secondary_phone: { contains: search, mode: 'insensitive' } } },
+        { person: { additional_phones: { contains: search, mode: 'insensitive' } } },
       ];
       if (!isNaN(searchNum)) {
         orConditions.push({ purchase_id: searchNum });
@@ -2144,6 +2147,9 @@ export class OneOffPurchaseService
         const searchNum = parseInt(search);
         searchConditions = [
           { person: { name: { contains: search, mode: 'insensitive' } } },
+          { person: { phone: { contains: search, mode: 'insensitive' } } },
+          { person: { secondary_phone: { contains: search, mode: 'insensitive' } } },
+          { person: { additional_phones: { contains: search, mode: 'insensitive' } } },
           { notes: { contains: search, mode: 'insensitive' } },
         ];
 

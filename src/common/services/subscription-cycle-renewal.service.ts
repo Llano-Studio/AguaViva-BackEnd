@@ -159,15 +159,17 @@ export class SubscriptionCycleRenewalService
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // Umbral de 10 días después de la fecha de vencimiento
+    const thresholdDate = new Date(today);
+    thresholdDate.setDate(thresholdDate.getDate() - 10);
 
     try {
-      // Buscar ciclos que han pasado la fecha de vencimiento de pago y no tienen recargo aplicado
+      // Buscar ciclos que han pasado 10 días desde la fecha de vencimiento de pago, tienen saldo y no tienen recargo aplicado
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
-          payment_due_date: {
-            lt: today,
-          },
+          payment_due_date: { lte: thresholdDate },
           late_fee_applied: false,
+          pending_balance: { gt: 0 },
           customer_subscription: {
             status: SubscriptionStatus.ACTIVE,
           },
@@ -187,12 +189,34 @@ export class SubscriptionCycleRenewalService
 
       for (const cycle of overdueCycles) {
         try {
-          // Marcar como vencido y aplicar recargo
+          // Determinar el precio base de la cuota (del plan) y calcular recargo del 20%
+          const planPriceRaw =
+            cycle.customer_subscription?.subscription_plan?.price as any;
+          const currentTotalRaw = cycle.total_amount as any;
+          const paidAmountRaw = cycle.paid_amount as any;
+
+          const planPrice = parseFloat(planPriceRaw?.toString() || '0');
+          const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
+          const paidAmount = parseFloat(paidAmountRaw?.toString() || '0');
+
+          // Si no tenemos total actual, usar el precio del plan como base
+          const baseAmount = currentTotal > 0 ? currentTotal : planPrice;
+          const lateFeePercentage = 0.2; // 20%
+          const surcharge = Math.round(baseAmount * lateFeePercentage * 100) / 100;
+          const newTotal = Math.round((baseAmount + surcharge) * 100) / 100;
+          const newPending = Math.max(0, Math.round((newTotal - paidAmount) * 100) / 100);
+          const newPaymentStatus = newPending > 0 ? 'OVERDUE' : 'PAID';
+
+          // Marcar como vencido, aplicar recargo y actualizar montos
           await this.subscription_cycle.update({
             where: { cycle_id: cycle.cycle_id },
             data: {
               is_overdue: true,
               late_fee_applied: true,
+              late_fee_percentage: lateFeePercentage,
+              total_amount: newTotal,
+              pending_balance: newPending,
+              payment_status: newPaymentStatus,
             },
           });
 
