@@ -19,6 +19,7 @@ import {
   sale_channel as PrismaSaleChannel,
   client_contract as PrismaClientContract,
   Role,
+  ComodatoStatus,
 } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -1068,6 +1069,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           name: { contains: search, mode: 'insensitive' },
         },
       });
+      orConditions.push({
+        customer: {
+          phone: { contains: search, mode: 'insensitive' },
+        },
+      });
+      // También buscar por teléfonos secundarios y adicionales
+      orConditions.push({
+        customer: {
+          secondary_phone: { contains: search, mode: 'insensitive' },
+        },
+      });
+      orConditions.push({
+        customer: {
+          additional_phones: { contains: search, mode: 'insensitive' },
+        },
+      });
       if (searchAsNumber) {
         orConditions.push({ order_id: searchAsNumber });
       }
@@ -1234,7 +1251,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const existingOrder = await tx.order_header
           .findUniqueOrThrow({
             where: { order_id: id },
-            include: { order_item: { include: { product: true } } },
+            include: {
+              order_item: { include: { product: true } },
+              customer_subscription: true,
+            },
           })
           .catch(() => {
             throw new NotFoundException(
@@ -1569,17 +1589,39 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const updatedOrderItems = await tx.order_item.findMany({
           where: { order_id: id },
         });
-        const newOrderTotalAmount = updatedOrderItems.reduce(
+
+        // Sumar subtotales de ítems actualizados
+        const newItemsTotal = updatedOrderItems.reduce(
           (sum, item) => sum.plus(new Decimal(item.subtotal)),
           new Decimal(0),
         );
+
+        // Sumar subtotales de ítems existentes antes de la actualización
+        const oldItemsTotal = (existingOrder.order_item || []).reduce(
+          (sum, item) => sum.plus(new Decimal(item.subtotal)),
+          new Decimal(0),
+        );
+
+        // Si es HYBRID con cobranza (marcada en notas), preservar el monto de cobranza
+        const isHybridWithCollection =
+          existingOrder.order_type === 'HYBRID' &&
+          !!existingOrder.notes &&
+          (existingOrder.notes.includes('COBRANZA') ||
+            existingOrder.notes.includes('Ciclo'));
+
+        // Recalcular total: para híbridas con cobranza, mantener el componente de cobranza del total
+        const recalculatedTotal = isHybridWithCollection
+          ? newItemsTotal.plus(new Decimal(existingOrder.total_amount)).minus(oldItemsTotal)
+          : newItemsTotal;
+
         const currentPaidAmount = new Decimal(existingOrder.paid_amount);
+
         await tx.order_header.update({
           where: { order_id: id },
           data: {
-            total_amount: newOrderTotalAmount.toString(),
-            paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
-              ? newOrderTotalAmount.toString()
+            total_amount: recalculatedTotal.toString(),
+            paid_amount: recalculatedTotal.lessThan(currentPaidAmount)
+              ? recalculatedTotal.toString()
               : currentPaidAmount.toString(),
           },
         });
@@ -1590,7 +1632,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_item: { include: { product: true } },
             customer: { include: { locality: true, zone: true } },
             sale_channel: true,
-            customer_subscription: { include: { subscription_plan: true } },
+            customer_subscription: { include: { subscription_plan: { include: { subscription_plan_product: true } } } },
             client_contract: true,
             zone: true,
             payment_transaction: {
@@ -1600,6 +1642,98 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             },
           },
         });
+
+        // 🆕 LÓGICA DE COMODATOS AL ENTREGAR PEDIDOS
+        const isDeliveredUpdate = !!updateOrderDto.status && (updateOrderDto.status as any) === 'DELIVERED';
+        const wasNotDelivered = existingOrder.status !== 'DELIVERED';
+
+        if (isDeliveredUpdate && wasNotDelivered) {
+          // Releer items con producto para obtener cantidades entregadas si existen
+          const deliveredItems = await tx.order_item.findMany({
+            where: { order_id: id },
+            include: { product: true },
+          });
+
+          // Obtener datos de suscripción para max_quantity según el plan
+          let planProductsMap: Record<number, number> = {};
+          if (finalOrder.customer_subscription?.subscription_plan?.subscription_plan_product) {
+            for (const spp of finalOrder.customer_subscription.subscription_plan.subscription_plan_product) {
+              planProductsMap[spp.product_id] = spp.product_quantity;
+            }
+          }
+
+          // Detectar si el pedido corresponde a retiro/cancelación de suscripción
+          const notesLower = (finalOrder.notes || '').toLowerCase();
+          const isWithdrawalOrCancellation = notesLower.includes('retiro de comodato') || notesLower.includes('cancelación de suscripción');
+
+          for (const item of deliveredItems) {
+            const product = item.product;
+            // Solo productos retornables afectan comodatos
+            if (!product.is_returnable) continue;
+
+            const deliveredQty = typeof item.delivered_quantity === 'number' && item.delivered_quantity > 0
+              ? item.delivered_quantity
+              : item.quantity;
+
+            // Buscar comodato activo del cliente para la suscripción y producto
+            const comodato = await tx.comodato.findFirst({
+              where: {
+                person_id: finalOrder.customer?.person_id || existingOrder.customer_id,
+                subscription_id: existingOrder.subscription_id || finalOrder.customer_subscription?.subscription_id,
+                product_id: item.product_id,
+                status: ComodatoStatus.ACTIVE,
+                is_active: true,
+              },
+            });
+
+            // Si el pedido es de retiro/cancelación y se entregó, marcar comodato como devuelto/inactivo
+            if (isWithdrawalOrCancellation && comodato) {
+              await tx.comodato.update({
+                where: { comodato_id: comodato.comodato_id },
+                data: {
+                  status: ComodatoStatus.RETURNED,
+                  return_date: new Date(),
+                  is_active: false,
+                  notes: `${comodato.notes || ''} | Devuelto por pedido entregado (retiro/cancelación)`
+                },
+              });
+              continue; // No sumar cantidad en retiro
+            }
+
+            const maxQty = planProductsMap[item.product_id] ?? comodato?.max_quantity ?? undefined;
+
+            if (comodato) {
+              const currentQty = comodato.quantity || 0;
+              let newQty = currentQty + deliveredQty;
+              if (typeof maxQty === 'number') {
+                newQty = Math.min(newQty, maxQty);
+              }
+              await tx.comodato.update({
+                where: { comodato_id: comodato.comodato_id },
+                data: {
+                  quantity: newQty,
+                  notes: `${comodato.notes || ''} | +${deliveredQty} por entrega de pedido #${id}`,
+                },
+              });
+            } else {
+              // Crear comodato si no existe (fallback), inicializando con cantidad entregada
+              await tx.comodato.create({
+                data: {
+                  person_id: finalOrder.customer?.person_id || existingOrder.customer_id,
+                  subscription_id: existingOrder.subscription_id || finalOrder.customer_subscription?.subscription_id || null,
+                  product_id: item.product_id,
+                  quantity: typeof maxQty === 'number' ? Math.min(deliveredQty, maxQty) : deliveredQty,
+                  max_quantity: typeof maxQty === 'number' ? maxQty : null,
+                  delivery_date: new Date(),
+                  status: ComodatoStatus.ACTIVE,
+                  is_active: true,
+                  notes: `Comodato creado automáticamente por entrega de pedido #${id}`,
+                },
+              });
+            }
+          }
+        }
+
         return this.mapToOrderResponseDto(finalOrder);
       });
       return order;

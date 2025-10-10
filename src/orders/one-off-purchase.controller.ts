@@ -118,7 +118,7 @@ export class OneOffPurchaseController {
     name: 'search',
     required: false,
     description:
-      'Búsqueda general por nombre de cliente, ID de compra o descripción de producto',
+      'Búsqueda general por nombre de cliente, teléfono, ID de compra o descripción de producto',
   })
   @ApiQuery({
     name: 'customerName',

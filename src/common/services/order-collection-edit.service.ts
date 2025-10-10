@@ -5,7 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
-import { PrismaClient, OrderStatus } from '@prisma/client';
+import { PrismaClient, OrderStatus, Prisma } from '@prisma/client';
 import { OrdersService } from '../../orders/orders.service';
 
 export interface CollectionItemDto {
@@ -124,6 +124,23 @@ export class OrderCollectionEditService
         );
       }
 
+      // Idempotencia: evitar duplicar cobranza del mismo ciclo
+      const alreadyHasCycle = await this.hasCollectionForCycle(
+        orderId,
+        collectionData.cycle_id,
+      );
+      if (alreadyHasCycle) {
+        this.logger.warn(
+          `⚠️ Cobranza ya registrada para ciclo ${collectionData.cycle_id} en pedido ${orderId}. Se evita duplicación.`,
+        );
+        return {
+          order_id: orderId,
+          collection_added: false,
+          collection_amount: 0,
+          message: `El pedido ya tiene registrada la cobranza del ciclo ${collectionData.cycle_id}`,
+        };
+      }
+
       // Crear nota de cobranza
       const collectionNote = `COBRANZA AGREGADA: Suscripción ${collectionData.subscription_plan_name} - Ciclo ${collectionData.cycle_id} - Monto pendiente: $${collectionData.pending_balance} - Vencimiento: ${collectionData.payment_due_date.toISOString().split('T')[0]}`;
 
@@ -131,13 +148,37 @@ export class OrderCollectionEditService
         ? `${existingOrder.notes} | ${collectionNote}`
         : collectionNote;
 
-      // Actualizar las notas del pedido
-      await this.order_header.update({
-        where: { order_id: orderId },
-        data: {
-          notes: updatedNotes,
-        },
-      });
+      // Determinar si el pedido es solo de cobranza (sin ítems de productos)
+      const isCollectionOnlyOrder =
+        (existingOrder.order_item?.length ?? 0) === 0 &&
+        (existingOrder.notes?.includes('COBRANZA') ||
+          existingOrder.notes?.includes('PEDIDO DE COBRANZA'));
+
+      if (isCollectionOnlyOrder) {
+        // No sumar nuevamente: el total ya fue establecido al crear el pedido de cobranza
+        await this.order_header.update({
+          where: { order_id: orderId },
+          data: {
+            notes: updatedNotes,
+          },
+        });
+      } else {
+        // Calcular nuevo total sumando la cobranza al total actual
+        const currentTotal = new Prisma.Decimal(existingOrder.total_amount);
+        const collectionAmount = new Prisma.Decimal(
+          collectionData.pending_balance,
+        );
+        const newTotal = currentTotal.plus(collectionAmount);
+
+        // Actualizar notas y total_amount del pedido manteniendo el resto intacto
+        await this.order_header.update({
+          where: { order_id: orderId },
+          data: {
+            notes: updatedNotes,
+            total_amount: newTotal,
+          },
+        });
+      }
 
       this.logger.log(
         `✅ Cobranza agregada al pedido ${orderId} para cliente ${collectionData.customer_name}. Monto: $${collectionData.pending_balance}`,

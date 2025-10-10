@@ -33,6 +33,7 @@ import {
   RouteSheetPdfData,
 } from '../common/services/pdf-generator.service';
 import { DeliveryStatus } from '../common/constants/enums';
+import { OrdersService } from '../orders/orders.service';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -95,7 +96,10 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
 
 @Injectable()
 export class RouteSheetService extends PrismaClient implements OnModuleInit {
-  constructor(private readonly pdfGeneratorService: PdfGeneratorService) {
+  constructor(
+    private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly ordersService: OrdersService,
+  ) {
     super();
   }
 
@@ -1522,11 +1526,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         where: { order_id: order.order_id },
         data: {
           paid_amount: newPaidAmount.toString(),
-          status: newOrderStatus,
         },
       });
       return paymentTransaction;
     });
+    // Aplicar lógica centralizada de entrega/comodatos a través de OrdersService
+    const updatedPaidAmount = new Decimal(order.paid_amount).plus(
+      new Decimal(recordPaymentDto.amount),
+    );
+    const updatedStatus = updatedPaidAmount.greaterThanOrEqualTo(
+      new Decimal(order.total_amount),
+    )
+      ? DeliveryStatus.DELIVERED
+      : (order.status as DeliveryStatus);
+
+    if (updatedStatus === DeliveryStatus.DELIVERED && order.status !== DeliveryStatus.DELIVERED) {
+      await this.ordersService.update(order.order_id, {
+        status: updatedStatus,
+      } as any);
+    }
+
     return paymentTransactionResult;
   }
 
