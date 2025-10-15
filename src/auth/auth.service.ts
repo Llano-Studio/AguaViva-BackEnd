@@ -431,17 +431,25 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           `${this.entityName} con ID ${id} no encontrado.`,
         );
       }
-      // Soft delete: cambiar isActive a false en lugar de eliminar físicamente
-      await this.user.update({
-        where: { id },
-        data: { isActive: false },
-      });
-      return { message: `${this.entityName} con ID ${id} desactivado.` };
+      // Hard delete: eliminar físicamente el registro del usuario
+      await this.user.delete({ where: { id } });
+      return { message: `${this.entityName} con ID ${id} eliminado.` };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      handlePrismaError(error, this.entityName);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        // Violación de clave foránea: el usuario tiene datos relacionados
+        handlePrismaError(
+          error,
+          `El ${this.entityName.toLowerCase()} con ID ${id} no se puede eliminar porque tiene datos relacionados (ej. hojas de ruta, incidentes, movimientos de stock).`,
+        );
+      } else {
+        handlePrismaError(error, this.entityName);
+      }
       throw new InternalServerErrorException(
-        `Error desactivando ${this.entityName.toLowerCase()} con ID ${id}.`,
+        `Error eliminando ${this.entityName.toLowerCase()} con ID ${id}.`,
       );
     }
   }
