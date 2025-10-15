@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join } from 'path';
+import { TempFileManagerService, TempFileInfo } from './temp-file-manager.service';
+import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
+import { AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 
 export interface PdfGenerationOptions {
   includeMap?: boolean;
@@ -48,6 +51,118 @@ export interface RouteSheetPdfData {
 
 @Injectable()
 export class PdfGeneratorService {
+  // Configuración de colores de la aplicación
+  private readonly colors = {
+    primary: '#403A92',
+    secondary: '#7167FF',
+    bgPrimary: '#F5F6FA',
+    bgSecondary: '#DDDDDD',
+    bgWhite: '#FFFFFF',
+    textPrimary: '#0C1421',
+    textWhite: '#FFFFFF',
+    textAccent: '#403A92',
+    borderColor: '#D4D7E3',
+    successColor: '#93FFD1',
+    errorColor: '#FF9999',
+    warningColor: '#FFF799',
+  };
+
+  constructor(private readonly tempFileManager: TempFileManagerService) {}
+
+  /**
+   * Genera un PDF de reporte de cobranzas automáticas
+   */
+  async generateCollectionReportPdf(
+    filters: GeneratePdfCollectionsDto,
+    collectionsData: AutomatedCollectionListResponseDto
+  ): Promise<PdfGenerationResponseDto> {
+    try {
+      const fileName = this.tempFileManager.generateUniqueFileName('collections-report');
+      const filePath = this.tempFileManager.getTempFilePath(fileName);
+
+      const doc = new PDFDocument({ margin: 50 });
+      const stream = fs.createWriteStream(filePath);
+      doc.pipe(stream);
+
+      this.generateCollectionReportContent(doc, filters, collectionsData);
+      doc.end();
+
+      await new Promise<void>((resolve) => {
+        stream.on('finish', () => resolve());
+      });
+
+      const fileInfo = this.tempFileManager.createTempFileInfo(fileName, 60);
+
+      return {
+        success: true,
+        message: 'PDF generado exitosamente',
+        downloadUrl: fileInfo.downloadUrl,
+        fileName: fileInfo.fileName,
+        fileSize: fileInfo.fileSize,
+        expirationMinutes: fileInfo.expirationMinutes,
+        reportStats: {
+          total_records: collectionsData.data.length,
+          total_amount: collectionsData.summary.total_amount,
+          total_pending: collectionsData.summary.total_pending,
+          overdue_count: collectionsData.summary.overdue_count,
+          overdue_amount: collectionsData.summary.overdue_amount,
+        },
+      };
+    } catch (error) {
+      throw new Error(`Error generando PDF de reporte: ${error.message}`);
+    }
+  }
+
+  /**
+   * Genera el contenido del reporte de cobranzas
+   */
+  private generateCollectionReportContent(
+    doc: PDFKit.PDFDocument,
+    filters: GeneratePdfCollectionsDto,
+    collectionsData: AutomatedCollectionListResponseDto
+  ): void {
+    // Título del reporte
+    doc.fontSize(20).text('Reporte de Cobranzas Automáticas', { align: 'center' });
+    doc.moveDown();
+
+    // Información del reporte
+    doc.fontSize(12);
+    doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`);
+    doc.text(`Formato: ${filters.reportFormat || 'detailed'}`);
+    if (filters.reportTitle) {
+      doc.text(`Título: ${filters.reportTitle}`);
+      doc.moveDown();
+    }
+    
+    // Resumen
+    doc.fontSize(14).text('Resumen del Reporte', { underline: true });
+    doc.fontSize(10);
+    doc.text(`Total de registros: ${collectionsData.data.length}`);
+    doc.text(`Monto total: $${parseFloat(collectionsData.summary.total_amount).toFixed(2)}`);
+    doc.text(`Total pendientes: ${collectionsData.summary.total_pending}`);
+    doc.text(`Total vencidas: ${collectionsData.summary.overdue_count}`);
+    doc.text(`Monto vencido: $${parseFloat(collectionsData.summary.overdue_amount).toFixed(2)}`);
+    doc.moveDown();
+
+    // Detalles de las cobranzas
+    if (filters.reportFormat !== 'summary') {
+      doc.fontSize(14).text('Detalle de Cobranzas', { underline: true });
+      doc.fontSize(8);
+
+      collectionsData.data.forEach((collection, index) => {
+        if (index > 0 && index % 20 === 0) {
+          doc.addPage();
+        }
+
+        doc.text(`${index + 1}. ${collection.customer.name}`);
+        doc.text(`   ID: ${collection.order_id} | Monto: $${collection.total_amount}`);
+        doc.text(`   Estado: ${collection.status} | Pago: ${collection.payment_status}`);
+        doc.text(`   Fecha venc.: ${collection.due_date || 'N/A'}`);
+        doc.moveDown(0.5);
+      });
+    }
+  }
+
   /**
    * Genera un PDF de hoja de ruta con diseño moderno
    */
@@ -83,115 +198,141 @@ export class PdfGeneratorService {
     options: PdfGenerationOptions,
   ): Promise<void> {
     const {
-      includeMap = false,
       includeSignatureField = true,
       includeProductDetails = true,
-      customColors = {},
     } = options;
 
-    // 🎨 Configuración de colores de la aplicación
-    const primaryColor = customColors.primary || '#403A92'; // --acent-color-1
-    const secondaryColor = customColors.secondary || '#7167FF'; // --acent-color-2
-    const bgPrimary = '#F5F6FA'; // --bg-color-1
-    const bgSecondary = '#DDDDDD'; // --bg-color-2
-    const bgWhite = '#FFFFFF'; // --bg-color-3
-    const textPrimary = '#0C1421'; // --text-color-1
-    const textWhite = '#FFFFFF'; // --text-color-2
-    const textAccent = '#403A92'; // --text-color-3
-    const borderColor = '#D4D7E3'; // Borders
-    const successColor = '#93FFD1'; // Verde claro
-    const errorColor = '#FF9999'; // Rojo claro
-    const warningColor = '#FFF799'; // Amarillo claro
-
-    // 📄 Header minimalista y profesional
     let currentY = 50;
     
+    // Header
+    currentY = this.generateHeader(doc, routeSheet, currentY);
+    
+    // Información del conductor y vehículo
+    currentY = this.generateDriverVehicleInfo(doc, routeSheet, currentY);
+    
+    // Notas de ruta
+    currentY = this.generateRouteNotes(doc, routeSheet, currentY);
+    
+    // Tabla de pedidos
+    currentY = this.generateOrdersTable(doc, routeSheet, currentY, includeProductDetails);
+    
+    // Sección de confirmación
+    if (includeSignatureField) {
+      this.generateSignatureSection(doc, currentY);
+    }
+
+    // Pie de página
+    this.generateFooter(doc, routeSheet);
+  }
+
+  /**
+   * Genera el header del PDF
+   */
+  private generateHeader(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData, currentY: number): number {
     // Línea superior decorativa
-    doc.rect(50, currentY, 520, 3).fill(primaryColor);
+    doc.rect(50, currentY, 520, 3).fill(this.colors.primary);
     currentY += 15;
     
     // Título principal
-    doc.fontSize(28).font('Helvetica-Bold').fillColor(textPrimary);
+    doc.fontSize(28).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
     doc.text('HOJA DE RUTA', 50, currentY);
     
     // ID de la hoja de ruta
-    doc.fontSize(16).font('Helvetica').fillColor(textAccent);
+    doc.fontSize(16).font('Helvetica').fillColor(this.colors.textAccent);
     doc.text(`Número: ${routeSheet.route_sheet_id}`, 50, currentY + 35);
     
     // Fecha de entrega
-    doc.fontSize(14).font('Helvetica').fillColor(textPrimary);
+    doc.fontSize(14).font('Helvetica').fillColor(this.colors.textPrimary);
     doc.text(`Fecha: ${routeSheet.delivery_date}`, 50, currentY + 55);
     
-    currentY += 85;
+    return currentY + 85;
+  }
 
-    // 👤 Información del conductor - Diseño limpio
-    doc.rect(50, currentY, 250, 60).fill(bgPrimary).stroke(borderColor);
-    doc.rect(50, currentY, 4, 60).fill(primaryColor);
+  /**
+   * Genera la información del conductor y vehículo
+   */
+  private generateDriverVehicleInfo(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData, currentY: number): number {
+    // Información del conductor
+    doc.rect(50, currentY, 250, 60).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(50, currentY, 4, 60).fill(this.colors.primary);
     
-    doc.fontSize(14).font('Helvetica-Bold').fillColor(textPrimary);
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
     doc.text('CONDUCTOR', 70, currentY + 10);
     
-    doc.fontSize(12).font('Helvetica').fillColor(textPrimary);
+    doc.fontSize(12).font('Helvetica').fillColor(this.colors.textPrimary);
     doc.text(`Nombre: ${routeSheet.driver.name}`, 70, currentY + 30);
     doc.text(`Email: ${routeSheet.driver.email}`, 70, currentY + 45);
 
-    // 🚛 Información del vehículo - Diseño limpio
+    // Información del vehículo
     const vehicleX = 320;
-    doc.rect(vehicleX, currentY, 250, 60).fill(bgPrimary).stroke(borderColor);
-    doc.rect(vehicleX, currentY, 4, 60).fill(secondaryColor);
+    doc.rect(vehicleX, currentY, 250, 60).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(vehicleX, currentY, 4, 60).fill(this.colors.secondary);
     
-    doc.fontSize(14).font('Helvetica-Bold').fillColor(textPrimary);
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
     doc.text('VEHÍCULO', vehicleX + 20, currentY + 10);
     
-    doc.fontSize(12).font('Helvetica').fillColor(textPrimary);
+    doc.fontSize(12).font('Helvetica').fillColor(this.colors.textPrimary);
     doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 30);
     doc.text(`Descripción: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 45);
 
-    currentY += 80;
+    return currentY + 80;
+  }
 
-    // 📝 Notas de ruta - Solo si existen
+  /**
+   * Genera las notas de ruta
+   */
+  private generateRouteNotes(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData, currentY: number): number {
     if (routeSheet.route_notes) {
-      doc.rect(50, currentY, 520, 50).fill(warningColor).stroke(borderColor);
+      doc.rect(50, currentY, 520, 50).fill(this.colors.warningColor).stroke(this.colors.borderColor);
       doc.rect(50, currentY, 4, 50).fill('#FEF3C7');
       
-      doc.fontSize(14).font('Helvetica-Bold').fillColor(textPrimary);
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
       doc.text('INSTRUCCIONES ESPECIALES', 70, currentY + 10);
       
-      doc.fontSize(12).font('Helvetica').fillColor(textPrimary);
+      doc.fontSize(12).font('Helvetica').fillColor(this.colors.textPrimary);
       doc.text(routeSheet.route_notes, 70, currentY + 30, { width: 480 });
-      currentY += 70;
+      return currentY + 70;
     } else {
-      // Instrucciones básicas por defecto
-      doc.rect(50, currentY, 520, 40).fill(bgPrimary).stroke(borderColor);
-      doc.rect(50, currentY, 4, 40).fill(primaryColor);
+      doc.rect(50, currentY, 520, 40).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+      doc.rect(50, currentY, 4, 40).fill(this.colors.primary);
       
-      doc.fontSize(14).font('Helvetica-Bold').fillColor(textPrimary);
+      doc.fontSize(14).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
       doc.text('RUTA SUGERIDA', 70, currentY + 10);
       
-      doc.fontSize(12).font('Helvetica').fillColor(textPrimary);
+      doc.fontSize(12).font('Helvetica').fillColor(this.colors.textPrimary);
       doc.text('Salir por Sarmiento - Ruta zona Centro', 70, currentY + 28);
-      currentY += 60;
+      return currentY + 60;
     }
+  }
 
-    // 📦 Título de pedidos
-    doc.rect(50, currentY, 520, 35).fill(primaryColor);
-    doc.fontSize(18).font('Helvetica-Bold').fillColor(textWhite);
+  /**
+   * Genera la tabla de pedidos
+   */
+  private generateOrdersTable(
+    doc: PDFKit.PDFDocument, 
+    routeSheet: RouteSheetPdfData, 
+    currentY: number, 
+    includeProductDetails: boolean
+  ): number {
+    // Título de pedidos
+    doc.rect(50, currentY, 520, 35).fill(this.colors.primary);
+    doc.fontSize(18).font('Helvetica-Bold').fillColor(this.colors.textWhite);
     doc.text('PEDIDOS A ENTREGAR', 50, currentY + 10, {
       align: 'center',
       width: 520,
     });
     currentY += 45;
 
-    // 📊 Tabla de pedidos simplificada y clara
+    // Configuración de tabla
     const startX = 50;
     const tableWidth = 520;
-    const colWidths = [50, 180, 200, 90]; // Anchos simplificados: #, Cliente, Dirección, Estado
+    const colWidths = [50, 180, 200, 90];
     const headers = ['#', 'CLIENTE', 'DIRECCIÓN', 'ESTADO'];
     const rowHeight = 35;
 
-    // Encabezado de tabla limpio
-    doc.rect(startX, currentY, tableWidth, rowHeight).fill(primaryColor);
-    doc.fillColor(textWhite).fontSize(12).font('Helvetica-Bold');
+    // Encabezado de tabla
+    doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
+    doc.fillColor(this.colors.textWhite).fontSize(12).font('Helvetica-Bold');
     
     let colX = startX + 10;
     headers.forEach((header, index) => {
@@ -204,206 +345,216 @@ export class PdfGeneratorService {
 
     currentY += rowHeight;
 
-    // 📋 Filas de pedidos - Diseño simple y claro
+    // Filas de pedidos
     for (let i = 0; i < routeSheet.details.length; i++) {
       const detail = routeSheet.details[i];
 
-      // Verificar si necesitamos nueva página
       if (currentY > doc.page.height - 200) {
         doc.addPage();
         currentY = 50;
       }
 
-      // Fondo alternado para mejor legibilidad
-      const isEven = i % 2 === 0;
-      const rowBgColor = isEven ? bgWhite : bgPrimary;
-      doc.rect(startX, currentY, tableWidth, rowHeight).fill(rowBgColor);
-      
-      // Borde izquierdo para identificar cada pedido
-      doc.rect(startX, currentY, 4, rowHeight).fill(isEven ? primaryColor : secondaryColor);
+      currentY = this.generateOrderRow(doc, detail, i, currentY, startX, colWidths, rowHeight);
 
-      // Datos del pedido
-      doc.fontSize(11).font('Helvetica').fillColor(textPrimary);
-      colX = startX + 10;
-      
-      // Número de orden (grande y centrado)
-      doc.fontSize(14).font('Helvetica-Bold').fillColor(textAccent);
-      doc.text(detail.order.order_id.toString(), colX, currentY + 10, {
-        width: colWidths[0] - 20,
-        align: 'center'
-      });
-      colX += colWidths[0];
-      
-      // Nombre del cliente (destacado)
-      doc.fontSize(12).font('Helvetica-Bold').fillColor(textPrimary);
-      doc.text(detail.order.customer.name, colX, currentY + 8, {
-        width: colWidths[1] - 20,
-      });
-      
-      // Teléfono del cliente (pequeño)
-      doc.fontSize(10).font('Helvetica').fillColor(textPrimary);
-      doc.text(`Tel: ${detail.order.customer.phone}`, colX, currentY + 22, {
-        width: colWidths[1] - 20,
-      });
-      colX += colWidths[1];
-      
-      // Dirección (multilinea si es necesario)
-      doc.fontSize(10).font('Helvetica').fillColor(textPrimary);
-      doc.text(detail.order.customer.address, colX, currentY + 8, {
-        width: colWidths[2] - 20,
-        align: 'left'
-      });
-      colX += colWidths[2];
-
-      // Estado con diseño claro
-      const statusColor = this.getStatusColor(detail.delivery_status);
-      const translatedStatus = this.translateStatus(detail.delivery_status);
-      
-      // Badge de estado más grande y claro
-      doc.rect(colX + 5, currentY + 8, colWidths[3] - 15, 20).fill(statusColor);
-      doc.fillColor(textWhite).fontSize(10).font('Helvetica-Bold');
-      doc.text(translatedStatus, colX + 8, currentY + 14, {
-        width: colWidths[3] - 21,
-        align: 'center'
-      });
-
-      currentY += rowHeight;
-
-      // 📦 Productos (si están habilitados) - Diseño compacto
       if (includeProductDetails && detail.order.items.length > 0) {
-        // Fondo para productos
-        doc.rect(startX + 15, currentY, tableWidth - 30, 25).fill('#F7FBFF').stroke(borderColor);
-        
-        doc.fontSize(10).fillColor(textAccent).font('Helvetica-Bold');
-        doc.text('PRODUCTOS:', startX + 25, currentY + 8);
-        
-        // Lista de productos en una línea
-        const productList = detail.order.items
-          .map(item => `${item.quantity}x ${item.product.description}`)
-          .join(' | ');
-        
-        doc.fontSize(9).fillColor(textPrimary).font('Helvetica');
-        doc.text(productList, startX + 25, currentY + 18, { width: tableWidth - 50 });
-        
-        currentY += 35;
+        currentY = this.generateProductDetails(doc, detail, currentY, startX, tableWidth);
       }
 
-      // Línea separadora sutil entre pedidos
-      doc.rect(startX, currentY, tableWidth, 1).fill(borderColor);
+      doc.rect(startX, currentY, tableWidth, 1).fill(this.colors.borderColor);
       currentY += 5;
     }
 
-    // ✍️ Sección de confirmación - Diseño simple y claro
-    if (includeSignatureField) {
-      if (currentY > doc.page.height - 200) {
-        doc.addPage();
-        currentY = 50;
-      }
+    return currentY;
+  }
 
-      // Título de confirmación
-      doc.rect(50, currentY, 520, 30).fill(primaryColor);
-      doc.fillColor(textWhite).fontSize(16).font('Helvetica-Bold');
-      doc.text('CONFIRMACIÓN DE ENTREGAS', 50, currentY + 8, {
-        align: 'center',
-        width: 520,
-      });
-      currentY += 50;
+  /**
+   * Genera una fila de pedido
+   */
+  private generateOrderRow(
+    doc: PDFKit.PDFDocument,
+    detail: any,
+    index: number,
+    currentY: number,
+    startX: number,
+    colWidths: number[],
+    rowHeight: number
+  ): number {
+    const isEven = index % 2 === 0;
+    const rowBgColor = isEven ? this.colors.bgWhite : this.colors.bgPrimary;
+    doc.rect(startX, currentY, 520, rowHeight).fill(rowBgColor);
+    
+    doc.rect(startX, currentY, 4, rowHeight).fill(isEven ? this.colors.primary : this.colors.secondary);
 
-      // Campos de firma simplificados
-      const signatureHeight = 80;
-      const signatureWidth = 250;
+    let colX = startX + 10;
+    
+    // Número de orden
+    doc.fontSize(14).font('Helvetica-Bold').fillColor(this.colors.textAccent);
+    doc.text(detail.order.order_id.toString(), colX, currentY + 10, {
+      width: colWidths[0] - 20,
+      align: 'center'
+    });
+    colX += colWidths[0];
+    
+    // Nombre del cliente
+    doc.fontSize(12).font('Helvetica-Bold').fillColor(this.colors.textPrimary);
+    doc.text(detail.order.customer.name, colX, currentY + 8, {
+      width: colWidths[1] - 20,
+    });
+    
+    // Teléfono del cliente
+    doc.fontSize(10).font('Helvetica').fillColor(this.colors.textPrimary);
+    doc.text(`Tel: ${detail.order.customer.phone}`, colX, currentY + 22, {
+      width: colWidths[1] - 20,
+    });
+    colX += colWidths[1];
+    
+    // Dirección
+    doc.fontSize(10).font('Helvetica').fillColor(this.colors.textPrimary);
+    doc.text(detail.order.customer.address, colX, currentY + 8, {
+      width: colWidths[2] - 20,
+      align: 'left'
+    });
+    colX += colWidths[2];
 
-      // Firma del conductor
-      doc.rect(50, currentY, signatureWidth, signatureHeight).fill(bgWhite).stroke(borderColor);
-      doc.rect(50, currentY, 4, signatureHeight).fill(primaryColor);
-      
-      doc.fillColor(textPrimary).fontSize(12).font('Helvetica-Bold');
-      doc.text('CONDUCTOR', 70, currentY + 10);
-      
-      doc.fontSize(10).font('Helvetica').fillColor(textPrimary);
-      doc.text('Nombre: _________________________', 70, currentY + 30);
-      doc.text('Fecha: _____ / _____ / _____', 70, currentY + 50);
-      doc.text('Hora: _____ : _____', 70, currentY + 65);
+    // Estado
+    const statusColor = this.getStatusColor(detail.delivery_status);
+    const translatedStatus = this.translateStatus(detail.delivery_status);
+    
+    doc.rect(colX + 5, currentY + 8, colWidths[3] - 15, 20).fill(statusColor);
+    doc.fillColor(this.colors.textWhite).fontSize(10).font('Helvetica-Bold');
+    doc.text(translatedStatus, colX + 8, currentY + 14, {
+      width: colWidths[3] - 21,
+      align: 'center'
+    });
 
-      // Firma del supervisor
-      const supervisorX = 320;
-      doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(bgWhite).stroke(borderColor);
-      doc.rect(supervisorX, currentY, 4, signatureHeight).fill(secondaryColor);
-      
-      doc.fillColor(textPrimary).fontSize(12).font('Helvetica-Bold');
-      doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
-      
-      doc.fontSize(10).font('Helvetica').fillColor(textPrimary);
-      doc.text('Nombre: _________________________', supervisorX + 20, currentY + 30);
-      doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
-      doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
-      
-      currentY += signatureHeight + 20;
+    return currentY + rowHeight;
+  }
+
+  /**
+   * Genera los detalles de productos
+   */
+  private generateProductDetails(
+    doc: PDFKit.PDFDocument,
+    detail: any,
+    currentY: number,
+    startX: number,
+    tableWidth: number
+  ): number {
+    doc.rect(startX + 15, currentY, tableWidth - 30, 25).fill('#F7FBFF').stroke(this.colors.borderColor);
+    
+    doc.fontSize(10).fillColor(this.colors.textAccent).font('Helvetica-Bold');
+    doc.text('PRODUCTOS:', startX + 25, currentY + 8);
+    
+    const productList = detail.order.items
+      .map(item => `${item.quantity}x ${item.product.description}`)
+      .join(' | ');
+    
+    doc.fontSize(9).fillColor(this.colors.textPrimary).font('Helvetica');
+    doc.text(productList, startX + 25, currentY + 18, { width: tableWidth - 50 });
+    
+    return currentY + 35;
+  }
+
+  /**
+   * Genera la sección de firmas
+   */
+  private generateSignatureSection(doc: PDFKit.PDFDocument, currentY: number): void {
+    if (currentY > doc.page.height - 200) {
+      doc.addPage();
+      currentY = 50;
     }
 
-    // 📄 Pie de página minimalista
+    // Título de confirmación
+    doc.rect(50, currentY, 520, 30).fill(this.colors.primary);
+    doc.fillColor(this.colors.textWhite).fontSize(16).font('Helvetica-Bold');
+    doc.text('CONFIRMACIÓN DE ENTREGAS', 50, currentY + 8, {
+      align: 'center',
+      width: 520,
+    });
+    currentY += 50;
+
+    const signatureHeight = 80;
+    const signatureWidth = 250;
+
+    // Firma del conductor
+    doc.rect(50, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
+    doc.rect(50, currentY, 4, signatureHeight).fill(this.colors.primary);
+    
+    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Helvetica-Bold');
+    doc.text('CONDUCTOR', 70, currentY + 10);
+    
+    doc.fontSize(10).font('Helvetica').fillColor(this.colors.textPrimary);
+    doc.text('Nombre: _________________________', 70, currentY + 30);
+    doc.text('Fecha: _____ / _____ / _____', 70, currentY + 50);
+    doc.text('Hora: _____ : _____', 70, currentY + 65);
+
+    // Firma del supervisor
+    const supervisorX = 320;
+    doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
+    doc.rect(supervisorX, currentY, 4, signatureHeight).fill(this.colors.secondary);
+    
+    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Helvetica-Bold');
+    doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
+    
+    doc.fontSize(10).font('Helvetica').fillColor(this.colors.textPrimary);
+    doc.text('Nombre: _________________________', supervisorX + 20, currentY + 30);
+    doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
+    doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
+  }
+
+  /**
+   * Genera el pie de página
+   */
+  private generateFooter(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData): void {
     const footerY = doc.page.height - 40;
     
-    // Línea superior
-    doc.rect(50, footerY - 5, 520, 1).fill(borderColor);
+    doc.rect(50, footerY - 5, 520, 1).fill(this.colors.borderColor);
     
-    // Información básica
-    doc.fillColor(textPrimary).fontSize(9).font('Helvetica');
+    doc.fillColor(this.colors.textPrimary).fontSize(9).font('Helvetica');
     doc.text(`Documento generado: ${new Date().toLocaleString('es-ES')}`, 50, footerY);
     doc.text(`Total pedidos: ${routeSheet.details.length}`, 50, footerY + 12);
     
-    // Empresa
     doc.text('Agua Viva Rica - Sistema de Gestión', doc.page.width - 200, footerY, { align: 'right', width: 150 });
   }
 
   /**
-   * Traduce el estado de entrega al español - Textos simples y claros
+   * Traduce el estado de entrega al español
    */
   private translateStatus(status: string): string {
-    switch (status.toLowerCase()) {
-      case 'pending':
-      case 'pendiente':
-        return 'PENDIENTE';
-      case 'delivered':
-      case 'entregado':
-        return 'ENTREGADO';
-      case 'cancelled':
-      case 'cancelado':
-        return 'CANCELADO';
-      case 'in_route':
-      case 'en_ruta':
-        return 'EN RUTA';
-      case 'overdue':
-      case 'atrasado':
-        return 'ATRASADO';
-      default:
-        return 'PENDIENTE'; // Por defecto siempre pendiente
-    }
+    const statusMap = {
+      'pending': 'PENDIENTE',
+      'pendiente': 'PENDIENTE',
+      'delivered': 'ENTREGADO',
+      'entregado': 'ENTREGADO',
+      'cancelled': 'CANCELADO',
+      'cancelado': 'CANCELADO',
+      'in_route': 'EN RUTA',
+      'en_ruta': 'EN RUTA',
+      'overdue': 'ATRASADO',
+      'atrasado': 'ATRASADO',
+    };
+    
+    return statusMap[status.toLowerCase()] || 'PENDIENTE';
   }
 
   /**
-   * Obtiene el color correspondiente al estado usando la paleta de la aplicación
+   * Obtiene el color correspondiente al estado
    */
   private getStatusColor(status: string): string {
-    switch (status.toLowerCase()) {
-      case 'entregado':
-      case 'delivered':
-        return '#93FFD1'; // Success - Verde claro
-      case 'pendiente':
-      case 'pending':
-        return '#FFF799'; // Warning - Amarillo claro
-      case 'cancelado':
-      case 'cancelled':
-        return '#FF9999'; // Error - Rojo claro
-      case 'en_ruta':
-      case 'in_route':
-        return '#93e6ff'; // Info - Azul claro
-      case 'atrasado':
-      case 'overdue':
-        return '#B20000'; // Danger - Rojo oscuro
-      default:
-        return '#FFF799'; // Por defecto amarillo (pendiente)
-    }
+    const colorMap = {
+      'entregado': this.colors.successColor,
+      'delivered': this.colors.successColor,
+      'pendiente': this.colors.warningColor,
+      'pending': this.colors.warningColor,
+      'cancelado': this.colors.errorColor,
+      'cancelled': this.colors.errorColor,
+      'en_ruta': '#93e6ff',
+      'in_route': '#93e6ff',
+      'atrasado': '#B20000',
+      'overdue': '#B20000',
+    };
+    
+    return colorMap[status.toLowerCase()] || this.colors.warningColor;
   }
 
   /**
@@ -417,7 +568,6 @@ export class PdfGeneratorService {
     return new Promise((resolve, reject) => {
       doc.end();
       writeStream.on('finish', () => {
-        // Use relative path instead of hardcoded localhost URL to avoid CORS issues
         const url = `/public/pdfs/${filename}`;
         resolve({ url, filename });
       });

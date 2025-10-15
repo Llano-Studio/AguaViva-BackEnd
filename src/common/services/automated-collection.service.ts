@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus, OrderStatus as PrismaOrderStatus, PaymentStatus } from '@prisma/client';
 import { OrderType, OrderStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
@@ -8,6 +8,29 @@ import {
   OrderCollectionEditService,
   CollectionItemDto,
 } from './order-collection-edit.service';
+import { FilterAutomatedCollectionsDto } from '../../orders/dto/filter-automated-collections.dto';
+import { 
+  AutomatedCollectionResponseDto, 
+  AutomatedCollectionListResponseDto 
+} from '../../orders/dto/automated-collection-response.dto';
+import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
+import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
+import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
+import { PdfGeneratorService } from './pdf-generator.service';
+import { RouteSheetGeneratorService } from './route-sheet-generator.service';
+
+// Helper function to map Prisma PaymentStatus to our custom PaymentStatus
+function mapPaymentStatus(prismaStatus: string): PaymentStatus {
+  const statusMap: Record<string, PaymentStatus> = {
+    'PENDING': PaymentStatus.PENDING,
+    'PARTIAL': PaymentStatus.PARTIAL,
+    'PAID': PaymentStatus.PAID,
+    'OVERDUE': PaymentStatus.OVERDUE,
+    'CREDITED': PaymentStatus.CREDITED,
+  };
+  
+  return statusMap[prismaStatus] || PaymentStatus.PENDING;
+}
 
 export interface CollectionOrderSummaryDto {
   cycle_id: number;
@@ -32,6 +55,8 @@ export class AutomatedCollectionService
   constructor(
     private readonly ordersService: OrdersService,
     private readonly orderCollectionEditService: OrderCollectionEditService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
   ) {
     super();
   }
@@ -497,4 +522,503 @@ export class AutomatedCollectionService
       notes: 'Pendiente de generación automática',
     }));
   }
+
+  /**
+   * Lista las cobranzas automáticas con filtros y paginación
+   */
+  async listAutomatedCollections(
+    filters: FilterAutomatedCollectionsDto,
+  ): Promise<AutomatedCollectionListResponseDto> {
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const skip = (page - 1) * limit;
+
+    // Construir filtros dinámicos
+    const whereClause: any = {
+      order_type: 'ONE_OFF',
+      notes: {
+        contains: 'COBRANZA AUTOMÁTICA',
+      },
+    };
+
+    // Filtros de fecha (creación de orden)
+    if (filters.orderDateFrom || filters.orderDateTo) {
+      whereClause.order_date = {};
+      if (filters.orderDateFrom) {
+        whereClause.order_date.gte = new Date(filters.orderDateFrom);
+      }
+      if (filters.orderDateTo) {
+        const endDate = new Date(filters.orderDateTo);
+        endDate.setHours(23, 59, 59, 999);
+        whereClause.order_date.lte = endDate;
+      }
+    }
+
+    // Construir filtros para subscription_cycle (due dates / overdue)
+    const subscriptionCycleSome: any = {};
+    if (filters.dueDateFrom || filters.dueDateTo) {
+      subscriptionCycleSome.payment_due_date = subscriptionCycleSome.payment_due_date || {};
+      if (filters.dueDateFrom) {
+        subscriptionCycleSome.payment_due_date.gte = new Date(filters.dueDateFrom);
+      }
+      if (filters.dueDateTo) {
+        const dueEndDate = new Date(filters.dueDateTo);
+        dueEndDate.setHours(23, 59, 59, 999);
+        subscriptionCycleSome.payment_due_date.lte = dueEndDate;
+      }
+    }
+
+// Filtros de estado
+if (filters.statuses && filters.statuses.length > 0) {
+whereClause.status = { in: filters.statuses };
+}
+
+if (filters.paymentStatuses && filters.paymentStatuses.length > 0) {
+whereClause.payment_status = { in: filters.paymentStatuses };
+}
+
+// Filtros de cliente
+if (filters.customerIds && filters.customerIds.length > 0) {
+whereClause.customer_id = { in: filters.customerIds };
+}
+
+if (filters.customerName) {
+whereClause.person = {
+name: {
+contains: filters.customerName,
+mode: 'insensitive',
+},
+};
+}
+
+// Filtro de búsqueda general
+if (filters.search) {
+whereClause.OR = [
+{
+customer: {
+name: {
+contains: filters.search,
+mode: 'insensitive',
+},
+},
+},
+{
+order_id: {
+equals: isNaN(parseInt(filters.search)) ? undefined : parseInt(filters.search),
+},
+},
+{
+notes: {
+contains: filters.search,
+mode: 'insensitive',
+},
+},
+];
+}
+
+// Filtro de ID específico
+if (filters.orderId) {
+whereClause.order_id = filters.orderId;
+}
+
+// Filtros de monto
+if (filters.minAmount || filters.maxAmount) {
+whereClause.total_amount = {};
+if (filters.minAmount) {
+whereClause.total_amount.gte = new Prisma.Decimal(filters.minAmount);
+}
+if (filters.maxAmount) {
+whereClause.total_amount.lte = new Prisma.Decimal(filters.maxAmount);
+}
+}
+
+// Filtro de vencidas
+if (filters.overdue === 'true') {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  subscriptionCycleSome.payment_due_date = subscriptionCycleSome.payment_due_date || {};
+  subscriptionCycleSome.payment_due_date.lt = today;
+  subscriptionCycleSome.pending_balance = { gt: 0 };
+
+  // Mantener compatibilidad con estados de pago del pedido
+  whereClause.AND = [
+    {
+      OR: [
+        { payment_status: 'PENDING' },
+        { payment_status: 'OVERDUE' },
+      ],
+    },
+  ];
+}
+
+// Aplicar filtros combinados de subscription_cycle si corresponde
+if (Object.keys(subscriptionCycleSome).length > 0) {
+  whereClause.customer_subscription = {
+    ...(whereClause.customer_subscription || {}),
+    subscription_cycle: {
+      some: subscriptionCycleSome,
+    },
+  };
+}
+
+// Filtro por zonas (IDs de zonas del cliente)
+if (filters.zoneIds && filters.zoneIds.length > 0) {
+  whereClause.customer = {
+    ...(whereClause.customer || {}),
+    zone_id: { in: filters.zoneIds },
+  };
+}
+
+// Filtro por plan de suscripción
+if (typeof filters.subscriptionPlanId === 'number') {
+  whereClause.customer_subscription = {
+    ...(whereClause.customer_subscription || {}),
+    subscription_plan_id: filters.subscriptionPlanId,
+  };
+}
+
+// Ordenamiento
+const orderBy: any = {};
+if (filters.sortBy) {
+const sortFields = filters.sortBy.split(',');
+sortFields.forEach((field) => {
+const isDesc = field.startsWith('-');
+const fieldName = isDesc ? field.substring(1) : field;
+const direction = isDesc ? 'desc' : 'asc';
+
+switch (fieldName) {
+case 'createdAt':
+orderBy.created_at = direction;
+break;
+case 'orderDate':
+orderBy.order_date = direction;
+break;
+case 'amount':
+orderBy.total_amount = direction;
+break;
+case 'customer':
+orderBy.person = { name: direction };
+break;
+default:
+orderBy.order_date = 'desc';
+}
+});
+} else {
+orderBy.order_date = 'desc';
+}
+
+// Ejecutar consultas
+const [orders, total] = await Promise.all([
+this.order_header.findMany({
+where: whereClause,
+include: {
+customer: {
+include: {
+zone: true,
+},
+},
+customer_subscription: {
+include: {
+subscription_plan: true,
+subscription_cycle: {
+where: {
+pending_balance: { gt: 0 },
+},
+orderBy: {
+payment_due_date: 'desc',
+},
+take: 1,
+},
+},
+},
+},
+orderBy,
+skip,
+take: limit,
+}),
+this.order_header.count({ where: whereClause }),
+]);
+
+// Transformar datos
+const data: AutomatedCollectionResponseDto[] = orders.map((order) => {
+const today = new Date();
+const dueDate = (order as any).customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
+const isOverdue = dueDate ? dueDate < today : false;
+const daysOverdue = isOverdue && dueDate 
+? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+: 0;
+
+const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+
+const result: AutomatedCollectionResponseDto = {
+order_id: order.order_id,
+order_date: order.order_date.toISOString(),
+due_date: dueDate?.toISOString() || null,
+total_amount: order.total_amount.toString(),
+paid_amount: order.paid_amount.toString(),
+pending_amount: pendingAmount.toFixed(2),
+status: order.status as OrderStatus,
+payment_status: order.payment_status as any,
+notes: order.notes,
+is_overdue: isOverdue,
+days_overdue: daysOverdue,
+customer: {
+customer_id: order.customer_id,
+name: (order as any).customer.name,
+document_number: (order as any).customer.document_number,
+phone: (order as any).customer.phone,
+email: (order as any).customer.email,
+address: (order as any).customer.address,
+zone: (order as any).customer.zone ? {
+zone_id: (order as any).customer.zone.zone_id,
+name: (order as any).customer.zone.name,
+} : null,
+},
+subscription_info: (order as any).customer_subscription ? {
+subscription_id: (order as any).customer_subscription.subscription_id,
+subscription_plan: {
+subscription_plan_id: (order as any).customer_subscription.subscription_plan.subscription_plan_id,
+name: (order as any).customer_subscription.subscription_plan.name,
+price: (order as any).customer_subscription.subscription_plan.price.toString(),
+billing_frequency: (order as any).customer_subscription.subscription_plan.billing_frequency,
+},
+cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
+cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
+cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
+start_date: (order as any).customer_subscription.subscription_cycle[0].start_date.toISOString(),
+end_date: (order as any).customer_subscription.subscription_cycle[0].end_date.toISOString(),
+due_date: (order as any).customer_subscription.subscription_cycle[0].payment_due_date?.toISOString() || '',
+pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+} : null,
+} : null,
+created_at: (order as any).created_at.toISOString(),
+updated_at: (order as any).updated_at.toISOString(),
+};
+
+return result;
+});
+
+// Calcular resumen
+const summary = {
+total_amount: orders.reduce((sum, order) => sum + parseFloat(order.total_amount.toString()), 0).toFixed(2),
+total_paid: orders.reduce((sum, order) => sum + parseFloat(order.paid_amount.toString()), 0).toFixed(2),
+total_pending: orders.reduce((sum, order) => {
+const pending = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+return sum + pending;
+}, 0).toFixed(2),
+overdue_amount: data.filter(d => d.is_overdue).reduce((sum, d) => sum + parseFloat(d.pending_amount), 0).toFixed(2),
+overdue_count: data.filter(d => d.is_overdue).length,
+};
+
+// Información de paginación
+const totalPages = Math.ceil(total / limit);
+const pagination = {
+total,
+page,
+limit,
+totalPages,
+hasNext: page < totalPages,
+hasPrev: page > 1,
+};
+
+return {
+data,
+pagination,
+summary,
+};
+}
+
+/**
+ * Obtiene los detalles de una cobranza automática específica
+ */
+async getAutomatedCollectionById(orderId: number): Promise<AutomatedCollectionResponseDto> {
+const order = await this.order_header.findFirst({
+where: {
+order_id: orderId,
+order_type: 'ONE_OFF',
+notes: {
+contains: 'COBRANZA AUTOMÁTICA',
+},
+},
+include: {
+customer: {
+include: {
+zone: true,
+},
+},
+customer_subscription: {
+include: {
+subscription_plan: true,
+subscription_cycle: {
+where: {
+pending_balance: { gt: 0 },
+},
+orderBy: {
+payment_due_date: 'desc',
+},
+take: 1,
+},
+},
+},
+},
+});
+
+if (!order) {
+throw new Error(`Cobranza automática con ID ${orderId} no encontrada`);
+}
+
+const today = new Date();
+const dueDate = (order as any).customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
+const isOverdue = dueDate ? dueDate < today : false;
+const daysOverdue = isOverdue && dueDate 
+? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+: 0;
+
+const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+
+const result: AutomatedCollectionResponseDto = {
+order_id: order.order_id,
+order_date: order.order_date.toISOString(),
+due_date: dueDate?.toISOString() || null,
+total_amount: order.total_amount.toString(),
+paid_amount: order.paid_amount.toString(),
+pending_amount: pendingAmount.toFixed(2),
+status: order.status as OrderStatus,
+payment_status: order.payment_status as any,
+notes: order.notes,
+is_overdue: isOverdue,
+days_overdue: daysOverdue,
+customer: {
+customer_id: order.customer_id,
+name: (order as any).customer.name,
+document_number: (order as any).customer.document_number,
+phone: (order as any).customer.phone,
+email: (order as any).customer.email,
+address: (order as any).customer.address,
+zone: (order as any).customer.zone ? {
+zone_id: (order as any).customer.zone.zone_id,
+name: (order as any).customer.zone.name,
+} : null,
+},
+subscription_info: (order as any).customer_subscription ? {
+subscription_id: (order as any).customer_subscription.subscription_id,
+subscription_plan: {
+subscription_plan_id: (order as any).customer_subscription.subscription_plan.subscription_plan_id,
+name: (order as any).customer_subscription.subscription_plan.name,
+price: (order as any).customer_subscription.subscription_plan.price.toString(),
+billing_frequency: (order as any).customer_subscription.subscription_plan.billing_frequency,
+},
+cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
+cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
+cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
+start_date: (order as any).customer_subscription.subscription_cycle[0].start_date.toISOString(),
+end_date: (order as any).customer_subscription.subscription_cycle[0].end_date.toISOString(),
+due_date: (order as any).customer_subscription.subscription_cycle[0].payment_due_date?.toISOString() || '',
+pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+} : null,
+} : null,
+created_at: (order as any).created_at.toISOString(),
+updated_at: (order as any).updated_at.toISOString(),
+};
+
+return result;
+}
+
+/**
+ * Elimina lógicamente una cobranza automática
+ */
+async deleteAutomatedCollection(orderId: number): Promise<DeleteAutomatedCollectionResponseDto> {
+const order = await this.order_header.findFirst({
+where: {
+order_id: orderId,
+order_type: 'ONE_OFF',
+notes: {
+contains: 'COBRANZA AUTOMÁTICA',
+},
+},
+include: {
+customer: true,
+},
+});
+
+if (!order) {
+throw new Error(`Cobranza automática con ID ${orderId} no encontrada`);
+}
+
+// Verificar si tiene pagos
+const hasPaidAmount = parseFloat(order.paid_amount.toString()) > 0;
+if (hasPaidAmount) {
+throw new Error('No se puede eliminar una cobranza que ya tiene pagos registrados');
+}
+
+// Eliminar lógicamente (cambiar estado)
+await this.order_header.update({
+where: { order_id: orderId },
+data: {
+status: 'CANCELLED',
+notes: `${order.notes} - ELIMINADO LÓGICAMENTE`,
+},
+});
+
+const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+
+return {
+success: true,
+message: 'Cobranza automática eliminada exitosamente',
+deletedOrderId: orderId,
+deletedAt: new Date().toISOString(),
+deletionInfo: {
+was_paid: hasPaidAmount,
+had_pending_amount: pendingAmount.toFixed(2),
+customer_name: (order as any).customer.name,
+deletion_type: 'logical',
+},
+};
+}
+
+/**
+ * Genera un PDF con el reporte de cobranzas automáticas
+ */
+async generatePdfReport(filters: GeneratePdfCollectionsDto): Promise<PdfGenerationResponseDto> {
+  try {
+    // Obtener datos para el reporte
+    const filterDto: FilterAutomatedCollectionsDto = {
+      orderDateFrom: filters.dateFrom,
+      orderDateTo: filters.dateTo,
+      dueDateFrom: filters.dueDateFrom,
+      dueDateTo: filters.dueDateTo,
+      statuses: filters.statuses,
+      paymentStatuses: filters.paymentStatuses,
+      customerIds: filters.customerIds,
+      zoneIds: filters.zoneIds,
+      overdue: filters.overdueOnly,
+      minAmount: filters.minAmount,
+      maxAmount: filters.maxAmount,
+      page: 1,
+      limit: 10000, // Obtener todos los registros para el PDF
+    };
+
+    const collectionsData = await this.listAutomatedCollections(filterDto);
+
+    // Usar el servicio de generación de PDFs
+    return await this.pdfGeneratorService.generateCollectionReportPdf(filters, collectionsData);
+  } catch (error) {
+    this.logger.error('Error generando PDF:', error);
+    throw new Error(`Error generando PDF: ${error.message}`);
+  }
+}
+
+/**
+ * Genera una hoja de ruta para cobranzas
+ */
+async generateRouteSheet(filters: GenerateRouteSheetDto): Promise<RouteSheetResponseDto> {
+  try {
+    // Usar el servicio de generación de hojas de ruta
+    return await this.routeSheetGeneratorService.generateRouteSheet(filters);
+  } catch (error) {
+    this.logger.error('Error generando hoja de ruta:', error);
+    throw new Error(`Error generando hoja de ruta: ${error.message}`);
+  }
+}
 }

@@ -18,6 +18,7 @@ import {
   OrderItemDto,
   DriverDto,
   VehicleDto,
+  ZoneDto,
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
@@ -38,7 +39,28 @@ import { OrdersService } from '../orders/orders.service';
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
     driver: true;
-    vehicle: true;
+    vehicle: {
+      include: {
+        vehicle_zone: {
+          where: { is_active: true };
+          include: {
+            zone: {
+              include: {
+                locality: {
+                  include: {
+                    province: {
+                      include: {
+                        country: true;
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
     route_sheet_detail: {
       include: {
         order_header: {
@@ -419,7 +441,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -636,7 +679,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           where: { route_sheet_id: routeSheet.route_sheet_id },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -748,7 +812,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         where: whereClause,
         include: {
           driver: true,
-          vehicle: true,
+          vehicle: {
+            include: {
+              vehicle_zone: {
+                where: { is_active: true },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {
@@ -839,7 +924,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       },
       include: {
         driver: true,
-        vehicle: true,
+        vehicle: {
+          include: {
+            vehicle_zone: {
+              where: { is_active: true },
+              include: {
+                zone: {
+                  include: {
+                    locality: {
+                      include: {
+                        province: {
+                          include: {
+                            country: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         route_sheet_detail: {
           include: {
             order_header: {
@@ -944,7 +1050,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           data: updateData,
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1051,7 +1178,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           where: { route_sheet_id: id },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1240,6 +1388,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       vehicle_id: routeSheet.vehicle.vehicle_id,
       code: routeSheet.vehicle.code,
       name: routeSheet.vehicle.name,
+      zones: routeSheet.vehicle.vehicle_zone?.map(vz => ({
+        zone_id: vz.zone.zone_id,
+        code: vz.zone.code,
+        name: vz.zone.name,
+        locality: {
+          locality_id: vz.zone.locality.locality_id,
+          code: vz.zone.locality.code,
+          name: vz.zone.locality.name,
+          province: {
+            province_id: vz.zone.locality.province.province_id,
+            code: vz.zone.locality.province.code,
+            name: vz.zone.locality.province.name,
+            country: {
+              country_id: vz.zone.locality.province.country.country_id,
+              code: vz.zone.locality.province.country.code,
+              name: vz.zone.locality.province.country.name,
+            },
+          },
+        },
+      })) || [],
     };
 
     const sortedDetails = [...routeSheet.route_sheet_detail].sort((a, b) => {
@@ -1488,7 +1656,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         where: { route_sheet_id },
         include: {
           driver: true,
-          vehicle: true,
+          vehicle: {
+            include: {
+              vehicle_zone: {
+                where: { is_active: true },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {

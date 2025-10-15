@@ -4,19 +4,24 @@ import {
   Logger,
   OnModuleInit,
 } from '@nestjs/common';
-import { PaymentStatus, PrismaClient } from '@prisma/client';
+import { PaymentStatus, PrismaClient, Role } from '@prisma/client';
 import { CreateCyclePaymentDto } from './dto/create-cycle-payment.dto';
 import {
   CyclePaymentResponseDto,
   CyclePaymentSummaryDto,
 } from './dto/cycle-payment-response.dto';
+import { UpdateCyclePaymentDto, DeletePaymentDto, PaymentOperationResponseDto } from './dto';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger(CyclePaymentsService.name);
 
-  constructor(private readonly paymentSemaphoreService: PaymentSemaphoreService) {
+  constructor(
+    private readonly paymentSemaphoreService: PaymentSemaphoreService,
+    private readonly auditService: AuditService,
+  ) {
     super();
   }
 
@@ -616,5 +621,317 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         payments,
       };
     });
+  }
+
+  /**
+   * Actualiza un pago de ciclo existente
+   */
+  async updateCyclePayment(
+    paymentId: number,
+    updateCyclePaymentDto: UpdateCyclePaymentDto,
+    userId: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<PaymentOperationResponseDto> {
+    // Verificar que el pago existe
+    const existingPayment = await this.cycle_payment.findUnique({
+      where: { payment_id: paymentId },
+      include: {
+        subscription_cycle: {
+          include: {
+            customer_subscription: true,
+          },
+        },
+      },
+    });
+
+    if (!existingPayment) {
+      throw new NotFoundException(`Pago con ID ${paymentId} no encontrado`);
+    }
+
+    // Validar permisos de actualización
+    await this.validatePaymentUpdate(existingPayment, userId);
+
+    // Guardar valores anteriores para auditoría
+    const oldValues = {
+      amount: parseFloat(existingPayment.amount?.toString() || '0'),
+      payment_method: existingPayment.payment_method,
+      payment_date: existingPayment.payment_date,
+      reference: existingPayment.reference,
+      notes: existingPayment.notes,
+    };
+
+    const result = await this.$transaction(async (tx) => {
+      // Actualizar el pago
+      const updatedPayment = await tx.cycle_payment.update({
+        where: { payment_id: paymentId },
+        data: {
+          amount: updateCyclePaymentDto.amount,
+          payment_method: updateCyclePaymentDto.payment_method,
+          payment_date: updateCyclePaymentDto.payment_date
+            ? new Date(updateCyclePaymentDto.payment_date)
+            : existingPayment.payment_date,
+          reference: updateCyclePaymentDto.reference ?? existingPayment.reference,
+          notes: updateCyclePaymentDto.notes ?? existingPayment.notes,
+          updated_at: new Date(),
+          updated_by: userId,
+        },
+      });
+
+      // Recalcular balances del ciclo si cambió el monto
+      if (updateCyclePaymentDto.amount !== oldValues.amount) {
+        await this.recalculateCycleBalances(existingPayment.cycle_id, tx);
+      }
+
+      return updatedPayment;
+    });
+
+    // Crear registro de auditoría
+    const auditId = await this.auditService.createAuditRecord({
+      tableName: 'cycle_payment',
+      recordId: paymentId,
+      operationType: 'UPDATE',
+      oldValues,
+      newValues: {
+        amount: updateCyclePaymentDto.amount,
+        payment_method: updateCyclePaymentDto.payment_method,
+        payment_date: updateCyclePaymentDto.payment_date,
+        reference: updateCyclePaymentDto.reference,
+        notes: updateCyclePaymentDto.notes,
+      },
+      userId,
+      reason: 'Actualización de pago de ciclo',
+      ipAddress,
+      userAgent,
+    });
+
+    // Invalidar cache del semáforo de pago
+    this.paymentSemaphoreService.invalidateCache(
+      existingPayment.subscription_cycle.customer_subscription.customer_id,
+    );
+
+    this.logger.log(
+      `Pago ${paymentId} actualizado exitosamente por usuario ${userId}`,
+    );
+
+    return {
+      success: true,
+      message: 'Pago actualizado exitosamente',
+      audit_id: auditId,
+      data: {
+        payment_id: result.payment_id,
+        cycle_id: result.cycle_id,
+        payment_date: result.payment_date,
+        amount: parseFloat(result.amount?.toString() || '0'),
+        payment_method: result.payment_method,
+        reference: result.reference,
+        notes: result.notes,
+      },
+      metadata: {
+        operation_type: 'UPDATE',
+        timestamp: new Date().toISOString(),
+        affected_records: 1,
+      },
+    };
+  }
+
+  /**
+   * Elimina un pago de ciclo
+   */
+  async deleteCyclePayment(
+    paymentId: number,
+    deletePaymentDto: DeletePaymentDto,
+    userId: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<PaymentOperationResponseDto> {
+    // Verificar que el pago existe
+    const existingPayment = await this.cycle_payment.findUnique({
+      where: { payment_id: paymentId },
+      include: {
+        subscription_cycle: {
+          include: {
+            customer_subscription: true,
+          },
+        },
+      },
+    });
+
+    if (!existingPayment) {
+      throw new NotFoundException(`Pago con ID ${paymentId} no encontrado`);
+    }
+
+    // Validar código de confirmación
+    if (!this.auditService.validateConfirmationCode(deletePaymentDto.confirmation_code)) {
+      throw new Error('Código de confirmación inválido');
+    }
+
+    // Validar permisos de eliminación
+    await this.validatePaymentDeletion(existingPayment, userId);
+
+    // Guardar valores para auditoría
+    const oldValues = {
+      payment_id: existingPayment.payment_id,
+      cycle_id: existingPayment.cycle_id,
+      amount: parseFloat(existingPayment.amount?.toString() || '0'),
+      payment_method: existingPayment.payment_method,
+      payment_date: existingPayment.payment_date,
+      reference: existingPayment.reference,
+      notes: existingPayment.notes,
+      created_by: existingPayment.created_by,
+    };
+
+    await this.$transaction(async (tx) => {
+      // Eliminar el pago
+      await tx.cycle_payment.delete({
+        where: { payment_id: paymentId },
+      });
+
+      // Recalcular balances del ciclo
+      await this.recalculateCycleBalances(existingPayment.cycle_id, tx);
+    });
+
+    // Crear registro de auditoría
+    const auditId = await this.auditService.createAuditRecord({
+      tableName: 'cycle_payment',
+      recordId: paymentId,
+      operationType: 'DELETE',
+      oldValues,
+      userId,
+      reason: deletePaymentDto.reason,
+      ipAddress,
+      userAgent,
+    });
+
+    // Invalidar cache del semáforo de pago
+    this.paymentSemaphoreService.invalidateCache(
+      existingPayment.subscription_cycle.customer_subscription.customer_id,
+    );
+
+    this.logger.log(
+      `Pago ${paymentId} eliminado exitosamente por usuario ${userId}. Motivo: ${deletePaymentDto.reason}`,
+    );
+
+    return {
+      success: true,
+      message: 'Pago eliminado exitosamente',
+      audit_id: auditId,
+      metadata: {
+        operation_type: 'DELETE',
+        timestamp: new Date().toISOString(),
+        affected_records: 1,
+      },
+    };
+  }
+
+  /**
+   * Valida si un pago puede ser actualizado
+   */
+  async validatePaymentUpdate(payment: any, userId: number): Promise<void> {
+    // Verificar permisos del usuario
+    const hasPermission = await this.auditService.validateAuditPermissions(userId, 'UPDATE_PAYMENT');
+    if (!hasPermission) {
+      throw new Error('No tiene permisos para actualizar pagos');
+    }
+
+    // Verificar que el pago no sea muy antiguo (ej: más de 30 días)
+    const paymentDate = new Date(payment.payment_date);
+    const daysDifference = Math.floor(
+      (new Date().getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysDifference > 30) {
+      throw new Error('No se pueden actualizar pagos con más de 30 días de antigüedad');
+    }
+
+    // Verificar que el ciclo no esté cerrado o procesado
+    if (payment.subscription_cycle.payment_status === 'PROCESSED') {
+      throw new Error('No se pueden actualizar pagos de ciclos ya procesados');
+    }
+  }
+
+  /**
+   * Valida si un pago puede ser eliminado
+   */
+  async validatePaymentDeletion(payment: any, userId: number): Promise<void> {
+    // Verificar permisos del usuario (solo administradores pueden eliminar)
+    const user = await this.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== Role.ADMINISTRATIVE) {
+      throw new Error('Solo los administradores pueden eliminar pagos');
+    }
+
+    // Verificar que el pago no sea muy antiguo
+    const paymentDate = new Date(payment.payment_date);
+    const daysDifference = Math.floor(
+      (new Date().getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysDifference > 7) {
+      throw new Error('No se pueden eliminar pagos con más de 7 días de antigüedad');
+    }
+
+    // Verificar que no sea el único pago del ciclo si el ciclo está marcado como pagado
+    const cyclePayments = await this.cycle_payment.count({
+      where: { cycle_id: payment.cycle_id },
+    });
+
+    if (cyclePayments === 1 && payment.subscription_cycle.payment_status === 'PAID') {
+      throw new Error('No se puede eliminar el único pago de un ciclo marcado como pagado');
+    }
+  }
+
+  /**
+   * Recalcula los balances de un ciclo después de modificar pagos
+   */
+  private async recalculateCycleBalances(cycleId: number, tx: any): Promise<void> {
+    // Obtener el ciclo y todos sus pagos
+    const cycle = await tx.subscription_cycle.findUnique({
+      where: { cycle_id: cycleId },
+      include: {
+        cycle_payments: true,
+      },
+    });
+
+    if (!cycle) {
+      throw new NotFoundException(`Ciclo ${cycleId} no encontrado`);
+    }
+
+    // Calcular totales de pagos
+    const totalPayments = cycle.cycle_payments.reduce((sum: number, payment: any) => {
+      return sum + parseFloat(payment.amount?.toString() || '0');
+    }, 0);
+
+    const totalAmount = parseFloat(cycle.total_amount?.toString() || '0');
+    const pendingBalance = Math.max(0, totalAmount - totalPayments);
+    const creditBalance = Math.max(0, totalPayments - totalAmount);
+
+    // Determinar estado del pago
+    let paymentStatus = 'PENDING';
+    if (pendingBalance <= 0 && creditBalance > 0) {
+      paymentStatus = 'CREDITED';
+    } else if (pendingBalance <= 0) {
+      paymentStatus = 'PAID';
+    } else if (totalPayments > 0) {
+      paymentStatus = 'PARTIAL';
+    }
+
+    // Actualizar el ciclo
+    await tx.subscription_cycle.update({
+      where: { cycle_id: cycleId },
+      data: {
+        paid_amount: totalPayments,
+        pending_balance: pendingBalance,
+        credit_balance: creditBalance,
+        payment_status: paymentStatus,
+      },
+    });
+
+    this.logger.log(
+      `Balances recalculados para ciclo ${cycleId}: Pagado ${totalPayments}, Pendiente ${pendingBalance}, Crédito ${creditBalance}`,
+    );
   }
 }

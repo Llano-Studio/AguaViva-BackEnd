@@ -7,6 +7,9 @@ import {
   UseGuards,
   HttpStatus,
   HttpException,
+  Param,
+  Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,6 +19,7 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiProperty,
+  ApiParam,
 } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty } from 'class-validator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -23,6 +27,11 @@ import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
+import { FilterAutomatedCollectionsDto } from '../dto/filter-automated-collections.dto';
+import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-response.dto';
+import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
+import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../dto/generate-route-sheet.dto';
+import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
@@ -488,6 +497,366 @@ export class AutomatedCollectionController {
     } catch (error) {
       throw new HttpException(
         `Error obteniendo estadísticas: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Lista las órdenes de cobranza automática con filtros y paginación
+   */
+  @Get('orders')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Listar órdenes de cobranza automática',
+    description: `Obtiene una lista paginada de órdenes de cobranza automática con capacidades avanzadas de filtrado.
+
+## 🔍 FILTROS DISPONIBLES
+
+**Filtros Temporales:**
+- **search**: Búsqueda por texto en nombre de cliente o notas
+- **orderDateFrom/orderDateTo**: Rango de fechas de creación de orden
+- **dueDateFrom/dueDateTo**: Rango de fechas de vencimiento
+- **overdue**: Solo órdenes vencidas (true/false)
+
+**Filtros de Estado:**
+- **statuses**: Estados de la orden (PENDING, PROCESSING, DELIVERED, etc.)
+- **paymentStatuses**: Estados de pago (PENDING, PARTIAL, PAID, OVERDUE)
+
+**Filtros de Cliente:**
+- **customerName**: Nombre del cliente
+- **customerIds**: IDs específicos de clientes
+- **zoneIds**: IDs de zonas geográficas
+
+**Filtros Financieros:**
+- **minAmount/maxAmount**: Rango de montos
+- **subscriptionPlanId**: Plan de suscripción específico
+
+## 📊 RESPUESTA INCLUYE
+
+**Datos de la Orden:**
+- Información completa de la orden de cobranza
+- Detalles del cliente y suscripción
+- Estado de pago y montos
+- Fechas de vencimiento y creación
+
+**Metadatos:**
+- Información de paginación
+- Totales y resúmenes
+- Estadísticas del conjunto filtrado`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de órdenes de cobranza automática',
+    type: AutomatedCollectionListResponseDto,
+  })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async listAutomatedCollections(@Query() filters: FilterAutomatedCollectionsDto) {
+    try {
+      const result = await this.automatedCollectionService.listAutomatedCollections(filters);
+      return {
+        success: true,
+        message: `${result.data.length} órdenes de cobranza encontradas`,
+        ...result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Error obteniendo órdenes de cobranza: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Obtiene los detalles de una orden de cobranza automática específica
+   */
+  @Get('orders/:id')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Obtener detalles de orden de cobranza',
+    description: `Obtiene información detallada de una orden de cobranza automática específica.
+
+## 📋 INFORMACIÓN INCLUIDA
+
+**Datos de la Orden:**
+- Información completa de la orden
+- Estado actual y historial
+- Montos y fechas importantes
+- Notas y observaciones
+
+**Información del Cliente:**
+- Datos completos del cliente
+- Información de contacto
+- Ubicación y zona
+
+**Detalles de Suscripción:**
+- Plan de suscripción asociado
+- Ciclo de facturación
+- Historial de pagos
+
+**Metadatos Operativos:**
+- Fechas de creación y modificación
+- Usuario responsable
+- Trazabilidad del proceso`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden de cobranza automática',
+    type: Number,
+    example: 123,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Detalles de la orden de cobranza',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        data: {
+          $ref: '#/components/schemas/AutomatedCollectionResponseDto',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Orden de cobranza no encontrada' })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async getAutomatedCollectionById(@Param('id', ParseIntPipe) id: number) {
+    try {
+      const collection = await this.automatedCollectionService.getAutomatedCollectionById(id);
+      return {
+        success: true,
+        message: 'Orden de cobranza encontrada',
+        data: collection,
+      };
+    } catch (error) {
+      if (error.message.includes('no encontrada')) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      throw new HttpException(
+        `Error obteniendo orden de cobranza: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Elimina lógicamente una orden de cobranza automática
+   */
+  @Delete('orders/:id')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Eliminar orden de cobranza automática',
+    description: `Realiza una eliminación lógica de una orden de cobranza automática.
+
+## ⚠️ VALIDACIONES DE SEGURIDAD
+
+**Restricciones de Eliminación:**
+- No se puede eliminar si existen pagos registrados
+- Solo eliminación lógica (soft delete)
+- Requiere permisos administrativos
+- Se mantiene trazabilidad completa
+
+**Proceso de Eliminación:**
+- Marca la orden como eliminada
+- Preserva datos para auditoría
+- Actualiza estados relacionados
+- Registra información de eliminación
+
+## 📊 INFORMACIÓN DE RESPUESTA
+
+**Confirmación:**
+- Estado de éxito de la operación
+- ID de la orden eliminada
+- Timestamp de eliminación
+- Información adicional del proceso
+
+**Metadatos:**
+- Tipo de eliminación (lógica)
+- Estado de pago previo
+- Monto pendiente
+- Nombre del cliente afectado`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden de cobranza a eliminar',
+    type: Number,
+    example: 123,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Orden de cobranza eliminada exitosamente',
+    type: DeleteAutomatedCollectionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Orden de cobranza no encontrada' })
+  @ApiResponse({ status: 400, description: 'No se puede eliminar: existen pagos registrados' })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async deleteAutomatedCollection(@Param('id', ParseIntPipe) id: number) {
+    try {
+      const result = await this.automatedCollectionService.deleteAutomatedCollection(id);
+      return {
+        success: true,
+        message: 'Orden de cobranza eliminada exitosamente',
+        ...result,
+      };
+    } catch (error) {
+      if (error.message.includes('no encontrada')) {
+        throw new HttpException(error.message, HttpStatus.NOT_FOUND);
+      }
+      if (error.message.includes('pagos registrados')) {
+        throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      }
+      throw new HttpException(
+        `Error eliminando orden de cobranza: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Genera un reporte PDF de órdenes de cobranza automática
+   */
+  @Post('orders/generate-pdf')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Generar reporte PDF de cobranzas',
+    description: `Genera un reporte PDF personalizado de órdenes de cobranza automática con filtros avanzados.
+
+## 📄 CARACTERÍSTICAS DEL PDF
+
+**Contenido del Reporte:**
+- Resumen ejecutivo con totales
+- Lista detallada de órdenes filtradas
+- Información de cliente y suscripción
+- Estados de pago y montos
+- Fechas de vencimiento y creación
+
+**Formatos Disponibles:**
+- **summary**: Reporte resumido con totales
+- **detailed**: Reporte detallado con toda la información
+- **executive**: Reporte ejecutivo para gerencia
+
+**Filtros Aplicables:**
+- Rangos de fechas personalizables
+- Estados de orden y pago
+- Clientes y zonas específicas
+- Montos mínimos y máximos
+- Solo órdenes vencidas
+
+## 📊 METADATOS DEL ARCHIVO
+
+**Información del PDF:**
+- URL de descarga temporal
+- Nombre del archivo generado
+- Tamaño del archivo
+- Fecha de generación
+- Tiempo de expiración
+
+**Estadísticas del Reporte:**
+- Total de órdenes incluidas
+- Monto total del reporte
+- Distribución por estados
+- Resumen de vencimientos`,
+  })
+  @ApiBody({ type: GeneratePdfCollectionsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente',
+    type: PdfGenerationResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Parámetros de filtro inválidos' })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async generatePdfReport(@Body() filters: GeneratePdfCollectionsDto) {
+    try {
+      const result = await this.automatedCollectionService.generatePdfReport(filters);
+      return {
+        success: true,
+        message: 'Reporte PDF generado exitosamente',
+        ...result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Error generando reporte PDF: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Genera una hoja de ruta para cobranzas automáticas
+   */
+  @Post('orders/route-sheet')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Generar hoja de ruta de cobranzas',
+    description: `Genera una hoja de ruta optimizada para la recolección de cobranzas automáticas.
+
+## 🗺️ CARACTERÍSTICAS DE LA RUTA
+
+**Organización Geográfica:**
+- Agrupación automática por zonas
+- Optimización de recorridos
+- Información de ubicaciones
+- Distancias estimadas
+
+**Información del Conductor:**
+- Datos del conductor asignado
+- Información del vehículo
+- Capacidad de carga
+- Horarios de trabajo
+
+**Detalles de Cobranza:**
+- Lista de clientes a visitar
+- Montos a cobrar por cliente
+- Estados de pago actuales
+- Información de contacto
+
+## 📋 FORMATOS DISPONIBLES
+
+**Tipos de Hoja de Ruta:**
+- **standard**: Formato estándar para conductores
+- **detailed**: Formato detallado con toda la información
+- **compact**: Formato compacto para dispositivos móviles
+
+**Ordenamiento:**
+- **zone**: Por zona geográfica
+- **amount**: Por monto descendente
+- **priority**: Por prioridad de cobranza
+- **customer**: Por nombre de cliente
+
+## 📊 INFORMACIÓN ADICIONAL
+
+**Resumen de la Ruta:**
+- Total de paradas programadas
+- Monto total a cobrar
+- Tiempo estimado de recorrido
+- Zonas a cubrir
+
+**Metadatos Operativos:**
+- Fecha de generación
+- Conductor asignado
+- Vehículo asignado
+- Notas especiales`,
+  })
+  @ApiBody({ type: GenerateRouteSheetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Hoja de ruta generada exitosamente',
+    type: RouteSheetResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Parámetros de filtro inválidos' })
+  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  async generateRouteSheet(@Body() filters: GenerateRouteSheetDto) {
+    try {
+      const result = await this.automatedCollectionService.generateRouteSheet(filters);
+      return {
+        success: true,
+        message: 'Hoja de ruta generada exitosamente',
+        ...result,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Error generando hoja de ruta: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

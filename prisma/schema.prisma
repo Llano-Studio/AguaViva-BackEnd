@@ -26,7 +26,11 @@ model User {
   incidents_created    delivery_incident[]   @relation("incidentCreator")
   incidents_resolved   delivery_incident[]   @relation("incidentResolver")
   delivery_stats       delivery_stats[]
-  payment_transactions payment_transaction[]
+  payment_transactions payment_transaction[] @relation("PaymentTransactionUser")
+  payment_transactions_updated payment_transaction[] @relation("PaymentTransactionUpdatedBy")
+  cycle_payments_created cycle_payment[]     @relation("CyclePaymentCreatedBy")
+  cycle_payments_updated cycle_payment[]     @relation("CyclePaymentUpdatedBy")
+  payment_audits       payment_audit[]       @relation("PaymentAuditCreatedBy")
   route_sheet          route_sheet[]
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
@@ -527,10 +531,33 @@ model payment_transaction {
   notes              String?
   user_id            Int?
   is_active          Boolean        @default(true)
+  updated_at         DateTime?      @updatedAt
+  updated_by         Int?
   payment_line       payment_line[]
   order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
   payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
-  user               User?          @relation(fields: [user_id], references: [id])
+  user               User?          @relation("PaymentTransactionUser", fields: [user_id], references: [id])
+  updated_by_user    User?          @relation("PaymentTransactionUpdatedBy", fields: [updated_by], references: [id])
+}
+
+model payment_audit {
+  audit_id       Int       @id @default(autoincrement())
+  table_name     String    @db.VarChar(50)
+  record_id      Int
+  operation_type String    @db.VarChar(20)
+  old_values     Json?
+  new_values     Json?
+  created_at     DateTime  @default(now())
+  created_by     Int?
+  reason         String?
+  ip_address     String?   @db.VarChar(45)
+  user_agent     String?
+  created_by_user User?    @relation("PaymentAuditCreatedBy", fields: [created_by], references: [id])
+  
+  @@index([table_name, record_id])
+  @@index([created_at])
+  @@index([created_by])
+  @@index([operation_type])
 }
 
 model payment_line {
@@ -831,8 +858,12 @@ model cycle_payment {
   reference       String?             @db.VarChar(100)
   notes           String?
   created_by      Int?
+  updated_at      DateTime?           @updatedAt
+  updated_by      Int?
   subscription_cycle subscription_cycle @relation(fields: [cycle_id], references: [cycle_id], onDelete: Cascade, onUpdate: NoAction)
   route_sheet_detail route_sheet_detail[]
+  created_by_user User?               @relation("CyclePaymentCreatedBy", fields: [created_by], references: [id])
+  updated_by_user User?               @relation("CyclePaymentUpdatedBy", fields: [updated_by], references: [id])
   
   @@index([cycle_id])
   @@index([payment_date])

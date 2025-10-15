@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   ParseIntPipe,
@@ -21,6 +23,9 @@ import {
 } from '@nestjs/swagger';
 import { CyclePaymentsService } from './cycle-payments.service';
 import { CreateCyclePaymentDto } from './dto/create-cycle-payment.dto';
+import { UpdateCyclePaymentDto } from './dto/update-cycle-payment.dto';
+import { DeletePaymentDto } from './dto/delete-payment.dto';
+import { PaymentOperationResponseDto } from './dto/payment-operation-response.dto';
 import {
   CyclePaymentResponseDto,
   CyclePaymentSummaryDto,
@@ -458,6 +463,197 @@ export class CyclePaymentsController {
     @Param('cycleId', ParseIntPipe) cycleId: number,
   ) {
     return this.cycleCalculatorService.recalculateSpecificCycle(cycleId);
+  }
+
+  @Put(':paymentId')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Actualizar pago de ciclo existente',
+    description: `Actualiza un pago de ciclo existente con validaciones de negocio y auditoría completa.
+
+## ✏️ EDICIÓN DE PAGOS DE CICLOS
+
+**Funcionalidades:**
+- Actualización de monto, método de pago y fecha
+- Validaciones de permisos por rol de usuario
+- Recálculo automático de balances del ciclo
+- Registro completo de auditoría de cambios
+- Validación de antigüedad del pago (máximo 30 días)
+
+**Restricciones de Seguridad:**
+- Solo ADMIN y SUPERADMIN pueden editar pagos
+- No se pueden editar pagos de más de 30 días
+- No se pueden editar pagos de ciclos ya procesados
+- Requiere justificación del cambio
+
+**Casos de Uso:**
+- Corrección de montos incorrectos
+- Cambio de método de pago
+- Actualización de fecha de pago
+- Corrección de errores administrativos`,
+  })
+  @ApiParam({
+    name: 'paymentId',
+    description: 'ID del pago de ciclo a actualizar',
+    type: 'integer',
+    example: 123,
+  })
+  @ApiBody({
+    type: UpdateCyclePaymentDto,
+    description: 'Datos actualizados del pago',
+    examples: {
+      actualizarMonto: {
+        summary: 'Actualizar monto del pago',
+        description: 'Corrección del monto de un pago existente',
+        value: {
+          amount: 2750.0,
+          notes: 'Corrección de monto - error de digitación',
+        },
+      },
+      cambiarMetodo: {
+        summary: 'Cambiar método de pago',
+        description: 'Actualización del método de pago utilizado',
+        value: {
+          payment_method: 'TRANSFERENCIA',
+          reference: 'TRF-20240115-001',
+          notes: 'Cambio de efectivo a transferencia bancaria',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pago actualizado exitosamente con auditoría registrada',
+    type: PaymentOperationResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o pago muy antiguo para editar',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin permisos para editar pagos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pago no encontrado',
+  })
+  async updateCyclePayment(
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+    @Body(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        whitelist: true,
+        forbidNonWhitelisted: false,
+      }),
+    )
+    updateDto: UpdateCyclePaymentDto,
+    @Request() req: any,
+  ): Promise<PaymentOperationResponseDto> {
+    return this.cyclePaymentsService.updateCyclePayment(
+      paymentId,
+      updateDto,
+      req.user.userId,
+      req.ip,
+      req.get('User-Agent'),
+    );
+  }
+
+  @Delete(':paymentId')
+  @Auth(Role.ADMINISTRATIVE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Eliminar pago de ciclo',
+    description: `Elimina un pago de ciclo con validaciones estrictas y auditoría completa.
+
+## 🗑️ ELIMINACIÓN DE PAGOS DE CICLOS
+
+**Funcionalidades:**
+- Eliminación segura con código de confirmación
+- Validaciones estrictas de permisos y antigüedad
+- Recálculo automático de balances del ciclo
+- Registro completo de auditoría de eliminación
+- Validación de impacto en estado del ciclo
+
+**Restricciones de Seguridad:**
+- Solo ADMIN puede eliminar pagos
+- Requiere código de confirmación válido
+- No se pueden eliminar pagos de más de 7 días
+- No se puede eliminar el único pago de un ciclo pagado
+- Requiere justificación obligatoria
+
+**Casos de Uso:**
+- Corrección de pagos duplicados
+- Eliminación de pagos erróneos
+- Reversión de transacciones incorrectas
+- Ajustes contables autorizados`,
+  })
+  @ApiParam({
+    name: 'paymentId',
+    description: 'ID del pago de ciclo a eliminar',
+    type: 'integer',
+    example: 123,
+  })
+  @ApiBody({
+    type: DeletePaymentDto,
+    description: 'Datos requeridos para la eliminación',
+    examples: {
+      eliminarDuplicado: {
+        summary: 'Eliminar pago duplicado',
+        description: 'Eliminación de un pago registrado por duplicado',
+        value: {
+          confirmation_code: 'CONF-2024-001',
+          reason: 'Pago duplicado registrado por error del sistema',
+        },
+      },
+      corregirError: {
+        summary: 'Corregir error de registro',
+        description: 'Eliminación por error en el registro inicial',
+        value: {
+          confirmation_code: 'CONF-2024-002',
+          reason: 'Error en monto y método de pago - requiere re-registro',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pago eliminado exitosamente con auditoría registrada',
+    type: PaymentOperationResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Código de confirmación inválido o pago muy antiguo',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin permisos para eliminar pagos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pago no encontrado',
+  })
+  async deleteCyclePayment(
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+    @Body(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: false,
+      }),
+    )
+    deleteDto: DeletePaymentDto,
+    @Request() req: any,
+  ): Promise<PaymentOperationResponseDto> {
+    return this.cyclePaymentsService.deleteCyclePayment(
+      paymentId,
+      deleteDto,
+      req.user.userId,
+      req.ip,
+      req.get('User-Agent'),
+    );
   }
 
   @Post('fix-all-incorrect-cycles')
