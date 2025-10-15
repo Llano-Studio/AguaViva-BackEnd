@@ -187,6 +187,46 @@ export class DriverDto {
   email: string;
 }
 
+export class ZoneDto {
+  @ApiProperty({
+    description: 'ID de la zona',
+    example: 1,
+  })
+  zone_id: number;
+
+  @ApiProperty({
+    description: 'Código de la zona',
+    example: 'ZN-001',
+  })
+  code: string;
+
+  @ApiProperty({
+    description: 'Nombre de la zona',
+    example: 'Centro',
+  })
+  name: string;
+
+  @ApiProperty({
+    description: 'Información de la localidad',
+    required: false,
+  })
+  locality?: {
+    locality_id: number;
+    code: string;
+    name: string;
+    province: {
+      province_id: number;
+      code: string;
+      name: string;
+      country: {
+        country_id: number;
+        code: string;
+        name: string;
+      };
+    };
+  };
+}
+
 export class VehicleDto {
   @ApiProperty({
     description: 'ID del vehículo',
@@ -205,6 +245,13 @@ export class VehicleDto {
     example: 'Camión Mercedes',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Zonas asignadas al vehículo',
+    type: [ZoneDto],
+    required: false,
+  })
+  zones?: ZoneDto[];
 }
 
 export class RouteSheetResponseDto {

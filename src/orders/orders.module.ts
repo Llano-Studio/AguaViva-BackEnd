@@ -13,9 +13,10 @@ import { OverdueOrderController } from './controllers/overdue-order.controller';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CommonModule } from '../common/common.module';
 import { ServicesModule } from '../common/services/services.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [InventoryModule, CommonModule, ServicesModule],
+  imports: [InventoryModule, CommonModule, ServicesModule, AuditModule],
   controllers: [
     OrdersController,
     OneOffPurchaseController,

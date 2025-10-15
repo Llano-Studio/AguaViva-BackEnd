@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import {
@@ -19,12 +20,14 @@ import {
   sale_channel as PrismaSaleChannel,
   client_contract as PrismaClientContract,
   Role,
-  ComodatoStatus,
 } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
+import { UpdatePaymentTransactionDto } from './dto/update-payment-transaction.dto';
+import { PaymentOperationResponseDto } from '../cycle-payments/dto/payment-operation-response.dto';
+import { AuditService } from '../audit/audit.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ScheduleService } from '../common/services/schedule.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
@@ -65,6 +68,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     private readonly inventoryService: InventoryService,
     private readonly scheduleService: ScheduleService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
+    private readonly auditService: AuditService,
   ) {
     super();
   }
@@ -1069,22 +1073,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           name: { contains: search, mode: 'insensitive' },
         },
       });
-      orConditions.push({
-        customer: {
-          phone: { contains: search, mode: 'insensitive' },
-        },
-      });
-      // También buscar por teléfonos secundarios y adicionales
-      orConditions.push({
-        customer: {
-          secondary_phone: { contains: search, mode: 'insensitive' },
-        },
-      });
-      orConditions.push({
-        customer: {
-          additional_phones: { contains: search, mode: 'insensitive' },
-        },
-      });
       if (searchAsNumber) {
         orConditions.push({ order_id: searchAsNumber });
       }
@@ -1231,7 +1219,40 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         key !== 'order_type' &&
         key !== 'status'
       ) {
-        (dataToUpdate as any)[key] = (orderHeaderDataToUpdateInput as any)[key];
+        // Convertir fechas a objetos Date de manera robusta
+        if (key === 'order_date' || key === 'scheduled_delivery_date') {
+          const rawValue = (orderHeaderDataToUpdateInput as any)[key];
+          // Permitir null para fecha de entrega programada
+          if (key === 'scheduled_delivery_date' && (rawValue === null || rawValue === '')) {
+            (dataToUpdate as any)[key] = null;
+          } else if (typeof rawValue === 'string') {
+            const trimmed = rawValue.trim();
+            // Si viene solo YYYY-MM-DD, completar a DateTime válido
+            const normalized = /^(\d{4}-\d{2}-\d{2})$/.test(trimmed)
+              ? `${trimmed}T00:00:00.000Z`
+              : trimmed;
+            const parsed = new Date(normalized);
+            if (isNaN(parsed.getTime())) {
+              throw new BadRequestException(
+                `Fecha inválida para ${key}: '${rawValue}'. Debe ser ISO-8601 (YYYY-MM-DD o DateTime).`,
+              );
+            }
+            (dataToUpdate as any)[key] = parsed;
+          } else if (rawValue instanceof Date) {
+            (dataToUpdate as any)[key] = rawValue;
+          } else {
+            // Cualquier otro tipo: intentar construir Date
+            const parsed = new Date(rawValue);
+            if (isNaN(parsed.getTime())) {
+              throw new BadRequestException(
+                `Tipo de fecha inválido para ${key}.`,
+              );
+            }
+            (dataToUpdate as any)[key] = parsed;
+          }
+        } else {
+          (dataToUpdate as any)[key] = (orderHeaderDataToUpdateInput as any)[key];
+        }
       }
     }
 
@@ -1251,16 +1272,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const existingOrder = await tx.order_header
           .findUniqueOrThrow({
             where: { order_id: id },
-            include: {
-              order_item: { include: { product: true } },
-              customer_subscription: true,
-            },
+            include: { order_item: { include: { product: true } } },
           })
           .catch(() => {
             throw new NotFoundException(
               `${this.entityName} con ID ${id} no encontrado.`,
             );
           });
+
+        // 🆕 LÓGICA DE MANEJO DE CRÉDITOS PARA ITEMS CON ABONO
+        if (existingOrder.subscription_id) {
+          await this.handleCreditIntegrityForOrderEdit(
+            existingOrder,
+            updateOrderDto,
+            tx,
+          );
+        }
 
         // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
         if (items && items.length > 0) {
@@ -1589,39 +1616,17 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const updatedOrderItems = await tx.order_item.findMany({
           where: { order_id: id },
         });
-
-        // Sumar subtotales de ítems actualizados
-        const newItemsTotal = updatedOrderItems.reduce(
+        const newOrderTotalAmount = updatedOrderItems.reduce(
           (sum, item) => sum.plus(new Decimal(item.subtotal)),
           new Decimal(0),
         );
-
-        // Sumar subtotales de ítems existentes antes de la actualización
-        const oldItemsTotal = (existingOrder.order_item || []).reduce(
-          (sum, item) => sum.plus(new Decimal(item.subtotal)),
-          new Decimal(0),
-        );
-
-        // Si es HYBRID con cobranza (marcada en notas), preservar el monto de cobranza
-        const isHybridWithCollection =
-          existingOrder.order_type === 'HYBRID' &&
-          !!existingOrder.notes &&
-          (existingOrder.notes.includes('COBRANZA') ||
-            existingOrder.notes.includes('Ciclo'));
-
-        // Recalcular total: para híbridas con cobranza, mantener el componente de cobranza del total
-        const recalculatedTotal = isHybridWithCollection
-          ? newItemsTotal.plus(new Decimal(existingOrder.total_amount)).minus(oldItemsTotal)
-          : newItemsTotal;
-
         const currentPaidAmount = new Decimal(existingOrder.paid_amount);
-
         await tx.order_header.update({
           where: { order_id: id },
           data: {
-            total_amount: recalculatedTotal.toString(),
-            paid_amount: recalculatedTotal.lessThan(currentPaidAmount)
-              ? recalculatedTotal.toString()
+            total_amount: newOrderTotalAmount.toString(),
+            paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
+              ? newOrderTotalAmount.toString()
               : currentPaidAmount.toString(),
           },
         });
@@ -1632,7 +1637,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_item: { include: { product: true } },
             customer: { include: { locality: true, zone: true } },
             sale_channel: true,
-            customer_subscription: { include: { subscription_plan: { include: { subscription_plan_product: true } } } },
+            customer_subscription: { include: { subscription_plan: true } },
             client_contract: true,
             zone: true,
             payment_transaction: {
@@ -1642,98 +1647,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             },
           },
         });
-
-        // 🆕 LÓGICA DE COMODATOS AL ENTREGAR PEDIDOS
-        const isDeliveredUpdate = !!updateOrderDto.status && (updateOrderDto.status as any) === 'DELIVERED';
-        const wasNotDelivered = existingOrder.status !== 'DELIVERED';
-
-        if (isDeliveredUpdate && wasNotDelivered) {
-          // Releer items con producto para obtener cantidades entregadas si existen
-          const deliveredItems = await tx.order_item.findMany({
-            where: { order_id: id },
-            include: { product: true },
-          });
-
-          // Obtener datos de suscripción para max_quantity según el plan
-          let planProductsMap: Record<number, number> = {};
-          if (finalOrder.customer_subscription?.subscription_plan?.subscription_plan_product) {
-            for (const spp of finalOrder.customer_subscription.subscription_plan.subscription_plan_product) {
-              planProductsMap[spp.product_id] = spp.product_quantity;
-            }
-          }
-
-          // Detectar si el pedido corresponde a retiro/cancelación de suscripción
-          const notesLower = (finalOrder.notes || '').toLowerCase();
-          const isWithdrawalOrCancellation = notesLower.includes('retiro de comodato') || notesLower.includes('cancelación de suscripción');
-
-          for (const item of deliveredItems) {
-            const product = item.product;
-            // Solo productos retornables afectan comodatos
-            if (!product.is_returnable) continue;
-
-            const deliveredQty = typeof item.delivered_quantity === 'number' && item.delivered_quantity > 0
-              ? item.delivered_quantity
-              : item.quantity;
-
-            // Buscar comodato activo del cliente para la suscripción y producto
-            const comodato = await tx.comodato.findFirst({
-              where: {
-                person_id: finalOrder.customer?.person_id || existingOrder.customer_id,
-                subscription_id: existingOrder.subscription_id || finalOrder.customer_subscription?.subscription_id,
-                product_id: item.product_id,
-                status: ComodatoStatus.ACTIVE,
-                is_active: true,
-              },
-            });
-
-            // Si el pedido es de retiro/cancelación y se entregó, marcar comodato como devuelto/inactivo
-            if (isWithdrawalOrCancellation && comodato) {
-              await tx.comodato.update({
-                where: { comodato_id: comodato.comodato_id },
-                data: {
-                  status: ComodatoStatus.RETURNED,
-                  return_date: new Date(),
-                  is_active: false,
-                  notes: `${comodato.notes || ''} | Devuelto por pedido entregado (retiro/cancelación)`
-                },
-              });
-              continue; // No sumar cantidad en retiro
-            }
-
-            const maxQty = planProductsMap[item.product_id] ?? comodato?.max_quantity ?? undefined;
-
-            if (comodato) {
-              const currentQty = comodato.quantity || 0;
-              let newQty = currentQty + deliveredQty;
-              if (typeof maxQty === 'number') {
-                newQty = Math.min(newQty, maxQty);
-              }
-              await tx.comodato.update({
-                where: { comodato_id: comodato.comodato_id },
-                data: {
-                  quantity: newQty,
-                  notes: `${comodato.notes || ''} | +${deliveredQty} por entrega de pedido #${id}`,
-                },
-              });
-            } else {
-              // Crear comodato si no existe (fallback), inicializando con cantidad entregada
-              await tx.comodato.create({
-                data: {
-                  person_id: finalOrder.customer?.person_id || existingOrder.customer_id,
-                  subscription_id: existingOrder.subscription_id || finalOrder.customer_subscription?.subscription_id || null,
-                  product_id: item.product_id,
-                  quantity: typeof maxQty === 'number' ? Math.min(deliveredQty, maxQty) : deliveredQty,
-                  max_quantity: typeof maxQty === 'number' ? maxQty : null,
-                  delivery_date: new Date(),
-                  status: ComodatoStatus.ACTIVE,
-                  is_active: true,
-                  notes: `Comodato creado automáticamente por entrega de pedido #${id}`,
-                },
-              });
-            }
-          }
-        }
-
         return this.mapToOrderResponseDto(finalOrder);
       });
       return order;
@@ -2280,40 +2193,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       }
 
       // Verificar que el ciclo tenga saldo pendiente
-      let pendingBalance = new Decimal(cycle.pending_balance || 0);
-      
-      // 🆕 Aplicar recargo por mora si el ciclo está vencido y no tiene recargo aplicado
-      if (cycle.is_overdue && !cycle.late_fee_applied && pendingBalance.greaterThan(0)) {
-        const today = new Date();
-        const paymentDueDate = new Date(cycle.payment_due_date);
-        const daysLate = Math.floor((today.getTime() - paymentDueDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        if (daysLate >= 10) {
-          const lateFeePercentage = 0.2; // 20%
-          const currentTotal = new Decimal(cycle.total_amount || 0);
-          const surcharge = currentTotal.mul(lateFeePercentage);
-          const newTotal = currentTotal.plus(surcharge);
-          const newPending = newTotal.minus(new Decimal(cycle.paid_amount || 0));
-          
-          // Actualizar el ciclo con el recargo
-          await this.subscription_cycle.update({
-            where: { cycle_id: cycleId },
-            data: {
-              late_fee_applied: true,
-              late_fee_percentage: lateFeePercentage,
-              total_amount: newTotal.toString(),
-              pending_balance: newPending.toString(),
-            },
-          });
-          
-          pendingBalance = newPending;
-          
-          this.logger.log(
-            `✅ Recargo por mora aplicado al ciclo ${cycleId}: +$${surcharge.toString()} (20% de $${currentTotal.toString()})`,
-          );
-        }
-      }
-      
+      const pendingBalance = new Decimal(cycle.pending_balance || 0);
       if (pendingBalance.lessThanOrEqualTo(0)) {
         throw new BadRequestException(
           `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,
@@ -2379,5 +2259,571 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         `Error inesperado al generar orden de cobranza: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * 🆕 Maneja la integridad de créditos al editar un pedido con items de abono
+   * Implementa la lógica requerida para mantener la consistencia de créditos
+   */
+  private async handleCreditIntegrityForOrderEdit(
+    existingOrder: Prisma.order_headerGetPayload<{
+      include: { order_item: { include: { product: true } } };
+    }>,
+    updateOrderDto: UpdateOrderDto,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const subscriptionId = existingOrder.subscription_id;
+    if (!subscriptionId) return;
+
+    this.logger.log(
+      `🔄 Iniciando manejo de créditos para pedido ${existingOrder.order_id} de suscripción ${subscriptionId}`,
+    );
+
+    try {
+      // 1. Obtener el ciclo activo de la suscripción
+      const currentCycle = await tx.subscription_cycle.findFirst({
+        where: {
+          subscription_id: subscriptionId,
+          cycle_end: { gte: new Date() },
+        },
+        include: {
+          subscription_cycle_detail: {
+            include: { product: true },
+          },
+        },
+        orderBy: { cycle_start: 'desc' },
+      });
+
+      if (!currentCycle) {
+        this.logger.warn(
+          `No se encontró ciclo activo para suscripción ${subscriptionId}`,
+        );
+        return;
+      }
+
+      // 2. Identificar items con abono del pedido original
+      const originalDownPaymentItems = existingOrder.order_item.filter(
+        (item) => {
+          // Un item tiene abono si está en el plan de suscripción
+          return currentCycle.subscription_cycle_detail.some(
+            (detail) => detail.product_id === item.product_id,
+          );
+        },
+      );
+
+      // 3. Calcular el total de créditos asociados a items con abono originales
+      let originalDownPaymentTotal = new Decimal(0);
+      for (const item of originalDownPaymentItems) {
+        const itemSubtotal = new Decimal(item.subtotal);
+        originalDownPaymentTotal = originalDownPaymentTotal.plus(itemSubtotal);
+      }
+
+      // 4. Identificar items con abono en la nueva solicitud de edición
+      let newDownPaymentTotal = new Decimal(0);
+      const newDownPaymentItems: any[] = [];
+
+      // Procesar items del updateOrderDto
+      if (updateOrderDto.items) {
+        for (const item of updateOrderDto.items) {
+          const isDownPaymentItem = currentCycle.subscription_cycle_detail.some(
+            (detail) => detail.product_id === item.product_id,
+          );
+          if (isDownPaymentItem) {
+            newDownPaymentItems.push(item);
+            // For subscription items, the price is 0 (already paid in subscription)
+            const itemSubtotal = new Decimal(0).mul(
+              new Decimal(item.quantity),
+            );
+            newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
+          }
+        }
+      }
+
+      if (updateOrderDto.items_to_update_or_create) {
+        for (const item of updateOrderDto.items_to_update_or_create) {
+          const isDownPaymentItem = currentCycle.subscription_cycle_detail.some(
+            (detail) => detail.product_id === item.product_id,
+          );
+          if (isDownPaymentItem) {
+            newDownPaymentItems.push(item);
+            // Para items de suscripción, el precio es 0 (ya pagado en suscripción)
+            let itemPrice = new Decimal(0);
+            const itemSubtotal = itemPrice.mul(new Decimal(item.quantity));
+            newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
+          }
+        }
+      }
+
+
+      // 5. Calcular el ajuste de créditos
+      const creditAdjustment = originalDownPaymentTotal.minus(newDownPaymentTotal);
+
+      this.logger.log(
+        `⚖️ Ajuste de créditos calculado: ${creditAdjustment.toString()}`,
+      );
+
+      // 6. Aplicar el ajuste al ciclo de suscripción
+      if (!creditAdjustment.isZero()) {
+        const currentCreditBalance = new Decimal(
+          currentCycle.credit_balance || 0,
+        );
+        const newCreditBalance = currentCreditBalance.plus(creditAdjustment);
+
+        // Validar que el crédito no sea negativo
+        if (newCreditBalance.isNegative()) {
+          throw new BadRequestException(
+            `La edición del pedido resultaría en un crédito negativo. ` +
+              `Crédito actual: ${currentCreditBalance.toString()}, ` +
+              `Ajuste: ${creditAdjustment.toString()}`,
+          );
+        }
+
+        await tx.subscription_cycle.update({
+          where: { cycle_id: currentCycle.cycle_id },
+          data: {
+            credit_balance: newCreditBalance.toString(),
+          },
+        });
+
+        // 7. Actualizar las cantidades entregadas en el detalle del ciclo
+        for (const newItem of newDownPaymentItems) {
+          const cycleDetail = currentCycle.subscription_cycle_detail.find(
+            (detail) => detail.product_id === newItem.product_id,
+          );
+
+          if (cycleDetail) {
+            const originalItem = originalDownPaymentItems.find(
+              (item) => item.product_id === newItem.product_id,
+            );
+            const originalQuantity = originalItem ? originalItem.quantity : 0;
+            const quantityDifference = newItem.quantity - originalQuantity;
+
+            const newDeliveredQuantity = Math.max(
+              0,
+              cycleDetail.delivered_quantity + quantityDifference,
+            );
+            const newRemainingBalance = Math.max(
+              0,
+              cycleDetail.planned_quantity - newDeliveredQuantity,
+            );
+
+            await tx.subscription_cycle_detail.update({
+              where: { cycle_detail_id: cycleDetail.cycle_detail_id },
+              data: {
+                delivered_quantity: newDeliveredQuantity,
+                remaining_balance: newRemainingBalance,
+              },
+            });
+
+            this.logger.log(
+              `📦 Actualizado detalle de ciclo para producto ${newItem.product_id}: ` +
+                `entregado ${cycleDetail.delivered_quantity} → ${newDeliveredQuantity}, ` +
+                `restante ${cycleDetail.remaining_balance} → ${newRemainingBalance}`,
+            );
+          }
+        }
+      }
+
+      this.logger.log(
+        `✅ Manejo de créditos completado para pedido ${existingOrder.order_id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `❌ Error en manejo de créditos para pedido ${existingOrder.order_id}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Actualiza una transacción de pago existente
+   */
+  async updatePaymentTransaction(
+    transactionId: number,
+    updateDto: UpdatePaymentTransactionDto,
+    userId: number,
+    userRole: string,
+  ): Promise<PaymentOperationResponseDto> {
+    try {
+      // Validar la transacción y permisos
+      await this.validateTransactionUpdate(transactionId, userId, userRole);
+
+      const result = await this.$transaction(async (tx) => {
+        // Obtener la transacción actual
+        const currentTransaction = await tx.payment_transaction.findUnique({
+          where: { transaction_id: transactionId },
+          include: {
+            payment_method: true,
+          },
+        });
+
+        if (!currentTransaction) {
+          throw new NotFoundException(
+            `Transacción de pago con ID ${transactionId} no encontrada.`,
+          );
+        }
+
+        // Crear registro de auditoría
+        const auditRecord = await this.auditService.createAuditRecord({
+          tableName: 'payment_transaction',
+          recordId: transactionId,
+          operationType: 'UPDATE',
+          oldValues: {
+            transaction_amount: currentTransaction.transaction_amount.toString(),
+            payment_method_id: currentTransaction.payment_method_id,
+            transaction_date: currentTransaction.transaction_date.toISOString(),
+            receipt_number: currentTransaction.receipt_number,
+            notes: currentTransaction.notes,
+          },
+          newValues: {
+              transaction_amount: updateDto.amount?.toString(),
+              payment_method_id: updateDto.payment_method,
+              transaction_date: updateDto.transaction_date,
+              receipt_number: updateDto.reference,
+              notes: updateDto.notes,
+            },
+          userId,
+          reason: `Actualización de transacción de pago`,
+        });
+
+        // Preparar datos de actualización
+        const updateData: any = {};
+        
+        if (updateDto.amount !== undefined) {
+          const newAmount = new Decimal(updateDto.amount);
+          if (newAmount.isNegative() || newAmount.isZero()) {
+            throw new BadRequestException('El monto debe ser positivo.');
+          }
+          updateData.transaction_amount = newAmount.toString();
+        }
+
+        if (updateDto.payment_method !== undefined) {
+          // Validar método de pago
+          const paymentMethod = await tx.payment_method.findUnique({
+            where: { code: updateDto.payment_method },
+          });
+          if (!paymentMethod) {
+            throw new BadRequestException(
+              `Método de pago con código ${updateDto.payment_method} no válido.`,
+            );
+          }
+          updateData.payment_method_id = paymentMethod.payment_method_id;
+        }
+
+        if (updateDto.transaction_date !== undefined) {
+          updateData.transaction_date = new Date(updateDto.transaction_date);
+        }
+
+        if (updateDto.reference !== undefined) {
+          updateData.receipt_number = updateDto.reference;
+        }
+
+        if (updateDto.notes !== undefined) {
+          updateData.notes = updateDto.notes;
+        }
+
+
+
+        // Actualizar la transacción
+        const updatedTransaction = await tx.payment_transaction.update({
+          where: { transaction_id: transactionId },
+          data: updateData,
+        });
+
+        // Si se cambió el monto, recalcular el balance de la orden
+        if (updateDto.amount !== undefined) {
+          await this.recalculateOrderBalance(
+            currentTransaction.order_id,
+            currentTransaction.customer_id,
+            tx,
+          );
+        }
+
+        return {
+          success: true,
+          message: 'Transacción de pago actualizada exitosamente',
+          audit_id: auditRecord,
+          data: {
+            transaction_id: updatedTransaction.transaction_id,
+            amount: updatedTransaction.transaction_amount.toString(),
+            payment_date: updatedTransaction.transaction_date.toISOString(),
+            reference: updatedTransaction.receipt_number,
+            notes: updatedTransaction.notes,
+          },
+        };
+      });
+
+      return result;
+    } catch (error) {
+      handlePrismaError(error, 'Transacción de pago');
+      if (
+        !(
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException ||
+          error instanceof ForbiddenException
+        )
+      ) {
+        throw new InternalServerErrorException(
+          `Error inesperado al actualizar transacción de pago: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina una transacción de pago
+   */
+  async deletePaymentTransaction(
+    transactionId: number,
+    confirmationCode: string,
+    reason: string,
+    userId: number,
+    userRole: string,
+  ): Promise<PaymentOperationResponseDto> {
+    try {
+      // Validar código de confirmación
+      const isValidCode = this.auditService.validateConfirmationCode(
+        confirmationCode,
+      );
+      if (!isValidCode) {
+        throw new BadRequestException('Código de confirmación inválido.');
+      }
+
+      // Validar la transacción y permisos
+      await this.validateTransactionDeletion(transactionId, userId, userRole);
+
+      const result = await this.$transaction(async (tx) => {
+        // Obtener la transacción actual
+        const currentTransaction = await tx.payment_transaction.findUnique({
+          where: { transaction_id: transactionId },
+          include: {
+            payment_method: true,
+          },
+        });
+
+        if (!currentTransaction) {
+          throw new NotFoundException(
+            `Transacción de pago con ID ${transactionId} no encontrada.`,
+          );
+        }
+
+        // Crear registro de auditoría
+        const auditRecord = await this.auditService.createAuditRecord({
+          tableName: 'payment_transaction',
+          recordId: transactionId,
+          operationType: 'DELETE',
+          oldValues: {
+            transaction_amount: currentTransaction.transaction_amount.toString(),
+            payment_method_id: currentTransaction.payment_method_id,
+            transaction_date: currentTransaction.transaction_date.toISOString(),
+            receipt_number: currentTransaction.receipt_number,
+            notes: currentTransaction.notes,
+          },
+          newValues: null,
+          userId,
+          reason,
+        });
+
+        // Eliminar la transacción
+        await tx.payment_transaction.delete({
+          where: { transaction_id: transactionId },
+        });
+
+        // Recalcular el balance de la orden
+        await this.recalculateOrderBalance(
+          currentTransaction.order_id,
+          currentTransaction.customer_id,
+          tx,
+        );
+
+        return {
+          success: true,
+          message: 'Transacción de pago eliminada exitosamente',
+          audit_id: auditRecord,
+          metadata: {
+            operation_type: 'DELETE' as const,
+            timestamp: new Date().toISOString(),
+            affected_records: 1,
+          },
+        };
+      });
+
+      return result;
+    } catch (error) {
+      handlePrismaError(error, 'Transacción de pago');
+      if (
+        !(
+          error instanceof BadRequestException ||
+          error instanceof NotFoundException ||
+          error instanceof ForbiddenException
+        )
+      ) {
+        throw new InternalServerErrorException(
+          `Error inesperado al eliminar transacción de pago: ${error.message}`,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Valida si una transacción puede ser actualizada
+   */
+  private async validateTransactionUpdate(
+    transactionId: number,
+    userId: number,
+    userRole: string,
+  ): Promise<void> {
+    const transaction = await this.payment_transaction.findUnique({
+      where: { transaction_id: transactionId },
+      include: {
+        order_header: true,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(
+        `Transacción de pago con ID ${transactionId} no encontrada.`,
+      );
+    }
+
+    // Solo ADMIN y SUPERADMIN pueden editar transacciones
+    if (!['BOSSADMINISTRATIVE', 'SUPERADMIN'].includes(userRole)) {
+      throw new ForbiddenException(
+        'No tiene permisos para editar transacciones de pago.',
+      );
+    }
+
+    // Validar que la transacción no sea muy antigua (máximo 30 días)
+    const transactionDate = new Date(transaction.transaction_date);
+    const daysDifference = Math.floor(
+      (Date.now() - transactionDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysDifference > 30) {
+      throw new BadRequestException(
+        'No se pueden editar transacciones de más de 30 días de antigüedad.',
+      );
+    }
+
+    // Validar que la orden no esté en estado entregado o cancelado
+    if (transaction.order_header && ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+      throw new BadRequestException(
+        'No se pueden editar transacciones de órdenes ya entregadas, canceladas o reembolsadas.',
+      );
+    }
+  }
+
+  /**
+   * Valida si una transacción puede ser eliminada
+   */
+  private async validateTransactionDeletion(
+    transactionId: number,
+    userId: number,
+    userRole: string,
+  ): Promise<void> {
+    const transaction = await this.payment_transaction.findUnique({
+      where: { transaction_id: transactionId },
+      include: {
+        order_header: true,
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(
+        `Transacción de pago con ID ${transactionId} no encontrada.`,
+      );
+    }
+
+    // Solo ADMIN puede eliminar transacciones
+    if (userRole !== 'SUPERADMIN' && userRole !== 'BOSSADMINISTRATIVE') {
+      throw new ForbiddenException(
+        'Solo los administradores pueden eliminar transacciones de pago.',
+      );
+    }
+
+    // Validar que la transacción no sea muy antigua (máximo 7 días)
+    const transactionDate = new Date(transaction.transaction_date);
+    const daysDifference = Math.floor(
+      (Date.now() - transactionDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysDifference > 7) {
+      throw new BadRequestException(
+        'No se pueden eliminar transacciones de más de 7 días de antigüedad.',
+      );
+    }
+
+    // Validar que la orden no esté en estado entregado o cancelado
+    if (transaction.order_header && ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+      throw new BadRequestException(
+        'No se pueden eliminar transacciones de órdenes ya entregadas, canceladas o reembolsadas.',
+      );
+    }
+
+    // Verificar que no sea la única transacción de una orden pagada
+    if (transaction.order_id) {
+      const orderTransactions = await this.payment_transaction.count({
+        where: { order_id: transaction.order_id },
+      });
+
+      if (orderTransactions === 1 && transaction.order_header?.payment_status === 'PAID') {
+        throw new BadRequestException(
+          'No se puede eliminar la única transacción de una orden completamente pagada.',
+        );
+      }
+    }
+  }
+
+  /**
+   * Recalcula el balance de una orden basado en sus transacciones
+   */
+  private async recalculateOrderBalance(
+    orderId: number | null,
+    customerId: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (!orderId) return;
+
+    // Obtener todas las transacciones de la orden
+    const transactions = await tx.payment_transaction.findMany({
+      where: { order_id: orderId },
+    });
+
+    // Calcular el total pagado
+    const totalPaid = transactions.reduce(
+      (sum, transaction) => sum.plus(new Decimal(transaction.transaction_amount)),
+      new Decimal(0),
+    );
+
+    // Obtener la orden para conocer el monto total
+    const order = await tx.order_header.findUnique({
+      where: { order_id: orderId },
+    });
+
+    if (!order) return;
+
+    const totalAmount = new Decimal(order.total_amount);
+    
+    // Determinar el estado de pago
+    let paymentStatus = 'PENDING';
+    if (totalPaid.equals(0)) {
+      paymentStatus = 'PENDING';
+    } else if (totalPaid.greaterThanOrEqualTo(totalAmount)) {
+      paymentStatus = 'PAID';
+    } else {
+      paymentStatus = 'PARTIAL';
+    }
+
+    // Actualizar la orden
+    await tx.order_header.update({
+      where: { order_id: orderId },
+      data: {
+        paid_amount: totalPaid.toString(),
+        payment_status: paymentStatus,
+      },
+    });
   }
 }
