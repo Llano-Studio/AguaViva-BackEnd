@@ -25,7 +25,7 @@ import { Role } from '@prisma/client';
 import { ProductCategoryService } from './product-category.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
 
 @ApiTags('Categorías de productos')
