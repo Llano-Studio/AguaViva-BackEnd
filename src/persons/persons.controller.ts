@@ -27,7 +27,7 @@ import { PersonsService } from './persons.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PersonResponseDto } from './dto/person-response.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { PersonType } from '../common/constants/enums';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
