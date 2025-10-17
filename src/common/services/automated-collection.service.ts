@@ -182,9 +182,31 @@ export class AutomatedCollectionService
 
       for (const cycle of cyclesDueToday) {
         try {
+          // Verificar si ya existe una orden de cobranza manual para este ciclo
+          const hasManualOrder = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+          
+          if (hasManualOrder) {
+            this.logger.log(
+              `⚠️ Saltando ciclo ${cycle.cycle_id} - ya tiene una orden de cobranza manual`,
+            );
+            results.push({
+              cycle_id: cycle.cycle_id,
+              subscription_id: cycle.subscription_id,
+              customer_id: cycle.customer_subscription.customer_id,
+              customer_name: cycle.customer_subscription.person.name,
+              subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+              payment_due_date: cycle.payment_due_date?.toISOString().split('T')[0] || '',
+              pending_balance: Number(cycle.pending_balance),
+              order_created: false,
+              notes: 'Ciclo ya tiene orden de cobranza manual - no se genera automática',
+            });
+            continue;
+          }
+
           const result = await this.createOrUpdateCollectionOrder(
             cycle,
             targetDate,
+            true, // isAutomatic = true para cobranzas automáticas
           );
           results.push(result);
         } catch (error) {
@@ -284,22 +306,26 @@ export class AutomatedCollectionService
   }
 
   /**
-   * Crea un nuevo pedido de cobranza o actualiza uno existente
+   * Crea un nuevo pedido de cobranza o actualiza uno existente en la tabla collection_orders
+   * @param cycle - Ciclo de suscripción
+   * @param targetDate - Fecha objetivo para la cobranza
+   * @param isAutomatic - Si es true, marca como automática (es_automatica=true), si es false, marca como manual (es_automatica=false)
    */
   private async createOrUpdateCollectionOrder(
     cycle: any,
     targetDate: Date,
+    isAutomatic: boolean = true,
   ): Promise<CollectionOrderSummaryDto> {
     const person = cycle.customer_subscription.person;
     const subscription = cycle.customer_subscription;
 
-    // Verificar si ya existe un pedido para este cliente en la fecha objetivo
-    const existingOrder = await this.order_header.findFirst({
+    // Verificar si ya existe una orden de cobranza para este ciclo específico
+    const existingCollectionOrder = await this.collection_orders.findFirst({
       where: {
         customer_id: person.person_id,
-        order_date: {
-          gte: targetDate,
-          lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
+        subscription_id: subscription.subscription_id,
+        notes: {
+          contains: `Ciclo: ${cycle.cycle_id}`,
         },
         status: {
           in: [
@@ -310,100 +336,62 @@ export class AutomatedCollectionService
         },
       },
       include: {
-        order_item: true,
+        collection_order_items: true,
       },
     });
 
-    let orderId: number;
+    let collectionOrderId: number;
     let orderCreated = false;
 
-    if (existingOrder) {
-      // Verificar si ya tiene cobranza para este ciclo
-      const hasCollectionForCycle =
-        await this.orderCollectionEditService.hasCollectionForCycle(
-          existingOrder.order_id,
-          cycle.cycle_id,
-        );
-
-      if (hasCollectionForCycle) {
-        this.logger.log(
-          `⚠️ El pedido ${existingOrder.order_id} ya tiene cobranza para el ciclo ${cycle.cycle_id}`,
-        );
-        orderId = existingOrder.order_id;
-        orderCreated = false;
-      } else {
-        // Agregar cobranza usando el servicio especializado
-        this.logger.log(
-          `📝 Actualizando pedido existente ${existingOrder.order_id} para cliente ${person.first_name} ${person.last_name}`,
-        );
-
-        const collectionData: CollectionItemDto = {
-          cycle_id: cycle.cycle_id,
-          subscription_id: cycle.subscription_id,
-          customer_id: person.person_id,
-          pending_balance: cycle.pending_balance,
-          payment_due_date: cycle.payment_due_date,
-          subscription_plan_name: subscription.subscription_plan.name,
-          customer_name: `${person.first_name} ${person.last_name}`,
-        };
-
-        await this.orderCollectionEditService.addCollectionToExistingOrder(
-          existingOrder.order_id,
-          collectionData,
-        );
-
-        orderId = existingOrder.order_id;
-        orderCreated = false; // Es una actualización, no una creación
-      }
-    } else {
-      // Crear nuevo pedido de cobranza
+    if (existingCollectionOrder) {
+      // Ya existe una orden de cobranza para este ciclo
       this.logger.log(
-        `🆕 Creando nuevo pedido de cobranza para cliente ${person.first_name} ${person.last_name}`,
+        `⚠️ Ya existe una orden de cobranza ${existingCollectionOrder.collection_order_id} para el ciclo ${cycle.cycle_id}`,
+      );
+      collectionOrderId = existingCollectionOrder.collection_order_id;
+      orderCreated = false;
+    } else {
+      // Crear nueva orden de cobranza en collection_orders
+      this.logger.log(
+        `🆕 Creando nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} para cliente ${person.first_name} ${person.last_name}`,
       );
 
-      const createOrderDto: CreateOrderDto = {
-        customer_id: person.person_id,
-        subscription_id: subscription.subscription_id,
-        sale_channel_id: 1, // Canal por defecto para cobranzas automáticas
-        order_date: targetDate.toISOString(),
-        scheduled_delivery_date: targetDate.toISOString(),
-        delivery_time: '09:00-18:00',
-        total_amount: cycle.pending_balance.toString(), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
-        paid_amount: '0.00',
-        order_type: OrderType.ONE_OFF, // Tipo de pedido para cobranzas
-        status: OrderStatus.PENDING,
-        notes: `PEDIDO DE COBRANZA AUTOMÁTICO - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id} - Vencimiento: ${cycle.payment_due_date?.toISOString().split('T')[0]} - Monto a cobrar: $${cycle.pending_balance}`,
-        items: [], // Sin productos, solo cobranza
-      };
+      const collectionOrderType = isAutomatic ? 'AUTOMÁTICA' : 'MANUAL';
+      const notes = `ORDEN DE COBRANZA ${collectionOrderType} - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id} - Vencimiento: ${cycle.payment_due_date?.toISOString().split('T')[0]} - Monto a cobrar: $${cycle.pending_balance}`;
 
       try {
-        const newOrder = await this.ordersService.create(createOrderDto);
-        orderId = newOrder.order_id;
-        orderCreated = true;
-      } catch (error) {
-        // Si falla la creación del pedido, intentar crear uno básico sin validaciones estrictas
-        this.logger.warn(
-          `⚠️ Fallo creación de pedido estándar, creando pedido básico de cobranza`,
-        );
-
-        const basicOrder = await this.order_header.create({
+        const newCollectionOrder = await this.collection_orders.create({
           data: {
             customer_id: person.person_id,
             subscription_id: subscription.subscription_id,
-            sale_channel_id: 1,
+            sale_channel_id: 1, // Canal por defecto para cobranzas
             order_date: targetDate,
             scheduled_delivery_date: targetDate,
             delivery_time: '09:00-18:00',
-            total_amount: new Prisma.Decimal(cycle.pending_balance), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
+            total_amount: new Prisma.Decimal(cycle.pending_balance),
             paid_amount: new Prisma.Decimal(0),
-            order_type: 'ONE_OFF', // Tipo de pedido para cobranzas automáticas
+            order_type: 'ONE_OFF', // Tipo de pedido para cobranzas
             status: 'PENDING',
-            notes: `COBRANZA AUTOMÁTICA - ${subscription.subscription_plan.name} - Ciclo ${cycle.cycle_id} - $${cycle.pending_balance}`,
+            payment_status: 'PENDING',
+            notes: notes,
+            zone_id: person.zone_id,
+            is_active: true,
+            es_automatica: isAutomatic, // Campo clave para distinguir automáticas de manuales
           },
         });
 
-        orderId = basicOrder.order_id;
+        collectionOrderId = newCollectionOrder.collection_order_id;
         orderCreated = true;
+
+        this.logger.log(
+          `✅ Orden de cobranza ${collectionOrderType.toLowerCase()} creada: ID ${collectionOrderId} para ciclo ${cycle.cycle_id}, cliente ${person.first_name} ${person.last_name}, monto $${cycle.pending_balance}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `❌ Error creando orden de cobranza para ciclo ${cycle.cycle_id}:`,
+          error,
+        );
+        throw error;
       }
     }
 
@@ -417,10 +405,10 @@ export class AutomatedCollectionService
         cycle.payment_due_date?.toISOString().split('T')[0] || '',
       pending_balance: Number(cycle.pending_balance),
       order_created: orderCreated,
-      order_id: orderId,
-      notes: existingOrder
-        ? 'Pedido existente actualizado con cobranza'
-        : 'Nuevo pedido de cobranza creado',
+      order_id: collectionOrderId,
+      notes: existingCollectionOrder
+        ? 'Orden de cobranza ya existente'
+        : `Nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} creada`,
     };
   }
 
@@ -441,9 +429,31 @@ export class AutomatedCollectionService
 
     for (const cycle of cyclesDue) {
       try {
+        // Verificar si ya existe una orden de cobranza manual para este ciclo
+        const hasManualOrder = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+        
+        if (hasManualOrder) {
+          this.logger.log(
+            `⚠️ Saltando ciclo ${cycle.cycle_id} - ya tiene una orden de cobranza manual`,
+          );
+          results.push({
+            cycle_id: cycle.cycle_id,
+            subscription_id: cycle.subscription_id,
+            customer_id: cycle.customer_subscription.customer_id,
+            customer_name: cycle.customer_subscription.person.name,
+            subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+            payment_due_date: cycle.payment_due_date?.toISOString().split('T')[0] || '',
+            pending_balance: Number(cycle.pending_balance),
+            order_created: false,
+            notes: 'Ciclo ya tiene orden de cobranza manual - no se genera automática',
+          });
+          continue;
+        }
+
         const result = await this.createOrUpdateCollectionOrder(
           cycle,
           adjustedDate,
+          true, // isAutomatic = true para cobranzas automáticas
         );
         results.push(result);
       } catch (error) {
@@ -468,6 +478,120 @@ export class AutomatedCollectionService
     }
 
     return results;
+  }
+
+  /**
+   * Genera una orden de cobranza manual para un ciclo específico
+   * @param cycleId - ID del ciclo de suscripción
+   * @param targetDate - Fecha objetivo para la cobranza
+   * @param createHybridOrder - Si debe crear también un pedido híbrido
+   */
+  async generateManualCollectionOrder(
+    cycleId: number,
+    targetDate: Date,
+    createHybridOrder: boolean = false,
+  ): Promise<CollectionOrderSummaryDto> {
+    // Obtener información del ciclo
+    const cycle = await this.subscription_cycle.findUnique({
+      where: { cycle_id: cycleId },
+      include: {
+        customer_subscription: {
+          include: {
+            person: true,
+            subscription_plan: true,
+          },
+        },
+      },
+    });
+
+    if (!cycle) {
+      throw new Error(`Ciclo de suscripción con ID ${cycleId} no encontrado`);
+    }
+
+    // Verificar que el ciclo tenga saldo pendiente
+    const pendingBalance = new Prisma.Decimal(cycle.pending_balance || 0);
+    if (pendingBalance.lessThanOrEqualTo(0)) {
+      throw new Error(
+        `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,
+      );
+    }
+
+    // Crear la orden de cobranza manual
+    const result = await this.createOrUpdateCollectionOrder(
+      cycle,
+      targetDate,
+      false, // isAutomatic = false para cobranzas manuales
+    );
+
+    // Si se solicita, crear también un pedido híbrido
+    if (createHybridOrder && result.order_created) {
+      try {
+        await this.createHybridOrderForManualCollection(cycle, targetDate);
+        this.logger.log(
+          `✅ Pedido híbrido creado para la orden de cobranza manual ${result.order_id}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `⚠️ No se pudo crear el pedido híbrido para la orden de cobranza manual ${result.order_id}: ${error.message}`,
+        );
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Crea un pedido híbrido para una cobranza manual
+   * @param cycle - Ciclo de suscripción
+   * @param targetDate - Fecha objetivo
+   */
+  private async createHybridOrderForManualCollection(
+    cycle: any,
+    targetDate: Date,
+  ): Promise<void> {
+    const person = cycle.customer_subscription.person;
+    const subscription = cycle.customer_subscription;
+
+    // Crear un pedido híbrido básico sin productos adicionales
+    const createOrderDto: CreateOrderDto = {
+      customer_id: person.person_id,
+      subscription_id: subscription.subscription_id,
+      sale_channel_id: 1,
+      order_date: targetDate.toISOString(),
+      scheduled_delivery_date: targetDate.toISOString(),
+      delivery_time: '09:00-18:00',
+      total_amount: '0.00', // Pedido híbrido sin productos adicionales
+      paid_amount: '0.00',
+      order_type: 'HYBRID' as any,
+      status: 'PENDING' as any,
+      notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
+      items: [], // Solo productos de la suscripción, sin adicionales
+    };
+
+    await this.ordersService.create(createOrderDto);
+  }
+
+  /**
+   * Verifica si un ciclo ya tiene una orden de cobranza (automática o manual)
+   * @param cycleId - ID del ciclo
+   */
+  async hasCollectionOrderForCycle(cycleId: number): Promise<boolean> {
+    const existingOrder = await this.collection_orders.findFirst({
+      where: {
+        notes: {
+          contains: `Ciclo: ${cycleId}`,
+        },
+        status: {
+          in: [
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED,
+            OrderStatus.IN_PREPARATION,
+          ],
+        },
+      },
+    });
+
+    return !!existingOrder;
   }
 
   /**
