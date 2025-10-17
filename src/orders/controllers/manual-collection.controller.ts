@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { ManualCollectionService } from '../../common/services/manual-collection.service';
+import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 import {
   CustomerSearchDto,
   CustomerSearchResponseDto,
@@ -43,6 +44,7 @@ export class ManualCollectionController {
 
   constructor(
     private readonly manualCollectionService: ManualCollectionService,
+    private readonly automatedCollectionService: AutomatedCollectionService,
   ) {}
 
   @Get('customers/search')
@@ -257,13 +259,39 @@ export class ManualCollectionController {
 
   @Post('generate')
   @ApiOperation({
-    summary: 'Generar pedido de cobranza manual',
-    description:
-      'Genera un nuevo pedido de cobranza manual para los ciclos seleccionados del cliente. Si ya existe un pedido para la fecha, agrega las cobranzas al pedido existente.',
+    summary: 'Generar orden de cobranza manual',
+    description: `Genera una nueva orden de cobranza manual en la tabla collection_orders con es_automatica=false.
+
+## 🆕 NUEVA FUNCIONALIDAD - COLLECTION_ORDERS
+
+**Características Principales:**
+- Crea órdenes en la tabla collection_orders (no en order_header)
+- Marca automáticamente es_automatica=false para órdenes manuales
+- Opcionalmente crea un pedido híbrido asociado
+- Previene la creación automática de órdenes para el mismo ciclo
+
+## 🔧 LÓGICA DE CONTROL
+
+**Validaciones:**
+- Verifica que cada ciclo exista y tenga saldo pendiente
+- Previene duplicación de órdenes para el mismo ciclo
+- Valida que la fecha de cobranza sea válida
+
+**Creación de Pedido Híbrido:**
+- Se crea automáticamente para cobranzas manuales
+- Solo aplica a órdenes manuales (no automáticas)
+- Permite entrega de productos junto con la cobranza
+
+## 🚫 PREVENCIÓN DE DUPLICADOS
+
+**Control Automático:**
+- Si un ciclo ya tiene una orden manual, no se genera una automática
+- El sistema verifica la existencia antes de crear nuevas órdenes
+- Mantiene la integridad entre órdenes manuales y automáticas`,
   })
   @ApiResponse({
     status: 201,
-    description: 'Pedido de cobranza generado exitosamente',
+    description: 'Orden de cobranza manual generada exitosamente',
     type: GenerateManualCollectionResponseDto,
   })
   @ApiResponse({
@@ -273,6 +301,10 @@ export class ManualCollectionController {
   @ApiResponse({
     status: 404,
     description: 'Cliente no encontrado',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Ya existe una orden de cobranza para algún ciclo',
   })
   @ApiResponse({
     status: 401,
@@ -289,16 +321,77 @@ export class ManualCollectionController {
     );
 
     try {
-      const result =
-        await this.manualCollectionService.generateManualCollection(
-          generateDto,
+      // Validar y parsear la fecha
+      const collectionDate = new Date(generateDto.collection_date);
+      if (isNaN(collectionDate.getTime())) {
+        throw new Error('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
+      }
+
+      const results = [];
+      let totalAmount = 0;
+      let cyclesProcessed = 0;
+      let lastOrderId = 0;
+
+      // Procesar cada ciclo seleccionado
+      for (const cycleId of generateDto.selected_cycles) {
+        try {
+          // Verificar si ya existe una orden de cobranza para este ciclo
+          const hasExistingOrder =
+            await this.automatedCollectionService.hasCollectionOrderForCycle(
+              cycleId,
+            );
+
+          if (hasExistingOrder) {
+            this.logger.warn(
+              `⚠️ Saltando ciclo ${cycleId} - ya tiene una orden de cobranza`,
+            );
+            continue;
+          }
+
+          // Generar la orden de cobranza manual con pedido híbrido
+          const result =
+            await this.automatedCollectionService.generateManualCollectionOrder(
+              cycleId,
+              collectionDate,
+              true, // createHybridOrder = true para cobranzas manuales
+            );
+
+          results.push(result);
+          totalAmount += result.pending_balance;
+          cyclesProcessed++;
+          lastOrderId = result.order_id;
+
+          this.logger.log(
+            `✅ Orden de cobranza manual creada para ciclo ${cycleId}: ID ${result.order_id}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error procesando ciclo ${cycleId}: ${error.message}`,
+          );
+          // Continuar con los demás ciclos
+        }
+      }
+
+      if (cyclesProcessed === 0) {
+        throw new Error(
+          'No se pudo procesar ningún ciclo. Verifique que los ciclos sean válidos y no tengan órdenes existentes.',
         );
+      }
+
+      const response: GenerateManualCollectionResponseDto = {
+        success: true,
+        order_id: lastOrderId,
+        action: 'created',
+        total_amount: totalAmount,
+        cycles_processed: cyclesProcessed,
+        message: `${cyclesProcessed} orden(es) de cobranza manual generada(s) exitosamente con pedidos híbridos`,
+      };
 
       this.logger.log(
-        `✅ Cobranza manual generada exitosamente: Pedido ${result.order_id}, Acción: ${result.action}`,
+        `✅ Cobranza manual completada: ${cyclesProcessed} ciclos procesados, Total: $${totalAmount}`,
       );
 
-      return result;
+      return response;
     } catch (error) {
       this.logger.error(
         `❌ Error generando cobranza manual para cliente ${generateDto.customer_id}: ${error.message}`,
