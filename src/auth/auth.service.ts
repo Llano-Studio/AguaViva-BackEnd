@@ -304,6 +304,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               ? user.updatedAt.toISOString()
               : undefined,
             profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+            profileImage: buildImageUrl(user.profileImageUrl, 'profile-images'),
           }),
       );
 
@@ -353,6 +354,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
         profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+        profileImage: buildImageUrl(user.profileImageUrl, 'profile-images'),
       });
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
