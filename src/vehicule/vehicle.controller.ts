@@ -296,7 +296,7 @@ export class VehicleController {
   @ApiOperation({
     summary: 'Asignar zonas a un vehículo',
     description:
-      'Asigna una o más zonas a un vehículo para su circulación. Se pueden desactivar asignaciones previas.',
+      'Asigna una o más zonas a un vehículo para su circulación. Comportamiento aditivo: no se desactivan asignaciones previas; se agregan nuevas zonas a las existentes.',
   })
   @ApiParam({ name: 'id', description: 'ID del vehículo', type: Number })
   @ApiResponse({
@@ -344,7 +344,7 @@ export class VehicleController {
   }
 
   @Delete(':vehicleId/zones/:zoneId')
-  @Auth(Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 
   @ApiOperation({
     summary: 'Remover zona de un vehículo',

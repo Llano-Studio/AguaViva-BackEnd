@@ -230,14 +230,6 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
 
     try {
       return await this.$transaction(async (prisma) => {
-        // Desactivar asignaciones previas si se especifica
-        if (dto.isActive !== false) {
-          await prisma.vehicle_zone.updateMany({
-            where: { vehicle_id: vehicleId },
-            data: { is_active: false },
-          });
-        }
-
         // Crear nuevas asignaciones
         const assignments = await Promise.all(
           dto.zoneIds.map(async (zoneId) => {
