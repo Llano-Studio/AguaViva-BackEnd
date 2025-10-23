@@ -61,14 +61,6 @@ export class UserResponseDto {
   })
   profileImageUrl?: string;
 
-  @ApiProperty({
-    description: 'URL completa de la imagen de perfil del usuario (nuevo). Devuelve null si no hay imagen.',
-    example: 'http://localhost:3000/public/uploads/profile-images/user-default.png',
-    required: false,
-    nullable: true,
-  })
-  profileImage?: string | null;
-
   constructor(partial: Partial<UserResponseDto>) {
     Object.assign(this, partial);
   }
