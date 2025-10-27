@@ -246,6 +246,80 @@ export class AutomatedCollectionService
   }
 
   /**
+   * Genera automáticamente hojas de ruta de cobranzas por vehículo y zonas cada día
+   * Se ejecuta después de crear las órdenes de cobranza automáticas
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  async generateDailyCollectionRouteSheets() {
+    this.logger.log('🗺️ Iniciando generación automática de hojas de ruta de cobranzas...');
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dateIso = today.toISOString().split('T')[0];
+
+      // Obtener vehículos activos con sus zonas asignadas
+      const vehicles = await this.vehicle.findMany({
+        where: { is_active: true },
+        include: {
+          vehicle_zone: {
+            where: { is_active: true },
+            select: { zone_id: true },
+          },
+        },
+      });
+
+      let generatedCount = 0;
+
+      for (const vehicle of vehicles) {
+        const zoneIds = vehicle.vehicle_zone.map((vz) => vz.zone_id);
+        if (!zoneIds || zoneIds.length === 0) {
+          this.logger.log(
+            `↪️ Saltando vehículo ${vehicle.vehicle_id} - sin zonas activas asignadas`,
+          );
+          continue;
+        }
+
+        try {
+          const filters: GenerateRouteSheetDto = {
+            date: dateIso,
+            zoneIds,
+            vehicleId: vehicle.vehicle_id,
+            overdueOnly: 'false',
+            sortBy: 'zone',
+            format: 'compact',
+            notes: `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}`,
+          } as any;
+
+          // Generar y persistir PDF en /public/pdfs/collections
+          const result = await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
+            filters,
+          );
+
+          generatedCount++;
+          this.logger.log(
+            `✅ Hoja de ruta generada para vehículo ${vehicle.vehicle_id} (${zoneIds.length} zonas) → ${result.downloadUrl}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error generando hoja de ruta para vehículo ${vehicle.vehicle_id}:`,
+            error,
+          );
+        }
+      }
+
+      this.logger.log(
+        `🧾 Generación automática de hojas de ruta completada: ${generatedCount}/${vehicles.length} generadas`,
+      );
+    } catch (error) {
+      this.logger.error(
+        '❌ Error durante la generación automática de hojas de ruta de cobranzas:',
+        error,
+      );
+    }
+  }
+
+  /**
    * Ajusta la fecha para evitar domingos (genera el sábado anterior)
    */
   private adjustDateForSunday(date: Date): Date {
