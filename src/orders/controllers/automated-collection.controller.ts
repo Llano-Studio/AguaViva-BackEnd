@@ -32,6 +32,8 @@ import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../dto/generate-route-sheet.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
@@ -857,6 +859,138 @@ export class AutomatedCollectionController {
     } catch (error) {
       throw new HttpException(
         `Error generando hoja de ruta: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Lista hojas de ruta de cobranzas generadas automáticamente y persistidas para descarga
+   */
+  @Get('orders/route-sheet/generated')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Listar hojas de ruta automáticas de cobranza',
+    description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor.
+
+    Filtros opcionales:
+    - dateFrom/dateTo: rango de fechas (YYYY-MM-DD)
+    - vehicleId: ID del vehículo
+    - driverId: ID del conductor (si aplica)
+    - zoneId: que contenga la zona en el archivo
+    `,
+  })
+  @ApiQuery({ name: 'dateFrom', required: false, type: String, example: '2025-10-01' })
+  @ApiQuery({ name: 'dateTo', required: false, type: String, example: '2025-10-31' })
+  @ApiQuery({ name: 'vehicleId', required: false, type: Number, example: 4 })
+  @ApiQuery({ name: 'driverId', required: false, type: Number, example: 12 })
+  @ApiQuery({ name: 'zoneId', required: false, type: Number, example: 7 })
+  @ApiResponse({
+    status: 200,
+    description: 'Listado de hojas de ruta automáticas para cobranza',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              filename: { type: 'string' },
+              downloadUrl: { type: 'string' },
+              date: { type: 'string' },
+              vehicleId: { type: 'number', nullable: true },
+              driverId: { type: 'number', nullable: true },
+              zoneIds: { type: 'array', items: { type: 'number' } },
+              sizeBytes: { type: 'number' },
+              createdAt: { type: 'string' },
+            },
+          },
+        },
+        total: { type: 'number' },
+      },
+    },
+  })
+  async listGeneratedRouteSheets(
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+    @Query('vehicleId') vehicleId?: number,
+    @Query('driverId') driverId?: number,
+    @Query('zoneId') zoneId?: number,
+  ) {
+    try {
+      const dir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
+      if (!fs.existsSync(dir)) {
+        return { success: true, message: 'No hay hojas de ruta generadas', data: [], total: 0 };
+      }
+
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
+      const regex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+
+      const parseZones = (zonesStr: string): number[] => {
+        if (zonesStr === 'zall') return [];
+        return zonesStr
+          .substring(1)
+          .split('-')
+          .map((z) => parseInt(z))
+          .filter((z) => !isNaN(z));
+      };
+
+      const withinDateRange = (date: string) => {
+        if (!dateFrom && !dateTo) return true;
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        if (dateFrom) {
+          const from = new Date(dateFrom);
+          from.setHours(0, 0, 0, 0);
+          if (d < from) return false;
+        }
+        if (dateTo) {
+          const to = new Date(dateTo);
+          to.setHours(23, 59, 59, 999);
+          if (d > to) return false;
+        }
+        return true;
+      };
+
+      const items = files
+        .map((filename) => {
+          const match = filename.match(regex);
+          if (!match) return null;
+          const [, date, vStr, zStr, dStr] = match;
+          const vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
+          const dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
+          const zIds = parseZones(zStr);
+          const filePath = path.join(dir, filename);
+          const stat = fs.statSync(filePath);
+          return {
+            filename,
+            downloadUrl: `/public/pdfs/collections/${filename}`,
+            date,
+            vehicleId: vId,
+            driverId: dId,
+            zoneIds: zIds,
+            sizeBytes: stat.size,
+            createdAt: stat.mtime.toISOString(),
+          };
+        })
+        .filter((item) => !!item)
+        .filter((item) => withinDateRange(item!.date))
+        .filter((item) => (vehicleId ? item!.vehicleId === Number(vehicleId) : true))
+        .filter((item) => (driverId ? item!.driverId === Number(driverId) : true))
+        .filter((item) => (zoneId ? item!.zoneIds.includes(Number(zoneId)) : true));
+
+      return {
+        success: true,
+        message: `${items.length} hojas de ruta encontradas`,
+        data: items,
+        total: items.length,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Error listando hojas de ruta: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
