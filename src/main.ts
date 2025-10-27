@@ -72,6 +72,22 @@ async function bootstrap() {
     },
   });
 
+  // 🆕 Servir archivos temporales bajo /temp para descargas efímeras
+  app.useStaticAssets(join(process.cwd(), 'temp'), {
+    prefix: '/temp/',
+    setHeaders: (res, path) => {
+      if (path.match(/\.pdf$/i)) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Accept, Authorization, X-Requested-With',
+        );
+        res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutos para temporales
+      }
+    },
+  });
+
   // Configuración de CORS más específica para desarrollo
   const allowedOrigins = [
     'http://localhost:3000',
@@ -135,6 +151,7 @@ async function bootstrap() {
     './public/uploads/reconciliations',
     './public/uploads/contracts',
     './public/pdfs', // 🆕 Directorio para PDFs generados
+    './public/pdfs/collections', // 🆕 Subdirectorio para hojas de ruta de cobranzas automáticas
   ];
 
   uploadsDirectories.forEach((dir) => {
