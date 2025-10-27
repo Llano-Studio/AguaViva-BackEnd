@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
+import * as path from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
 
@@ -106,6 +107,72 @@ export class RouteSheetGeneratorService extends PrismaClient {
     } catch (error) {
       this.logger.error('Error generando hoja de ruta:', error);
       throw new Error(`Error generando hoja de ruta: ${error.message}`);
+    }
+  }
+
+  /**
+   * Genera y persiste un PDF de hoja de ruta en /public/pdfs/collections
+   * Devuelve una URL de descarga estable para mostrar en el frontend
+   */
+  async generateRouteSheetAndPersist(
+    filters: GenerateRouteSheetDto,
+  ): Promise<RouteSheetResponseDto> {
+    try {
+      const targetDate = filters.date ? new Date(filters.date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
+
+      if (filters.vehicleId && filters.zoneIds && filters.zoneIds.length > 0) {
+        await this.validateVehicleZones(filters.vehicleId, filters.zoneIds);
+      }
+
+      const collections = await this.getCollectionsForRouteSheet(filters, targetDate);
+      const zones = this.groupCollectionsByZone(collections);
+      const driver = await this.getDriverInfo(filters.driverId);
+      const vehicle = await this.getVehicleInfo(filters.vehicleId);
+
+      // Asegurar directorio de persistencia
+      const persistDir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
+      if (!fs.existsSync(persistDir)) {
+        fs.mkdirSync(persistDir, { recursive: true });
+      }
+
+      // Construir nombre de archivo estable con metadatos básicos
+      const datePart = targetDate.toISOString().split('T')[0];
+      const vehiclePart = filters.vehicleId ? `v${filters.vehicleId}` : 'vNA';
+      const driverPart = filters.driverId ? `d${filters.driverId}` : 'dNA';
+      const zonesPart = filters.zoneIds && filters.zoneIds.length > 0 ? `z${filters.zoneIds.join('-')}` : 'zall';
+      const baseName = `collection-route-sheet_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
+      const filePath = path.join(persistDir, baseName);
+
+      // Evitar duplicados: si existe, reescribirlo con contenido actualizado
+      await this.generateRouteSheetPdf(filePath, {
+        targetDate,
+        zones,
+        driver,
+        vehicle,
+        notes: filters.notes,
+      });
+
+      const downloadUrl = `/public/pdfs/collections/${baseName}`;
+      const summary = this.calculateSummary(zones);
+
+      return {
+        success: true,
+        message: 'Hoja de ruta generada y persistida exitosamente',
+        downloadUrl,
+        routeSheet: {
+          date: datePart,
+          generated_at: new Date().toISOString(),
+          driver,
+          vehicle,
+          zones,
+          summary,
+          notes: filters.notes,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error generando y persistiendo hoja de ruta:', error);
+      throw new Error(`Error generando y persistiendo hoja de ruta: ${error.message}`);
     }
   }
 
