@@ -1070,8 +1070,8 @@ export class OrdersController {
 - Se requiere confirmación explícita en el cuerpo de la petición
 
 **Limitaciones Temporales:**
-- Solo se pueden eliminar transacciones de máximo 7 días de antigüedad
-- Restricción más estricta que la edición por seguridad
+      - Sin límite de antigüedad para eliminar transacciones
+      - Nota: la edición mantiene límite de 30 días por seguridad
 
 **Validaciones Críticas:**
 - No se puede eliminar si es la única transacción de una orden pagada
@@ -1159,7 +1159,6 @@ export class OrdersController {
     
     return this.ordersService.deletePaymentTransaction(
       transactionId,
-      'MANUAL_DELETION', // código de confirmación
       body.deletion_reason,
       userId,
       userRole,

@@ -2531,13 +2531,23 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           data: updateData,
         });
 
-        // Si se cambió el monto, recalcular el balance de la orden
+        // Si se cambió el monto, recalcular el balance de la orden o ONE-OFF
         if (updateDto.amount !== undefined) {
-          await this.recalculateOrderBalance(
-            currentTransaction.order_id,
-            currentTransaction.customer_id,
-            tx,
-          );
+          if (currentTransaction.order_id) {
+            await this.recalculateOrderBalance(
+              currentTransaction.order_id,
+              currentTransaction.customer_id,
+              tx,
+            );
+          } else if (
+            currentTransaction.document_number?.startsWith('ONE-OFF-')
+          ) {
+            const idStr = currentTransaction.document_number.replace('ONE-OFF-', '');
+            const purchaseId = parseInt(idStr);
+            if (!isNaN(purchaseId)) {
+              await this.recalculateOneOffBalance(purchaseId, tx);
+            }
+          }
         }
 
         return {
@@ -2577,20 +2587,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
    */
   async deletePaymentTransaction(
     transactionId: number,
-    confirmationCode: string,
     reason: string,
     userId: number,
     userRole: string,
   ): Promise<PaymentOperationResponseDto> {
     try {
-      // Validar código de confirmación
-      const isValidCode = this.auditService.validateConfirmationCode(
-        confirmationCode,
-      );
-      if (!isValidCode) {
-        throw new BadRequestException('Código de confirmación inválido.');
-      }
-
       // Validar la transacción y permisos
       await this.validateTransactionDeletion(transactionId, userId, userRole);
 
@@ -2631,12 +2632,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           where: { transaction_id: transactionId },
         });
 
-        // Recalcular el balance de la orden
-        await this.recalculateOrderBalance(
-          currentTransaction.order_id,
-          currentTransaction.customer_id,
-          tx,
-        );
+        // Recalcular el balance de la orden o ONE-OFF
+        if (currentTransaction.order_id) {
+          await this.recalculateOrderBalance(
+            currentTransaction.order_id,
+            currentTransaction.customer_id,
+            tx,
+          );
+        } else if (
+          currentTransaction.document_number?.startsWith('ONE-OFF-')
+        ) {
+          const idStr = currentTransaction.document_number.replace('ONE-OFF-', '');
+          const purchaseId = parseInt(idStr);
+          if (!isNaN(purchaseId)) {
+            await this.recalculateOneOffBalance(purchaseId, tx);
+          }
+        }
 
         return {
           success: true,
@@ -2744,17 +2755,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       );
     }
 
-    // Validar que la transacción no sea muy antigua (máximo 7 días)
-    const transactionDate = new Date(transaction.transaction_date);
-    const daysDifference = Math.floor(
-      (Date.now() - transactionDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (daysDifference > 7) {
-      throw new BadRequestException(
-        'No se pueden eliminar transacciones de más de 7 días de antigüedad.',
-      );
-    }
+    // Sin límite de antigüedad para eliminar transacciones
 
     // Validar que la orden no esté en estado entregado o cancelado
     if (transaction.order_header && ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
@@ -2825,5 +2826,69 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         payment_status: paymentStatus,
       },
     });
+  }
+
+  /**
+   * Recalcula el balance de una orden ONE-OFF (legacy o header) basado en transacciones
+   */
+  private async recalculateOneOffBalance(
+    purchaseId: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    // Buscar primero en estructura nueva (header)
+    const header = await tx.one_off_purchase_header.findUnique({
+      where: { purchase_header_id: purchaseId },
+    });
+
+    // Si existe header, recalcular usando transacciones con document_number ONE-OFF-<id>
+    if (header) {
+      const transactions = await tx.payment_transaction.findMany({
+        where: { document_number: `ONE-OFF-${purchaseId}` },
+      });
+
+      const totalPaid = transactions.reduce(
+        (sum, t) => sum.plus(new Decimal(t.transaction_amount)),
+        new Decimal(0),
+      );
+
+      const totalAmount = new Decimal(header.total_amount);
+      let paymentStatus = 'PENDING';
+      if (totalPaid.equals(0)) paymentStatus = 'PENDING';
+      else if (totalPaid.greaterThanOrEqualTo(totalAmount)) paymentStatus = 'PAID';
+      else paymentStatus = 'PARTIAL';
+
+      await tx.one_off_purchase_header.update({
+        where: { purchase_header_id: purchaseId },
+        data: {
+          paid_amount: totalPaid.toString(),
+          payment_status: paymentStatus,
+        },
+      });
+
+      return;
+    }
+
+    // De lo contrario, estructura legacy: solo actualizar paid_amount
+    const legacy = await tx.one_off_purchase.findUnique({
+      where: { purchase_id: purchaseId },
+    });
+
+    if (legacy) {
+      const transactions = await tx.payment_transaction.findMany({
+        where: { document_number: `ONE-OFF-${purchaseId}` },
+      });
+
+      const totalPaid = transactions.reduce(
+        (sum, t) => sum.plus(new Decimal(t.transaction_amount)),
+        new Decimal(0),
+      );
+
+      await tx.one_off_purchase.update({
+        where: { purchase_id: purchaseId },
+        data: {
+          paid_amount: totalPaid.toString(),
+        },
+      });
+    }
   }
 }
