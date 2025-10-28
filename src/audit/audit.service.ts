@@ -214,9 +214,9 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         return false;
       }
 
-      // Solo administradores y supervisores pueden realizar operaciones de auditoría
-      const allowedRoles = ['ADMIN', 'SUPERVISOR'];
-      return allowedRoles.includes(user.role);
+      // Roles válidos según el esquema del sistema
+      const allowedRoles = ['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'];
+      return allowedRoles.includes(user.role as any);
     } catch (error) {
       this.logger.error('Error validating audit permissions:', error);
       return false;
