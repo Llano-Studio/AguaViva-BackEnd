@@ -766,8 +766,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       throw new NotFoundException(`Pago con ID ${paymentId} no encontrado`);
     }
 
-    // Validar código de confirmación
-    if (!this.auditService.validateConfirmationCode(deletePaymentDto.confirmation_code)) {
+    // Validar código de confirmación si se proporciona
+    if (deletePaymentDto.confirmation_code && !this.auditService.validateConfirmationCode(deletePaymentDto.confirmation_code)) {
       throw new BadRequestException('Código de confirmación inválido');
     }
 
@@ -803,7 +803,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       operationType: 'DELETE',
       oldValues,
       userId,
-      reason: deletePaymentDto.reason,
+      reason: deletePaymentDto.reason || 'Eliminación sin motivo especificado',
       ipAddress,
       userAgent,
     });
@@ -814,7 +814,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     );
 
     this.logger.log(
-      `Pago ${paymentId} eliminado exitosamente por usuario ${userId}. Motivo: ${deletePaymentDto.reason}`,
+      `Pago ${paymentId} eliminado exitosamente por usuario ${userId}. Motivo: ${deletePaymentDto.reason || 'No especificado'}`,
     );
 
     return {
