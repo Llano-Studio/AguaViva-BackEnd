@@ -236,9 +236,14 @@ export class AuditService extends PrismaClient implements OnModuleInit {
    * Valida un código de confirmación
    */
   validateConfirmationCode(code: string): boolean {
-    // Validación básica del formato del código
-    const codePattern = /^CONF\d{6}[A-Z0-9]{6}$/;
-    return codePattern.test(code);
+    // Validación flexible del formato del código
+    // 1) Formato generado por el sistema: CONF + 6 dígitos + 6 caracteres alfanuméricos
+    // 2) Formato documentado en Swagger: CONF-YYYY-NNN (por ejemplo: CONF-2024-001)
+    const patterns = [
+      /^CONF\d{6}[A-Z0-9]{6}$/i,
+      /^CONF-\d{4}-\d{3}$/i,
+    ];
+    return patterns.some((p) => p.test(code));
   }
 
   /**

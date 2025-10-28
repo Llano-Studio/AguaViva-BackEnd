@@ -768,7 +768,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
 
     // Validar código de confirmación
     if (!this.auditService.validateConfirmationCode(deletePaymentDto.confirmation_code)) {
-      throw new Error('Código de confirmación inválido');
+      throw new BadRequestException('Código de confirmación inválido');
     }
 
     // Validar permisos de eliminación
