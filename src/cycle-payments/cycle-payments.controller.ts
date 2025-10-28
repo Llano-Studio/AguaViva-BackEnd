@@ -466,7 +466,7 @@ export class CyclePaymentsController {
   }
 
   @Put(':paymentId')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE)
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar pago de ciclo existente',
@@ -562,7 +562,7 @@ export class CyclePaymentsController {
   }
 
   @Delete(':paymentId')
-  @Auth(Role.ADMINISTRATIVE)
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Eliminar pago de ciclo',
@@ -657,7 +657,7 @@ export class CyclePaymentsController {
   }
 
   @Post('fix-all-incorrect-cycles')
-  @Auth(Role.SUPERADMIN)
+   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Corregir todos los ciclos con cálculos incorrectos',

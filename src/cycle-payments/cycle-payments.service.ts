@@ -3,6 +3,8 @@ import {
   NotFoundException,
   Logger,
   OnModuleInit,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PaymentStatus, PrismaClient, Role } from '@prisma/client';
 import { CreateCyclePaymentDto } from './dto/create-cycle-payment.dto';
@@ -834,7 +836,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     // Verificar permisos del usuario
     const hasPermission = await this.auditService.validateAuditPermissions(userId, 'UPDATE_PAYMENT');
     if (!hasPermission) {
-      throw new Error('No tiene permisos para actualizar pagos');
+      throw new ForbiddenException('No tiene permisos para actualizar pagos');
     }
 
     // Verificar que el pago no sea muy antiguo (ej: más de 30 días)
@@ -844,12 +846,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     );
 
     if (daysDifference > 30) {
-      throw new Error('No se pueden actualizar pagos con más de 30 días de antigüedad');
+      throw new BadRequestException('No se pueden actualizar pagos con más de 30 días de antigüedad');
     }
 
     // Verificar que el ciclo no esté cerrado o procesado
     if (payment.subscription_cycle.payment_status === 'PROCESSED') {
-      throw new Error('No se pueden actualizar pagos de ciclos ya procesados');
+      throw new BadRequestException('No se pueden actualizar pagos de ciclos ya procesados');
     }
   }
 
@@ -857,24 +859,14 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
    * Valida si un pago puede ser eliminado
    */
   async validatePaymentDeletion(payment: any, userId: number): Promise<void> {
-    // Verificar permisos del usuario (solo administradores pueden eliminar)
+    // Verificar permisos del usuario (administradores y jefes administrativos pueden eliminar)
     const user = await this.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
 
-    if (!user || user.role !== Role.ADMINISTRATIVE) {
-      throw new Error('Solo los administradores pueden eliminar pagos');
-    }
-
-    // Verificar que el pago no sea muy antiguo
-    const paymentDate = new Date(payment.payment_date);
-    const daysDifference = Math.floor(
-      (new Date().getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (daysDifference > 7) {
-      throw new Error('No se pueden eliminar pagos con más de 7 días de antigüedad');
+    if (!user || !['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'].includes(user.role as any)) {
+      throw new ForbiddenException('No tiene permisos para eliminar pagos');
     }
 
     // Verificar que no sea el único pago del ciclo si el ciclo está marcado como pagado
@@ -883,7 +875,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     });
 
     if (cyclePayments === 1 && payment.subscription_cycle.payment_status === 'PAID') {
-      throw new Error('No se puede eliminar el único pago de un ciclo marcado como pagado');
+      throw new BadRequestException('No se puede eliminar el único pago de un ciclo marcado como pagado');
     }
   }
 
