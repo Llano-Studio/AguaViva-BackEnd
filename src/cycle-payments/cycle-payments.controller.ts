@@ -555,7 +555,7 @@ export class CyclePaymentsController {
     return this.cyclePaymentsService.updateCyclePayment(
       paymentId,
       updateDto,
-      req.user.userId,
+      req.user.id,
       req.ip,
       req.get('User-Agent'),
     );
@@ -650,7 +650,7 @@ export class CyclePaymentsController {
     return this.cyclePaymentsService.deleteCyclePayment(
       paymentId,
       deleteDto,
-      req.user.userId,
+      req.user.id,
       req.ip,
       req.get('User-Agent'),
     );
