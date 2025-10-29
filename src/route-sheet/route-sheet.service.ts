@@ -2242,4 +2242,120 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       );
     }
   }
+
+  /**
+   * Genera un PDF específico para hojas de ruta de cobranzas automáticas
+   */
+  async generateCollectionRouteSheetPdf(
+    route_sheet_id: number,
+    options: any = {},
+  ): Promise<{ url: string; filename: string; total_collections: number }> {
+    try {
+      // Buscar la hoja de ruta con todos los detalles necesarios
+      const routeSheet = await this.route_sheet.findUnique({
+        where: { route_sheet_id },
+        include: {
+          driver: true,
+          vehicle: true,
+          route_sheet_detail: {
+            where: {
+              cycle_payment_id: { not: null }, // Solo cobranzas automáticas
+            },
+            include: {
+              cycle_payment: {
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: {
+                          person: true,
+                          subscription_plan: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!routeSheet) {
+        throw new NotFoundException(
+          `Hoja de ruta con ID ${route_sheet_id} no encontrada`,
+        );
+      }
+
+      // Filtrar solo los detalles que tienen cycle_payment_id
+      const collectionDetails = routeSheet.route_sheet_detail.filter(
+        (detail) => detail.cycle_payment_id,
+      );
+
+      if (collectionDetails.length === 0) {
+        throw new BadRequestException(
+          'Esta hoja de ruta no contiene cobranzas automáticas',
+        );
+      }
+
+      // Mapear los datos para el PDF
+      const collectionData = {
+        route_sheet_id: routeSheet.route_sheet_id,
+        delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
+        route_notes: routeSheet.route_notes,
+        driver: {
+          name: routeSheet.driver.name,
+          email: routeSheet.driver.email,
+        },
+        vehicle: {
+          code: routeSheet.vehicle.code,
+          name: routeSheet.vehicle.name,
+        },
+        collections: collectionDetails.map((detail) => ({
+          cycle_payment_id: detail.cycle_payment_id,
+          customer: {
+            name: detail.cycle_payment.subscription_cycle.customer_subscription.person.name,
+            address: detail.cycle_payment.subscription_cycle.customer_subscription.person.address,
+            phone: detail.cycle_payment.subscription_cycle.customer_subscription.person.phone,
+          },
+          amount: detail.cycle_payment.amount.toNumber(),
+          payment_due_date: detail.cycle_payment.payment_date?.toISOString().split('T')[0] || '',
+          cycle_period: detail.cycle_payment.subscription_cycle.cycle_number.toString(),
+          subscription_plan: detail.cycle_payment.subscription_cycle.customer_subscription.subscription_plan.name,
+          delivery_status: detail.delivery_status,
+          delivery_time: detail.delivery_time,
+          comments: detail.comments,
+        })),
+      };
+
+      // Generar el PDF usando el servicio de PDF
+      const { doc, filename, pdfPath } = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+        collectionData,
+        options,
+      );
+
+      // Guardar el PDF
+      const writeStream = fs.createWriteStream(pdfPath);
+      doc.pipe(writeStream);
+
+      // Finalizar y obtener la URL
+      const result = await this.pdfGeneratorService.finalizePdf(
+        doc,
+        writeStream,
+        filename,
+      );
+
+      return {
+        ...result,
+        total_collections: collectionDetails.length,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error generando PDF de cobranzas: ${error.message}`,
+      );
+    }
+  }
 }

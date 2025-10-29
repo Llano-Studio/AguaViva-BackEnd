@@ -39,6 +39,8 @@ import {
   ValidateDeliveryTimesDto,
   DeliveryTimeValidationResponseDto,
   UpdateDeliveryTimeDto,
+  GenerateCollectionPdfDto,
+  CollectionPdfResponseDto,
 } from './dto';
 import { RouteSheetService } from './route-sheet.service';
 import { RouteOptimizationService } from '../common/services/route-optimization.service';
@@ -899,5 +901,85 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   async getFailedOrderStats() {
     return this.failedOrderReassignmentService.getFailedOrdersStats();
+  }
+
+  @Post(':id/generate-collection-pdf')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Generar PDF de hoja de ruta de cobranzas automáticas',
+    description: `Genera un PDF específico para hojas de ruta que contienen cobranzas automáticas (cycle payments).
+
+## 📋 FUNCIONALIDAD
+
+**Propósito:**
+- Genera un PDF optimizado para cobranzas automáticas
+- Incluye solo los detalles de la hoja de ruta que corresponden a cycle_payment_id
+- Formato específico para gestión de cobranzas
+
+**Información Incluida:**
+- Datos de la hoja de ruta (ID, fecha, notas)
+- Información del conductor y vehículo
+- Tabla detallada de cobranzas con:
+  - Datos del cliente (nombre, dirección, teléfono)
+  - Monto a cobrar
+  - Fecha de vencimiento
+  - Plan de suscripción
+  - Estado de entrega
+  - Horario programado
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Cobranzas**: PDF específico para conductores que realizan cobranzas
+- **Control de Pagos**: Seguimiento de pagos de suscripciones automáticas
+- **Documentación**: Registro físico de cobranzas realizadas
+- **Auditoría**: Evidencia de gestión de cobranzas automáticas
+
+## ⚠️ VALIDACIONES
+
+- La hoja de ruta debe existir
+- Debe contener al menos una cobranza automática (cycle_payment_id)
+- Solo incluye detalles con cycle_payment_id válido`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para generar PDF de cobranzas',
+    type: Number,
+    example: 123,
+  })
+  @ApiBody({
+    description: 'Opciones para la generación del PDF',
+    type: GenerateCollectionPdfDto,
+    required: false,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'PDF de cobranzas generado exitosamente',
+    type: CollectionPdfResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'La hoja de ruta no contiene cobranzas automáticas',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Hoja de ruta no encontrada',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async generateCollectionPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() generatePdfDto: GenerateCollectionPdfDto = {},
+  ): Promise<CollectionPdfResponseDto> {
+    const result = await this.routeSheetService.generateCollectionRouteSheetPdf(
+      id,
+      generatePdfDto,
+    );
+
+    return {
+      url: result.url,
+      filename: result.filename,
+      route_sheet_id: id,
+      generated_at: new Date().toISOString(),
+      total_collections: result.total_collections,
+    };
   }
 }
