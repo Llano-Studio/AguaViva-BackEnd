@@ -51,7 +51,7 @@ export class GenerateCollectionOrdersDto {
   target_date: string;
 }
 
-@ApiTags('Generación de Órdenes de Cobranza')
+@ApiTags('🛒 Pedidos & Compras de una sola vez')
 @Controller('automated-collection')
 @UseGuards(JwtAuthGuard, UserRolesGuard)
 @ApiBearerAuth()
@@ -132,8 +132,42 @@ export class AutomatedCollectionController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Fecha inválida' })
-  @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Fecha inválida o datos de entrada incorrectos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' }, example: ['La fecha debe estar en formato YYYY-MM-DD válido'] },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
+  })
   async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
     try {
       // Validar formato de fecha

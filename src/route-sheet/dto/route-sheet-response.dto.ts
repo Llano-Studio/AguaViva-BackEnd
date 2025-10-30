@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { DeliveryStatus } from '../../common/constants/enums';
 
 export class CustomerDto {
   @ApiProperty({
@@ -132,9 +133,32 @@ export class RouteSheetDetailResponseDto {
 
   @ApiProperty({
     description: 'Estado de la entrega',
-    example: 'PENDING',
+    enum: DeliveryStatus,
+    example: DeliveryStatus.PENDING,
+    examples: {
+      pending: {
+        value: DeliveryStatus.PENDING,
+        description: 'Entrega pendiente'
+      },
+      assigned: {
+        value: DeliveryStatus.ASSIGNED,
+        description: 'Asignado al conductor'
+      },
+      inTransit: {
+        value: DeliveryStatus.IN_TRANSIT,
+        description: 'En tránsito'
+      },
+      delivered: {
+        value: DeliveryStatus.DELIVERED,
+        description: 'Entregado exitosamente'
+      },
+      failed: {
+        value: DeliveryStatus.FAILED,
+        description: 'Entrega fallida'
+      }
+    }
   })
-  delivery_status: string;
+  delivery_status: DeliveryStatus;
 
   @ApiProperty({
     description:

@@ -34,7 +34,7 @@ import {
 import { Role } from '@prisma/client';
 import { Auth } from '../../auth/decorators/auth.decorator';
 
-@ApiTags('Generación de Órdenes de Cobranza Manuales')
+@ApiTags('🛒 Pedidos & Compras de una sola vez')
 @Controller('manual-collection')
 @UseGuards(JwtAuthGuard)
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
@@ -113,9 +113,41 @@ export class ManualCollectionController {
     description: 'Lista de clientes encontrados',
     type: CustomerSearchResponseDto,
   })
+  @ApiResponse({ 
+    status: 400,
+    description: 'Parámetros de consulta inválidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', 'limit no puede ser mayor a 100'] },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
   @ApiResponse({
-    status: 401,
-    description: 'No autorizado',
+    status: 403,
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   async searchCustomers(
     @Query() searchParams: CustomerSearchDto,

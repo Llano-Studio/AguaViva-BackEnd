@@ -32,7 +32,7 @@ import {
   PaginatedInventoryResponseDto,
 } from './dto/filter-inventory.dto';
 
-@ApiTags('Inventario')
+@ApiTags('📦 Inventario')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('inventory')

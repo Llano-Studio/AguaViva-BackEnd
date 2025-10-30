@@ -33,7 +33,7 @@ import {
   VehicleZoneResponseDto,
 } from './dto';
 
-@ApiTags('Vehículos')
+@ApiTags('🚛 Vehículos')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('vehicles')

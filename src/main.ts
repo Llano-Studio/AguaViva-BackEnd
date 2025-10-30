@@ -163,7 +163,7 @@ async function bootstrap() {
 
   // Swagger
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Sgarav API')
+    .setTitle('🌊 Sgarav API - Sistema de Gestión de Agua')
     .setDescription(
       `
 # API para el Sistema de Gestión de Agua Sgarav
@@ -190,43 +190,69 @@ La API utiliza autenticación JWT Bearer Token. Para acceder a los endpoints pro
 - **DRIVERS**: Acceso limitado para conductores
 
 ## 🚀 Funcionalidades Principales
-- **Gestión Híbrida de Órdenes**: Suscripciones + productos adicionales
-- **Sistema de Comodatos**: Préstamo de dispensadores y equipos
-- **Listas de Precios Diferenciadas**: Precios por cliente/contrato
-- **Control de Stock en Tiempo Real**: Inventario centralizado
-- **Rutas Optimizadas**: Planificación automática de entregas
+- **🔄 Gestión Híbrida de Órdenes**: Suscripciones + productos adicionales
+- **📦 Sistema de Comodatos**: Préstamo de dispensadores y equipos
+- **💰 Listas de Precios Diferenciadas**: Precios por cliente/contrato
+- **📊 Control de Stock en Tiempo Real**: Inventario centralizado
+- **🗺️ Rutas Optimizadas**: Planificación automática de entregas
+- **💳 Gestión de Pagos de Ciclos**: Cobranzas automáticas y manuales
+- **📋 Hojas de Ruta Inteligentes**: Soporte para múltiples tipos de órdenes
+
+## 🆕 Desarrollos Recientes
+- **Órdenes Híbridas**: Combinación de productos de suscripción + adicionales
+- **Pagos de Ciclos**: Sistema avanzado de cobranzas por ciclos de suscripción
+- **Hojas de Ruta Mejoradas**: Soporte para one-off, híbridas, suscripciones y cobranzas
+- **Gestión de Suscripciones**: Control completo de ciclos y preferencias de entrega
+
+## 📖 Guía de Uso
+Para comenzar a usar la API:
+1. **Autenticarse**: POST \`/api/auth/login\`
+2. **Explorar Clientes**: GET \`/api/persons\`
+3. **Crear Suscripciones**: POST \`/api/customer-subscription\`
+4. **Gestionar Órdenes**: POST \`/api/orders\`
+5. **Planificar Entregas**: POST \`/api/route-sheet\`
 `,
     )
-    .setVersion('1.0.0')
+    .setVersion('2.0.0')
     .setContact(
       'Equipo de Desarrollo Sgarav',
       'https://sgarav.com',
       'desarrollo@sgarav.com',
     )
     .setLicense('Propietario', 'https://sgarav.com/license')
-    .addServer('http://localhost:3000', 'Servidor de Desarrollo')
+    .setTermsOfService('https://sgarav.com/terms')
+    .addServer('http://localhost:3000', 'Servidor de Desarrollo Local')
+    .addServer('https://api-dev.sgarav.com', 'Servidor de Desarrollo')
     .addServer('https://api.sgarav.com', 'Servidor de Producción')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: 'Ingrese el token JWT obtenido del endpoint /auth/login',
+        description: '🔑 Ingrese el token JWT obtenido del endpoint /auth/login. El token se renovará automáticamente.',
+        name: 'Authorization',
+        in: 'header',
       },
       'JWT-auth',
     )
-    .addTag('Health', 'Endpoints de verificación del estado del sistema')
-    .addTag('Autenticación/Usuarios', 'Gestión de usuarios y autenticación')
-    .addTag('Clientes', 'Gestión de personas y clientes')
-    .addTag('Productos & Artículos', 'Catálogo de productos y artículos')
-    .addTag('Inventario', 'Control de stock y movimientos')
-    .addTag('Vehículos', 'Gestión de flota de vehículos')
-    .addTag('Inventario de Vehículos', 'Stock móvil en vehículos')
-    .addTag('Zonas', 'Gestión de zonas geográficas')
-    .addTag('Planes de Suscripción', 'Planes y configuraciones de suscripción')
-    .addTag('Pedidos & Compras de una sola vez', 'Gestión de órdenes y pedidos')
-    .addTag('Comodatos', 'Sistema de préstamo de equipos')
-    .addTag('Hojas de Ruta', 'Planificación y seguimiento de entregas')
+    .addTag('🏥 Health', 'Endpoints de verificación del estado del sistema')
+    .addTag('🔐 Autenticación/Usuarios', 'Gestión de usuarios, roles y autenticación JWT')
+    .addTag('👥 Clientes', 'Gestión de personas, clientes y datos de contacto')
+    .addTag('📦 Productos & Artículos', 'Catálogo de productos, categorías y artículos')
+    .addTag('📊 Inventario', 'Control de stock, movimientos y almacenes')
+    .addTag('🚛 Vehículos', 'Gestión de flota de vehículos y conductores')
+    .addTag('📦 Inventario de Vehículos', 'Stock móvil y carga en vehículos')
+    .addTag('🗺️ Zonas', 'Gestión de zonas geográficas y rutas')
+    .addTag('📋 Planes de Suscripción', 'Planes, configuraciones y productos incluidos')
+    .addTag('🔄 Suscripciones de Clientes', 'Gestión de suscripciones activas y ciclos')
+    .addTag('💳 Pagos de Ciclos', 'Cobranzas automáticas, manuales y gestión de créditos')
+    .addTag('🛒 Pedidos & Órdenes', 'Órdenes híbridas, suscripciones y one-off')
+    .addTag('🛍️ Compras One-Off', 'Compras únicas y productos adicionales')
+    .addTag('❌ Órdenes de Cancelación', 'Gestión de cancelaciones y retiros')
+    .addTag('🏠 Comodatos', 'Sistema de préstamo de dispensadores y equipos')
+    .addTag('🗺️ Hojas de Ruta', 'Planificación, seguimiento y entregas multi-tipo')
+    .addTag('💰 Listas de Precios', 'Gestión de precios diferenciados por cliente')
+    .addTag('🌍 Ubicaciones', 'Países, provincias y localidades')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

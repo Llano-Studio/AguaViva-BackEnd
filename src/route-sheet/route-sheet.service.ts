@@ -419,7 +419,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           one_off_purchase_id: detail.one_off_purchase_id,
           one_off_purchase_header_id: detail.one_off_purchase_header_id,
           cycle_payment_id: detail.cycle_payment_id,
-          delivery_status: detail.delivery_status || 'PENDING',
+          delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
           delivery_time: detail.delivery_time || null,
           comments: detail.comments,
         });
@@ -1167,7 +1167,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 data: {
                   route_sheet_id: id,
                   order_id: detail.order_id,
-                  delivery_status: detail.delivery_status || 'PENDING',
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
                   comments: detail.comments,
                 },
               });
@@ -1596,7 +1596,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           route_sheet_detail_id: detail.route_sheet_detail_id,
           route_sheet_id: detail.route_sheet_id,
           order: orderDto,
-          delivery_status: detail.delivery_status,
+          delivery_status: detail.delivery_status as DeliveryStatus,
           delivery_time: detail.delivery_time || undefined,
           comments: detail.comments || undefined,
           digital_signature_id: detail.digital_signature_id || undefined,
@@ -1915,7 +1915,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     const updatedDetail = await this.route_sheet_detail.update({
       where: { route_sheet_detail_id: detailId },
       data: {
-        delivery_status: 'SKIPPED',
+        delivery_status: DeliveryStatus.SKIPPED,
         rejection_reason: dto.reason,
         comments: dto.notes || routeSheetDetail.comments,
         digital_signature_id:
@@ -1934,7 +1934,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     const responseDto = new RouteSheetDetailResponseDto();
     responseDto.route_sheet_detail_id = updatedDetail.route_sheet_detail_id;
     responseDto.route_sheet_id = updatedDetail.route_sheet_id;
-    responseDto.delivery_status = updatedDetail.delivery_status;
+    responseDto.delivery_status = updatedDetail.delivery_status as DeliveryStatus;
     responseDto.delivery_time = updatedDetail.delivery_time || undefined;
     responseDto.comments = updatedDetail.comments || undefined;
     responseDto.digital_signature_id =
@@ -2196,7 +2196,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const responseDto: RouteSheetDetailResponseDto = {
         route_sheet_detail_id: updatedDetail.route_sheet_detail_id,
         route_sheet_id: updatedDetail.route_sheet_id,
-        delivery_status: updatedDetail.delivery_status,
+        delivery_status: updatedDetail.delivery_status as DeliveryStatus,
         delivery_time: updatedDetail.delivery_time || undefined,
         comments: updatedDetail.comments || undefined,
         digital_signature_id: updatedDetail.digital_signature_id || undefined,

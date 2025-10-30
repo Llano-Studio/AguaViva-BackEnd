@@ -88,7 +88,7 @@ class PaginatedPersonsResponseDto {
   };
 }
 
-@ApiTags('Clientes')
+@ApiTags('👥 Clientes')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('persons')

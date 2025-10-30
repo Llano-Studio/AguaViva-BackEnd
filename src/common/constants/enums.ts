@@ -55,6 +55,7 @@ export enum DeliveryStatus {
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',
   FAILED = 'FAILED',
+  SKIPPED = 'SKIPPED',
 }
 
 export enum DeliveryPriority {
