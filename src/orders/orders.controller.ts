@@ -40,7 +40,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 
-@ApiTags('Pedidos & Compras de una sola vez')
+@ApiTags('🛒 Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
@@ -192,21 +192,109 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Pedido creado exitosamente.',
+    description: 'Pedido creado exitosamente con cálculo automático de precios.',
     type: OrderResponseDto,
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos de entrada inválidos o validaciones fallidas.',
+    description: `❌ Datos de entrada inválidos:
+    
+    🔸 **Validaciones de Campos:**
+    • customer_id, sale_channel_id requeridos
+    • order_date, scheduled_delivery_date en formato incorrecto
+    • total_amount no coincide con el cálculo automático
+    • delivery_time en formato inválido
+    
+    🔸 **Validaciones de Productos:**
+    • items vacío o con productos duplicados
+    • quantity debe ser mayor a 0
+    • product_id no válido o inactivo
+    
+    🔸 **Validaciones de Tipo de Orden:**
+    • SUBSCRIPTION requiere subscription_id
+    • CONTRACT requiere contract_id válido
+    • HYBRID requiere subscription_id + productos adicionales
+    
+    🔸 **Validaciones de Precios:**
+    • price_list_id no válido o inactivo
+    • total_amount debe ser "0.00" para órdenes SUBSCRIPTION`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Validation failed' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para crear pedidos',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
   })
   @ApiResponse({
     status: 404,
-    description:
-      'Cliente, producto, contrato o entidad relacionada no encontrada.',
+    description: `🔍 Entidades no encontradas:
+    
+    • **Cliente**: customer_id no existe o está inactivo
+    • **Productos**: Uno o más product_id no encontrados
+    • **Suscripción**: subscription_id no válido o inactivo
+    • **Contrato**: contract_id no encontrado o expirado
+    • **Lista de Precios**: price_list_id no válida
+    • **Canal de Venta**: sale_channel_id no encontrado`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Customer with ID 123 not found' },
+        error: { type: 'string', example: 'Not Found' },
+        statusCode: { type: 'number', example: 404 }
+      }
+    }
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflicto de stock o restricción única.',
+    description: `⚠️ Conflictos de negocio:
+    
+    🔸 **Stock Insuficiente:**
+    • Productos sin stock disponible
+    • Cantidad solicitada excede inventario
+    
+    🔸 **Restricciones de Suscripción:**
+    • Cliente ya tiene orden activa para el ciclo
+    • Productos no incluidos en el plan de suscripción
+    
+    🔸 **Conflictos de Programación:**
+    • Fecha de entrega no disponible
+    • Zona de entrega no cubierta
+    
+    🔸 **Restricciones de Contrato:**
+    • Contrato expirado o suspendido
+    • Productos no incluidos en el contrato`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Insufficient stock for product ID 5' },
+        error: { type: 'string', example: 'Conflict' },
+        statusCode: { type: 'number', example: 409 }
+      }
+    }
   })
   async createOrder(
     @Body(ValidationPipe) createOrderDto: CreateOrderDto,
@@ -342,7 +430,7 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de pedidos obtenida exitosamente.',
+    description: 'Lista de pedidos obtenida exitosamente con filtros aplicados.',
     schema: {
       type: 'object',
       properties: {
@@ -361,6 +449,56 @@ export class OrdersController {
         },
       },
     },
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: `❌ Parámetros de consulta inválidos:
+    
+    🔸 **Filtros de Fecha:**
+    • orderDateFrom/orderDateTo en formato incorrecto (debe ser YYYY-MM-DD)
+    • deliveryDateFrom/deliveryDateTo en formato incorrecto
+    • Rangos de fechas inválidos (desde > hasta)
+    
+    🔸 **Filtros de Estado:**
+    • status con valores no válidos (debe ser: PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED)
+    • orderType con valores no válidos (debe ser: SUBSCRIPTION, HYBRID, ONE_OFF, CONTRACT)
+    
+    🔸 **Paginación:**
+    • page o limit con valores negativos o no numéricos
+    • limit excede el máximo permitido (100)
+    
+    🔸 **IDs de Entidades:**
+    • customerId, orderId, zoneId con valores no numéricos`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invalid query parameters' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para consultar pedidos',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
   })
   async findAllOrders(
     @Query(ValidationPipe) filterOrdersDto: FilterOrdersDto,

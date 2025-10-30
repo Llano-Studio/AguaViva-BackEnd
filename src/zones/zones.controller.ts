@@ -27,7 +27,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { VehicleService } from '../vehicule/vehicle.service';
 
-@ApiTags('Zonas')
+@ApiTags('🗺️ Zonas')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('zones')

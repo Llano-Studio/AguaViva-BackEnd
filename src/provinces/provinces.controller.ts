@@ -17,7 +17,7 @@ import { ProvincesService } from './provinces.service';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 
-@ApiTags('Provincias')
+@ApiTags('🌍 Ubicaciones')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
 @Controller('provinces')
@@ -96,10 +96,29 @@ export class ProvincesController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene los permisos necesarios.',
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   findAll() {
     return this.provincesService.findAll();
@@ -178,11 +197,53 @@ export class ProvincesController {
       },
     },
   })
-  @ApiResponse({ status: 404, description: 'Provincia no encontrada.' })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ 
+    status: 400,
+    description: 'ID de provincia inválido',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'El ID debe ser un número válido' },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
   @ApiResponse({
     status: 403,
-    description: 'Prohibido - El usuario no tiene los permisos necesarios.',
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Provincia no encontrada',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 404 },
+        message: { type: 'string', example: 'Provincia con ID 123 no encontrada' },
+        error: { type: 'string', example: 'Not Found' }
+      }
+    }
   })
   findById(@Param('id', ParseIntPipe) id: number) {
     return this.provincesService.findById(id);

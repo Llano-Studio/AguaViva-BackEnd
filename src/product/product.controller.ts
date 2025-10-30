@@ -36,7 +36,7 @@ import { FormDataPreserveInterceptor } from '../common/interceptors/form-data-pr
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
-@ApiTags('Productos & Artículos')
+@ApiTags('📦 Productos & Artículos')
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {

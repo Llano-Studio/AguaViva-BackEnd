@@ -60,8 +60,27 @@ export class CreateRouteSheetDetailDto {
     description: `ID del pedido que debe ser entregado. REQUERIDO especificar order_type cuando se usa este campo.
     
     🔹 Usar para órdenes HYBRID, SUBSCRIPTION, CONTRACT_DELIVERY
-    ⚠️ NO usar para compras one-off (usar one_off_purchase_id o one_off_purchase_header_id en su lugar)`,
+    ⚠️ NO usar para compras one-off (usar one_off_purchase_id o one_off_purchase_header_id en su lugar)
+    
+    📋 CASOS DE USO:
+    • Entrega de productos de suscripción mensual
+    • Entrega de órdenes híbridas (suscripción + productos adicionales)
+    • Entregas por contrato empresarial`,
     example: 21,
+    examples: {
+      subscription: {
+        value: 15,
+        description: 'Orden de suscripción mensual de agua'
+      },
+      hybrid: {
+        value: 21,
+        description: 'Orden híbrida con productos de suscripción + adicionales'
+      },
+      contract: {
+        value: 8,
+        description: 'Entrega por contrato empresarial'
+      }
+    }
   })
   @IsInt()
   @IsOptional()
@@ -147,18 +166,78 @@ export class CreateRouteSheetDetailDto {
   cycle_payment_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Estado inicial de la entrega (por defecto PENDING)',
-    example: 'PENDING',
-    default: 'PENDING',
+    description: `Estado inicial de la entrega. Define el estado actual del proceso de entrega.
+    
+    📊 ESTADOS DISPONIBLES:
+    • PENDING: Pendiente de entrega (estado por defecto)
+    • IN_TRANSIT: En tránsito hacia el destino
+    • DELIVERED: Entregado exitosamente
+    • FAILED: Entrega fallida
+    • ASSIGNED: Asignado al conductor
+    
+    💡 RECOMENDACIÓN: Usar PENDING para nuevas entregas programadas`,
+    enum: DeliveryStatus,
+    example: DeliveryStatus.PENDING,
+    default: DeliveryStatus.PENDING,
+    examples: {
+      pending: {
+        value: DeliveryStatus.PENDING,
+        description: 'Nueva entrega programada (estado por defecto)'
+      },
+      assigned: {
+        value: DeliveryStatus.ASSIGNED,
+        description: 'Asignado al conductor'
+      },
+      inTransit: {
+        value: DeliveryStatus.IN_TRANSIT,
+        description: 'Conductor en camino hacia el destino'
+      },
+      delivered: {
+        value: DeliveryStatus.DELIVERED,
+        description: 'Entrega completada exitosamente'
+      },
+      failed: {
+        value: DeliveryStatus.FAILED,
+        description: 'Entrega fallida por algún motivo'
+      }
+    }
   })
-  @IsString()
+  @IsEnum(DeliveryStatus)
   @IsOptional()
-  delivery_status?: string = DeliveryStatus.PENDING;
+  delivery_status?: DeliveryStatus = DeliveryStatus.PENDING;
 
   @ApiPropertyOptional({
-    description:
-      'Horario de entrega programado. Puede ser un horario específico (HH:MM) o un rango (HH:MM-HH:MM)',
+    description: `Horario de entrega programado. Flexible para diferentes necesidades de entrega.
+    
+    ⏰ FORMATOS SOPORTADOS:
+    • Hora específica: "14:30" (entrega a las 2:30 PM)
+    • Rango de tiempo: "08:00-12:00" (entrega entre 8 AM y 12 PM)
+    • Rango extendido: "08:00-18:00" (entrega durante todo el día)
+    
+    📅 HORARIOS COMUNES:
+    • Mañana: "08:00-12:00"
+    • Tarde: "12:00-18:00"
+    • Todo el día: "08:00-18:00"
+    • Horario específico: "10:30"`,
     example: '08:00-16:00',
+    examples: {
+      morning: {
+        value: '08:00-12:00',
+        description: 'Entrega en horario de mañana'
+      },
+      afternoon: {
+        value: '12:00-18:00',
+        description: 'Entrega en horario de tarde'
+      },
+      specific: {
+        value: '14:30',
+        description: 'Entrega a hora específica'
+      },
+      allDay: {
+        value: '08:00-18:00',
+        description: 'Entrega durante todo el día laboral'
+      }
+    }
   })
   @IsString()
   @IsOptional()

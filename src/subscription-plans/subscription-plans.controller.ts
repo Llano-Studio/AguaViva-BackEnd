@@ -33,7 +33,7 @@ import {
   FilterSubscriptionPlansDto,
 } from './dto';
 
-@ApiTags('Planes de Suscripción')
+@ApiTags('📋 Planes de Suscripción')
 @ApiBearerAuth()
 @Controller('subscription-plans')
 export class SubscriptionPlansController {
