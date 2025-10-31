@@ -15,6 +15,7 @@ import {
 import { UpdateCyclePaymentDto, DeletePaymentDto, PaymentOperationResponseDto } from './dto';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { AuditService } from '../audit/audit.service';
+import { PaymentMethod } from '../common/constants/enums';
 
 @Injectable()
 export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
@@ -182,7 +183,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             cycle_id,
             payment_date: new Date(),
             amount: -surchargeAmount, // Negativo para indicar que es un cargo adicional
-            payment_method: 'RECARGO_MORA',
+            payment_method: PaymentMethod.RECARGO_MORA,
             reference: `AUTO-SURCHARGE-${cycle_id}`,
             notes: `Recargo automático por mora aplicado el ${new Date().toISOString()}`,
             created_by: userId,
@@ -205,7 +206,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       cycle_id: result.cycle_id,
       payment_date: result.payment_date,
       amount: parseFloat(result.amount?.toString() || '0'),
-      payment_method: result.payment_method,
+      payment_method: result.payment_method as PaymentMethod,
       reference: result.reference,
       notes: result.notes,
       created_by: result.created_by,
@@ -239,7 +240,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         cycle_id: payment.cycle_id,
         payment_date: payment.payment_date,
         amount: parseFloat(payment.amount?.toString() || '0'),
-        payment_method: payment.payment_method,
+        payment_method: payment.payment_method as PaymentMethod,
         reference: payment.reference,
         notes: payment.notes,
         created_by: payment.created_by,
@@ -296,7 +297,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           cycle_id: payment.cycle_id,
           payment_date: payment.payment_date,
           amount: parseFloat(payment.amount?.toString() || '0'),
-          payment_method: payment.payment_method,
+          payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
           created_by: payment.created_by,
@@ -401,7 +402,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           cycle_id: newCycleId,
           payment_date: new Date(),
           amount: previousCycle.credit_balance,
-          payment_method: 'TRANSFERENCIA_CREDITO',
+          payment_method: PaymentMethod.TRANSFERENCIA_CREDITO,
           reference: `TRANSFER-FROM-CYCLE-${previousCycle.cycle_id}`,
           notes: `Crédito transferido desde ciclo anterior ${previousCycle.cycle_id}`,
           created_by: null,
@@ -488,7 +489,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             cycle_id: debtCycle.cycle_id,
             payment_date: new Date(),
             amount: appliedAmount,
-            payment_method: 'APLICACION_CREDITO',
+            payment_method: PaymentMethod.APLICACION_CREDITO,
             reference: `CREDIT-APPLICATION-${debtCycle.cycle_id}`,
             notes: `Crédito aplicado automáticamente a deuda pendiente`,
             created_by: null,
@@ -551,7 +552,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           cycle_id: payment.cycle_id,
           payment_date: payment.payment_date,
           amount: parseFloat(payment.amount?.toString() || '0'),
-          payment_method: payment.payment_method,
+          payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
           created_by: payment.created_by,
@@ -608,7 +609,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           cycle_id: payment.cycle_id,
           payment_date: payment.payment_date,
           amount: parseFloat(payment.amount?.toString() || '0'),
-          payment_method: payment.payment_method,
+          payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
           created_by: payment.created_by,
