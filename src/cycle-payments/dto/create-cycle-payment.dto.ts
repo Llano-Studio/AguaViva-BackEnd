@@ -6,8 +6,10 @@ import {
   IsOptional,
   IsDateString,
   Min,
+  IsEnum,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { PaymentMethod } from '../../common/constants/enums';
 
 export class CreateCyclePaymentDto {
   @ApiProperty({
@@ -35,18 +37,12 @@ export class CreateCyclePaymentDto {
 
   @ApiProperty({
     description: 'Método de pago utilizado',
-    example: 'EFECTIVO',
-    enum: [
-      'EFECTIVO',
-      'TRANSFERENCIA',
-      'TARJETA_DEBITO',
-      'TARJETA_CREDITO',
-      'CHEQUE',
-    ],
+    example: PaymentMethod.EFECTIVO,
+    enum: PaymentMethod,
   })
   @IsNotEmpty()
-  @IsString()
-  payment_method: string;
+  @IsEnum(PaymentMethod)
+  payment_method: PaymentMethod;
 
   @ApiPropertyOptional({
     description:

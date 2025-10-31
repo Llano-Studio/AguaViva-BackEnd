@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaymentMethod } from '../../common/constants/enums';
 
 export class AuditRecordDto {
   @ApiProperty({
@@ -28,13 +29,13 @@ export class AuditRecordDto {
 
   @ApiPropertyOptional({
     description: 'Valores anteriores del registro (JSON)',
-    example: { amount: 20000, payment_method: 'EFECTIVO' },
+    example: { amount: 20000, payment_method: PaymentMethod.EFECTIVO },
   })
   old_values?: any;
 
   @ApiPropertyOptional({
     description: 'Valores nuevos del registro (JSON)',
-    example: { amount: 25000, payment_method: 'TRANSFERENCIA' },
+    example: { amount: 25000, payment_method: PaymentMethod.TRANSFERENCIA },
   })
   new_values?: any;
 

@@ -35,6 +35,7 @@ import { UserRolesGuard } from '../auth/guards/roles.guard';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
+import { PaymentMethod } from '../common/constants/enums';
 
 @ApiTags('Pagos de Ciclos')
 @ApiBearerAuth()
@@ -94,7 +95,7 @@ export class CyclePaymentsController {
         value: {
           cycle_id: 15,
           amount: 2500.0,
-          payment_method: 'EFECTIVO',
+          payment_method: PaymentMethod.EFECTIVO,
           notes: 'Pago completo del ciclo mensual',
         },
       },
@@ -104,7 +105,7 @@ export class CyclePaymentsController {
         value: {
           cycle_id: 20,
           amount: 1000.0,
-          payment_method: 'TRANSFERENCIA',
+          payment_method: PaymentMethod.TRANSFERENCIA,
           notes: 'Pago parcial - primera cuota',
         },
       },
@@ -515,7 +516,7 @@ export class CyclePaymentsController {
         summary: 'Cambiar método de pago',
         description: 'Actualización del método de pago utilizado',
         value: {
-          payment_method: 'TRANSFERENCIA',
+          payment_method: PaymentMethod.TRANSFERENCIA,
           reference: 'TRF-20240115-001',
           notes: 'Cambio de efectivo a transferencia bancaria',
         },

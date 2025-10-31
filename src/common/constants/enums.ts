@@ -47,6 +47,16 @@ export enum PaymentMethod {
   DEBIT_CARD = 'DEBIT_CARD',
   BANK_TRANSFER = 'BANK_TRANSFER',
   MOBILE_PAYMENT = 'MOBILE_PAYMENT',
+  // Valores en español utilizados en cycle-payments
+  EFECTIVO = 'EFECTIVO',
+  TRANSFERENCIA = 'TRANSFERENCIA',
+  TARJETA_DEBITO = 'TARJETA_DEBITO',
+  TARJETA_CREDITO = 'TARJETA_CREDITO',
+  CHEQUE = 'CHEQUE',
+  // Valores automáticos del sistema
+  RECARGO_MORA = 'RECARGO_MORA',
+  TRANSFERENCIA_CREDITO = 'TRANSFERENCIA_CREDITO',
+  APLICACION_CREDITO = 'APLICACION_CREDITO',
 }
 
 export enum DeliveryStatus {

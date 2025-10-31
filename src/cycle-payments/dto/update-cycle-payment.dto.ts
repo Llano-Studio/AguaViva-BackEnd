@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNumber, IsString, IsOptional, IsDateString, Min, MaxLength, IsIn } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsDateString, Min, MaxLength, IsEnum } from 'class-validator';
+import { PaymentMethod } from '../../common/constants/enums';
 
 export class UpdateCyclePaymentDto {
   @ApiProperty({
@@ -15,14 +16,13 @@ export class UpdateCyclePaymentDto {
 
   @ApiProperty({
     description: 'Método de pago actualizado',
-    example: 'TRANSFERENCIA',
-    enum: ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE'],
+    example: PaymentMethod.TRANSFERENCIA,
+    enum: PaymentMethod,
   })
-  @IsString()
-  @IsIn(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE'], {
-    message: 'El método de pago debe ser uno de: EFECTIVO, TRANSFERENCIA, TARJETA_DEBITO, TARJETA_CREDITO, CHEQUE',
+  @IsEnum(PaymentMethod, {
+    message: 'El método de pago debe ser uno de los valores válidos del enum PaymentMethod',
   })
-  payment_method: string;
+  payment_method: PaymentMethod;
 
   @ApiPropertyOptional({
     description: 'Nueva fecha del pago (ISO 8601)',
