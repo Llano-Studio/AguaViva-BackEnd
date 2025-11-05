@@ -51,6 +51,21 @@ export class AutomatedCollectionService
   implements OnModuleInit {
   private readonly logger = new Logger(AutomatedCollectionService.name);
 
+  // Normaliza fechas a ISO sin lanzar errores si son null/undefined.
+  private toIso(input: any): string | null {
+    if (!input) return null;
+    try {
+      if (input instanceof Date) return input.toISOString();
+      if (typeof input === 'string') {
+        const d = new Date(input);
+        return isNaN(d.getTime()) ? input : d.toISOString();
+      }
+      const d = new Date(input);
+      if (!isNaN(d.getTime())) return d.toISOString();
+    } catch (_) {}
+    return null;
+  }
+
   constructor(
     private readonly ordersService: OrdersService,
     private readonly orderCollectionEditService: OrderCollectionEditService,
@@ -780,7 +795,8 @@ export class AutomatedCollectionService
     }
 
     if (filters.customerName) {
-      whereClause.person = {
+      whereClause.customer = {
+        ...(whereClause.customer || {}),
         name: {
           contains: filters.customerName,
           mode: 'insensitive',
@@ -800,7 +816,7 @@ export class AutomatedCollectionService
           },
         },
         {
-          order_id: {
+          collection_order_id: {
             equals: isNaN(parseInt(filters.search)) ? undefined : parseInt(filters.search),
           },
         },
@@ -815,7 +831,7 @@ export class AutomatedCollectionService
 
     // Filtro de ID específico
     if (filters.orderId) {
-      whereClause.order_id = filters.orderId;
+      whereClause.collection_order_id = filters.orderId;
     }
 
     // Filtros de monto
@@ -886,7 +902,8 @@ export class AutomatedCollectionService
 
         switch (fieldName) {
           case 'createdAt':
-            orderBy.created_at = direction;
+            // collection_orders no tiene created_at; usar order_date
+            orderBy.order_date = direction;
             break;
           case 'orderDate':
             orderBy.order_date = direction;
@@ -895,7 +912,7 @@ export class AutomatedCollectionService
             orderBy.total_amount = direction;
             break;
           case 'customer':
-            orderBy.person = { name: direction };
+            orderBy.customer = { name: direction };
             break;
           default:
             orderBy.order_date = 'desc';
@@ -950,8 +967,8 @@ export class AutomatedCollectionService
 
       const result: AutomatedCollectionResponseDto = {
         order_id: (order as any).collection_order_id ?? (order as any).order_id,
-        order_date: order.order_date.toISOString(),
-        due_date: dueDate?.toISOString() || null,
+        order_date: this.toIso(order.order_date) || '',
+        due_date: this.toIso(dueDate) || null,
         total_amount: order.total_amount.toString(),
         paid_amount: order.paid_amount.toString(),
         pending_amount: pendingAmount.toFixed(2),
@@ -983,15 +1000,15 @@ export class AutomatedCollectionService
           cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
             cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
             cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
-            start_date: (order as any).customer_subscription.subscription_cycle[0].start_date.toISOString(),
-            end_date: (order as any).customer_subscription.subscription_cycle[0].end_date.toISOString(),
-            due_date: (order as any).customer_subscription.subscription_cycle[0].payment_due_date?.toISOString() || '',
+            start_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].start_date) || '',
+            end_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].end_date) || '',
+            due_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].payment_due_date) || '',
             pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
           } : null,
         } : null,
         // collection_orders no tiene created_at/updated_at; usamos order_date como referencia
-        created_at: order.order_date.toISOString(),
-        updated_at: order.order_date.toISOString(),
+        created_at: this.toIso(order.order_date) || '',
+        updated_at: this.toIso(order.order_date) || '',
       };
 
       return result;
@@ -1077,8 +1094,8 @@ export class AutomatedCollectionService
 
     const result: AutomatedCollectionResponseDto = {
       order_id: (order as any).collection_order_id ?? (order as any).order_id,
-      order_date: order.order_date.toISOString(),
-      due_date: dueDate?.toISOString() || null,
+      order_date: this.toIso(order.order_date) || '',
+      due_date: this.toIso(dueDate) || null,
       total_amount: order.total_amount.toString(),
       paid_amount: order.paid_amount.toString(),
       pending_amount: pendingAmount.toFixed(2),
@@ -1110,14 +1127,14 @@ export class AutomatedCollectionService
         cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
           cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
           cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
-          start_date: (order as any).customer_subscription.subscription_cycle[0].start_date.toISOString(),
-          end_date: (order as any).customer_subscription.subscription_cycle[0].end_date.toISOString(),
-          due_date: (order as any).customer_subscription.subscription_cycle[0].payment_due_date?.toISOString() || '',
+          start_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].start_date) || '',
+          end_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].end_date) || '',
+          due_date: this.toIso((order as any).customer_subscription.subscription_cycle[0].payment_due_date) || '',
           pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
         } : null,
       } : null,
-      created_at: order.order_date.toISOString(),
-      updated_at: order.order_date.toISOString(),
+      created_at: this.toIso(order.order_date) || '',
+      updated_at: this.toIso(order.order_date) || '',
     };
 
     return result;
