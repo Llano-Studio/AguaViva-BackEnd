@@ -278,6 +278,18 @@ export class CreateRouteSheetDto {
   delivery_date: string;
 
   @ApiPropertyOptional({
+    description:
+      'IDs de zonas que abarca la hoja (validadas contra el vehículo). Puede ser una o varias zonas.',
+    type: [Number],
+    example: [1, 3, 5],
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  zone_ids?: number[];
+
+  @ApiPropertyOptional({
     description: 'Notas sobre la ruta',
     example: 'Ruta por zona norte',
   })

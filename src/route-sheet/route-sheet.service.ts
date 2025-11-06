@@ -431,6 +431,124 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         );
       }
 
+      // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
+      const activeVehicleZones = await this.vehicle_zone.findMany({
+        where: { vehicle_id, is_active: true },
+        select: { zone_id: true },
+      });
+      const assignedZoneIds = new Set<number>(
+        activeVehicleZones.map((z) => z.zone_id),
+      );
+
+      const selectedZoneIds = Array.isArray(createRouteSheetDto.zone_ids)
+        ? createRouteSheetDto.zone_ids
+        : [];
+
+      // Si se especifican zone_ids, validar que están asignadas al vehículo
+      if (selectedZoneIds.length > 0) {
+        const invalidSelected = selectedZoneIds.filter(
+          (z) => !assignedZoneIds.has(z),
+        );
+        if (invalidSelected.length > 0) {
+          throw new BadRequestException(
+            `Las siguientes zonas no están asignadas al vehículo ${vehicle_id}: ${invalidSelected.join(
+              ', ',
+            )}`,
+          );
+        }
+      }
+
+      // Determinar zonas por detalle para validar contra zone_ids cuando corresponda
+      const allOneOffIds = Array.from(
+        new Set([...(oneOffOrderIds || []), ...(oneOffPurchaseIds || [])]),
+      );
+      const [orderZoneRecords, oneOffZoneRecords, headerZoneRecords, cyclePaymentRecords] =
+        await Promise.all([
+          regularOrderIds.length > 0
+            ? this.order_header.findMany({
+                where: { order_id: { in: regularOrderIds } },
+                select: { order_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          allOneOffIds.length > 0
+            ? this.one_off_purchase.findMany({
+                where: { purchase_id: { in: allOneOffIds } },
+                select: { purchase_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          oneOffPurchaseHeaderIds.length > 0
+            ? this.one_off_purchase_header.findMany({
+                where: {
+                  purchase_header_id: { in: oneOffPurchaseHeaderIds },
+                },
+                select: { purchase_header_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          cyclePaymentIds.length > 0
+            ? this.cycle_payment.findMany({
+                where: { payment_id: { in: cyclePaymentIds } },
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: { person: true },
+                      },
+                    },
+                  },
+                },
+              })
+            : Promise.resolve([]),
+        ]);
+
+      const orderZonesMap = new Map<number, number | null>();
+      for (const r of orderZoneRecords as Array<{ order_id: number; zone_id: number | null }>) {
+        orderZonesMap.set(r.order_id, r.zone_id ?? null);
+      }
+      const oneOffZonesMap = new Map<number, number | null>();
+      for (const r of oneOffZoneRecords as Array<{ purchase_id: number; zone_id: number | null }>) {
+        oneOffZonesMap.set(r.purchase_id, r.zone_id ?? null);
+      }
+      const headerZonesMap = new Map<number, number | null>();
+      for (const r of headerZoneRecords as Array<{ purchase_header_id: number; zone_id: number | null }>) {
+        headerZonesMap.set(r.purchase_header_id, r.zone_id ?? null);
+      }
+      const cycleZonesMap = new Map<number, number | null>();
+      for (const r of cyclePaymentRecords as Array<any>) {
+        const zid =
+          r.subscription_cycle?.customer_subscription?.person?.zone_id ?? null;
+        cycleZonesMap.set(r.payment_id, typeof zid === 'number' ? zid : null);
+      }
+
+      const detailZoneIds = new Set<number>();
+      for (const d of details) {
+        let zid: number | null = null;
+        if (d.order_id && d.order_type !== 'ONE_OFF') {
+          zid = orderZonesMap.get(d.order_id) ?? null;
+        } else if (d.order_id && d.order_type === 'ONE_OFF') {
+          zid = oneOffZonesMap.get(d.order_id) ?? null;
+        } else if (d.one_off_purchase_id) {
+          zid = oneOffZonesMap.get(d.one_off_purchase_id) ?? null;
+        } else if (d.one_off_purchase_header_id) {
+          zid = headerZonesMap.get(d.one_off_purchase_header_id) ?? null;
+        } else if (d.cycle_payment_id) {
+          zid = cycleZonesMap.get(d.cycle_payment_id) ?? null;
+        }
+        if (typeof zid === 'number') detailZoneIds.add(zid);
+      }
+
+      if (selectedZoneIds.length > 0) {
+        const outOfSelected = Array.from(detailZoneIds).filter(
+          (z) => !selectedZoneIds.includes(z),
+        );
+        if (outOfSelected.length > 0) {
+          throw new BadRequestException(
+            `La hoja incluye detalles en zonas no especificadas en zone_ids: ${outOfSelected.join(
+              ', ',
+            )}`,
+          );
+        }
+      }
+
       const result = await this.$transaction(async (tx) => {
         const routeSheet = await tx.route_sheet.create({
           data: {
@@ -1418,6 +1536,27 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       return a.sequence_number - b.sequence_number;
     });
 
+    // Calcular zonas cubiertas por los detalles usando zone_id del pedido o del cliente
+    const coveredZoneIds = new Set<number>();
+    for (const d of sortedDetails) {
+      let zid: number | null = null;
+      if (d.order_header) {
+        zid = (d.order_header as any).zone_id ?? d.order_header.customer.zone_id ?? null;
+      } else if (d.one_off_purchase) {
+        zid = (d.one_off_purchase as any).zone_id ?? d.one_off_purchase.person.zone_id ?? null;
+      } else if (d.one_off_purchase_header) {
+        zid = (d.one_off_purchase_header as any).zone_id ?? d.one_off_purchase_header.person.zone_id ?? null;
+      } else if (d.cancellation_order) {
+        zid = d.cancellation_order.customer_subscription.person.zone_id ?? null;
+      } else if (d.cycle_payment) {
+        zid = d.cycle_payment.subscription_cycle.customer_subscription.person.zone_id ?? null;
+      }
+      if (typeof zid === 'number') coveredZoneIds.add(zid);
+    }
+    const zonesCoveredDto: ZoneDto[] = (vehicleDto.zones || []).filter((z) =>
+      coveredZoneIds.has(z.zone_id),
+    );
+
     let currentDeliveryFound = false;
     const detailsDto: RouteSheetDetailResponseDto[] = sortedDetails.map(
       (detail) => {
@@ -1612,6 +1751,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
       route_notes: routeSheet.route_notes || undefined,
       details: detailsDto,
+      zones_covered: zonesCoveredDto,
     });
   }
 

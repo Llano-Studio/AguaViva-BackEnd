@@ -67,7 +67,7 @@ export class RouteSheetController {
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Crear una nueva hoja de ruta',
-    description: `Crea una nueva hoja de ruta con múltiples tipos de entregas.
+    description: `Crea una nueva hoja de ruta con múltiples tipos de entregas y soporte para múltiples zonas por vehículo.
 
 📋 TIPOS DE ÓRDENES SOPORTADAS (pueden mezclarse en una misma hoja):
 
@@ -88,6 +88,11 @@ export class RouteSheetController {
    - Para pagos de ciclos de suscripción
    - NO incluir order_type
 
+5️⃣ **Zonas de la hoja de ruta (opcional)**: Usar zone_ids
+   - Array de IDs de zonas asignadas al vehículo
+   - Si se especifica, todos los detalles deben pertenecer a estas zonas
+   - Validado contra las zonas activas del vehículo
+
 ✅ EJEMPLO DE PAYLOAD MEZCLANDO TIPOS:
 \`\`\`json
 {
@@ -95,6 +100,7 @@ export class RouteSheetController {
   "vehicle_id": 1,
   "delivery_date": "2025-10-03",
   "route_notes": "Salir por Sarmiento",
+  "zone_ids": [1, 2],
   "details": [
     {
       "order_id": 21,
@@ -172,6 +178,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
   "driver_id": 2,
   "vehicle_id": 1,
   "delivery_date": "2025-10-04",
+  "zone_ids": [3],
   "details": [
     {
       "one_off_purchase_id": 5,      ← Del registro LEGACY
@@ -189,7 +196,8 @@ const routeDetails = oneOffPurchases.map(purchase => {
 ✅ REGLAS:
 - Cada detalle debe tener al menos uno de: order_id, one_off_purchase_id, one_off_purchase_header_id, o cycle_payment_id
 - Solo incluir order_type cuando uses order_id
-- NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)`
+ - NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)
+ - Si se envía zone_ids: deben estar asignadas al vehículo y los detalles deben pertenecer a esas zonas`
   })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({
@@ -304,6 +312,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
 - Datos completos del conductor asignado
 - Información detallada del vehículo
 - Capacidades y especificaciones técnicas
+ - Zonas asignadas al vehículo y zonas cubiertas en la hoja (vehicle.zones, zones_covered)
 
 **Detalles de Entregas:**
 - Lista completa de entregas programadas
