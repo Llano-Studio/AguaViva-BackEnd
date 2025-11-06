@@ -15,6 +15,7 @@ import {
 } from '../../orders/dto/automated-collection-response.dto';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
+import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-route-sheets.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
@@ -331,6 +332,104 @@ export class AutomatedCollectionService
         error,
       );
     }
+  }
+
+  /**
+   * Endpoint helper: genera hojas de ruta diarias persistidas considerando fecha, vehículo y zonas.
+   * Si se especifica vehicleId, procesa solo ese vehículo; de lo contrario, procesa todos los activos.
+   * Ajusta la fecha si cae en domingo para alinearse con la generación de órdenes.
+   */
+  async triggerDailyCollectionRouteSheets(dto: GenerateDailyRouteSheetsDto) {
+    this.logger.log('🗺️ Disparo manual de generación diaria de hojas de ruta de cobranzas...');
+
+    const baseDate = dto.date ? new Date(dto.date) : new Date();
+    baseDate.setHours(0, 0, 0, 0);
+    const adjustedDate = this.adjustDateForSunday(baseDate);
+    const dateIso = adjustedDate.toISOString().split('T')[0];
+
+    // Primero: generar/actualizar órdenes automáticas para la fecha
+    try {
+      const orderResults = await this.generateCollectionOrdersForDate(adjustedDate);
+      const createdCount = orderResults.filter((r) => r.order_created).length;
+      this.logger.log(
+        `🧾 Órdenes de cobranza para ${dateIso}: ${createdCount}/${orderResults.length} creadas/actualizadas`,
+      );
+    } catch (error) {
+      this.logger.error('❌ Error generando órdenes automáticas previas:', error);
+      // Continuar con hojas de ruta aunque haya fallos parciales
+    }
+
+    // Selección de vehículos
+    const vehicles = await this.vehicle.findMany({
+      where: dto.vehicleId ? { vehicle_id: dto.vehicleId, is_active: true } : { is_active: true },
+      include: {
+        vehicle_zone: { where: { is_active: true }, select: { zone_id: true } },
+      },
+    });
+
+    let generatedCount = 0;
+    const results: Array<{ vehicleId: number; zoneIds: number[]; downloadUrl?: string; error?: string }> = [];
+
+    for (const vehicle of vehicles) {
+      const zoneIds = dto.zoneIds && dto.zoneIds.length > 0
+        ? dto.zoneIds
+        : vehicle.vehicle_zone.map((vz) => vz.zone_id);
+
+      if (!zoneIds || zoneIds.length === 0) {
+        this.logger.log(
+          `↪️ Saltando vehículo ${vehicle.vehicle_id} - sin zonas activas asignadas`,
+        );
+        continue;
+      }
+
+      try {
+        const filters: GenerateRouteSheetDto = {
+          date: dateIso,
+          zoneIds,
+          vehicleId: vehicle.vehicle_id,
+          driverId: dto.driverId,
+          overdueOnly: dto.overdueOnly ?? 'false',
+          sortBy: dto.sortBy ?? 'zone',
+          format: dto.format ?? 'compact',
+          notes:
+            dto.notes ??
+            `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}`,
+        } as any;
+
+        const result = await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
+          filters,
+        );
+
+        generatedCount++;
+        results.push({
+          vehicleId: vehicle.vehicle_id,
+          zoneIds,
+          downloadUrl: result.downloadUrl,
+        });
+        this.logger.log(
+          `✅ Hoja de ruta generada para vehículo ${vehicle.vehicle_id} (${zoneIds.length} zonas) → ${result.downloadUrl}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `❌ Error generando hoja de ruta para vehículo ${vehicle.vehicle_id}:`,
+          error,
+        );
+        results.push({
+          vehicleId: vehicle.vehicle_id,
+          zoneIds,
+          error: error.message,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      message: `Generación de hojas de ruta completada: ${generatedCount}/${vehicles.length}`,
+      date: dateIso,
+      generated: generatedCount,
+      totalVehicles: vehicles.length,
+      results,
+    };
   }
 
   /**
