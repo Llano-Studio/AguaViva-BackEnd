@@ -585,7 +585,11 @@ const routeDetails = oneOffPurchases.map(purchase => {
 
   @Delete(':id')
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-  @ApiOperation({ summary: 'Eliminar una hoja de ruta' })
+  @ApiOperation({
+    summary: 'Eliminar una hoja de ruta',
+    description:
+      'Desactiva la hoja de ruta (soft delete) y revierte a "PENDING" el estado de todos los pedidos asociados a esa hoja (suscripciones y compras one-off).',
+  })
   @ApiParam({
     name: 'id',
     description: 'ID de la hoja de ruta a eliminar',
@@ -594,11 +598,16 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   @ApiResponse({
     status: 200,
-    description: 'Hoja de ruta eliminada',
+    description:
+      'Hoja de ruta desactivada y estados de pedidos revertidos a PENDING',
     schema: {
       properties: {
-        message: { type: 'string' },
-        deleted: { type: 'boolean' },
+        message: {
+          type: 'string',
+          example:
+            'Hoja de Ruta con ID 123 desactivada y pedidos revertidos a PENDING',
+        },
+        deleted: { type: 'boolean', example: true },
       },
     },
   })
