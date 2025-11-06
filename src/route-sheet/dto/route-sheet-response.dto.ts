@@ -316,6 +316,14 @@ export class RouteSheetResponseDto {
   })
   details: RouteSheetDetailResponseDto[];
 
+  @ApiProperty({
+    description:
+      'Zonas cubiertas por los detalles de la hoja de ruta (derivadas de pedidos y clientes)',
+    type: [ZoneDto],
+    required: false,
+  })
+  zones_covered?: ZoneDto[];
+
   constructor(partial: Partial<RouteSheetResponseDto>) {
     Object.assign(this, partial);
   }
