@@ -874,7 +874,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
       });
-      return this.mapToRouteSheetResponseDto(result);
+      return this.mapToRouteSheetResponseDto(result, selectedZoneIds);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
@@ -1495,6 +1495,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
   private mapToRouteSheetResponseDto(
     routeSheet: RouteSheetWithDetails,
+    selectedZoneIds?: number[],
   ): RouteSheetResponseDto {
     const driverDto: DriverDto = {
       id: routeSheet.driver.id,
@@ -1536,26 +1537,33 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       return a.sequence_number - b.sequence_number;
     });
 
-    // Calcular zonas cubiertas por los detalles usando zone_id del pedido o del cliente
-    const coveredZoneIds = new Set<number>();
-    for (const d of sortedDetails) {
-      let zid: number | null = null;
-      if (d.order_header) {
-        zid = (d.order_header as any).zone_id ?? d.order_header.customer.zone_id ?? null;
-      } else if (d.one_off_purchase) {
-        zid = (d.one_off_purchase as any).zone_id ?? d.one_off_purchase.person.zone_id ?? null;
-      } else if (d.one_off_purchase_header) {
-        zid = (d.one_off_purchase_header as any).zone_id ?? d.one_off_purchase_header.person.zone_id ?? null;
-      } else if (d.cancellation_order) {
-        zid = d.cancellation_order.customer_subscription.person.zone_id ?? null;
-      } else if (d.cycle_payment) {
-        zid = d.cycle_payment.subscription_cycle.customer_subscription.person.zone_id ?? null;
+    // Calcular zonas cubiertas: si se especifican zone_ids, usar esas; caso contrario, derivar de los detalles
+    let zonesCoveredDto: ZoneDto[] = [];
+    if (selectedZoneIds && selectedZoneIds.length > 0) {
+      zonesCoveredDto = (vehicleDto.zones || []).filter((z) =>
+        selectedZoneIds.includes(z.zone_id),
+      );
+    } else {
+      const coveredZoneIds = new Set<number>();
+      for (const d of sortedDetails) {
+        let zid: number | null = null;
+        if (d.order_header) {
+          zid = (d.order_header as any).zone_id ?? d.order_header.customer.zone_id ?? null;
+        } else if (d.one_off_purchase) {
+          zid = (d.one_off_purchase as any).zone_id ?? d.one_off_purchase.person.zone_id ?? null;
+        } else if (d.one_off_purchase_header) {
+          zid = (d.one_off_purchase_header as any).zone_id ?? d.one_off_purchase_header.person.zone_id ?? null;
+        } else if (d.cancellation_order) {
+          zid = d.cancellation_order.customer_subscription.person.zone_id ?? null;
+        } else if (d.cycle_payment) {
+          zid = d.cycle_payment.subscription_cycle.customer_subscription.person.zone_id ?? null;
+        }
+        if (typeof zid === 'number') coveredZoneIds.add(zid);
       }
-      if (typeof zid === 'number') coveredZoneIds.add(zid);
+      zonesCoveredDto = (vehicleDto.zones || []).filter((z) =>
+        coveredZoneIds.has(z.zone_id),
+      );
     }
-    const zonesCoveredDto: ZoneDto[] = (vehicleDto.zones || []).filter((z) =>
-      coveredZoneIds.has(z.zone_id),
-    );
 
     let currentDeliveryFound = false;
     const detailsDto: RouteSheetDetailResponseDto[] = sortedDetails.map(
