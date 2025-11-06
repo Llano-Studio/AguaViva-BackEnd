@@ -31,6 +31,7 @@ import { FilterAutomatedCollectionsDto } from '../dto/filter-automated-collectio
 import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-response.dto';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../dto/generate-route-sheet.dto';
+import { GenerateDailyRouteSheetsDto } from '../dto/generate-daily-route-sheets.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -893,6 +894,58 @@ export class AutomatedCollectionController {
     } catch (error) {
       throw new HttpException(
         `Error generando hoja de ruta: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Genera y persiste hojas de ruta diarias de cobranzas automáticas
+   * Considera fecha, vehículo y zonas (si se especifican)
+   */
+  @Post('orders/route-sheet/generate/daily')
+  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @ApiOperation({
+    summary: 'Generar hojas de ruta diarias (persistidas)',
+    description:
+      'Dispara manualmente la generación de hojas de ruta diarias para cobranzas automáticas, '
+      + 'considerando el vehículo, las zonas asignadas y la fecha. '
+      + 'Ajusta automáticamente la fecha si cae en domingo para alinearse con la generación de órdenes.',
+  })
+  @ApiBody({ type: GenerateDailyRouteSheetsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Proceso de generación completado',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        date: { type: 'string' },
+        generated: { type: 'number' },
+        totalVehicles: { type: 'number' },
+        results: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              vehicleId: { type: 'number' },
+              zoneIds: { type: 'array', items: { type: 'number' } },
+              downloadUrl: { type: 'string' },
+              error: { type: 'string', nullable: true },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Parámetros inválidos' })
+  async generateDailyRouteSheets(@Body() dto: GenerateDailyRouteSheetsDto) {
+    try {
+      return await this.automatedCollectionService.triggerDailyCollectionRouteSheets(dto);
+    } catch (error) {
+      throw new HttpException(
+        `Error generando hojas de ruta diarias: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
