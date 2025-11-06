@@ -1132,7 +1132,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     updateRouteSheetDto: UpdateRouteSheetDto,
   ): Promise<RouteSheetResponseDto> {
     await this.findOne(id);
-    const { driver_id, vehicle_id, delivery_date, route_notes, details } =
+    const { driver_id, vehicle_id, delivery_date, route_notes, details, zone_ids } =
       updateRouteSheetDto;
 
     try {
@@ -1245,19 +1245,58 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
 
+        // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
+        const assignedZoneIds = (updatedRouteSheet.vehicle.vehicle_zone || []).map(
+          (vz) => vz.zone.zone_id,
+        );
+        const selectedZoneIds = (zone_ids || []).map((z) => Number(z));
+        if (selectedZoneIds.length > 0) {
+          const invalid = selectedZoneIds.filter((z) => !assignedZoneIds.includes(z));
+          if (invalid.length > 0) {
+            throw new BadRequestException(
+              `Las zonas ${invalid.join(', ')} no están asignadas al vehículo o están inactivas`,
+            );
+          }
+        }
+
         if (details && details.length > 0) {
+          const orderIdsToUpdate: number[] = [];
+          const oneOffIdsToUpdate: number[] = [];
+          const oneOffHeaderIdsToUpdate: number[] = [];
+          const detailZoneIds: number[] = [];
+
           for (const detail of details) {
             if (detail.route_sheet_detail_id) {
+              const existing = await tx.route_sheet_detail.findUnique({
+                where: { route_sheet_detail_id: detail.route_sheet_detail_id },
+                select: {
+                  order_id: true,
+                  one_off_purchase_id: true,
+                  one_off_purchase_header_id: true,
+                },
+              });
+
               await tx.route_sheet_detail.update({
                 where: { route_sheet_detail_id: detail.route_sheet_detail_id },
                 data: {
                   delivery_status: detail.delivery_status,
+                  delivery_time: detail.delivery_time || undefined,
                   comments: detail.comments,
                 },
               });
+
+              // Marcar para actualizar estado según el tipo que tenga el detalle existente
+              if (existing?.order_id) orderIdsToUpdate.push(existing.order_id);
+              if (existing?.one_off_purchase_id)
+                oneOffIdsToUpdate.push(existing.one_off_purchase_id);
+              if (existing?.one_off_purchase_header_id)
+                oneOffHeaderIdsToUpdate.push(
+                  existing.one_off_purchase_header_id,
+                );
             } else if (detail.order_id) {
               const order = await tx.order_header.findUnique({
                 where: { order_id: detail.order_id },
+                include: { customer: true },
               });
               if (!order) {
                 throw new BadRequestException(
@@ -1286,10 +1325,158 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   route_sheet_id: id,
                   order_id: detail.order_id,
                   delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
                   comments: detail.comments,
                 },
               });
+
+              // Capturar zone_id del pedido para validación
+              const orderZoneId =
+                (order as any).zone_id ?? order.customer.zone_id ?? null;
+              if (typeof orderZoneId === 'number') detailZoneIds.push(orderZoneId);
+              // Marcar para actualizar estado
+              orderIdsToUpdate.push(detail.order_id);
+            } else if (detail.one_off_purchase_id) {
+              const purchase = await tx.one_off_purchase.findUnique({
+                where: { purchase_id: detail.one_off_purchase_id },
+                include: { person: true },
+              });
+              if (!purchase) {
+                throw new BadRequestException(
+                  `La compra one-off con ID ${detail.one_off_purchase_id} no existe`,
+                );
+              }
+
+              const existingAssignment = await tx.route_sheet_detail.findFirst({
+                where: {
+                  one_off_purchase_id: detail.one_off_purchase_id,
+                  route_sheet: {
+                    delivery_date: updatedRouteSheet.delivery_date,
+                    route_sheet_id: { not: id },
+                  },
+                },
+              });
+              if (existingAssignment) {
+                throw new BadRequestException(
+                  `La compra one-off ${detail.one_off_purchase_id} ya está asignada a otra hoja de ruta para esa fecha`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  one_off_purchase_id: detail.one_off_purchase_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const purchaseZoneId = (purchase as any).zone_id ?? purchase.person.zone_id ?? null;
+              if (typeof purchaseZoneId === 'number') detailZoneIds.push(purchaseZoneId);
+              oneOffIdsToUpdate.push(detail.one_off_purchase_id);
+            } else if (detail.one_off_purchase_header_id) {
+              const header = await tx.one_off_purchase_header.findUnique({
+                where: { purchase_header_id: detail.one_off_purchase_header_id },
+                include: { person: true },
+              });
+              if (!header) {
+                throw new BadRequestException(
+                  `La compra one-off (header) con ID ${detail.one_off_purchase_header_id} no existe`,
+                );
+              }
+
+              const existingAssignment = await tx.route_sheet_detail.findFirst({
+                where: {
+                  one_off_purchase_header_id: detail.one_off_purchase_header_id,
+                  route_sheet: {
+                    delivery_date: updatedRouteSheet.delivery_date,
+                    route_sheet_id: { not: id },
+                  },
+                },
+              });
+              if (existingAssignment) {
+                throw new BadRequestException(
+                  `La compra one-off (header) ${detail.one_off_purchase_header_id} ya está asignada a otra hoja de ruta para esa fecha`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  one_off_purchase_header_id: detail.one_off_purchase_header_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const headerZoneId = (header as any).zone_id ?? header.person.zone_id ?? null;
+              if (typeof headerZoneId === 'number') detailZoneIds.push(headerZoneId);
+              oneOffHeaderIdsToUpdate.push(detail.one_off_purchase_header_id);
+            } else if (detail.cycle_payment_id) {
+              const cp = await tx.cycle_payment.findUnique({
+                where: { payment_id: detail.cycle_payment_id },
+                include: {
+                  subscription_cycle: {
+                    include: { customer_subscription: { include: { person: true } } },
+                  },
+                },
+              });
+              if (!cp) {
+                throw new BadRequestException(
+                  `El pago de ciclo con ID ${detail.cycle_payment_id} no existe`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  cycle_payment_id: detail.cycle_payment_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const cpZoneId = cp.subscription_cycle.customer_subscription.person.zone_id ?? null;
+              if (typeof cpZoneId === 'number') detailZoneIds.push(cpZoneId);
             }
+          }
+
+          // Si se especificaron zone_ids, validar que todos los detalles caen dentro de esas zonas
+          if (selectedZoneIds.length > 0) {
+            const outOfSelection = detailZoneIds.filter(
+              (zid) => !selectedZoneIds.includes(zid),
+            );
+            if (outOfSelection.length > 0) {
+              throw new BadRequestException(
+                `Los detalles incluyen zonas no seleccionadas: ${outOfSelection.join(', ')}`,
+              );
+            }
+          }
+
+          // Actualizar estados de pedidos a READY_FOR_DELIVERY (cuando estaban PENDING)
+          if (orderIdsToUpdate.length > 0) {
+            await tx.order_header.updateMany({
+              where: { order_id: { in: orderIdsToUpdate }, status: 'PENDING' },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
+          }
+          if (oneOffIdsToUpdate.length > 0) {
+            await tx.one_off_purchase.updateMany({
+              where: { purchase_id: { in: oneOffIdsToUpdate }, status: 'PENDING' },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
+          }
+          if (oneOffHeaderIdsToUpdate.length > 0) {
+            await tx.one_off_purchase_header.updateMany({
+              where: {
+                purchase_header_id: { in: oneOffHeaderIdsToUpdate },
+                status: 'PENDING',
+              },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
           }
         }
         return await tx.route_sheet.findUniqueOrThrow({
@@ -1373,7 +1560,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
       });
-      return this.mapToRouteSheetResponseDto(result);
+      // Pasar zone_ids seleccionadas para que zones_covered respete el payload del PATCH
+      return this.mapToRouteSheetResponseDto(result, zone_ids);
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -1390,14 +1578,58 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   async remove(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.findOne(id);
     try {
-      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
-      await this.route_sheet.update({
-        where: { route_sheet_id: id },
-        data: { is_active: false },
+      await this.$transaction(async (tx) => {
+        // Obtener IDs de pedidos asociados a la hoja de ruta
+        const details = await tx.route_sheet_detail.findMany({
+          where: { route_sheet_id: id },
+          select: {
+            order_id: true,
+            one_off_purchase_id: true,
+            one_off_purchase_header_id: true,
+          },
+        });
+
+        const orderIds: number[] = [];
+        const oneOffIds: number[] = [];
+        const oneOffHeaderIds: number[] = [];
+
+        for (const d of details) {
+          if (typeof d.order_id === 'number') orderIds.push(d.order_id);
+          if (typeof d.one_off_purchase_id === 'number')
+            oneOffIds.push(d.one_off_purchase_id);
+          if (typeof d.one_off_purchase_header_id === 'number')
+            oneOffHeaderIds.push(d.one_off_purchase_header_id);
+        }
+
+        // Revertir estados a PENDING para todos los pedidos involucrados
+        if (orderIds.length > 0) {
+          await tx.order_header.updateMany({
+            where: { order_id: { in: orderIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+        if (oneOffIds.length > 0) {
+          await tx.one_off_purchase.updateMany({
+            where: { purchase_id: { in: oneOffIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+        if (oneOffHeaderIds.length > 0) {
+          await tx.one_off_purchase_header.updateMany({
+            where: { purchase_header_id: { in: oneOffHeaderIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+
+        // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+        await tx.route_sheet.update({
+          where: { route_sheet_id: id },
+          data: { is_active: false },
+        });
       });
 
       return {
-        message: `${this.entityName} con ID ${id} desactivada correctamente`,
+        message: `${this.entityName} con ID ${id} desactivada y pedidos revertidos a PENDING`,
         deleted: true,
       };
     } catch (error) {
