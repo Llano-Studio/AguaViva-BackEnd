@@ -361,7 +361,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               : {},
           ].filter((condition) => Object.keys(condition).length > 0),
           route_sheet: {
-            delivery_date: new Date(delivery_date),
+            is: {
+              delivery_date: new Date(delivery_date),
+              is_active: true,
+            },
           },
         },
         include: {
@@ -1308,8 +1311,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 where: {
                   order_id: detail.order_id,
                   route_sheet: {
-                    delivery_date: updatedRouteSheet.delivery_date,
-                    route_sheet_id: { not: id },
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
                   },
                 },
               });
@@ -1351,8 +1357,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 where: {
                   one_off_purchase_id: detail.one_off_purchase_id,
                   route_sheet: {
-                    delivery_date: updatedRouteSheet.delivery_date,
-                    route_sheet_id: { not: id },
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
                   },
                 },
               });
@@ -1390,8 +1399,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 where: {
                   one_off_purchase_header_id: detail.one_off_purchase_header_id,
                   route_sheet: {
-                    delivery_date: updatedRouteSheet.delivery_date,
-                    route_sheet_id: { not: id },
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
                   },
                 },
               });
