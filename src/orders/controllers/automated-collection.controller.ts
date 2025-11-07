@@ -1165,7 +1165,7 @@ export class AutomatedCollectionController {
               downloadUrl: `/public/pdfs/collections/${filename}`,
               date,
               vehicleId: vId ?? null,
-              driverId: dId ?? 0,
+              driverId: dId ?? null,
               driverName,
               drivers,
               zoneIds: zIds,

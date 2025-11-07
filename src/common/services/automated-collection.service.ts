@@ -424,31 +424,32 @@ export class AutomatedCollectionService
           drivers = [];
         }
 
-        // Resolver nombre del driver asignado si viene en dto
+        // Resolver driver asignado: si no se provee en dto, tomar el más recientemente asignado al vehículo
+        const effectiveDriverId: number | undefined = dto.driverId ?? (drivers.length > 0 ? drivers[0].id : undefined);
         let assignedDriverName: string | null = null;
-        if (dto.driverId) {
+        if (typeof effectiveDriverId === 'number') {
           try {
             const user = await this.user.findUnique({
-              where: { id: dto.driverId },
+              where: { id: effectiveDriverId },
               select: { name: true },
             });
             assignedDriverName = user?.name ?? null;
             if (!assignedDriverName) {
               const person = await this.person.findUnique({
-                where: { person_id: dto.driverId },
+                where: { person_id: effectiveDriverId },
                 select: { name: true },
               });
               assignedDriverName = person?.name ?? null;
             }
           } catch (_) {
-            assignedDriverName = null;
+            assignedDriverName = drivers.find((d) => d.id === effectiveDriverId)?.name ?? null;
           }
         }
         const filters: GenerateRouteSheetDto = {
           date: dateIso,
           zoneIds,
           vehicleId: vehicle.vehicle_id,
-          driverId: dto.driverId,
+          driverId: effectiveDriverId,
           overdueOnly: dto.overdueOnly ?? 'false',
           sortBy: dto.sortBy ?? 'zone',
           format: dto.format ?? 'compact',
@@ -469,7 +470,7 @@ export class AutomatedCollectionService
           zoneIds,
           zoneNames,
           drivers,
-          assignedDriverId: dto.driverId,
+          assignedDriverId: effectiveDriverId ?? null,
           assignedDriverName,
           downloadUrl: result.downloadUrl,
         });
