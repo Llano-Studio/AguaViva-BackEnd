@@ -27,6 +27,7 @@ import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
+import { RouteSheetGeneratorService } from '../../common/services/route-sheet-generator.service';
 import { FilterAutomatedCollectionsDto } from '../dto/filter-automated-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-response.dto';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
@@ -59,7 +60,8 @@ export class GenerateCollectionOrdersDto {
 export class AutomatedCollectionController {
   constructor(
     private readonly automatedCollectionService: AutomatedCollectionService,
-  ) {}
+    private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
+  ) { }
 
   /**
    * Ejecuta manualmente la generación de pedidos de cobranza para una fecha específica
@@ -133,8 +135,8 @@ export class AutomatedCollectionController {
       },
     },
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Fecha inválida o datos de entrada incorrectos',
     schema: {
       type: 'object',
@@ -145,8 +147,8 @@ export class AutomatedCollectionController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'No autorizado - Token JWT inválido o expirado',
     schema: {
       type: 'object',
@@ -157,8 +159,8 @@ export class AutomatedCollectionController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 403, 
+  @ApiResponse({
+    status: 403,
     description: 'Prohibido - El usuario no tiene los permisos necesarios',
     schema: {
       type: 'object',
@@ -972,6 +974,7 @@ export class AutomatedCollectionController {
   @ApiQuery({ name: 'vehicleId', required: false, type: Number, example: 4 })
   @ApiQuery({ name: 'driverId', required: false, type: Number, example: 12 })
   @ApiQuery({ name: 'zoneId', required: false, type: Number, example: 7 })
+  @ApiQuery({ name: 'assignedDriverId', required: false, type: Number, example: 12 })
   @ApiResponse({
     status: 200,
     description: 'Listado de hojas de ruta automáticas para cobranza',
@@ -990,6 +993,17 @@ export class AutomatedCollectionController {
               date: { type: 'string' },
               vehicleId: { type: 'number', nullable: true },
               driverId: { type: 'number', nullable: true },
+              driverName: { type: 'string', nullable: true },
+              drivers: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'number' },
+                    name: { type: 'string' },
+                  },
+                },
+              },
               zoneIds: { type: 'array', items: { type: 'number' } },
               sizeBytes: { type: 'number' },
               createdAt: { type: 'string' },
@@ -1006,6 +1020,7 @@ export class AutomatedCollectionController {
     @Query('vehicleId') vehicleId?: number,
     @Query('driverId') driverId?: number,
     @Query('zoneId') zoneId?: number,
+    @Query('assignedDriverId') assignedDriverId?: number,
   ) {
     try {
       const dir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
@@ -1042,32 +1057,77 @@ export class AutomatedCollectionController {
         return true;
       };
 
-      const items = files
-        .map((filename) => {
-          const match = filename.match(regex);
-          if (!match) return null;
-          const [, date, vStr, zStr, dStr] = match;
-          const vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
-          const dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
-          const zIds = parseZones(zStr);
-          const filePath = path.join(dir, filename);
-          const stat = fs.statSync(filePath);
-          return {
-            filename,
-            downloadUrl: `/public/pdfs/collections/${filename}`,
-            date,
-            vehicleId: vId,
-            driverId: dId,
-            zoneIds: zIds,
-            sizeBytes: stat.size,
-            createdAt: stat.mtime.toISOString(),
-          };
-        })
+      const items = (
+        await Promise.all(
+          files.map(async (filename) => {
+            const match = filename.match(regex);
+            if (!match) return null;
+            const [, date, vStr, zStr, dStr] = match;
+            const vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
+            const dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
+            const zIds = parseZones(zStr);
+            const filePath = path.join(dir, filename);
+            const stat = fs.statSync(filePath);
+
+            let driverName: string | null = null;
+            if (typeof dId === 'number' && dId > 0) {
+              try {
+                // Fuente de verdad: User (chofer del sistema). Fallback a Person para archivos legados.
+                const user = await this.routeSheetGeneratorService.user.findUnique({
+                  where: { id: dId },
+                  select: { name: true },
+                });
+                driverName = user?.name ?? null;
+                if (!driverName) {
+                  const person = await this.routeSheetGeneratorService.person.findUnique({
+                    where: { person_id: dId },
+                    select: { name: true },
+                  });
+                  driverName = person?.name ?? null;
+                }
+              } catch (_) {
+                driverName = null;
+              }
+            }
+
+            // Obtener todos los choferes (usuarios) asignados al vehículo
+            let drivers: { id: number; name: string }[] = [];
+            if (typeof vId === 'number' && vId > 0) {
+              try {
+                const userVehicles = await this.routeSheetGeneratorService.user_vehicle.findMany({
+                  where: { vehicle_id: vId, is_active: true },
+                  include: { user: true },
+                  orderBy: { assigned_at: 'desc' },
+                });
+                drivers = userVehicles
+                  .filter((uv) => uv.user && uv.user.id && uv.user.name)
+                  .map((uv) => ({ id: uv.user.id, name: uv.user.name }));
+              } catch (_) {
+                drivers = [];
+              }
+            }
+
+            return {
+              filename,
+              downloadUrl: `/public/pdfs/collections/${filename}`,
+              date,
+              vehicleId: vId ?? null,
+              driverId: dId ?? 0,
+              driverName,
+              drivers,
+              zoneIds: zIds,
+              sizeBytes: stat.size,
+              createdAt: stat.mtime.toISOString(),
+            };
+          })
+        )
+      )
         .filter((item) => !!item)
         .filter((item) => withinDateRange(item!.date))
-        .filter((item) => (vehicleId ? item!.vehicleId === Number(vehicleId) : true))
-        .filter((item) => (driverId ? item!.driverId === Number(driverId) : true))
-        .filter((item) => (zoneId ? item!.zoneIds.includes(Number(zoneId)) : true));
+        .filter((item) => (vehicleId !== undefined ? item!.vehicleId === Number(vehicleId) : true))
+        .filter((item) => (driverId !== undefined ? item!.driverId === Number(driverId) : true))
+        .filter((item) => (zoneId ? item!.zoneIds.includes(Number(zoneId)) : true))
+        .filter((item) => (assignedDriverId ? item!.drivers?.some((d) => d.id === Number(assignedDriverId)) : true));
 
       return {
         success: true,

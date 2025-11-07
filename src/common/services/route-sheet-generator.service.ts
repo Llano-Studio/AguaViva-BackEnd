@@ -209,6 +209,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         gte: targetDate,
         lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
       },
+      es_automatica: true,
     };
 
     if (filters.zoneIds && filters.zoneIds.length > 0) {
@@ -227,7 +228,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     const orderBy = this.getOrderBy(filters.sortBy);
 
-    return await this.order_header.findMany({
+    return await this.collection_orders.findMany({
       where: whereClause,
       include: {
         customer: {
@@ -312,7 +313,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       : 0;
 
     return {
-      order_id: collection.order_id,
+      order_id: (collection as any).collection_order_id ?? collection.order_id,
       customer: {
         customer_id: collection.customer_id,
         name: collection.customer.name,
@@ -354,17 +355,19 @@ export class RouteSheetGeneratorService extends PrismaClient {
   private async getDriverInfo(driverId?: number): Promise<RouteSheetDriver | undefined> {
     if (!driverId) return undefined;
 
-    const driver = await this.person.findUnique({
-      where: { person_id: driverId },
+    // Fuente de verdad para choferes: User (usuarios del sistema)
+    const user = await this.user.findUnique({
+      where: { id: driverId },
+      select: { id: true, name: true },
     });
 
-    if (!driver) return undefined;
+    if (!user) return undefined;
 
     return {
-      driver_id: driver.person_id,
-      name: driver.name,
-      license_number: driver.tax_id || 'N/A',
-      phone: driver.phone,
+      driver_id: user.id,
+      name: user.name,
+      license_number: 'N/A',
+      phone: '',
     };
   }
 
