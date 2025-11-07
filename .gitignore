@@ -4,6 +4,8 @@
 /prisma/migrations_*
 /postgres
 /pgadmin
+/public/**
+!/public/**/
 
 # compile
 d output
