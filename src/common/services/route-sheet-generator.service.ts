@@ -247,7 +247,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     // - is_active=true y order_type='ONE_OFF'
     // - Coincidir por order_date O scheduled_delivery_date dentro del día
     // - Considerar órdenes automáticas modernas (es_automatica=true)
-    //   y órdenes automáticas legacy (es_automatica=null con notas que contienen 'COBRANZA AUTOMÁTICA')
+    //   y órdenes automáticas legacy (notas que contienen 'COBRANZA AUTOMÁTICA')
     const whereClause: Prisma.collection_ordersWhereInput = {
       order_type: 'ONE_OFF',
       is_active: true,
@@ -261,12 +261,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       ],
       OR: [
         { es_automatica: true },
-        {
-          AND: [
-            { es_automatica: null },
-            { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' as any } },
-          ],
-        },
+        { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' } },
       ],
     };
 
