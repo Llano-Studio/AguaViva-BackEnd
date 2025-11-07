@@ -376,7 +376,18 @@ export class AutomatedCollectionService
     });
 
     let generatedCount = 0;
-    const results: Array<{ vehicleId: number; zoneIds: number[]; downloadUrl?: string; error?: string }> = [];
+    const results: Array<{
+      vehicleId: number;
+      vehicleName?: string;
+      vehicleCode?: string;
+      zoneIds: number[];
+      zoneNames?: string[];
+      drivers?: { id: number; name: string }[];
+      assignedDriverId?: number;
+      assignedDriverName?: string | null;
+      downloadUrl?: string;
+      error?: string;
+    }> = [];
 
     for (const vehicle of vehicles) {
       const zoneIds = dto.zoneIds && dto.zoneIds.length > 0
@@ -391,6 +402,48 @@ export class AutomatedCollectionService
       }
 
       try {
+        // Obtener nombres de zonas
+        const zones = await this.zone.findMany({
+          where: { zone_id: { in: zoneIds } },
+          select: { zone_id: true, name: true },
+        });
+        const zoneNames = zones.map((z) => z.name);
+
+        // Obtener drivers asignados al vehículo
+        let drivers: { id: number; name: string }[] = [];
+        try {
+          const userVehicles = await this.user_vehicle.findMany({
+            where: { vehicle_id: vehicle.vehicle_id, is_active: true },
+            include: { user: true },
+            orderBy: { assigned_at: 'desc' },
+          });
+          drivers = userVehicles
+            .filter((uv) => uv.user && typeof uv.user.id === 'number' && !!uv.user.name)
+            .map((uv) => ({ id: uv.user.id, name: uv.user.name }));
+        } catch (_) {
+          drivers = [];
+        }
+
+        // Resolver nombre del driver asignado si viene en dto
+        let assignedDriverName: string | null = null;
+        if (dto.driverId) {
+          try {
+            const user = await this.user.findUnique({
+              where: { id: dto.driverId },
+              select: { name: true },
+            });
+            assignedDriverName = user?.name ?? null;
+            if (!assignedDriverName) {
+              const person = await this.person.findUnique({
+                where: { person_id: dto.driverId },
+                select: { name: true },
+              });
+              assignedDriverName = person?.name ?? null;
+            }
+          } catch (_) {
+            assignedDriverName = null;
+          }
+        }
         const filters: GenerateRouteSheetDto = {
           date: dateIso,
           zoneIds,
@@ -411,7 +464,13 @@ export class AutomatedCollectionService
         generatedCount++;
         results.push({
           vehicleId: vehicle.vehicle_id,
+          vehicleName: vehicle.name,
+          vehicleCode: vehicle.code,
           zoneIds,
+          zoneNames,
+          drivers,
+          assignedDriverId: dto.driverId,
+          assignedDriverName,
           downloadUrl: result.downloadUrl,
         });
         this.logger.log(
@@ -424,6 +483,8 @@ export class AutomatedCollectionService
         );
         results.push({
           vehicleId: vehicle.vehicle_id,
+          vehicleName: vehicle.name,
+          vehicleCode: vehicle.code,
           zoneIds,
           error: error.message,
         });

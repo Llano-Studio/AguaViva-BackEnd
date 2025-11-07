@@ -153,10 +153,20 @@ export class RouteSheetGeneratorService extends PrismaClient {
         fs.mkdirSync(persistDir, { recursive: true });
       }
 
-      // Construir nombre de archivo estable con nuevo formato
+      // Construir nombre de archivo estable con nuevo formato solicitado
+      // Nuevo formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo>_z<ids...|zall>_d<driver|dNA>.pdf
       const datePart = formatLocalYMD(targetDate);
-      const nextVersion = this.getNextVersionForDate(persistDir, datePart);
-      const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_v${nextVersion}.pdf`;
+      const zoneIds = Array.isArray(filters.zoneIds) && filters.zoneIds.length > 0
+        ? [...filters.zoneIds].sort((a, b) => a - b)
+        : [];
+      const zonesPart = zoneIds.length > 0 ? `z${zoneIds.join('-')}` : 'zall';
+      const vehiclePart = typeof filters.vehicleId === 'number' && filters.vehicleId > 0
+        ? `m${filters.vehicleId}`
+        : 'mNA';
+      const driverPart = typeof filters.driverId === 'number' && filters.driverId > 0
+        ? `d${filters.driverId}`
+        : 'dNA';
+      const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
       // Evitar duplicados: si existe, reescribirlo con contenido actualizado
@@ -191,26 +201,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     }
   }
 
-  /**
-   * Encuentra el próximo número de versión para un día dado, escaneando archivos existentes.
-   * Formato esperado: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
-   */
-  private getNextVersionForDate(dir: string, datePart: string): number {
-    try {
-      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
-      const regex = new RegExp(`^cobranza-automatica-hoja-de-ruta_${datePart}_v(\\d+)\\.pdf$`);
-      const versions = files
-        .map((f) => {
-          const m = f.match(regex);
-          return m ? Number(m[1]) : null;
-        })
-        .filter((v): v is number => typeof v === 'number');
-      if (versions.length === 0) return 1;
-      return Math.max(...versions) + 1;
-    } catch {
-      return 1;
-    }
-  }
+  // Método legacy de cálculo de versión eliminado; el nuevo formato usa m/z/d
 
   /**
    * Calcula el resumen de la hoja de ruta

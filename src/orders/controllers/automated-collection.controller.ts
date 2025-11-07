@@ -933,7 +933,22 @@ export class AutomatedCollectionController {
             type: 'object',
             properties: {
               vehicleId: { type: 'number' },
+              vehicleName: { type: 'string' },
+              vehicleCode: { type: 'string' },
               zoneIds: { type: 'array', items: { type: 'number' } },
+              zoneNames: { type: 'array', items: { type: 'string' } },
+              drivers: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'number' },
+                    name: { type: 'string' },
+                  },
+                },
+              },
+              assignedDriverId: { type: 'number', nullable: true },
+              assignedDriverName: { type: 'string', nullable: true },
               downloadUrl: { type: 'string' },
               error: { type: 'string', nullable: true },
             },
@@ -961,14 +976,16 @@ export class AutomatedCollectionController {
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Listar hojas de ruta automáticas de cobranza',
-    description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
+      description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
 
-    Formato de nombre de archivo actualizado:
-    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
-    - Legado: collection-route-sheet_YYYY-MM-DD_vX_z..._d...
+    Formatos de nombre de archivo:
+    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo>_z<ids|zall>_d<driver|dNA>.pdf
+    - Transición (solo versión): cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
+    - Legado: collection-route-sheet_YYYY-MM-DD_v<vehiculo|vNA>_z<ids|zall>_d<driver|dNA>.pdf
 
     Notas:
-    - Los campos vehicleId/driverId/zoneIds pueden estar vacíos para archivos con el nuevo formato.
+    - Los campos vehicleId/driverId/zoneIds se derivan del nombre del archivo cuando están presentes.
+    - En el formato de transición (solo versión), estos campos pueden estar vacíos.
 
     Filtros opcionales:
     - dateFrom/dateTo: rango de fechas (YYYY-MM-DD)
@@ -1038,7 +1055,10 @@ export class AutomatedCollectionController {
 
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
       const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
-      const newRegex = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_v(\d+)\.pdf$/;
+      // Nuevo formato solicitado: incluye m (movil/vehículo), zonas y driver
+      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_m(NA|\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+      // Soporte de transición: formato nuevo anterior sólo con versión (sin zonas/driver)
+      const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_v(\d+)\.pdf$/;
 
       const parseZones = (zonesStr: string): number[] => {
         if (zonesStr === 'zall') return [];
@@ -1067,27 +1087,37 @@ export class AutomatedCollectionController {
       const items = (
         await Promise.all(
           files.map(async (filename) => {
-            // Intentar nuevo formato primero, luego legado
-            const matchNew = filename.match(newRegex);
+            // Intentar nuevo formato con detalles primero, luego nuevo (sólo versión), luego legado
+            const matchNewFull = filename.match(newRegexFull);
             let date: string;
             let vId: number | undefined;
             let dId: number | undefined;
             let zIds: number[] = [];
 
-            if (matchNew) {
-              date = matchNew[1];
-              // No se codifica vehicle/driver en el nuevo formato
-              vId = undefined;
-              dId = undefined;
-              zIds = [];
-            } else {
-              const matchLegacy = filename.match(legacyRegex);
-              if (!matchLegacy) return null;
-              const [, dateStr, vStr, zStr, dStr] = matchLegacy;
-              date = dateStr;
-              vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
+            if (matchNewFull) {
+              date = matchNewFull[1];
+              const mStr = matchNewFull[2];
+              const zStr = matchNewFull[3];
+              const dStr = matchNewFull[4];
+              vId = mStr === 'NA' ? undefined : parseInt(mStr);
               dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
               zIds = parseZones(zStr);
+            } else {
+              const matchNewVersionOnly = filename.match(newRegexVersionOnly);
+              if (matchNewVersionOnly) {
+                date = matchNewVersionOnly[1];
+                vId = undefined;
+                dId = undefined;
+                zIds = [];
+              } else {
+                const matchLegacy = filename.match(legacyRegex);
+                if (!matchLegacy) return null;
+                const [, dateStr, vStr, zStr, dStr] = matchLegacy;
+                date = dateStr;
+                vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
+                dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
+                zIds = parseZones(zStr);
+              }
             }
             const filePath = path.join(dir, filename);
             const stat = fs.statSync(filePath);
