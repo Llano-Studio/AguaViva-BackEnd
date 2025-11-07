@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
+import { isValidYMD, parseYMD, formatLocalYMD } from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -62,8 +63,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
    */
   async generateRouteSheet(filters: GenerateRouteSheetDto): Promise<RouteSheetResponseDto> {
     try {
-      const targetDate = filters.date ? new Date(filters.date) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
+      let targetDate: Date;
+      if (filters.date) {
+        if (!isValidYMD(filters.date)) {
+          throw new BadRequestException('La fecha debe estar en formato YYYY-MM-DD válido');
+        }
+        targetDate = parseYMD(filters.date);
+      } else {
+        targetDate = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+      }
 
       // Validar que el vehículo tenga las zonas asignadas si se especifican zoneIds
       if (filters.vehicleId && filters.zoneIds && filters.zoneIds.length > 0) {
@@ -95,7 +104,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         message: 'Hoja de ruta generada exitosamente',
         downloadUrl: fileInfo.downloadUrl,
         routeSheet: {
-          date: targetDate.toISOString().split('T')[0],
+          date: formatLocalYMD(targetDate),
           generated_at: new Date().toISOString(),
           driver,
           vehicle,
@@ -118,8 +127,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
     filters: GenerateRouteSheetDto,
   ): Promise<RouteSheetResponseDto> {
     try {
-      const targetDate = filters.date ? new Date(filters.date) : new Date();
-      targetDate.setHours(0, 0, 0, 0);
+      let targetDate: Date;
+      if (filters.date) {
+        if (!isValidYMD(filters.date)) {
+          throw new BadRequestException('La fecha debe estar en formato YYYY-MM-DD válido');
+        }
+        targetDate = parseYMD(filters.date);
+      } else {
+        targetDate = new Date();
+        targetDate.setHours(0, 0, 0, 0);
+      }
 
       if (filters.vehicleId && filters.zoneIds && filters.zoneIds.length > 0) {
         await this.validateVehicleZones(filters.vehicleId, filters.zoneIds);
@@ -136,12 +153,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
         fs.mkdirSync(persistDir, { recursive: true });
       }
 
-      // Construir nombre de archivo estable con metadatos básicos
-      const datePart = targetDate.toISOString().split('T')[0];
-      const vehiclePart = filters.vehicleId ? `v${filters.vehicleId}` : 'vNA';
-      const driverPart = filters.driverId ? `d${filters.driverId}` : 'dNA';
-      const zonesPart = filters.zoneIds && filters.zoneIds.length > 0 ? `z${filters.zoneIds.join('-')}` : 'zall';
-      const baseName = `collection-route-sheet_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
+      // Construir nombre de archivo estable con nuevo formato
+      const datePart = formatLocalYMD(targetDate);
+      const nextVersion = this.getNextVersionForDate(persistDir, datePart);
+      const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_v${nextVersion}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
       // Evitar duplicados: si existe, reescribirlo con contenido actualizado
@@ -177,6 +192,27 @@ export class RouteSheetGeneratorService extends PrismaClient {
   }
 
   /**
+   * Encuentra el próximo número de versión para un día dado, escaneando archivos existentes.
+   * Formato esperado: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
+   */
+  private getNextVersionForDate(dir: string, datePart: string): number {
+    try {
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
+      const regex = new RegExp(`^cobranza-automatica-hoja-de-ruta_${datePart}_v(\\d+)\\.pdf$`);
+      const versions = files
+        .map((f) => {
+          const m = f.match(regex);
+          return m ? Number(m[1]) : null;
+        })
+        .filter((v): v is number => typeof v === 'number');
+      if (versions.length === 0) return 1;
+      return Math.max(...versions) + 1;
+    } catch {
+      return 1;
+    }
+  }
+
+  /**
    * Calcula el resumen de la hoja de ruta
    */
   private calculateSummary(zones: RouteSheetZone[]) {
@@ -202,28 +238,58 @@ export class RouteSheetGeneratorService extends PrismaClient {
     filters: GenerateRouteSheetDto,
     targetDate: Date
   ): Promise<any[]> {
-    const whereClause: any = {
+    // Rango de día robusto (00:00:00 a 23:59:59)
+    const dayStart = new Date(targetDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    // Construir cláusula WHERE tolerante:
+    // - is_active=true y order_type='ONE_OFF'
+    // - Coincidir por order_date O scheduled_delivery_date dentro del día
+    // - Considerar órdenes automáticas modernas (es_automatica=true)
+    //   y órdenes automáticas legacy (es_automatica=null con notas que contienen 'COBRANZA AUTOMÁTICA')
+    const whereClause: Prisma.collection_ordersWhereInput = {
       order_type: 'ONE_OFF',
-      notes: { contains: 'COBRANZA AUTOMÁTICA' },
-      order_date: {
-        gte: targetDate,
-        lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000),
-      },
-      es_automatica: true,
+      is_active: true,
+      AND: [
+        {
+          OR: [
+            { order_date: { gte: dayStart, lt: dayEnd } },
+            { scheduled_delivery_date: { gte: dayStart, lt: dayEnd } },
+          ],
+        },
+      ],
+      OR: [
+        { es_automatica: true },
+        {
+          AND: [
+            { es_automatica: null },
+            { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' as any } },
+          ],
+        },
+      ],
     };
 
+    // Filtro por zonas: aceptar tanto el zone_id del pedido como el del cliente
     if (filters.zoneIds && filters.zoneIds.length > 0) {
-      whereClause.customer = {
-        zone_id: { in: filters.zoneIds },
-      };
+      (whereClause.AND as any[]).push({
+        OR: [
+          { zone_id: { in: filters.zoneIds } },
+          { customer: { is: { zone_id: { in: filters.zoneIds } } } },
+        ],
+      });
     }
 
     if (filters.overdueOnly === 'true') {
-      whereClause.payment_status = { in: ['PENDING', 'OVERDUE'] };
+      (whereClause.AND as any[]).push({
+        payment_status: { in: ['PENDING', 'OVERDUE'] },
+      });
     }
 
     if (filters.minAmount) {
-      whereClause.total_amount = { gte: new Prisma.Decimal(filters.minAmount) };
+      (whereClause.AND as any[]).push({
+        total_amount: { gte: new Prisma.Decimal(filters.minAmount) },
+      });
     }
 
     const orderBy = this.getOrderBy(filters.sortBy);

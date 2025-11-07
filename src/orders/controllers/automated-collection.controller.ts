@@ -36,6 +36,7 @@ import { GenerateDailyRouteSheetsDto } from '../dto/generate-daily-route-sheets.
 import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { parseYMD, compareYmdDesc } from '../../common/utils/date.utils';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
@@ -960,7 +961,14 @@ export class AutomatedCollectionController {
   @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
   @ApiOperation({
     summary: 'Listar hojas de ruta automáticas de cobranza',
-    description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor.
+    description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
+
+    Formato de nombre de archivo actualizado:
+    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
+    - Legado: collection-route-sheet_YYYY-MM-DD_vX_z..._d...
+
+    Notas:
+    - Los campos vehicleId/driverId/zoneIds pueden estar vacíos para archivos con el nuevo formato.
 
     Filtros opcionales:
     - dateFrom/dateTo: rango de fechas (YYYY-MM-DD)
@@ -1029,7 +1037,8 @@ export class AutomatedCollectionController {
       }
 
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
-      const regex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+      const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+      const newRegex = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_v(\d+)\.pdf$/;
 
       const parseZones = (zonesStr: string): number[] => {
         if (zonesStr === 'zall') return [];
@@ -1042,15 +1051,13 @@ export class AutomatedCollectionController {
 
       const withinDateRange = (date: string) => {
         if (!dateFrom && !dateTo) return true;
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
+        const d = parseYMD(date);
         if (dateFrom) {
-          const from = new Date(dateFrom);
-          from.setHours(0, 0, 0, 0);
+          const from = parseYMD(dateFrom);
           if (d < from) return false;
         }
         if (dateTo) {
-          const to = new Date(dateTo);
+          const to = parseYMD(dateTo);
           to.setHours(23, 59, 59, 999);
           if (d > to) return false;
         }
@@ -1060,12 +1067,28 @@ export class AutomatedCollectionController {
       const items = (
         await Promise.all(
           files.map(async (filename) => {
-            const match = filename.match(regex);
-            if (!match) return null;
-            const [, date, vStr, zStr, dStr] = match;
-            const vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
-            const dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
-            const zIds = parseZones(zStr);
+            // Intentar nuevo formato primero, luego legado
+            const matchNew = filename.match(newRegex);
+            let date: string;
+            let vId: number | undefined;
+            let dId: number | undefined;
+            let zIds: number[] = [];
+
+            if (matchNew) {
+              date = matchNew[1];
+              // No se codifica vehicle/driver en el nuevo formato
+              vId = undefined;
+              dId = undefined;
+              zIds = [];
+            } else {
+              const matchLegacy = filename.match(legacyRegex);
+              if (!matchLegacy) return null;
+              const [, dateStr, vStr, zStr, dStr] = matchLegacy;
+              date = dateStr;
+              vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
+              dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
+              zIds = parseZones(zStr);
+            }
             const filePath = path.join(dir, filename);
             const stat = fs.statSync(filePath);
 
@@ -1127,7 +1150,13 @@ export class AutomatedCollectionController {
         .filter((item) => (vehicleId !== undefined ? item!.vehicleId === Number(vehicleId) : true))
         .filter((item) => (driverId !== undefined ? item!.driverId === Number(driverId) : true))
         .filter((item) => (zoneId ? item!.zoneIds.includes(Number(zoneId)) : true))
-        .filter((item) => (assignedDriverId ? item!.drivers?.some((d) => d.id === Number(assignedDriverId)) : true));
+        .filter((item) => (assignedDriverId ? item!.drivers?.some((d) => d.id === Number(assignedDriverId)) : true))
+        .sort((a, b) => {
+          // Desc by date, then desc by createdAt
+          const byDate = compareYmdDesc(a!.date, b!.date);
+          if (byDate !== 0) return byDate;
+          return a!.createdAt < b!.createdAt ? 1 : -1;
+        });
 
       return {
         success: true,

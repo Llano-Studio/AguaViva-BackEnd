@@ -19,6 +19,7 @@ import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-rou
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
+import { isValidYMD, parseYMD, formatLocalYMD } from '../utils/date.utils';
 
 // Helper function to map Prisma PaymentStatus to our custom PaymentStatus
 function mapPaymentStatus(prismaStatus: string): PaymentStatus {
@@ -341,11 +342,18 @@ export class AutomatedCollectionService
    */
   async triggerDailyCollectionRouteSheets(dto: GenerateDailyRouteSheetsDto) {
     this.logger.log('🗺️ Disparo manual de generación diaria de hojas de ruta de cobranzas...');
-
-    const baseDate = dto.date ? new Date(dto.date) : new Date();
-    baseDate.setHours(0, 0, 0, 0);
+    let baseDate: Date;
+    if (dto.date) {
+      if (!isValidYMD(dto.date)) {
+        throw new Error('La fecha debe estar en formato YYYY-MM-DD válido');
+      }
+      baseDate = parseYMD(dto.date);
+    } else {
+      baseDate = new Date();
+      baseDate.setHours(0, 0, 0, 0);
+    }
     const adjustedDate = this.adjustDateForSunday(baseDate);
-    const dateIso = adjustedDate.toISOString().split('T')[0];
+    const dateIso = formatLocalYMD(adjustedDate);
 
     // Primero: generar/actualizar órdenes automáticas para la fecha
     try {
