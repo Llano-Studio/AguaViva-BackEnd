@@ -154,17 +154,35 @@ export class RouteSheetGeneratorService extends PrismaClient {
       }
 
       // Construir nombre de archivo estable con nuevo formato solicitado
-      // Nuevo formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo>_z<ids...|zall>_d<driver|dNA>.pdf
+      // Nuevo formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<movil-nombre|mNA>_z<zonas-nombres|zall>_d<driver-nombre|dNA>.pdf
       const datePart = formatLocalYMD(targetDate);
       const zoneIds = Array.isArray(filters.zoneIds) && filters.zoneIds.length > 0
         ? [...filters.zoneIds].sort((a, b) => a - b)
         : [];
-      const zonesPart = zoneIds.length > 0 ? `z${zoneIds.join('-')}` : 'zall';
-      const vehiclePart = typeof filters.vehicleId === 'number' && filters.vehicleId > 0
-        ? `m${filters.vehicleId}`
+
+      // Resolver nombres de zonas según los zoneIds, manteniendo orden estable
+      let zonesPart = 'zall';
+      if (zoneIds.length > 0) {
+        const zoneList = await this.zone.findMany({
+          where: { zone_id: { in: zoneIds } },
+          select: { zone_id: true, name: true },
+        });
+        const zoneNameById = new Map<number, string>(
+          zoneList.map((z) => [z.zone_id, z.name])
+        );
+        const zoneNameSlugs = zoneIds.map((id) => {
+          const name = zoneNameById.get(id) ?? String(id);
+          return this.slugifyForFilename(name);
+        });
+        zonesPart = `${zoneNameSlugs.join('-')}`;
+      }
+
+      // Usar nombre del móvil/vehículo y del chofer en formato slug
+      const vehiclePart = vehicle?.model
+        ? `${this.slugifyForFilename(vehicle.model)}`
         : 'mNA';
-      const driverPart = typeof filters.driverId === 'number' && filters.driverId > 0
-        ? `d${filters.driverId}`
+      const driverPart = driver?.name
+        ? `${this.slugifyForFilename(driver.name)}`
         : 'dNA';
       const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
@@ -199,6 +217,20 @@ export class RouteSheetGeneratorService extends PrismaClient {
       this.logger.error('Error generando y persistiendo hoja de ruta:', error);
       throw new Error(`Error generando y persistiendo hoja de ruta: ${error.message}`);
     }
+  }
+
+  /**
+   * Convierte una cadena en slug seguro para nombres de archivo
+   */
+  private slugifyForFilename(input: string): string {
+    return input
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quitar acentos
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
   }
 
   // Método legacy de cálculo de versión eliminado; el nuevo formato usa m/z/d

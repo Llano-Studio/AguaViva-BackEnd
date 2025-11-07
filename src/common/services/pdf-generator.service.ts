@@ -609,22 +609,34 @@ export class PdfGeneratorService {
   }
 
   /**
-   * Construye el nombre de archivo para hoja de ruta de cobranzas automáticas
-   * Formato: cobranzas-automatica-{dd/MM/yyyy}-{movil}-{zonaX-zonaY}.pdf
-   * Nota: se sanitizan caracteres para evitar inválidos en el sistema de archivos
+   * Construye el nombre de archivo para hoja de ruta de cobranzas automáticas.
+   * Formato unificado: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<móvil-slug|mNA>_z<zonas-slugs|zall>_d<chofer-slug|dNA>.pdf
    */
   private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
-    const base = 'cobranzas-automatica';
-    const dateLabel = this.formatDateForFilename(data.delivery_date);
-    const vehicleLabel = this.slugifyForFilename(
-      data.vehicle?.code || data.vehicle?.name || 'vehiculo'
-    );
-    const zones = Array.isArray(data.zone_identifiers) ? data.zone_identifiers : [];
-    const uniqueZones = Array.from(new Set(zones)).map((z) => this.slugifyForFilename(z));
-    const zonesPart = uniqueZones.length > 1 ? uniqueZones.join('-') : undefined;
+    const base = 'cobranza-automatica-hoja-de-ruta';
+    const ymd = this.formatDateYMD(data.delivery_date);
 
-    const parts = [base, dateLabel, vehicleLabel, zonesPart].filter(Boolean);
-    return `${parts.join('-')}.pdf`;
+    // Movil/vehículo
+    const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';
+    const vehiclePart = rawVehicle
+      ? `m${this.slugifyForFilename(rawVehicle)}`
+      : 'mNA';
+
+    // Zonas
+    const zones = Array.isArray(data.zone_identifiers) ? data.zone_identifiers : [];
+    let zonesPart = 'zall';
+    if (zones.length > 0) {
+      const uniqueZones = Array.from(new Set(zones)).map((z) => this.slugifyForFilename(z));
+      zonesPart = `z${uniqueZones.join('-')}`;
+    }
+
+    // Chofer
+    const rawDriver = data.driver?.name || '';
+    const driverPart = rawDriver
+      ? `d${this.slugifyForFilename(rawDriver)}`
+      : 'dNA';
+
+    return `${base}_${ymd}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
   }
 
   /**
@@ -639,6 +651,17 @@ export class PdfGeneratorService {
     const yyyy = d.getFullYear();
     const slash = '∕';
     return `${dd}${slash}${mm}${slash}${yyyy}`;
+  }
+
+  /**
+   * Formatea fecha a YYYY-MM-DD para uso en nombre de archivo unificado
+   */
+  private formatDateYMD(dateInput: string | Date): string {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${yyyy}-${mm}-${dd}`;
   }
 
   /**

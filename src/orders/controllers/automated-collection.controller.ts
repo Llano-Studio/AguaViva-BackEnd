@@ -979,12 +979,12 @@ export class AutomatedCollectionController {
       description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
 
     Formatos de nombre de archivo:
-    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo>_z<ids|zall>_d<driver|dNA>.pdf
+    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<movil-nombre-slug|NA>_z<zonas-nombres-slug|zall>_d<chofer-nombre-slug|dNA>.pdf
     - Transición (solo versión): cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
     - Legado: collection-route-sheet_YYYY-MM-DD_v<vehiculo|vNA>_z<ids|zall>_d<driver|dNA>.pdf
 
     Notas:
-    - Los campos vehicleId/driverId/zoneIds se derivan del nombre del archivo cuando están presentes.
+    - Los campos vehicleId/driverId/zoneIds se intentan derivar del nombre (slug) cuando es posible.
     - En el formato de transición (solo versión), estos campos pueden estar vacíos.
 
     Filtros opcionales:
@@ -1055,8 +1055,9 @@ export class AutomatedCollectionController {
 
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
       const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
-      // Nuevo formato solicitado: incluye m (movil/vehículo), zonas y driver
-      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_m(NA|\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+      // Nuevo formato solicitado: incluye nombres (slug) para móvil, zonas y chofer
+      // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo-slug|NA>_z<zonas-slugs|zall>_d<driver-slug|NA>.pdf
+      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_m([^_]+)_(zall|z[^_]+)_(dNA|d[^_]+)\.pdf$/;
       // Soporte de transición: formato nuevo anterior sólo con versión (sin zonas/driver)
       const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_v(\d+)\.pdf$/;
 
@@ -1084,6 +1085,54 @@ export class AutomatedCollectionController {
         return true;
       };
 
+      // Helper para slug y label
+      const slugify = (input: string) =>
+        input
+          .toString()
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .toLowerCase();
+      const toLabel = (slug: string) =>
+        slug
+          .split('-')
+          .map((s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s))
+          .join(' ');
+
+      // Prefetch para mapear slugs a IDs reales
+      const vehicleSlugToId = new Map<string, number>();
+      const zoneSlugToId = new Map<string, number>();
+      const userSlugToUser = new Map<string, { id: number; name: string }>();
+
+      try {
+        const allVehicles = await this.routeSheetGeneratorService.vehicle?.findMany({
+          where: { is_active: true },
+          select: { vehicle_id: true, name: true, code: true },
+        });
+        for (const v of allVehicles || []) {
+          if (v.name) vehicleSlugToId.set(slugify(v.name), v.vehicle_id);
+          if (v.code) vehicleSlugToId.set(slugify(v.code), v.vehicle_id);
+        }
+
+        const allZones = await this.routeSheetGeneratorService.zone?.findMany({
+          select: { zone_id: true, name: true },
+        });
+        for (const z of allZones || []) {
+          if (z.name) zoneSlugToId.set(slugify(z.name), z.zone_id);
+        }
+
+        const allUsers = await this.routeSheetGeneratorService.user?.findMany({
+          select: { id: true, name: true },
+        });
+        for (const u of allUsers || []) {
+          if (u.name) userSlugToUser.set(slugify(u.name), { id: u.id, name: u.name });
+        }
+      } catch (_) {
+        // Si fallan los prefeteos (por tests o entorno), seguimos con mapas vacíos
+      }
+
       const items = (
         await Promise.all(
           files.map(async (filename) => {
@@ -1093,15 +1142,42 @@ export class AutomatedCollectionController {
             let vId: number | undefined;
             let dId: number | undefined;
             let zIds: number[] = [];
+            let driverName: string | null = null;
 
             if (matchNewFull) {
               date = matchNewFull[1];
-              const mStr = matchNewFull[2];
-              const zStr = matchNewFull[3];
-              const dStr = matchNewFull[4];
-              vId = mStr === 'NA' ? undefined : parseInt(mStr);
-              dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
-              zIds = parseZones(zStr);
+              const mSeg = matchNewFull[2];
+              const zSeg = matchNewFull[3];
+              const dSeg = matchNewFull[4];
+
+              // Vehículo por slug
+              if (mSeg === 'NA') {
+                vId = undefined;
+              } else {
+                vId = vehicleSlugToId.get(mSeg);
+              }
+
+              // Driver por slug
+              if (dSeg === 'dNA') {
+                dId = undefined;
+                driverName = null;
+              } else {
+                const dSlug = dSeg.substring(1);
+                const user = userSlugToUser.get(dSlug);
+                dId = user?.id;
+                driverName = user?.name ?? toLabel(dSlug);
+              }
+
+              // Zonas por slug
+              if (zSeg === 'zall') {
+                zIds = [];
+              } else {
+                const zSlugStr = zSeg.substring(1);
+                const zSlugParts = zSlugStr.split('-').filter(Boolean);
+                zIds = zSlugParts
+                  .map((slug) => zoneSlugToId.get(slug))
+                  .filter((id): id is number => typeof id === 'number');
+              }
             } else {
               const matchNewVersionOnly = filename.match(newRegexVersionOnly);
               if (matchNewVersionOnly) {
@@ -1122,8 +1198,8 @@ export class AutomatedCollectionController {
             const filePath = path.join(dir, filename);
             const stat = fs.statSync(filePath);
 
-            let driverName: string | null = null;
-            if (typeof dId === 'number' && dId > 0) {
+            // Fallback para legado: si dId está presente pero no driverName aún, intentar resolver
+            if (!driverName && typeof dId === 'number' && dId > 0) {
               try {
                 // Fuente de verdad: User (chofer del sistema). Fallback a Person para archivos legados.
                 const user = await this.routeSheetGeneratorService.user.findUnique({
