@@ -2691,6 +2691,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       }
 
       // Mapear los datos para el PDF
+      // Calcular zonas únicas a partir de los detalles de cobranzas
+      const zoneIdsSet = new Set<number>();
+      for (const detail of collectionDetails) {
+        const zid =
+          detail.cycle_payment?.subscription_cycle?.customer_subscription?.person
+            ?.zone_id ?? null;
+        if (typeof zid === 'number') zoneIdsSet.add(zid);
+      }
+      const zoneIdentifiers = Array.from(zoneIdsSet)
+        .sort((a, b) => a - b)
+        .map((z) => `zona${z}`);
+
       const collectionData = {
         route_sheet_id: routeSheet.route_sheet_id,
         delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
@@ -2703,6 +2715,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           code: routeSheet.vehicle.code,
           name: routeSheet.vehicle.name,
         },
+        zone_identifiers: zoneIdentifiers,
         collections: collectionDetails.map((detail) => ({
           cycle_payment_id: detail.cycle_payment_id,
           customer: {

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
-import { join } from 'path';
-import { TempFileManagerService, TempFileInfo } from './temp-file-manager.service';
+import { join, dirname } from 'path';
+import { TempFileManagerService } from './temp-file-manager.service';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 
@@ -61,6 +61,8 @@ export interface CollectionRouteSheetPdfData {
     name: string;
   };
   route_notes?: string;
+  // Identificadores de zona para usar en nombre de archivo (e.g., ["zona1", "zona2"]) 
+  zone_identifiers?: string[];
   collections: Array<{
     cycle_payment_id: number;
     customer: {
@@ -272,7 +274,8 @@ export class PdfGeneratorService {
     
     // Fecha de entrega
     doc.fontSize(14).font('Helvetica').fillColor(this.colors.textPrimary);
-    doc.text(`Fecha: ${routeSheet.delivery_date}`, 50, currentY + 55);
+    const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
+    doc.text(`Fecha: ${displayDate}`, 50, currentY + 55);
     
     return currentY + 85;
   }
@@ -588,21 +591,79 @@ export class PdfGeneratorService {
 
   /**
    * Genera un PDF específico para hojas de ruta de cobranzas automáticas
-   */
+  */
   async generateCollectionRouteSheetPdf(
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    const filename = `collection_route_sheet_${data.route_sheet_id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
 
     // Asegurar que el directorio existe
-    await fs.ensureDir(join(process.cwd(), 'public', 'pdfs'));
+    await fs.ensureDir(dirname(pdfPath));
 
     const doc = new PDFDocument({ margin: 50 });
     await this.generateCollectionRouteSheetContent(doc, data, options);
 
     return { doc, filename, pdfPath };
+  }
+
+  /**
+   * Construye el nombre de archivo para hoja de ruta de cobranzas automáticas
+   * Formato: cobranzas-automatica-{dd/MM/yyyy}-{movil}-{zonaX-zonaY}.pdf
+   * Nota: se sanitizan caracteres para evitar inválidos en el sistema de archivos
+   */
+  private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
+    const base = 'cobranzas-automatica';
+    const dateLabel = this.formatDateForFilename(data.delivery_date);
+    const vehicleLabel = this.slugifyForFilename(
+      data.vehicle?.code || data.vehicle?.name || 'vehiculo'
+    );
+    const zones = Array.isArray(data.zone_identifiers) ? data.zone_identifiers : [];
+    const uniqueZones = Array.from(new Set(zones)).map((z) => this.slugifyForFilename(z));
+    const zonesPart = uniqueZones.length > 1 ? uniqueZones.join('-') : undefined;
+
+    const parts = [base, dateLabel, vehicleLabel, zonesPart].filter(Boolean);
+    return `${parts.join('-')}.pdf`;
+  }
+
+  /**
+   * Formatea fecha a dd/MM/yyyy para uso en nombre de archivo.
+   * Usamos el símbolo de fracción U+2215 (∕) para evitar usar el separador de ruta
+   * en sistemas de archivos, manteniendo la apariencia de barra.
+   */
+  private formatDateForFilename(dateInput: string | Date): string {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const slash = '∕';
+    return `${dd}${slash}${mm}${slash}${yyyy}`;
+  }
+
+  /**
+   * Convierte una cadena en slug seguro para nombres de archivo
+   */
+  private slugifyForFilename(input: string): string {
+    return input
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // quitar acentos
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+  }
+
+  /**
+   * Formatea fecha para mostrar en el PDF como dd/MM/yyyy (slash ASCII)
+   */
+  private formatDateForDisplay(dateInput: string | Date): string {
+    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
   }
 
   /**
@@ -661,7 +722,8 @@ export class PdfGeneratorService {
     const rightColumn = 350;
     
     doc.text(`Hoja de Ruta #: ${routeSheet.route_sheet_id}`, leftColumn, currentY);
-    doc.text(`Fecha: ${new Date(routeSheet.delivery_date).toLocaleDateString('es-ES')}`, rightColumn, currentY);
+    const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
+    doc.text(`Fecha: ${displayDate}`, rightColumn, currentY);
     
     currentY += 20;
     
