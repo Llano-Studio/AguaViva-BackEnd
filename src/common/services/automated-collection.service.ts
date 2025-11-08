@@ -382,6 +382,7 @@ export class AutomatedCollectionService
       vehicleCode?: string;
       zoneIds: number[];
       zoneNames?: string[];
+      zones?: string[];
       drivers?: { id: number; name: string }[];
       assignedDriverId?: number;
       assignedDriverName?: string | null;
@@ -469,6 +470,7 @@ export class AutomatedCollectionService
           vehicleCode: vehicle.code,
           zoneIds,
           zoneNames,
+          zones: zoneNames,
           drivers,
           assignedDriverId: effectiveDriverId ?? null,
           assignedDriverName,
@@ -482,11 +484,26 @@ export class AutomatedCollectionService
           `❌ Error generando hoja de ruta para vehículo ${vehicle.vehicle_id}:`,
           error,
         );
+        // Resolver nombres de zonas para el resultado de error
+        let zoneNames: string[] = [];
+        try {
+          if (zoneIds.length > 0) {
+            const zs = await this.zone.findMany({
+              where: { zone_id: { in: zoneIds } },
+              select: { name: true },
+            });
+            zoneNames = zs.map((z) => z.name).filter(Boolean);
+          }
+        } catch (_) {
+          zoneNames = [];
+        }
         results.push({
           vehicleId: vehicle.vehicle_id,
           vehicleName: vehicle.name,
           vehicleCode: vehicle.code,
           zoneIds,
+          zoneNames,
+          zones: zoneNames,
           error: error.message,
         });
       }

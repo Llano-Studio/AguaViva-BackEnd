@@ -937,6 +937,7 @@ export class AutomatedCollectionController {
               vehicleCode: { type: 'string' },
               zoneIds: { type: 'array', items: { type: 'number' } },
               zoneNames: { type: 'array', items: { type: 'string' } },
+              zones: { type: 'array', items: { type: 'string' } },
               drivers: {
                 type: 'array',
                 items: {
@@ -1030,6 +1031,7 @@ export class AutomatedCollectionController {
                 },
               },
               zoneIds: { type: 'array', items: { type: 'number' } },
+              zones: { type: 'array', items: { type: 'string' } },
               sizeBytes: { type: 'number' },
               createdAt: { type: 'string' },
             },
@@ -1137,12 +1139,13 @@ export class AutomatedCollectionController {
         await Promise.all(
           files.map(async (filename) => {
             // Intentar nuevo formato con detalles primero, luego nuevo (sólo versión), luego legado
-            const matchNewFull = filename.match(newRegexFull);
-            let date: string;
-            let vId: number | undefined;
-            let dId: number | undefined;
-            let zIds: number[] = [];
-            let driverName: string | null = null;
+          const matchNewFull = filename.match(newRegexFull);
+          let date: string;
+          let vId: number | undefined;
+          let dId: number | undefined;
+          let zIds: number[] = [];
+          let driverName: string | null = null;
+          let zones: string[] = [];
 
             if (matchNewFull) {
               date = matchNewFull[1];
@@ -1171,14 +1174,40 @@ export class AutomatedCollectionController {
               // Zonas por slug (sin prefijo)
               if (zonesSeg === 'all') {
                 zIds = [];
+                // Intentar obtener nombres de zonas del vehículo
+                if (typeof vId === 'number' && vId > 0) {
+                  try {
+                    const vZones = await this.routeSheetGeneratorService.vehicle_zone.findMany({
+                      where: { vehicle_id: vId, is_active: true },
+                      include: { zone: true },
+                      orderBy: { zone_id: 'asc' },
+                    });
+                    zones = vZones.map((vz) => vz.zone.name).filter(Boolean);
+                  } catch (_) {
+                    zones = [];
+                  }
+                }
               } else if (zonesSeg.startsWith('multi-')) {
                 // Segmento truncado por longitud: no se pueden mapear los IDs
                 zIds = [];
+                if (typeof vId === 'number' && vId > 0) {
+                  try {
+                    const vZones = await this.routeSheetGeneratorService.vehicle_zone.findMany({
+                      where: { vehicle_id: vId, is_active: true },
+                      include: { zone: true },
+                      orderBy: { zone_id: 'asc' },
+                    });
+                    zones = vZones.map((vz) => vz.zone.name).filter(Boolean);
+                  } catch (_) {
+                    zones = [];
+                  }
+                }
               } else {
                 const zSlugParts = zonesSeg.split('-').filter(Boolean);
                 zIds = zSlugParts
                   .map((slug) => zoneSlugToId.get(slug))
                   .filter((id): id is number => typeof id === 'number');
+                zones = zSlugParts.map((slug) => toLabel(slug));
               }
             } else {
               const matchNewVersionOnly = filename.match(newRegexVersionOnly);
@@ -1187,6 +1216,7 @@ export class AutomatedCollectionController {
                 vId = undefined;
                 dId = undefined;
                 zIds = [];
+                zones = [];
               } else {
                 const matchLegacy = filename.match(legacyRegex);
                 if (!matchLegacy) return null;
@@ -1195,6 +1225,20 @@ export class AutomatedCollectionController {
                 vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
                 dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
                 zIds = parseZonesLegacy(zStr);
+                // Obtener nombres de zonas por IDs
+                try {
+                  if (zIds.length > 0) {
+                    const zList = await this.routeSheetGeneratorService.zone.findMany({
+                      where: { zone_id: { in: zIds } },
+                      select: { name: true },
+                    });
+                    zones = zList.map((z) => z.name).filter(Boolean);
+                  } else {
+                    zones = [];
+                  }
+                } catch (_) {
+                  zones = [];
+                }
               }
             }
             const filePath = path.join(dir, filename);
@@ -1237,6 +1281,11 @@ export class AutomatedCollectionController {
                 drivers = [];
               }
             }
+            // Si hay múltiples choferes, combinar nombres en driverName
+            if (drivers.length > 1) {
+              const names = Array.from(new Set(drivers.map((d) => d.name).filter(Boolean)));
+              if (names.length > 1) driverName = names.join(', ');
+            }
 
             return {
               filename,
@@ -1247,6 +1296,7 @@ export class AutomatedCollectionController {
               driverName,
               drivers,
               zoneIds: zIds,
+              zones,
               sizeBytes: stat.size,
               createdAt: stat.mtime.toISOString(),
             };
