@@ -88,12 +88,19 @@ async function bootstrap() {
     },
   });
 
-  // Configuración de CORS más específica para desarrollo
+  // Configuración de CORS incluyendo orígenes de entorno
+  const envOrigins = [
+    configService.get('app.app.frontendUrl'),
+    process.env.APP_URL,
+    process.env.PUBLIC_BASE_URL,
+  ].filter((o) => !!o);
+
   const allowedOrigins = [
+    ...envOrigins,
     'http://localhost:3000',
-    'http://localhost:5173', // Vite dev server
-    'http://localhost:5174', // Vite dev server alternate port
-    'http://localhost:4173', // Vite preview
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:4173',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
     'http://127.0.0.1:4173',

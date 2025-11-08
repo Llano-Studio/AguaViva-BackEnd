@@ -106,6 +106,13 @@ export class OrderDto {
   status: string;
 
   @ApiProperty({
+    description: 'ID de suscripción asociada (si aplica)',
+    example: 42,
+    required: false,
+  })
+  subscription_id?: number;
+
+  @ApiProperty({
     description: 'Cliente',
     type: CustomerDto,
   })

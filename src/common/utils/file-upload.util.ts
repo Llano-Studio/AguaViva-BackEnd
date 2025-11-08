@@ -154,5 +154,12 @@ export const buildImageUrl = (
     }
   }
 
-  return `http://localhost:3000/public/uploads/${folder}/${cleanFileName}`;
+  // Determinar base URL desde variables de entorno
+  const baseUrl =
+    process.env.PUBLIC_BASE_URL || process.env.APP_URL || 'http://localhost:3000';
+
+  // Asegurar que no tenga slash final duplicado
+  const normalizedBase = baseUrl.replace(/\/$/, '');
+
+  return `${normalizedBase}/public/uploads/${folder}/${cleanFileName}`;
 };

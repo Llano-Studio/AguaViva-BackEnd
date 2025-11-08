@@ -49,26 +49,14 @@ services:
     volumes:
       - ./public:/app/public
     restart: always
+    env_file:
+      - ./.env
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - APP_URL=http://localhost:3000
-      - DATABASE_URL=postgresql://postgres:123456@sgarav-postgres:5432/sgarav_db?schema=public
-      - DB_HOST=sgarav-postgres
-      - DB_PORT=5432
-      - DB_NAME=sgarav_db
-      - DB_USER=postgres
-      - DB_PASSWORD=123456
+      - PORT=${PORT:-3000}
       - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
       - JWT_ACCESS_TOKEN_EXPIRATION_TIME=${JWT_ACCESS_TOKEN_EXPIRATION_TIME:-4h}
-      - MAIL_HOST=${MAIL_HOST:-smtp.gmail.com}
-      - MAIL_PORT=${MAIL_PORT:-587}
-      - MAIL_USER=${MAIL_USER:-}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
-      - MAIL_FROM=${MAIL_FROM:-noreply@aguaviva.com}
-      - MAIL_SECURE=${MAIL_SECURE:-true}
-      - FRONTEND_URL=http://sgarav-frontend
-      - MAX_FILE_SIZE=5242880
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-5242880}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s

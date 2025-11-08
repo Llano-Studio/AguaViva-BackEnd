@@ -5,9 +5,10 @@ import { RouteOptimizationService } from '../common/services/route-optimization.
 import { MobileInventoryService } from '../common/services/mobile-inventory.service';
 import { CommonModule } from '../common/common.module';
 import { OrdersModule } from '../orders/orders.module';
+import { ServicesModule } from '../common/services/services.module';
 
 @Module({
-  imports: [CommonModule, OrdersModule],
+  imports: [CommonModule, OrdersModule, ServicesModule],
   controllers: [RouteSheetController],
   providers: [
     RouteSheetService,

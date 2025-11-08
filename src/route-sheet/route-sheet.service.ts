@@ -36,6 +36,7 @@ import {
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
+import { SubscriptionQuotaService, ProductQuotaInfo } from '../common/services/subscription-quota.service';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -123,6 +124,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     private readonly pdfGeneratorService: PdfGeneratorService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly ordersService: OrdersService,
+    private readonly subscriptionQuotaService: SubscriptionQuotaService,
   ) {
     super();
   }
@@ -1662,6 +1664,65 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const routeSheet = await this.findOne(route_sheet_id);
 
       // Convertir RouteSheetResponseDto a RouteSheetPdfData
+      const detailsWithCredits = await Promise.all(
+        routeSheet.details
+          .map(async (detail) => {
+            if (!detail.order) return null;
+            // Obtener créditos si existe suscripción
+            let credits: ProductQuotaInfo[] | undefined = undefined;
+            if (detail.order.subscription_id) {
+              try {
+                credits = await this.subscriptionQuotaService.getAvailableCredits(
+                  detail.order.subscription_id,
+                );
+              } catch (err) {
+                // No bloquear generación por error de créditos
+                credits = undefined;
+              }
+            }
+            return {
+              route_sheet_detail_id: detail.route_sheet_detail_id,
+              route_sheet_id: routeSheet.route_sheet_id,
+              order: {
+                order_id: detail.order.order_id,
+                order_date:
+                  detail.order.order_date || new Date().toISOString(),
+                total_amount: detail.order.total_amount?.toString() || '0',
+                status: detail.order.status || 'PENDING',
+                customer: {
+                  person_id: detail.order.customer.person_id || 0,
+                  name: detail.order.customer.name,
+                  alias: detail.order.customer.alias,
+                  address: detail.order.customer.address,
+                  phone: detail.order.customer.phone,
+                },
+                items: detail.order.items.map((item) => ({
+                  order_item_id: item.order_item_id || 0,
+                  quantity: item.quantity,
+                  delivered_quantity: item.delivered_quantity || 0,
+                  returned_quantity: item.returned_quantity || 0,
+                  product: {
+                    product_id: item.product.product_id || 0,
+                    description: item.product.description,
+                  },
+                })),
+              },
+              delivery_status: detail.delivery_status,
+              delivery_time: detail.delivery_time || '08:00-18:00',
+              is_current_delivery: detail.is_current_delivery ?? true,
+              comments: detail.comments || undefined,
+              credits:
+                credits?.map((c) => ({
+                  product_description: c.product_description,
+                  planned_quantity: c.planned_quantity,
+                  delivered_quantity: c.delivered_quantity,
+                  remaining_balance: c.remaining_balance,
+                })) || undefined,
+            };
+          })
+          .filter((d) => d !== null),
+      );
+
       const pdfData: RouteSheetPdfData = {
         route_sheet_id: routeSheet.route_sheet_id,
         delivery_date: routeSheet.delivery_date,
@@ -1680,44 +1741,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           ? (routeSheet as any).zones_covered.map((z: any) => z.name)
           : undefined,
         route_notes: routeSheet.route_notes,
-        details: routeSheet.details
-          .map((detail) => {
-            // Solo procesar detalles que tengan orden de suscripción
-            if (detail.order) {
-              return {
-                route_sheet_detail_id: detail.route_sheet_detail_id,
-                route_sheet_id: routeSheet.route_sheet_id,
-                order: {
-                  order_id: detail.order.order_id,
-                  order_date: detail.order.order_date || new Date().toISOString(),
-                  total_amount: detail.order.total_amount?.toString() || '0',
-                  status: detail.order.status || 'PENDING',
-                  customer: {
-                    person_id: detail.order.customer.person_id || 0,
-                    name: detail.order.customer.name,
-                    address: detail.order.customer.address,
-                    phone: detail.order.customer.phone,
-                  },
-                  items: detail.order.items.map((item) => ({
-                    order_item_id: item.order_item_id || 0,
-                    quantity: item.quantity,
-                    delivered_quantity: item.delivered_quantity || 0,
-                    returned_quantity: item.returned_quantity || 0,
-                    product: {
-                      product_id: item.product.product_id || 0,
-                      description: item.product.description,
-                    },
-                  })),
-                },
-                delivery_status: detail.delivery_status,
-                delivery_time: detail.delivery_time || '08:00-18:00',
-                is_current_delivery: detail.is_current_delivery ?? true,
-              };
-            }
-            // Si no hay orden de suscripción, devolver null y filtrar después
-            return null;
-          })
-          .filter((detail) => detail !== null),
+        details: detailsWithCredits as any,
         zones_covered: routeSheet.zones_covered || [],
       };
 
@@ -1856,6 +1880,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             order_date: detail.order_header.order_date.toISOString(),
             total_amount: detail.order_header.total_amount.toString(),
             status: detail.order_header.status,
+            subscription_id: detail.order_header.subscription_id || undefined,
             customer: customerDto,
             items: orderItemsDto,
           };
@@ -2621,6 +2646,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           order_date: updatedDetail.order_header.order_date.toISOString(),
           total_amount: updatedDetail.order_header.total_amount.toString(),
           status: 'PENDING',
+          subscription_id: updatedDetail.order_header.subscription_id || undefined,
           customer: {
             person_id: updatedDetail.order_header.customer.person_id,
             name: updatedDetail.order_header.customer.name || '',

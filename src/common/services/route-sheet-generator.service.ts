@@ -1186,7 +1186,21 @@ export class RouteSheetGeneratorService extends PrismaClient {
       maxHeight = Math.max(maxHeight, textHeight + padding);
     });
 
+    // Si hay comentarios, calcular altura adicional para renderizarlos bajo la fila
     const tableWidth = colWidths.reduce((a, b) => a + b, 0);
+    const hasComments = !!(collection.comments && String(collection.comments).trim().length > 0);
+    let commentsHeight = 0;
+    let commentsText = '';
+    if (hasComments) {
+      commentsText = `Obs.: ${String(collection.comments).trim()}`;
+      doc.fontSize(9).font('Poppins');
+      const h = doc.heightOfString(commentsText, {
+        width: tableWidth - 20,
+        align: 'left',
+        lineGap: 2,
+      });
+      commentsHeight = h + 8; // padding para respiración visual
+    }
 
     // Dibujar fondo de la fila con altura calculada
     doc.rect(startX, currentY, tableWidth, maxHeight).fill(fillColor);
@@ -1215,12 +1229,27 @@ export class RouteSheetGeneratorService extends PrismaClient {
       borderX += width;
     });
     
-    // Borde inferior
-    doc.moveTo(startX, currentY + maxHeight)
-       .lineTo(startX + tableWidth, currentY + maxHeight)
+    // Comentarios bajo la fila (si existen)
+    let endY = currentY + maxHeight;
+    if (hasComments) {
+      // Fondo ligero para comentarios
+      doc.rect(startX, endY, tableWidth, commentsHeight).fill(this.colors.bgSecondary);
+      // Texto de comentarios
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(commentsText, startX + 10, endY + 4, {
+        width: tableWidth - 20,
+        align: 'left',
+        lineGap: 2,
+      });
+      endY += commentsHeight;
+    }
+    
+    // Borde inferior (considerando posible bloque de comentarios)
+    doc.moveTo(startX, endY)
+       .lineTo(startX + tableWidth, endY)
        .stroke();
     
-    return currentY + maxHeight;
+    return endY;
   }
 
   /**
