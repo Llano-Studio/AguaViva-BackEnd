@@ -65,6 +65,7 @@ export interface RouteSheetPdfData {
       customer: {
         person_id: number;
         name: string;
+        alias?: string;
         address: string;
         phone: string;
       };
@@ -556,19 +557,40 @@ export class PdfGeneratorService {
     startX: number,
     tableWidth: number
   ): number {
-    doc.rect(startX + 15, currentY, tableWidth - 30, 25).fill('#F7FBFF').stroke(this.colors.borderColor);
+    // Calcular altura dinámica según contenido
+    let boxHeight = 25;
+    let textY = currentY + 8;
     
+    // Si hay alias (empresa), agregar espacio adicional
+    if (detail.order.customer.alias) {
+      boxHeight += 15;
+    }
+    
+    doc.rect(startX + 15, currentY, tableWidth - 30, boxHeight).fill('#F7FBFF').stroke(this.colors.borderColor);
+    
+    // Mostrar EMPRESA si existe alias
+    if (detail.order.customer.alias) {
+      doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
+      doc.text('EMPRESA:', startX + 25, textY);
+      
+      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(detail.order.customer.alias, startX + 95, textY, { width: tableWidth - 120 });
+      
+      textY += 15;
+    }
+    
+    // Mostrar PRODUCTOS
     doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
-    doc.text('PRODUCTOS:', startX + 25, currentY + 8);
+    doc.text('PRODUCTOS:', startX + 25, textY);
     
     const productList = detail.order.items
       .map(item => `${item.quantity}x ${item.product.description}`)
       .join(' | ');
     
     doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-    doc.text(productList, startX + 25, currentY + 18, { width: tableWidth - 50 });
+    doc.text(productList, startX + 110, textY, { width: tableWidth - 135 });
     
-    return currentY + 35;
+    return currentY + boxHeight + 10;
   }
 
   /**

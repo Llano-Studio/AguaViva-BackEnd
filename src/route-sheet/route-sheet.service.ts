@@ -33,6 +33,7 @@ import {
   PdfGeneratorService,
   RouteSheetPdfData,
 } from '../common/services/pdf-generator.service';
+import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 
@@ -120,6 +121,7 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
 export class RouteSheetService extends PrismaClient implements OnModuleInit {
   constructor(
     private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly ordersService: OrdersService,
   ) {
     super();
@@ -2752,10 +2754,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         })),
       };
 
-      // Generar el PDF usando el servicio de PDF
-      const { doc, filename, pdfPath } = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+      // Generar el PDF usando el servicio de generación de hojas de ruta
+      const { doc, filename, pdfPath } = await this.routeSheetGeneratorService.generateCollectionRouteSheetPdf(
         collectionData,
-        options,
       );
 
       // Guardar el PDF
@@ -2763,7 +2764,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       doc.pipe(writeStream);
 
       // Finalizar y obtener la URL
-      const result = await this.pdfGeneratorService.finalizePdf(
+      const result = await this.routeSheetGeneratorService.finalizePdf(
         doc,
         writeStream,
         filename,

@@ -1,6 +1,7 @@
 import { Controller, Get, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { PdfGeneratorService, CollectionRouteSheetPdfData } from '../services/pdf-generator.service';
+import { PdfGeneratorService } from '../services/pdf-generator.service';
+import { RouteSheetGeneratorService, CollectionRouteSheetPdfData } from '../services/route-sheet-generator.service';
 import * as fs from 'fs-extra';
 
 /**
@@ -9,7 +10,10 @@ import * as fs from 'fs-extra';
  */
 @Controller('dev/pdf')
 export class PdfDevController {
-  constructor(private readonly pdfGeneratorService: PdfGeneratorService) {}
+  constructor(
+    private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
+  ) {}
 
   /**
    * Endpoint para generar y visualizar un PDF de prueba de hoja de ruta de cobranzas
@@ -105,13 +109,9 @@ export class PdfDevController {
     };
 
     try {
-      // Generar el PDF
-      const { doc, pdfPath } = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+      // Generar el PDF usando RouteSheetGeneratorService
+      const { doc, pdfPath } = await this.routeSheetGeneratorService.generateCollectionRouteSheetPdf(
         testData,
-        {
-          includeSignatureField: true,
-          includeProductDetails: true,
-        }
       );
 
       // Crear el write stream
@@ -224,6 +224,7 @@ export class PdfDevController {
             customer: {
               person_id: 22,
               name: 'julian pinto',
+              alias: 'komsa',
               address: 'sarmiento 300',
               phone: '3624857472',
             },
