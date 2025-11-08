@@ -30,6 +30,8 @@ export interface RouteSheetPdfData {
     name: string;
   };
   route_notes?: string;
+  // Identificadores de zona para usar en nombre de archivo (nombres legibles)
+  zone_identifiers?: string[];
   details: Array<{
     order: {
       order_id: number;
@@ -201,7 +203,16 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    const filename = `route_sheet_${data.route_sheet_id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    const datePart = data.delivery_date || new Date().toISOString().split('T')[0];
+    const vehicleSeg = data.vehicle?.name
+      ? this.slugify(data.vehicle.name)
+      : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
+    const zoneSegRaw = (data.zone_identifiers && data.zone_identifiers.length > 0)
+      ? data.zone_identifiers.join('-')
+      : 'all';
+    const zoneSeg = zoneSegRaw.length > 80 ? `multi-${data.zone_identifiers?.length || 0}` : this.slugify(zoneSegRaw);
+    const driverSeg = data.driver?.name ? this.slugify(data.driver.name) : 'NA';
+    const filename = `hoja-de-ruta_${datePart}_${vehicleSeg}_${zoneSeg}_${driverSeg}.pdf`;
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
     await fs.ensureDir(pdfDir);
     const pdfPath = join(pdfDir, filename);
@@ -254,6 +265,20 @@ export class PdfGeneratorService {
 
     // Pie de página
     this.generateFooter(doc, routeSheet);
+  }
+
+  /**
+   * Convierte un string a slug seguro para usar en nombres de archivo
+   */
+  private slugify(input: string): string {
+    return input
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
   }
 
   /**

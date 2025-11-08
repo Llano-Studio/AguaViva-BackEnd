@@ -1671,6 +1671,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           code: routeSheet.vehicle.code,
           name: routeSheet.vehicle.name,
         },
+        zone_identifiers: (routeSheet as any).zones_covered
+          ? (routeSheet as any).zones_covered.map((z: any) => z.name)
+          : undefined,
         route_notes: routeSheet.route_notes,
         details: routeSheet.details
           .map((detail) => {

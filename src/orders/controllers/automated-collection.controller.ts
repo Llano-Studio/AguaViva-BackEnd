@@ -979,7 +979,7 @@ export class AutomatedCollectionController {
       description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
 
     Formatos de nombre de archivo:
-    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<movil-nombre-slug|NA>_z<zonas-nombres-slug|zall>_d<chofer-nombre-slug|dNA>.pdf
+    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<movil-nombre-slug|NA>_<zonas-nombres-slug|all>_<chofer-nombre-slug|NA>.pdf
     - Transición (solo versión): cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
     - Legado: collection-route-sheet_YYYY-MM-DD_v<vehiculo|vNA>_z<ids|zall>_d<driver|dNA>.pdf
 
@@ -1055,13 +1055,13 @@ export class AutomatedCollectionController {
 
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
       const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
-      // Nuevo formato solicitado: incluye nombres (slug) para móvil, zonas y chofer
-      // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<vehiculo-slug|NA>_z<zonas-slugs|zall>_d<driver-slug|NA>.pdf
-      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_m([^_]+)_(zall|z[^_]+)_(dNA|d[^_]+)\.pdf$/;
+      // Nuevo formato sin prefijos m/z/d: incluye nombres (slug) para móvil, zonas y chofer
+      // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<vehiculo-slug|NA>_<zonas-slugs|all>_<driver-slug|NA>.pdf
+      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_([^_]+)_(all|[^_]+)_([^_]+)\.pdf$/;
       // Soporte de transición: formato nuevo anterior sólo con versión (sin zonas/driver)
       const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})_v(\d+)\.pdf$/;
 
-      const parseZones = (zonesStr: string): number[] => {
+      const parseZonesLegacy = (zonesStr: string): number[] => {
         if (zonesStr === 'zall') return [];
         return zonesStr
           .substring(1)
@@ -1146,34 +1146,36 @@ export class AutomatedCollectionController {
 
             if (matchNewFull) {
               date = matchNewFull[1];
-              const mSeg = matchNewFull[2];
-              const zSeg = matchNewFull[3];
-              const dSeg = matchNewFull[4];
+              const vehicleSeg = matchNewFull[2];
+              const zonesSeg = matchNewFull[3];
+              const driverSeg = matchNewFull[4];
 
-              // Vehículo por slug
-              if (mSeg === 'NA') {
+              // Vehículo por slug (sin prefijo)
+              if (vehicleSeg === 'NA') {
                 vId = undefined;
               } else {
-                vId = vehicleSlugToId.get(mSeg);
+                vId = vehicleSlugToId.get(vehicleSeg);
               }
 
-              // Driver por slug
-              if (dSeg === 'dNA') {
+              // Driver por slug (sin prefijo)
+              if (driverSeg === 'NA') {
                 dId = undefined;
                 driverName = null;
               } else {
-                const dSlug = dSeg.substring(1);
+                const dSlug = driverSeg;
                 const user = userSlugToUser.get(dSlug);
                 dId = user?.id;
                 driverName = user?.name ?? toLabel(dSlug);
               }
 
-              // Zonas por slug
-              if (zSeg === 'zall') {
+              // Zonas por slug (sin prefijo)
+              if (zonesSeg === 'all') {
+                zIds = [];
+              } else if (zonesSeg.startsWith('multi-')) {
+                // Segmento truncado por longitud: no se pueden mapear los IDs
                 zIds = [];
               } else {
-                const zSlugStr = zSeg.substring(1);
-                const zSlugParts = zSlugStr.split('-').filter(Boolean);
+                const zSlugParts = zonesSeg.split('-').filter(Boolean);
                 zIds = zSlugParts
                   .map((slug) => zoneSlugToId.get(slug))
                   .filter((id): id is number => typeof id === 'number');
@@ -1192,7 +1194,7 @@ export class AutomatedCollectionController {
                 date = dateStr;
                 vId = vStr === 'vNA' ? undefined : parseInt(vStr.substring(1));
                 dId = dStr === 'dNA' ? undefined : parseInt(dStr.substring(1));
-                zIds = parseZones(zStr);
+                zIds = parseZonesLegacy(zStr);
               }
             }
             const filePath = path.join(dir, filename);

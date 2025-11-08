@@ -95,6 +95,17 @@ export class RouteSheetGeneratorService extends PrismaClient {
         notes: filters.notes,
       });
 
+      // Verificación básica del archivo generado
+      try {
+        const stats = fs.statSync(filePath);
+        if (!stats || stats.size === 0) {
+          throw new Error('El PDF generado está vacío');
+        }
+      } catch (e) {
+        this.logger.error(`PDF inválido o no generado en ${filePath}`, e as any);
+        throw new Error(`Fallo al escribir el PDF: ${(e as Error).message}`);
+      }
+
       const fileInfo = this.tempFileManager.createTempFileInfo(fileName, 60);
 
       const summary = this.calculateSummary(zones);
@@ -153,15 +164,15 @@ export class RouteSheetGeneratorService extends PrismaClient {
         fs.mkdirSync(persistDir, { recursive: true });
       }
 
-      // Construir nombre de archivo estable con nuevo formato solicitado
-      // Nuevo formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<movil-nombre|mNA>_z<zonas-nombres|zall>_d<driver-nombre|dNA>.pdf
+      // Construir nombre de archivo estable con formato solicitado (sin prefijos)
+      // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<movil-nombre|NA>_<zonas-nombres|all>_<driver-nombre|NA>.pdf
       const datePart = formatLocalYMD(targetDate);
       const zoneIds = Array.isArray(filters.zoneIds) && filters.zoneIds.length > 0
         ? [...filters.zoneIds].sort((a, b) => a - b)
         : [];
 
       // Resolver nombres de zonas según los zoneIds, manteniendo orden estable
-      let zonesPart = 'zall';
+      let zonesPart = 'all';
       if (zoneIds.length > 0) {
         const zoneList = await this.zone.findMany({
           where: { zone_id: { in: zoneIds } },
@@ -174,16 +185,18 @@ export class RouteSheetGeneratorService extends PrismaClient {
           const name = zoneNameById.get(id) ?? String(id);
           return this.slugifyForFilename(name);
         });
-        zonesPart = `${zoneNameSlugs.join('-')}`;
+        const joined = zoneNameSlugs.join('-');
+        // Evitar nombres de archivo excesivamente largos en Windows
+        zonesPart = joined.length > 80 ? `multi-${zoneIds.length}` : joined;
       }
 
       // Usar nombre del móvil/vehículo y del chofer en formato slug
       const vehiclePart = vehicle?.model
         ? `${this.slugifyForFilename(vehicle.model)}`
-        : 'mNA';
+        : 'NA';
       const driverPart = driver?.name
         ? `${this.slugifyForFilename(driver.name)}`
-        : 'dNA';
+        : 'NA';
       const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
@@ -544,8 +557,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     doc.end();
 
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       stream.on('finish', () => resolve());
+      stream.on('error', (err) => reject(err));
+      doc.on('error', (err) => reject(err));
     });
   }
 
