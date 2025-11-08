@@ -18,6 +18,7 @@ import {
   OrderItemDto,
   DriverDto,
   VehicleDto,
+  ZoneDto,
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
@@ -32,13 +33,35 @@ import {
   PdfGeneratorService,
   RouteSheetPdfData,
 } from '../common/services/pdf-generator.service';
+import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
     driver: true;
-    vehicle: true;
+    vehicle: {
+      include: {
+        vehicle_zone: {
+          where: { is_active: true };
+          include: {
+            zone: {
+              include: {
+                locality: {
+                  include: {
+                    province: {
+                      include: {
+                        country: true;
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
     route_sheet_detail: {
       include: {
         order_header: {
@@ -98,6 +121,7 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
 export class RouteSheetService extends PrismaClient implements OnModuleInit {
   constructor(
     private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly ordersService: OrdersService,
   ) {
     super();
@@ -339,7 +363,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               : {},
           ].filter((condition) => Object.keys(condition).length > 0),
           route_sheet: {
-            delivery_date: new Date(delivery_date),
+            is: {
+              delivery_date: new Date(delivery_date),
+              is_active: true,
+            },
           },
         },
         include: {
@@ -397,7 +424,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           one_off_purchase_id: detail.one_off_purchase_id,
           one_off_purchase_header_id: detail.one_off_purchase_header_id,
           cycle_payment_id: detail.cycle_payment_id,
-          delivery_status: detail.delivery_status || 'PENDING',
+          delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
           delivery_time: detail.delivery_time || null,
           comments: detail.comments,
         });
@@ -407,6 +434,124 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(
           `Errores de validación de horarios: ${validationErrors.join('; ')}`,
         );
+      }
+
+      // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
+      const activeVehicleZones = await this.vehicle_zone.findMany({
+        where: { vehicle_id, is_active: true },
+        select: { zone_id: true },
+      });
+      const assignedZoneIds = new Set<number>(
+        activeVehicleZones.map((z) => z.zone_id),
+      );
+
+      const selectedZoneIds = Array.isArray(createRouteSheetDto.zone_ids)
+        ? createRouteSheetDto.zone_ids
+        : [];
+
+      // Si se especifican zone_ids, validar que están asignadas al vehículo
+      if (selectedZoneIds.length > 0) {
+        const invalidSelected = selectedZoneIds.filter(
+          (z) => !assignedZoneIds.has(z),
+        );
+        if (invalidSelected.length > 0) {
+          throw new BadRequestException(
+            `Las siguientes zonas no están asignadas al vehículo ${vehicle_id}: ${invalidSelected.join(
+              ', ',
+            )}`,
+          );
+        }
+      }
+
+      // Determinar zonas por detalle para validar contra zone_ids cuando corresponda
+      const allOneOffIds = Array.from(
+        new Set([...(oneOffOrderIds || []), ...(oneOffPurchaseIds || [])]),
+      );
+      const [orderZoneRecords, oneOffZoneRecords, headerZoneRecords, cyclePaymentRecords] =
+        await Promise.all([
+          regularOrderIds.length > 0
+            ? this.order_header.findMany({
+                where: { order_id: { in: regularOrderIds } },
+                select: { order_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          allOneOffIds.length > 0
+            ? this.one_off_purchase.findMany({
+                where: { purchase_id: { in: allOneOffIds } },
+                select: { purchase_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          oneOffPurchaseHeaderIds.length > 0
+            ? this.one_off_purchase_header.findMany({
+                where: {
+                  purchase_header_id: { in: oneOffPurchaseHeaderIds },
+                },
+                select: { purchase_header_id: true, zone_id: true },
+              })
+            : Promise.resolve([]),
+          cyclePaymentIds.length > 0
+            ? this.cycle_payment.findMany({
+                where: { payment_id: { in: cyclePaymentIds } },
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: { person: true },
+                      },
+                    },
+                  },
+                },
+              })
+            : Promise.resolve([]),
+        ]);
+
+      const orderZonesMap = new Map<number, number | null>();
+      for (const r of orderZoneRecords as Array<{ order_id: number; zone_id: number | null }>) {
+        orderZonesMap.set(r.order_id, r.zone_id ?? null);
+      }
+      const oneOffZonesMap = new Map<number, number | null>();
+      for (const r of oneOffZoneRecords as Array<{ purchase_id: number; zone_id: number | null }>) {
+        oneOffZonesMap.set(r.purchase_id, r.zone_id ?? null);
+      }
+      const headerZonesMap = new Map<number, number | null>();
+      for (const r of headerZoneRecords as Array<{ purchase_header_id: number; zone_id: number | null }>) {
+        headerZonesMap.set(r.purchase_header_id, r.zone_id ?? null);
+      }
+      const cycleZonesMap = new Map<number, number | null>();
+      for (const r of cyclePaymentRecords as Array<any>) {
+        const zid =
+          r.subscription_cycle?.customer_subscription?.person?.zone_id ?? null;
+        cycleZonesMap.set(r.payment_id, typeof zid === 'number' ? zid : null);
+      }
+
+      const detailZoneIds = new Set<number>();
+      for (const d of details) {
+        let zid: number | null = null;
+        if (d.order_id && d.order_type !== 'ONE_OFF') {
+          zid = orderZonesMap.get(d.order_id) ?? null;
+        } else if (d.order_id && d.order_type === 'ONE_OFF') {
+          zid = oneOffZonesMap.get(d.order_id) ?? null;
+        } else if (d.one_off_purchase_id) {
+          zid = oneOffZonesMap.get(d.one_off_purchase_id) ?? null;
+        } else if (d.one_off_purchase_header_id) {
+          zid = headerZonesMap.get(d.one_off_purchase_header_id) ?? null;
+        } else if (d.cycle_payment_id) {
+          zid = cycleZonesMap.get(d.cycle_payment_id) ?? null;
+        }
+        if (typeof zid === 'number') detailZoneIds.add(zid);
+      }
+
+      if (selectedZoneIds.length > 0) {
+        const outOfSelected = Array.from(detailZoneIds).filter(
+          (z) => !selectedZoneIds.includes(z),
+        );
+        if (outOfSelected.length > 0) {
+          throw new BadRequestException(
+            `La hoja incluye detalles en zonas no especificadas en zone_ids: ${outOfSelected.join(
+              ', ',
+            )}`,
+          );
+        }
       }
 
       const result = await this.$transaction(async (tx) => {
@@ -419,7 +564,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -636,7 +802,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           where: { route_sheet_id: routeSheet.route_sheet_id },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -692,7 +879,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
       });
-      return this.mapToRouteSheetResponseDto(result);
+      return this.mapToRouteSheetResponseDto(result, selectedZoneIds);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
@@ -748,7 +935,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         where: whereClause,
         include: {
           driver: true,
-          vehicle: true,
+          vehicle: {
+            include: {
+              vehicle_zone: {
+                where: { is_active: true },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {
@@ -839,7 +1047,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       },
       include: {
         driver: true,
-        vehicle: true,
+        vehicle: {
+          include: {
+            vehicle_zone: {
+              where: { is_active: true },
+              include: {
+                zone: {
+                  include: {
+                    locality: {
+                      include: {
+                        province: {
+                          include: {
+                            country: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         route_sheet_detail: {
           include: {
             order_header: {
@@ -908,7 +1137,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     updateRouteSheetDto: UpdateRouteSheetDto,
   ): Promise<RouteSheetResponseDto> {
     await this.findOne(id);
-    const { driver_id, vehicle_id, delivery_date, route_notes, details } =
+    const { driver_id, vehicle_id, delivery_date, route_notes, details, zone_ids } =
       updateRouteSheetDto;
 
     try {
@@ -944,7 +1173,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           data: updateData,
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1000,19 +1250,58 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
 
+        // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
+        const assignedZoneIds = (updatedRouteSheet.vehicle.vehicle_zone || []).map(
+          (vz) => vz.zone.zone_id,
+        );
+        const selectedZoneIds = (zone_ids || []).map((z) => Number(z));
+        if (selectedZoneIds.length > 0) {
+          const invalid = selectedZoneIds.filter((z) => !assignedZoneIds.includes(z));
+          if (invalid.length > 0) {
+            throw new BadRequestException(
+              `Las zonas ${invalid.join(', ')} no están asignadas al vehículo o están inactivas`,
+            );
+          }
+        }
+
         if (details && details.length > 0) {
+          const orderIdsToUpdate: number[] = [];
+          const oneOffIdsToUpdate: number[] = [];
+          const oneOffHeaderIdsToUpdate: number[] = [];
+          const detailZoneIds: number[] = [];
+
           for (const detail of details) {
             if (detail.route_sheet_detail_id) {
+              const existing = await tx.route_sheet_detail.findUnique({
+                where: { route_sheet_detail_id: detail.route_sheet_detail_id },
+                select: {
+                  order_id: true,
+                  one_off_purchase_id: true,
+                  one_off_purchase_header_id: true,
+                },
+              });
+
               await tx.route_sheet_detail.update({
                 where: { route_sheet_detail_id: detail.route_sheet_detail_id },
                 data: {
                   delivery_status: detail.delivery_status,
+                  delivery_time: detail.delivery_time || undefined,
                   comments: detail.comments,
                 },
               });
+
+              // Marcar para actualizar estado según el tipo que tenga el detalle existente
+              if (existing?.order_id) orderIdsToUpdate.push(existing.order_id);
+              if (existing?.one_off_purchase_id)
+                oneOffIdsToUpdate.push(existing.one_off_purchase_id);
+              if (existing?.one_off_purchase_header_id)
+                oneOffHeaderIdsToUpdate.push(
+                  existing.one_off_purchase_header_id,
+                );
             } else if (detail.order_id) {
               const order = await tx.order_header.findUnique({
                 where: { order_id: detail.order_id },
+                include: { customer: true },
               });
               if (!order) {
                 throw new BadRequestException(
@@ -1024,8 +1313,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 where: {
                   order_id: detail.order_id,
                   route_sheet: {
-                    delivery_date: updatedRouteSheet.delivery_date,
-                    route_sheet_id: { not: id },
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
                   },
                 },
               });
@@ -1040,18 +1332,193 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 data: {
                   route_sheet_id: id,
                   order_id: detail.order_id,
-                  delivery_status: detail.delivery_status || 'PENDING',
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
                   comments: detail.comments,
                 },
               });
+
+              // Capturar zone_id del pedido para validación
+              const orderZoneId =
+                (order as any).zone_id ?? order.customer.zone_id ?? null;
+              if (typeof orderZoneId === 'number') detailZoneIds.push(orderZoneId);
+              // Marcar para actualizar estado
+              orderIdsToUpdate.push(detail.order_id);
+            } else if (detail.one_off_purchase_id) {
+              const purchase = await tx.one_off_purchase.findUnique({
+                where: { purchase_id: detail.one_off_purchase_id },
+                include: { person: true },
+              });
+              if (!purchase) {
+                throw new BadRequestException(
+                  `La compra one-off con ID ${detail.one_off_purchase_id} no existe`,
+                );
+              }
+
+              const existingAssignment = await tx.route_sheet_detail.findFirst({
+                where: {
+                  one_off_purchase_id: detail.one_off_purchase_id,
+                  route_sheet: {
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
+                  },
+                },
+              });
+              if (existingAssignment) {
+                throw new BadRequestException(
+                  `La compra one-off ${detail.one_off_purchase_id} ya está asignada a otra hoja de ruta para esa fecha`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  one_off_purchase_id: detail.one_off_purchase_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const purchaseZoneId = (purchase as any).zone_id ?? purchase.person.zone_id ?? null;
+              if (typeof purchaseZoneId === 'number') detailZoneIds.push(purchaseZoneId);
+              oneOffIdsToUpdate.push(detail.one_off_purchase_id);
+            } else if (detail.one_off_purchase_header_id) {
+              const header = await tx.one_off_purchase_header.findUnique({
+                where: { purchase_header_id: detail.one_off_purchase_header_id },
+                include: { person: true },
+              });
+              if (!header) {
+                throw new BadRequestException(
+                  `La compra one-off (header) con ID ${detail.one_off_purchase_header_id} no existe`,
+                );
+              }
+
+              const existingAssignment = await tx.route_sheet_detail.findFirst({
+                where: {
+                  one_off_purchase_header_id: detail.one_off_purchase_header_id,
+                  route_sheet: {
+                    is: {
+                      delivery_date: updatedRouteSheet.delivery_date,
+                      route_sheet_id: { not: id },
+                      is_active: true,
+                    },
+                  },
+                },
+              });
+              if (existingAssignment) {
+                throw new BadRequestException(
+                  `La compra one-off (header) ${detail.one_off_purchase_header_id} ya está asignada a otra hoja de ruta para esa fecha`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  one_off_purchase_header_id: detail.one_off_purchase_header_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const headerZoneId = (header as any).zone_id ?? header.person.zone_id ?? null;
+              if (typeof headerZoneId === 'number') detailZoneIds.push(headerZoneId);
+              oneOffHeaderIdsToUpdate.push(detail.one_off_purchase_header_id);
+            } else if (detail.cycle_payment_id) {
+              const cp = await tx.cycle_payment.findUnique({
+                where: { payment_id: detail.cycle_payment_id },
+                include: {
+                  subscription_cycle: {
+                    include: { customer_subscription: { include: { person: true } } },
+                  },
+                },
+              });
+              if (!cp) {
+                throw new BadRequestException(
+                  `El pago de ciclo con ID ${detail.cycle_payment_id} no existe`,
+                );
+              }
+
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: id,
+                  cycle_payment_id: detail.cycle_payment_id,
+                  delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+
+              const cpZoneId = cp.subscription_cycle.customer_subscription.person.zone_id ?? null;
+              if (typeof cpZoneId === 'number') detailZoneIds.push(cpZoneId);
             }
+          }
+
+          // Si se especificaron zone_ids, validar que todos los detalles caen dentro de esas zonas
+          if (selectedZoneIds.length > 0) {
+            const outOfSelection = detailZoneIds.filter(
+              (zid) => !selectedZoneIds.includes(zid),
+            );
+            if (outOfSelection.length > 0) {
+              throw new BadRequestException(
+                `Los detalles incluyen zonas no seleccionadas: ${outOfSelection.join(', ')}`,
+              );
+            }
+          }
+
+          // Actualizar estados de pedidos a READY_FOR_DELIVERY (cuando estaban PENDING)
+          if (orderIdsToUpdate.length > 0) {
+            await tx.order_header.updateMany({
+              where: { order_id: { in: orderIdsToUpdate }, status: 'PENDING' },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
+          }
+          if (oneOffIdsToUpdate.length > 0) {
+            await tx.one_off_purchase.updateMany({
+              where: { purchase_id: { in: oneOffIdsToUpdate }, status: 'PENDING' },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
+          }
+          if (oneOffHeaderIdsToUpdate.length > 0) {
+            await tx.one_off_purchase_header.updateMany({
+              where: {
+                purchase_header_id: { in: oneOffHeaderIdsToUpdate },
+                status: 'PENDING',
+              },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
           }
         }
         return await tx.route_sheet.findUniqueOrThrow({
           where: { route_sheet_id: id },
           include: {
             driver: true,
-            vehicle: true,
+            vehicle: {
+              include: {
+                vehicle_zone: {
+                  where: { is_active: true },
+                  include: {
+                    zone: {
+                      include: {
+                        locality: {
+                          include: {
+                            province: {
+                              include: {
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1107,7 +1574,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
       });
-      return this.mapToRouteSheetResponseDto(result);
+      // Pasar zone_ids seleccionadas para que zones_covered respete el payload del PATCH
+      return this.mapToRouteSheetResponseDto(result, zone_ids);
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -1124,14 +1592,58 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   async remove(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.findOne(id);
     try {
-      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
-      await this.route_sheet.update({
-        where: { route_sheet_id: id },
-        data: { is_active: false },
+      await this.$transaction(async (tx) => {
+        // Obtener IDs de pedidos asociados a la hoja de ruta
+        const details = await tx.route_sheet_detail.findMany({
+          where: { route_sheet_id: id },
+          select: {
+            order_id: true,
+            one_off_purchase_id: true,
+            one_off_purchase_header_id: true,
+          },
+        });
+
+        const orderIds: number[] = [];
+        const oneOffIds: number[] = [];
+        const oneOffHeaderIds: number[] = [];
+
+        for (const d of details) {
+          if (typeof d.order_id === 'number') orderIds.push(d.order_id);
+          if (typeof d.one_off_purchase_id === 'number')
+            oneOffIds.push(d.one_off_purchase_id);
+          if (typeof d.one_off_purchase_header_id === 'number')
+            oneOffHeaderIds.push(d.one_off_purchase_header_id);
+        }
+
+        // Revertir estados a PENDING para todos los pedidos involucrados
+        if (orderIds.length > 0) {
+          await tx.order_header.updateMany({
+            where: { order_id: { in: orderIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+        if (oneOffIds.length > 0) {
+          await tx.one_off_purchase.updateMany({
+            where: { purchase_id: { in: oneOffIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+        if (oneOffHeaderIds.length > 0) {
+          await tx.one_off_purchase_header.updateMany({
+            where: { purchase_header_id: { in: oneOffHeaderIds } },
+            data: { status: 'PENDING' },
+          });
+        }
+
+        // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+        await tx.route_sheet.update({
+          where: { route_sheet_id: id },
+          data: { is_active: false },
+        });
       });
 
       return {
-        message: `${this.entityName} con ID ${id} desactivada correctamente`,
+        message: `${this.entityName} con ID ${id} desactivada y pedidos revertidos a PENDING`,
         deleted: true,
       };
     } catch (error) {
@@ -1154,51 +1666,59 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         route_sheet_id: routeSheet.route_sheet_id,
         delivery_date: routeSheet.delivery_date,
         driver: {
+          id: routeSheet.driver.id,
           name: routeSheet.driver.name,
           email: routeSheet.driver.email,
         },
         vehicle: {
+          vehicle_id: routeSheet.vehicle.vehicle_id,
           code: routeSheet.vehicle.code,
           name: routeSheet.vehicle.name,
+          zones: routeSheet.vehicle.zones || [],
         },
+        zone_identifiers: (routeSheet as any).zones_covered
+          ? (routeSheet as any).zones_covered.map((z: any) => z.name)
+          : undefined,
         route_notes: routeSheet.route_notes,
         details: routeSheet.details
           .map((detail) => {
             // Solo procesar detalles que tengan orden de suscripción
             if (detail.order) {
               return {
+                route_sheet_detail_id: detail.route_sheet_detail_id,
+                route_sheet_id: routeSheet.route_sheet_id,
                 order: {
                   order_id: detail.order.order_id,
+                  order_date: detail.order.order_date || new Date().toISOString(),
+                  total_amount: detail.order.total_amount?.toString() || '0',
+                  status: detail.order.status || 'PENDING',
                   customer: {
+                    person_id: detail.order.customer.person_id || 0,
                     name: detail.order.customer.name,
                     address: detail.order.customer.address,
                     phone: detail.order.customer.phone,
                   },
                   items: detail.order.items.map((item) => ({
+                    order_item_id: item.order_item_id || 0,
                     quantity: item.quantity,
+                    delivered_quantity: item.delivered_quantity || 0,
+                    returned_quantity: item.returned_quantity || 0,
                     product: {
+                      product_id: item.product.product_id || 0,
                       description: item.product.description,
                     },
                   })),
                 },
                 delivery_status: detail.delivery_status,
+                delivery_time: detail.delivery_time || '08:00-18:00',
+                is_current_delivery: detail.is_current_delivery ?? true,
               };
             }
-            // Si no hay orden de suscripción, devolver estructura básica
-            return {
-              order: {
-                order_id: 0,
-                customer: {
-                  name: 'Compra One-Off',
-                  address: '',
-                  phone: '',
-                },
-                items: [],
-              },
-              delivery_status: detail.delivery_status,
-            };
+            // Si no hay orden de suscripción, devolver null y filtrar después
+            return null;
           })
-          .filter((detail) => detail.order.order_id > 0),
+          .filter((detail) => detail !== null),
+        zones_covered: routeSheet.zones_covered || [],
       };
 
       // Generar PDF usando el servicio común
@@ -1229,6 +1749,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
   private mapToRouteSheetResponseDto(
     routeSheet: RouteSheetWithDetails,
+    selectedZoneIds?: number[],
   ): RouteSheetResponseDto {
     const driverDto: DriverDto = {
       id: routeSheet.driver.id,
@@ -1240,6 +1761,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       vehicle_id: routeSheet.vehicle.vehicle_id,
       code: routeSheet.vehicle.code,
       name: routeSheet.vehicle.name,
+      zones: routeSheet.vehicle.vehicle_zone?.map(vz => ({
+        zone_id: vz.zone.zone_id,
+        code: vz.zone.code,
+        name: vz.zone.name,
+        locality: {
+          locality_id: vz.zone.locality.locality_id,
+          code: vz.zone.locality.code,
+          name: vz.zone.locality.name,
+          province: {
+            province_id: vz.zone.locality.province.province_id,
+            code: vz.zone.locality.province.code,
+            name: vz.zone.locality.province.name,
+            country: {
+              country_id: vz.zone.locality.province.country.country_id,
+              code: vz.zone.locality.province.country.code,
+              name: vz.zone.locality.province.country.name,
+            },
+          },
+        },
+      })) || [],
     };
 
     const sortedDetails = [...routeSheet.route_sheet_detail].sort((a, b) => {
@@ -1249,6 +1790,34 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         return -1;
       return a.sequence_number - b.sequence_number;
     });
+
+    // Calcular zonas cubiertas: si se especifican zone_ids, usar esas; caso contrario, derivar de los detalles
+    let zonesCoveredDto: ZoneDto[] = [];
+    if (selectedZoneIds && selectedZoneIds.length > 0) {
+      zonesCoveredDto = (vehicleDto.zones || []).filter((z) =>
+        selectedZoneIds.includes(z.zone_id),
+      );
+    } else {
+      const coveredZoneIds = new Set<number>();
+      for (const d of sortedDetails) {
+        let zid: number | null = null;
+        if (d.order_header) {
+          zid = (d.order_header as any).zone_id ?? d.order_header.customer.zone_id ?? null;
+        } else if (d.one_off_purchase) {
+          zid = (d.one_off_purchase as any).zone_id ?? d.one_off_purchase.person.zone_id ?? null;
+        } else if (d.one_off_purchase_header) {
+          zid = (d.one_off_purchase_header as any).zone_id ?? d.one_off_purchase_header.person.zone_id ?? null;
+        } else if (d.cancellation_order) {
+          zid = d.cancellation_order.customer_subscription.person.zone_id ?? null;
+        } else if (d.cycle_payment) {
+          zid = d.cycle_payment.subscription_cycle.customer_subscription.person.zone_id ?? null;
+        }
+        if (typeof zid === 'number') coveredZoneIds.add(zid);
+      }
+      zonesCoveredDto = (vehicleDto.zones || []).filter((z) =>
+        coveredZoneIds.has(z.zone_id),
+      );
+    }
 
     let currentDeliveryFound = false;
     const detailsDto: RouteSheetDetailResponseDto[] = sortedDetails.map(
@@ -1262,6 +1831,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.order_header.customer.person_id,
             name: detail.order_header.customer.name || 'Sin nombre',
+            alias: detail.order_header.customer.alias || undefined,
             phone: detail.order_header.customer.phone,
             address: detail.order_header.customer.address || 'Sin dirección',
           };
@@ -1294,6 +1864,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.one_off_purchase.person.person_id,
             name: detail.one_off_purchase.person.name || 'Sin nombre',
+            alias: detail.one_off_purchase.person.alias || undefined,
             phone: detail.one_off_purchase.person.phone,
             address: detail.one_off_purchase.person.address || 'Sin dirección',
           };
@@ -1326,6 +1897,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.one_off_purchase_header.person.person_id,
             name: detail.one_off_purchase_header.person.name || 'Sin nombre',
+            alias: detail.one_off_purchase_header.person.alias || undefined,
             phone: detail.one_off_purchase_header.person.phone,
             address:
               detail.one_off_purchase_header.person.address || 'Sin dirección',
@@ -1365,6 +1937,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             name:
               detail.cancellation_order.customer_subscription.person.name ||
               'Sin nombre',
+            alias:
+              detail.cancellation_order.customer_subscription.person.alias ||
+              undefined,
             phone: detail.cancellation_order.customer_subscription.person.phone,
             address:
               detail.cancellation_order.customer_subscription.person.address ||
@@ -1392,6 +1967,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             name:
               detail.cycle_payment.subscription_cycle.customer_subscription
                 .person.name || 'Sin nombre',
+            alias:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.alias || undefined,
             phone:
               detail.cycle_payment.subscription_cycle.customer_subscription
                 .person.phone,
@@ -1428,7 +2006,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           route_sheet_detail_id: detail.route_sheet_detail_id,
           route_sheet_id: detail.route_sheet_id,
           order: orderDto,
-          delivery_status: detail.delivery_status,
+          delivery_status: detail.delivery_status as DeliveryStatus,
           delivery_time: detail.delivery_time || undefined,
           comments: detail.comments || undefined,
           digital_signature_id: detail.digital_signature_id || undefined,
@@ -1444,6 +2022,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
       route_notes: routeSheet.route_notes || undefined,
       details: detailsDto,
+      zones_covered: zonesCoveredDto,
     });
   }
 
@@ -1488,7 +2067,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         where: { route_sheet_id },
         include: {
           driver: true,
-          vehicle: true,
+          vehicle: {
+            include: {
+              vehicle_zone: {
+                where: { is_active: true },
+                include: {
+                  zone: {
+                    include: {
+                      locality: {
+                        include: {
+                          province: {
+                            include: {
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {
@@ -1726,7 +2326,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     const updatedDetail = await this.route_sheet_detail.update({
       where: { route_sheet_detail_id: detailId },
       data: {
-        delivery_status: 'SKIPPED',
+        delivery_status: DeliveryStatus.SKIPPED,
         rejection_reason: dto.reason,
         comments: dto.notes || routeSheetDetail.comments,
         digital_signature_id:
@@ -1745,7 +2345,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     const responseDto = new RouteSheetDetailResponseDto();
     responseDto.route_sheet_detail_id = updatedDetail.route_sheet_detail_id;
     responseDto.route_sheet_id = updatedDetail.route_sheet_id;
-    responseDto.delivery_status = updatedDetail.delivery_status;
+    responseDto.delivery_status = updatedDetail.delivery_status as DeliveryStatus;
     responseDto.delivery_time = updatedDetail.delivery_time || undefined;
     responseDto.comments = updatedDetail.comments || undefined;
     responseDto.digital_signature_id =
@@ -1756,6 +2356,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const customerDto = new CustomerDto();
       customerDto.person_id = updatedDetail.order_header.customer.person_id;
       customerDto.name = updatedDetail.order_header.customer.name || 'N/A';
+      customerDto.alias = updatedDetail.order_header.customer.alias || undefined;
       customerDto.phone = updatedDetail.order_header.customer.phone;
       customerDto.address =
         updatedDetail.order_header.customer.address || 'N/A';
@@ -2007,7 +2608,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const responseDto: RouteSheetDetailResponseDto = {
         route_sheet_detail_id: updatedDetail.route_sheet_detail_id,
         route_sheet_id: updatedDetail.route_sheet_id,
-        delivery_status: updatedDetail.delivery_status,
+        delivery_status: updatedDetail.delivery_status as DeliveryStatus,
         delivery_time: updatedDetail.delivery_time || undefined,
         comments: updatedDetail.comments || undefined,
         digital_signature_id: updatedDetail.digital_signature_id || undefined,
@@ -2023,6 +2624,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customer: {
             person_id: updatedDetail.order_header.customer.person_id,
             name: updatedDetail.order_header.customer.name || '',
+            alias: updatedDetail.order_header.customer.alias || undefined,
             phone: updatedDetail.order_header.customer.phone,
             address: updatedDetail.order_header.customer.address || '',
           },
@@ -2050,6 +2652,134 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, 'Detalle de Hoja de Ruta');
       throw new InternalServerErrorException(
         'Error al actualizar horario de entrega',
+      );
+    }
+  }
+
+  /**
+   * Genera un PDF específico para hojas de ruta de cobranzas automáticas
+   */
+  async generateCollectionRouteSheetPdf(
+    route_sheet_id: number,
+    options: any = {},
+  ): Promise<{ url: string; filename: string; total_collections: number }> {
+    try {
+      // Buscar la hoja de ruta con todos los detalles necesarios
+      const routeSheet = await this.route_sheet.findUnique({
+        where: { route_sheet_id },
+        include: {
+          driver: true,
+          vehicle: true,
+          route_sheet_detail: {
+            where: {
+              cycle_payment_id: { not: null }, // Solo cobranzas automáticas
+            },
+            include: {
+              cycle_payment: {
+                include: {
+                  subscription_cycle: {
+                    include: {
+                      customer_subscription: {
+                        include: {
+                          person: true,
+                          subscription_plan: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!routeSheet) {
+        throw new NotFoundException(
+          `Hoja de ruta con ID ${route_sheet_id} no encontrada`,
+        );
+      }
+
+      // Filtrar solo los detalles que tienen cycle_payment_id
+      const collectionDetails = routeSheet.route_sheet_detail.filter(
+        (detail) => detail.cycle_payment_id,
+      );
+
+      if (collectionDetails.length === 0) {
+        throw new BadRequestException(
+          'Esta hoja de ruta no contiene cobranzas automáticas',
+        );
+      }
+
+      // Mapear los datos para el PDF
+      // Calcular zonas únicas a partir de los detalles de cobranzas
+      const zoneIdsSet = new Set<number>();
+      for (const detail of collectionDetails) {
+        const zid =
+          detail.cycle_payment?.subscription_cycle?.customer_subscription?.person
+            ?.zone_id ?? null;
+        if (typeof zid === 'number') zoneIdsSet.add(zid);
+      }
+      const zoneIdentifiers = Array.from(zoneIdsSet)
+        .sort((a, b) => a - b)
+        .map((z) => `zona${z}`);
+
+      const collectionData = {
+        route_sheet_id: routeSheet.route_sheet_id,
+        delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
+        route_notes: routeSheet.route_notes,
+        driver: {
+          name: routeSheet.driver.name,
+          email: routeSheet.driver.email,
+        },
+        vehicle: {
+          code: routeSheet.vehicle.code,
+          name: routeSheet.vehicle.name,
+        },
+        zone_identifiers: zoneIdentifiers,
+        collections: collectionDetails.map((detail) => ({
+          cycle_payment_id: detail.cycle_payment_id,
+          customer: {
+            name: detail.cycle_payment.subscription_cycle.customer_subscription.person.name,
+            address: detail.cycle_payment.subscription_cycle.customer_subscription.person.address,
+            phone: detail.cycle_payment.subscription_cycle.customer_subscription.person.phone,
+          },
+          amount: detail.cycle_payment.amount.toNumber(),
+          payment_due_date: detail.cycle_payment.payment_date?.toISOString().split('T')[0] || '',
+          cycle_period: detail.cycle_payment.subscription_cycle.cycle_number.toString(),
+          subscription_plan: detail.cycle_payment.subscription_cycle.customer_subscription.subscription_plan.name,
+          delivery_status: detail.delivery_status,
+          delivery_time: detail.delivery_time,
+          comments: detail.comments,
+        })),
+      };
+
+      // Generar el PDF usando el servicio de generación de hojas de ruta
+      const { doc, filename, pdfPath } = await this.routeSheetGeneratorService.generateCollectionRouteSheetPdf(
+        collectionData,
+      );
+
+      // Guardar el PDF
+      const writeStream = fs.createWriteStream(pdfPath);
+      doc.pipe(writeStream);
+
+      // Finalizar y obtener la URL
+      const result = await this.routeSheetGeneratorService.finalizePdf(
+        doc,
+        writeStream,
+        filename,
+      );
+
+      return {
+        ...result,
+        total_collections: collectionDetails.length,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        `Error generando PDF de cobranzas: ${error.message}`,
       );
     }
   }

@@ -50,7 +50,7 @@ import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
-@ApiTags('Autenticación/Usuarios')
+@ApiTags('🔐 Autenticación/Usuarios')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -72,10 +72,47 @@ export class AuthController {
   @ApiResponse({
     status: 400,
     description: 'Datos inválidos o el usuario ya existe',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { 
+          type: 'array',
+          items: { type: 'string' },
+          example: [
+            'El email debe ser válido',
+            'La contraseña debe tener al menos 8 caracteres',
+            'El nombre es requerido',
+            'El usuario con este email ya existe'
+          ]
+        },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflicto - El usuario ya existe',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 409 },
+        message: { type: 'string', example: 'Ya existe un usuario con este email' },
+        error: { type: 'string', example: 'Conflict' }
+      }
+    }
   })
   @ApiResponse({
     status: 500,
-    description: 'Error en el servidor durante el registro',
+    description: 'Error interno del servidor',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 500 },
+        message: { type: 'string', example: 'Error interno del servidor durante el registro' },
+        error: { type: 'string', example: 'Internal Server Error' }
+      }
+    }
   })
   @UseInterceptors(
     FileInterceptor('profileImage', fileUploadConfigs.profileImages),
@@ -105,8 +142,47 @@ export class AuthController {
     type: LoginResponseDto,
   })
   @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { 
+          type: 'array',
+          items: { type: 'string' },
+          example: [
+            'El email debe ser válido',
+            'La contraseña es requerida'
+          ]
+        },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({
     status: 401,
     description: 'Credenciales inválidas',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Credenciales inválidas' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuario inactivo o email no confirmado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'Usuario inactivo o email no confirmado' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   @ApiBody({
     description: 'Credenciales de inicio de sesión',
@@ -132,6 +208,26 @@ export class AuthController {
   @ApiResponse({
     status: 401,
     description: 'Refresh token inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Refresh token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Token de refresco no proporcionado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'Token de refresco requerido' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   async refreshToken(@Req() req: any) {
     const userRefreshToken = req.user.refreshToken;
@@ -153,7 +249,27 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'No autorizado',
+    description: 'No autorizado - Token inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - Usuario sin permisos suficientes',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   async getProfile(@GetUser() user: User): Promise<UserResponseDto> {
     return await this.authService.getUserById(user.id);
@@ -234,12 +350,48 @@ export class AuthController {
     },
   })
   @ApiResponse({
+    status: 400,
+    description: 'Parámetros de consulta inválidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { 
+          type: 'array',
+          items: { type: 'string' },
+          example: [
+            'page debe ser un número positivo',
+            'limit debe estar entre 1 y 100',
+            'role debe ser un valor válido del enum Role'
+          ]
+        },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({
     status: 401,
-    description: 'No autorizado',
+    description: 'No autorizado - Token inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
   })
   @ApiResponse({
     status: 403,
     description: 'Prohibido - El usuario no tiene rol de SUPERADMIN',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'Acceso denegado. Se requiere rol de SUPERADMIN' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
   })
   getAllUsers(
     @Query(
@@ -272,16 +424,52 @@ export class AuthController {
     type: UserResponseDto,
   })
   @ApiResponse({
-    status: 404,
-    description: 'Usuario no encontrado',
+    status: 400,
+    description: 'ID de usuario inválido',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'El ID debe ser un número válido' },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
   })
   @ApiResponse({
     status: 401,
-    description: 'No autorizado',
+    description: 'No autorizado - Token inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
   })
   @ApiResponse({
     status: 403,
     description: 'Prohibido - El usuario no tiene rol de SUPERADMIN',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'Acceso denegado. Se requiere rol de SUPERADMIN' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Usuario no encontrado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 404 },
+        message: { type: 'string', example: 'Usuario con ID 123 no encontrado' },
+        error: { type: 'string', example: 'Not Found' }
+      }
+    }
   })
   getUserById(@Param('id', ParseIntPipe) id: number) {
     return this.authService.getUserById(id);

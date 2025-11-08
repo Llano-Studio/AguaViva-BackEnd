@@ -28,7 +28,7 @@ import { Role } from '@prisma/client';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
@@ -36,7 +36,7 @@ import { FormDataPreserveInterceptor } from '../common/interceptors/form-data-pr
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 
-@ApiTags('Productos & Artículos')
+@ApiTags('📦 Productos & Artículos')
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {

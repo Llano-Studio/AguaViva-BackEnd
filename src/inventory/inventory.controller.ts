@@ -25,14 +25,14 @@ import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryResponseDto } from './dto/inventory-response.dto';
 import { stock_movement as StockMovementPrisma } from '@prisma/client';
 import { StockMovementResponseDto } from './dto/stock-movement-response.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import {
   FilterInventoryDto,
   PaginatedInventoryResponseDto,
 } from './dto/filter-inventory.dto';
 
-@ApiTags('Inventario')
+@ApiTags('📦 Inventario')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('inventory')

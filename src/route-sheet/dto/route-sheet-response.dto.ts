@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { DeliveryStatus } from '../../common/constants/enums';
 
 export class CustomerDto {
   @ApiProperty({
@@ -12,6 +13,13 @@ export class CustomerDto {
     example: 'Juan Pérez',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Alias del cliente',
+    example: 'JP',
+    required: false,
+  })
+  alias?: string;
 
   @ApiProperty({
     description: 'Teléfono del cliente',
@@ -132,9 +140,32 @@ export class RouteSheetDetailResponseDto {
 
   @ApiProperty({
     description: 'Estado de la entrega',
-    example: 'PENDING',
+    enum: DeliveryStatus,
+    example: DeliveryStatus.PENDING,
+    examples: {
+      pending: {
+        value: DeliveryStatus.PENDING,
+        description: 'Entrega pendiente'
+      },
+      assigned: {
+        value: DeliveryStatus.ASSIGNED,
+        description: 'Asignado al conductor'
+      },
+      inTransit: {
+        value: DeliveryStatus.IN_TRANSIT,
+        description: 'En tránsito'
+      },
+      delivered: {
+        value: DeliveryStatus.DELIVERED,
+        description: 'Entregado exitosamente'
+      },
+      failed: {
+        value: DeliveryStatus.FAILED,
+        description: 'Entrega fallida'
+      }
+    }
   })
-  delivery_status: string;
+  delivery_status: DeliveryStatus;
 
   @ApiProperty({
     description:
@@ -187,6 +218,46 @@ export class DriverDto {
   email: string;
 }
 
+export class ZoneDto {
+  @ApiProperty({
+    description: 'ID de la zona',
+    example: 1,
+  })
+  zone_id: number;
+
+  @ApiProperty({
+    description: 'Código de la zona',
+    example: 'ZN-001',
+  })
+  code: string;
+
+  @ApiProperty({
+    description: 'Nombre de la zona',
+    example: 'Centro',
+  })
+  name: string;
+
+  @ApiProperty({
+    description: 'Información de la localidad',
+    required: false,
+  })
+  locality?: {
+    locality_id: number;
+    code: string;
+    name: string;
+    province: {
+      province_id: number;
+      code: string;
+      name: string;
+      country: {
+        country_id: number;
+        code: string;
+        name: string;
+      };
+    };
+  };
+}
+
 export class VehicleDto {
   @ApiProperty({
     description: 'ID del vehículo',
@@ -205,6 +276,13 @@ export class VehicleDto {
     example: 'Camión Mercedes',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Zonas asignadas al vehículo',
+    type: [ZoneDto],
+    required: false,
+  })
+  zones?: ZoneDto[];
 }
 
 export class RouteSheetResponseDto {
@@ -244,6 +322,14 @@ export class RouteSheetResponseDto {
     type: [RouteSheetDetailResponseDto],
   })
   details: RouteSheetDetailResponseDto[];
+
+  @ApiProperty({
+    description:
+      'Zonas cubiertas por los detalles de la hoja de ruta (derivadas de pedidos y clientes)',
+    type: [ZoneDto],
+    required: false,
+  })
+  zones_covered?: ZoneDto[];
 
   constructor(partial: Partial<RouteSheetResponseDto>) {
     Object.assign(this, partial);

@@ -12,7 +12,7 @@ import { FilterComodatosDto } from '../persons/dto/filter-comodatos.dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 
-@ApiTags('Comodatos')
+@ApiTags('🛒 Comodatos')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
 @Controller('comodatos')

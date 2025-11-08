@@ -30,7 +30,7 @@ import {
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 
-@ApiTags('Inventario de Vehículos')
+@ApiTags('🚛 Inventario de Vehículos')
 @ApiBearerAuth()
 @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
 @Controller('vehicle-inventories')

@@ -39,6 +39,8 @@ import {
   ValidateDeliveryTimesDto,
   DeliveryTimeValidationResponseDto,
   UpdateDeliveryTimeDto,
+  GenerateCollectionPdfDto,
+  CollectionPdfResponseDto,
 } from './dto';
 import { RouteSheetService } from './route-sheet.service';
 import { RouteOptimizationService } from '../common/services/route-optimization.service';
@@ -50,7 +52,7 @@ import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FailedOrderReassignmentService } from '../common/services/failed-order-reassignment.service';
 
-@ApiTags('Hojas de Ruta')
+@ApiTags('🛒 Hojas de Ruta')
 @ApiBearerAuth()
 @Controller('route-sheets')
 export class RouteSheetController {
@@ -65,7 +67,7 @@ export class RouteSheetController {
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
   @ApiOperation({ 
     summary: 'Crear una nueva hoja de ruta',
-    description: `Crea una nueva hoja de ruta con múltiples tipos de entregas.
+    description: `Crea una nueva hoja de ruta con múltiples tipos de entregas y soporte para múltiples zonas por vehículo.
 
 📋 TIPOS DE ÓRDENES SOPORTADAS (pueden mezclarse en una misma hoja):
 
@@ -86,6 +88,11 @@ export class RouteSheetController {
    - Para pagos de ciclos de suscripción
    - NO incluir order_type
 
+5️⃣ **Zonas de la hoja de ruta (opcional)**: Usar zone_ids
+   - Array de IDs de zonas asignadas al vehículo
+   - Si se especifica, todos los detalles deben pertenecer a estas zonas
+   - Validado contra las zonas activas del vehículo
+
 ✅ EJEMPLO DE PAYLOAD MEZCLANDO TIPOS:
 \`\`\`json
 {
@@ -93,6 +100,7 @@ export class RouteSheetController {
   "vehicle_id": 1,
   "delivery_date": "2025-10-03",
   "route_notes": "Salir por Sarmiento",
+  "zone_ids": [1, 2],
   "details": [
     {
       "order_id": 21,
@@ -170,6 +178,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
   "driver_id": 2,
   "vehicle_id": 1,
   "delivery_date": "2025-10-04",
+  "zone_ids": [3],
   "details": [
     {
       "one_off_purchase_id": 5,      ← Del registro LEGACY
@@ -187,7 +196,8 @@ const routeDetails = oneOffPurchases.map(purchase => {
 ✅ REGLAS:
 - Cada detalle debe tener al menos uno de: order_id, one_off_purchase_id, one_off_purchase_header_id, o cycle_payment_id
 - Solo incluir order_type cuando uses order_id
-- NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)`
+ - NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)
+ - Si se envía zone_ids: deben estar asignadas al vehículo y los detalles deben pertenecer a esas zonas`
   })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({
@@ -197,9 +207,73 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   @ApiResponse({ 
     status: 400, 
-    description: 'Datos de entrada inválidos. Posibles causas: IDs no existen, order_type faltante, órdenes ya asignadas a otra ruta' 
+    description: `❌ Datos de entrada inválidos. Posibles causas:
+    
+    🔸 **Validación de Campos:**
+    • driver_id o vehicle_id no existen
+    • delivery_date en formato incorrecto (debe ser YYYY-MM-DD)
+    • order_type faltante cuando se especifica order_id
+    
+    🔸 **Conflictos de Órdenes:**
+    • Órdenes ya asignadas a otra hoja de ruta
+    • IDs de órdenes/compras no existen o están inactivos
+    • Mezcla incorrecta de campos (ej: order_id con one_off_purchase_id)
+    
+    🔸 **Reglas de Negocio:**
+    • Al menos un detalle debe especificar: order_id, one_off_purchase_id, one_off_purchase_header_id o cycle_payment_id
+    • No se puede usar order_type con compras one-off o cycle payments`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Validation failed' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 },
+        details: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['order_type es requerido cuando se especifica order_id', 'driver_id no existe']
+        }
+      }
+    }
   })
-  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT faltante, inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - El usuario no tiene permisos suficientes para crear hojas de ruta',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: '⚠️ Conflicto - Órdenes ya asignadas a otra hoja de ruta activa',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Las siguientes órdenes ya están asignadas: [21, 15]' },
+        statusCode: { type: 'number', example: 409 },
+        conflictingOrders: {
+          type: 'array',
+          items: { type: 'number' },
+          example: [21, 15]
+        }
+      }
+    }
+  })
   create(@Body() createRouteSheetDto: CreateRouteSheetDto) {
     return this.routeSheetService.create(createRouteSheetDto);
   }
@@ -238,6 +312,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
 - Datos completos del conductor asignado
 - Información detallada del vehículo
 - Capacidades y especificaciones técnicas
+ - Zonas asignadas al vehículo y zonas cubiertas en la hoja (vehicle.zones, zones_covered)
 
 **Detalles de Entregas:**
 - Lista completa de entregas programadas
@@ -305,7 +380,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   @ApiResponse({
     status: 200,
-    description: 'Listado de hojas de ruta',
+    description: 'Listado de hojas de ruta obtenido exitosamente',
     schema: {
       properties: {
         data: {
@@ -323,6 +398,52 @@ const routeDetails = oneOffPurchases.map(purchase => {
         },
       },
     },
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: `❌ Parámetros de consulta inválidos:
+    
+    🔸 **Filtros de Fecha:**
+    • from_date o to_date en formato incorrecto (debe ser YYYY-MM-DD)
+    • from_date posterior a to_date
+    
+    🔸 **Paginación:**
+    • page o limit con valores negativos o no numéricos
+    • limit excede el máximo permitido (100)
+    
+    🔸 **Ordenamiento:**
+    • sortBy con campos no válidos
+    • Formato de ordenamiento incorrecto`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invalid query parameters' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para consultar hojas de ruta',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
   })
   findAll(
     @Query(
@@ -385,10 +506,55 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   @ApiResponse({
     status: 200,
-    description: 'Hoja de ruta encontrada',
+    description: 'Hoja de ruta encontrada exitosamente con todos sus detalles',
     type: RouteSheetResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  @ApiResponse({ 
+    status: 400, 
+    description: '❌ ID inválido - El parámetro id debe ser un número entero positivo',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Validation failed (numeric string is expected)' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para consultar detalles de hojas de ruta',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: '🔍 Hoja de ruta no encontrada - No existe una hoja de ruta con el ID especificado',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Route sheet with ID 123 not found' },
+        error: { type: 'string', example: 'Not Found' },
+        statusCode: { type: 'number', example: 404 }
+      }
+    }
+  })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.routeSheetService.findOne(id);
   }
@@ -419,7 +585,11 @@ const routeDetails = oneOffPurchases.map(purchase => {
 
   @Delete(':id')
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-  @ApiOperation({ summary: 'Eliminar una hoja de ruta' })
+  @ApiOperation({
+    summary: 'Eliminar una hoja de ruta',
+    description:
+      'Desactiva la hoja de ruta (soft delete) y revierte a "PENDING" el estado de todos los pedidos asociados a esa hoja (suscripciones y compras one-off).',
+  })
   @ApiParam({
     name: 'id',
     description: 'ID de la hoja de ruta a eliminar',
@@ -428,11 +598,16 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   @ApiResponse({
     status: 200,
-    description: 'Hoja de ruta eliminada',
+    description:
+      'Hoja de ruta desactivada y estados de pedidos revertidos a PENDING',
     schema: {
       properties: {
-        message: { type: 'string' },
-        deleted: { type: 'boolean' },
+        message: {
+          type: 'string',
+          example:
+            'Hoja de Ruta con ID 123 desactivada y pedidos revertidos a PENDING',
+        },
+        deleted: { type: 'boolean', example: true },
       },
     },
   })
@@ -899,5 +1074,85 @@ const routeDetails = oneOffPurchases.map(purchase => {
   })
   async getFailedOrderStats() {
     return this.failedOrderReassignmentService.getFailedOrdersStats();
+  }
+
+  @Post(':id/generate-collection-pdf')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Generar PDF de hoja de ruta de cobranzas automáticas',
+    description: `Genera un PDF específico para hojas de ruta que contienen cobranzas automáticas (cycle payments).
+
+## 📋 FUNCIONALIDAD
+
+**Propósito:**
+- Genera un PDF optimizado para cobranzas automáticas
+- Incluye solo los detalles de la hoja de ruta que corresponden a cycle_payment_id
+- Formato específico para gestión de cobranzas
+
+**Información Incluida:**
+- Datos de la hoja de ruta (ID, fecha, notas)
+- Información del conductor y vehículo
+- Tabla detallada de cobranzas con:
+  - Datos del cliente (nombre, dirección, teléfono)
+  - Monto a cobrar
+  - Fecha de vencimiento
+  - Plan de suscripción
+  - Estado de entrega
+  - Horario programado
+
+## 🎯 CASOS DE USO
+
+- **Gestión de Cobranzas**: PDF específico para conductores que realizan cobranzas
+- **Control de Pagos**: Seguimiento de pagos de suscripciones automáticas
+- **Documentación**: Registro físico de cobranzas realizadas
+- **Auditoría**: Evidencia de gestión de cobranzas automáticas
+
+## ⚠️ VALIDACIONES
+
+- La hoja de ruta debe existir
+- Debe contener al menos una cobranza automática (cycle_payment_id)
+- Solo incluye detalles con cycle_payment_id válido`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para generar PDF de cobranzas',
+    type: Number,
+    example: 123,
+  })
+  @ApiBody({
+    description: 'Opciones para la generación del PDF',
+    type: GenerateCollectionPdfDto,
+    required: false,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'PDF de cobranzas generado exitosamente',
+    type: CollectionPdfResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'La hoja de ruta no contiene cobranzas automáticas',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Hoja de ruta no encontrada',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async generateCollectionPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() generatePdfDto: GenerateCollectionPdfDto = {},
+  ): Promise<CollectionPdfResponseDto> {
+    const result = await this.routeSheetService.generateCollectionRouteSheetPdf(
+      id,
+      generatePdfDto,
+    );
+
+    return {
+      url: result.url,
+      filename: result.filename,
+      route_sheet_id: id,
+      generated_at: new Date().toISOString(),
+      total_collections: result.total_collections,
+    };
   }
 }

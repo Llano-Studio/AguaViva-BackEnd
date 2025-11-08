@@ -25,10 +25,10 @@ import { Role } from '@prisma/client';
 import { ProductCategoryService } from './product-category.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
-import { Auth } from 'src/auth/decorators/auth.decorator';
+import { Auth } from '../auth/decorators/auth.decorator';
 import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
 
-@ApiTags('Categorías de productos')
+@ApiTags('📦 Productos & Artículos')
 @ApiBearerAuth()
 @Controller('categories')
 export class ProductCategoryController {
@@ -145,7 +145,42 @@ export class ProductCategoryController {
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ 
+    status: 400,
+    description: 'Parámetros de consulta inválidos',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', 'limit no puede ser mayor a 100'] },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
+  })
   findAll(
     @Query(
       new ValidationPipe({
@@ -219,12 +254,54 @@ export class ProductCategoryController {
       },
     },
   })
+  @ApiResponse({ 
+    status: 400,
+    description: 'ID de categoría inválido',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'El ID debe ser un número válido' },
+        error: { type: 'string', example: 'Bad Request' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'No autorizado - Token JWT inválido o expirado',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 401 },
+        message: { type: 'string', example: 'Token inválido o expirado' },
+        error: { type: 'string', example: 'Unauthorized' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido - El usuario no tiene los permisos necesarios',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 403 },
+        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
+        error: { type: 'string', example: 'Forbidden' }
+      }
+    }
+  })
   @ApiResponse({
     status: 404,
-    description:
-      'Categoría de producto no encontrada - El ID especificado no existe en la base de datos.',
+    description: 'Categoría de producto no encontrada',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 404 },
+        message: { type: 'string', example: 'Categoría con ID 123 no encontrada' },
+        error: { type: 'string', example: 'Not Found' }
+      }
+    }
   })
-  @ApiResponse({ status: 401, description: 'No autorizado.' })
   getProductCategoryById(@Param('id', ParseIntPipe) id: number) {
     return this.service.getProductCategoryById(id);
   }

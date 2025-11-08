@@ -23,6 +23,7 @@ import { CustomerSubscriptionModule } from './customer-subscription/customer-sub
 import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
 import { CommonModule } from './common/common.module';
 import { ComodatoModule } from './comodato/comodato.module';
+import { AuditModule } from './audit/audit.module';
 import { ServicesModule } from './common/services/services.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
@@ -54,6 +55,7 @@ import environmentConfig from './common/config/environment.config';
     CustomerSubscriptionModule,
     CyclePaymentsModule,
     ComodatoModule,
+    AuditModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 60,

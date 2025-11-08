@@ -11,7 +11,9 @@ import {
   HttpStatus,
   ValidationPipe,
   Patch,
+  Put,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -19,6 +21,8 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { OrderResponseDto } from './dto/order-response.dto';
+import { UpdatePaymentTransactionDto } from './dto/update-payment-transaction.dto';
+import { PaymentOperationResponseDto } from './dto/payment-operation-response.dto';
 import { ScheduleService } from '../common/services/schedule.service';
 import { OrderStatus, OrderType } from '../common/constants/enums';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
@@ -36,7 +40,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 
-@ApiTags('Pedidos & Compras de una sola vez')
+@ApiTags('🛒 Pedidos & Compras de una sola vez')
 @ApiBearerAuth()
 @Controller('orders')
 export class OrdersController {
@@ -188,21 +192,109 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Pedido creado exitosamente.',
+    description: 'Pedido creado exitosamente con cálculo automático de precios.',
     type: OrderResponseDto,
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos de entrada inválidos o validaciones fallidas.',
+    description: `❌ Datos de entrada inválidos:
+    
+    🔸 **Validaciones de Campos:**
+    • customer_id, sale_channel_id requeridos
+    • order_date, scheduled_delivery_date en formato incorrecto
+    • total_amount no coincide con el cálculo automático
+    • delivery_time en formato inválido
+    
+    🔸 **Validaciones de Productos:**
+    • items vacío o con productos duplicados
+    • quantity debe ser mayor a 0
+    • product_id no válido o inactivo
+    
+    🔸 **Validaciones de Tipo de Orden:**
+    • SUBSCRIPTION requiere subscription_id
+    • CONTRACT requiere contract_id válido
+    • HYBRID requiere subscription_id + productos adicionales
+    
+    🔸 **Validaciones de Precios:**
+    • price_list_id no válido o inactivo
+    • total_amount debe ser "0.00" para órdenes SUBSCRIPTION`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Validation failed' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para crear pedidos',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
   })
   @ApiResponse({
     status: 404,
-    description:
-      'Cliente, producto, contrato o entidad relacionada no encontrada.',
+    description: `🔍 Entidades no encontradas:
+    
+    • **Cliente**: customer_id no existe o está inactivo
+    • **Productos**: Uno o más product_id no encontrados
+    • **Suscripción**: subscription_id no válido o inactivo
+    • **Contrato**: contract_id no encontrado o expirado
+    • **Lista de Precios**: price_list_id no válida
+    • **Canal de Venta**: sale_channel_id no encontrado`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Customer with ID 123 not found' },
+        error: { type: 'string', example: 'Not Found' },
+        statusCode: { type: 'number', example: 404 }
+      }
+    }
   })
   @ApiResponse({
     status: 409,
-    description: 'Conflicto de stock o restricción única.',
+    description: `⚠️ Conflictos de negocio:
+    
+    🔸 **Stock Insuficiente:**
+    • Productos sin stock disponible
+    • Cantidad solicitada excede inventario
+    
+    🔸 **Restricciones de Suscripción:**
+    • Cliente ya tiene orden activa para el ciclo
+    • Productos no incluidos en el plan de suscripción
+    
+    🔸 **Conflictos de Programación:**
+    • Fecha de entrega no disponible
+    • Zona de entrega no cubierta
+    
+    🔸 **Restricciones de Contrato:**
+    • Contrato expirado o suspendido
+    • Productos no incluidos en el contrato`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Insufficient stock for product ID 5' },
+        error: { type: 'string', example: 'Conflict' },
+        statusCode: { type: 'number', example: 409 }
+      }
+    }
   })
   async createOrder(
     @Body(ValidationPipe) createOrderDto: CreateOrderDto,
@@ -338,7 +430,7 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de pedidos obtenida exitosamente.',
+    description: 'Lista de pedidos obtenida exitosamente con filtros aplicados.',
     schema: {
       type: 'object',
       properties: {
@@ -357,6 +449,56 @@ export class OrdersController {
         },
       },
     },
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: `❌ Parámetros de consulta inválidos:
+    
+    🔸 **Filtros de Fecha:**
+    • orderDateFrom/orderDateTo en formato incorrecto (debe ser YYYY-MM-DD)
+    • deliveryDateFrom/deliveryDateTo en formato incorrecto
+    • Rangos de fechas inválidos (desde > hasta)
+    
+    🔸 **Filtros de Estado:**
+    • status con valores no válidos (debe ser: PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED)
+    • orderType con valores no válidos (debe ser: SUBSCRIPTION, HYBRID, ONE_OFF, CONTRACT)
+    
+    🔸 **Paginación:**
+    • page o limit con valores negativos o no numéricos
+    • limit excede el máximo permitido (100)
+    
+    🔸 **IDs de Entidades:**
+    • customerId, orderId, zoneId con valores no numéricos`,
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Invalid query parameters' },
+        error: { type: 'string', example: 'Bad Request' },
+        statusCode: { type: 'number', example: 400 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: '🚫 Prohibido - Rol insuficiente para consultar pedidos',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 }
+      }
+    }
   })
   async findAllOrders(
     @Query(ValidationPipe) filterOrdersDto: FilterOrdersDto,
@@ -952,6 +1094,212 @@ export class OrdersController {
       body.collection_date,
       body.notes,
       userId,
+    );
+  }
+
+  @Put('payments/:transactionId')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @ApiOperation({
+    summary: '✏️ Editar transacción de pago de orden',
+    description: `Permite editar una transacción de pago existente de una orden.
+
+## 🔒 RESTRICCIONES DE SEGURIDAD
+
+**Autorización:**
+- Solo usuarios ADMIN y SUPERADMIN pueden editar transacciones
+- Se requiere autenticación válida
+
+**Limitaciones Temporales:**
+- Solo se pueden editar transacciones de máximo 30 días de antigüedad
+- Las transacciones más antiguas quedan bloqueadas por seguridad
+
+**Validaciones de Estado:**
+- No se pueden editar transacciones de órdenes ya procesadas (status: PROCESSED)
+- La orden debe estar en estado válido para modificaciones
+
+## 📝 AUDITORÍA AUTOMÁTICA
+
+**Registro de Cambios:**
+- Todos los cambios quedan registrados en el sistema de auditoría
+- Se almacena: usuario, fecha, valores anteriores y nuevos
+- Trazabilidad completa para cumplimiento normativo
+
+## ⚡ RECÁLCULO AUTOMÁTICO
+
+**Actualización de Balances:**
+- El sistema recalcula automáticamente el balance de la orden
+- Se actualiza el estado de pago según el nuevo monto
+- Validación de integridad de datos`,
+  })
+  @ApiParam({
+    name: 'transactionId',
+    description: 'ID de la transacción de pago a editar',
+    example: 123,
+  })
+  @ApiBody({
+    description: 'Datos actualizados de la transacción de pago',
+    type: UpdatePaymentTransactionDto,
+    examples: {
+      actualizacionCompleta: {
+        summary: 'Actualización completa de transacción',
+        value: {
+          amount: '250.00',
+          payment_method_id: 2,
+          transaction_reference: 'TXN-UPD-789456',
+          payment_date: '2024-03-21T15:30:00Z',
+          notes: 'Transacción actualizada - corrección de monto',
+        },
+      },
+      actualizacionParcial: {
+        summary: 'Actualización solo de referencia y notas',
+        value: {
+          transaction_reference: 'REF-CORREGIDA-123',
+          notes: 'Referencia corregida por error de captura',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transacción actualizada exitosamente',
+    type: PaymentOperationResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o transacción muy antigua (>30 días)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin permisos para editar transacciones',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Transacción no encontrada',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Orden en estado PROCESSED - no se puede modificar',
+  })
+  async updatePaymentTransaction(
+    @Param('transactionId', ParseIntPipe) transactionId: number,
+    @Body(ValidationPipe) updatePaymentTransactionDto: UpdatePaymentTransactionDto,
+    @Req() req: any,
+  ): Promise<PaymentOperationResponseDto> {
+    const userId = req.user?.userId;
+    const userRole = req.user?.role;
+    return this.ordersService.updatePaymentTransaction(
+      transactionId,
+      updatePaymentTransactionDto,
+      userId,
+      userRole,
+    );
+  }
+
+  @Delete('payments/:transactionId')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN)
+  @ApiOperation({
+    summary: '🗑️ Eliminar transacción de pago de orden',
+    description: `Permite eliminar una transacción de pago de una orden con confirmación obligatoria.
+
+## 🔒 RESTRICCIONES DE SEGURIDAD EXTREMAS
+
+**Autorización:**
+- Solo usuarios ADMIN pueden eliminar transacciones
+- Se requiere confirmación explícita en el cuerpo de la petición
+
+**Limitaciones Temporales:**
+      - Sin límite de antigüedad para eliminar transacciones
+      - Nota: la edición mantiene límite de 30 días por seguridad
+
+**Validaciones Críticas:**
+- No se puede eliminar si es la única transacción de una orden pagada
+- No se pueden eliminar transacciones de órdenes procesadas (status: PROCESSED)
+- Validación de integridad financiera
+
+## 📝 AUDITORÍA OBLIGATORIA
+
+**Registro de Eliminación:**
+- Eliminación completa registrada en auditoría
+- Se preservan todos los datos originales
+- Trazabilidad permanente del cambio
+
+## ⚡ RECÁLCULO AUTOMÁTICO
+
+**Actualización de Balances:**
+- Recálculo inmediato del balance de la orden
+- Actualización del estado de pago
+- Validación de consistencia de datos`,
+  })
+  @ApiParam({
+    name: 'transactionId',
+    description: 'ID de la transacción de pago a eliminar',
+    example: 123,
+  })
+  @ApiBody({
+    description: 'Confirmación requerida para eliminar la transacción',
+    schema: {
+      type: 'object',
+      properties: {
+        confirm_deletion: {
+          type: 'boolean',
+          description: 'Confirmación explícita requerida (debe ser true)',
+          example: true,
+        },
+        deletion_reason: {
+          type: 'string',
+          description: 'Razón de la eliminación (requerida)',
+          example: 'Transacción duplicada por error del sistema',
+        },
+      },
+      required: ['confirm_deletion', 'deletion_reason'],
+    },
+    examples: {
+      eliminacionConfirmada: {
+        summary: 'Eliminación con confirmación',
+        value: {
+          confirm_deletion: true,
+          deletion_reason: 'Transacción duplicada - error de procesamiento',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transacción eliminada exitosamente',
+    type: PaymentOperationResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Confirmación faltante, transacción muy antigua (>7 días) o es la única transacción',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin permisos para eliminar transacciones',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Transacción no encontrada',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Orden en estado PROCESSED - no se puede modificar',
+  })
+  async deletePaymentTransaction(
+    @Param('transactionId', ParseIntPipe) transactionId: number,
+    @Body() body: { confirm_deletion: boolean; deletion_reason: string },
+    @Req() req: any,
+  ): Promise<PaymentOperationResponseDto> {
+    const userId = req.user?.userId;
+    const userRole = req.user?.role;
+    if (!body.confirm_deletion) {
+      throw new BadRequestException('Se requiere confirmación explícita para eliminar la transacción');
+    }
+    
+    return this.ordersService.deletePaymentTransaction(
+      transactionId,
+      body.deletion_reason,
+      userId,
+      userRole,
     );
   }
 }

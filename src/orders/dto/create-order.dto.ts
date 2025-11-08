@@ -20,6 +20,20 @@ export class CreateOrderItemDto {
   @ApiProperty({
     description: 'ID del producto a ordenar',
     example: 1,
+    examples: {
+      water_20l: {
+        value: 1,
+        description: 'Botellón de agua 20L'
+      },
+      water_500ml: {
+        value: 2,
+        description: 'Botella de agua 500ml'
+      },
+      dispenser: {
+        value: 15,
+        description: 'Dispensador de agua'
+      }
+    }
   })
   @IsInt()
   @IsNotEmpty()
@@ -29,6 +43,20 @@ export class CreateOrderItemDto {
     description: 'Cantidad del producto a ordenar',
     minimum: 1,
     example: 2,
+    examples: {
+      standard: {
+        value: 2,
+        description: 'Cantidad estándar para botellones'
+      },
+      bulk: {
+        value: 10,
+        description: 'Pedido al por mayor'
+      },
+      single: {
+        value: 1,
+        description: 'Producto único (dispensadores, accesorios)'
+      }
+    }
   })
   @IsInt()
   @Min(1)
@@ -70,6 +98,20 @@ export class CreateOrderDto {
   @ApiProperty({
     description: 'ID del cliente que realiza el pedido',
     example: 1,
+    examples: {
+      residential: {
+        value: 1,
+        description: 'Cliente residencial'
+      },
+      corporate: {
+        value: 25,
+        description: 'Cliente corporativo'
+      },
+      subscription: {
+        value: 150,
+        description: 'Cliente con suscripción activa'
+      }
+    }
   })
   @IsInt()
   @IsNotEmpty()
@@ -78,6 +120,16 @@ export class CreateOrderDto {
   @ApiPropertyOptional({
     description: 'ID del contrato asociado al pedido (opcional)',
     example: 1,
+    examples: {
+      corporate_contract: {
+        value: 1,
+        description: 'Contrato corporativo con precios especiales'
+      },
+      bulk_contract: {
+        value: 5,
+        description: 'Contrato de compra al por mayor'
+      }
+    }
   })
   @IsOptional()
   @IsInt()
@@ -86,6 +138,24 @@ export class CreateOrderDto {
   @ApiProperty({
     description: 'ID del canal de venta',
     example: 1,
+    examples: {
+      online: {
+        value: 1,
+        description: 'Venta online/web'
+      },
+      phone: {
+        value: 2,
+        description: 'Venta telefónica'
+      },
+      field: {
+        value: 3,
+        description: 'Venta en campo/domicilio'
+      },
+      office: {
+        value: 4,
+        description: 'Venta en oficina'
+      }
+    }
   })
   @IsInt()
   @IsNotEmpty()
@@ -94,6 +164,20 @@ export class CreateOrderDto {
   @ApiProperty({
     description: 'Fecha del pedido en formato ISO',
     example: '2024-03-20T10:00:00Z',
+    examples: {
+      morning: {
+        value: '2024-03-20T09:30:00Z',
+        description: 'Pedido realizado en la mañana'
+      },
+      afternoon: {
+        value: '2024-03-20T14:15:00Z',
+        description: 'Pedido realizado en la tarde'
+      },
+      current: {
+        value: '2024-03-20T10:00:00Z',
+        description: 'Pedido actual'
+      }
+    }
   })
   @IsDateString()
   @IsNotEmpty()
@@ -102,6 +186,20 @@ export class CreateOrderDto {
   @ApiPropertyOptional({
     description: 'Fecha programada de entrega en formato ISO',
     example: '2024-03-21T14:00:00Z',
+    examples: {
+      next_day: {
+        value: '2024-03-21T14:00:00Z',
+        description: 'Entrega al día siguiente'
+      },
+      same_week: {
+        value: '2024-03-22T10:00:00Z',
+        description: 'Entrega en la misma semana'
+      },
+      scheduled: {
+        value: '2024-03-25T16:00:00Z',
+        description: 'Entrega programada para fecha específica'
+      }
+    }
   })
   @IsOptional()
   @IsDateString()

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaymentMethod } from '../../common/constants/enums';
 
 export class CyclePaymentResponseDto {
   @ApiProperty({
@@ -27,9 +28,10 @@ export class CyclePaymentResponseDto {
 
   @ApiProperty({
     description: 'Método de pago utilizado',
-    example: 'EFECTIVO',
+    example: PaymentMethod.EFECTIVO,
+    enum: PaymentMethod,
   })
-  payment_method: string;
+  payment_method: PaymentMethod;
 
   @ApiPropertyOptional({
     description: 'Referencia del pago',

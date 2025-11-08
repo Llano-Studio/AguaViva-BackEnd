@@ -11,3 +11,4 @@ export * from './record-payment.dto';
 export * from './skip-delivery.dto';
 export * from './validate-delivery-times.dto';
 export * from './update-delivery-time.dto';
+export * from './generate-collection-pdf.dto';
