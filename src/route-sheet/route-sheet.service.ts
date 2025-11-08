@@ -1674,6 +1674,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           name: routeSheet.vehicle.name,
           zones: routeSheet.vehicle.zones || [],
         },
+        zone_identifiers: (routeSheet as any).zones_covered
+          ? (routeSheet as any).zones_covered.map((z: any) => z.name)
+          : undefined,
         route_notes: routeSheet.route_notes,
         details: routeSheet.details
           .map((detail) => {
@@ -1826,6 +1829,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.order_header.customer.person_id,
             name: detail.order_header.customer.name || 'Sin nombre',
+            alias: detail.order_header.customer.alias || undefined,
             phone: detail.order_header.customer.phone,
             address: detail.order_header.customer.address || 'Sin dirección',
           };
@@ -1858,6 +1862,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.one_off_purchase.person.person_id,
             name: detail.one_off_purchase.person.name || 'Sin nombre',
+            alias: detail.one_off_purchase.person.alias || undefined,
             phone: detail.one_off_purchase.person.phone,
             address: detail.one_off_purchase.person.address || 'Sin dirección',
           };
@@ -1890,6 +1895,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customerDto = {
             person_id: detail.one_off_purchase_header.person.person_id,
             name: detail.one_off_purchase_header.person.name || 'Sin nombre',
+            alias: detail.one_off_purchase_header.person.alias || undefined,
             phone: detail.one_off_purchase_header.person.phone,
             address:
               detail.one_off_purchase_header.person.address || 'Sin dirección',
@@ -1929,6 +1935,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             name:
               detail.cancellation_order.customer_subscription.person.name ||
               'Sin nombre',
+            alias:
+              detail.cancellation_order.customer_subscription.person.alias ||
+              undefined,
             phone: detail.cancellation_order.customer_subscription.person.phone,
             address:
               detail.cancellation_order.customer_subscription.person.address ||
@@ -1956,6 +1965,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             name:
               detail.cycle_payment.subscription_cycle.customer_subscription
                 .person.name || 'Sin nombre',
+            alias:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.alias || undefined,
             phone:
               detail.cycle_payment.subscription_cycle.customer_subscription
                 .person.phone,
@@ -2342,6 +2354,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       const customerDto = new CustomerDto();
       customerDto.person_id = updatedDetail.order_header.customer.person_id;
       customerDto.name = updatedDetail.order_header.customer.name || 'N/A';
+      customerDto.alias = updatedDetail.order_header.customer.alias || undefined;
       customerDto.phone = updatedDetail.order_header.customer.phone;
       customerDto.address =
         updatedDetail.order_header.customer.address || 'N/A';
@@ -2609,6 +2622,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           customer: {
             person_id: updatedDetail.order_header.customer.person_id,
             name: updatedDetail.order_header.customer.name || '',
+            alias: updatedDetail.order_header.customer.alias || undefined,
             phone: updatedDetail.order_header.customer.phone,
             address: updatedDetail.order_header.customer.address || '',
           },

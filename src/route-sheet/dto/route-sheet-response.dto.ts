@@ -15,6 +15,13 @@ export class CustomerDto {
   name: string;
 
   @ApiProperty({
+    description: 'Alias del cliente',
+    example: 'JP',
+    required: false,
+  })
+  alias?: string;
+
+  @ApiProperty({
     description: 'Teléfono del cliente',
     example: '+541155556666',
   })
