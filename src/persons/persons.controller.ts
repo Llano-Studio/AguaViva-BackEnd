@@ -285,6 +285,14 @@ export class PersonsController {
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED'],
   })
   @ApiQuery({
+    name: 'is_active',
+    required: false,
+    type: Boolean,
+    description:
+      'Filtrar por estado activo/inactivo. Por defecto muestra solo activos (true). También se acepta alias isActive/active.',
+    example: false,
+  })
+  @ApiQuery({
     name: 'page',
     required: false,
     type: Number,
