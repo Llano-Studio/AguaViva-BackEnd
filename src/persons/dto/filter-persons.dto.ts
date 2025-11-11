@@ -236,6 +236,26 @@ export class FilterPersonsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Type(() => Boolean)
+  @Transform(({ value }) => {
+    // Si no hay valor, no aplicar filtro
+    if (value === undefined || value === null || value === '') return undefined;
+
+    // Si ya es boolean, devolver tal cual
+    if (typeof value === 'boolean') return value;
+
+    // Si es string, normalizar y convertir
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase().trim();
+      if (lower === 'true' || lower === '1') return true;
+      if (lower === 'false' || lower === '0') return false;
+      return undefined;
+    }
+
+    // Si es number, convertir a boolean
+    if (typeof value === 'number') return value === 1;
+
+    // Cualquier otro caso, no aplicar filtro
+    return undefined;
+  })
   is_active?: boolean;
 }
