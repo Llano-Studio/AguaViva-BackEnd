@@ -285,6 +285,14 @@ export class PersonsController {
     enum: ['NONE', 'GREEN', 'YELLOW', 'RED'],
   })
   @ApiQuery({
+    name: 'is_active_values',
+    required: false,
+    type: String,
+    description:
+      'Filtrar por múltiples estados activos/inactivos. Acepta "true,false", "true%false" o array',
+    example: 'true,false',
+  })
+  @ApiQuery({
     name: 'is_active',
     required: false,
     type: Boolean,

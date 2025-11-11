@@ -262,6 +262,66 @@ export class FilterPersonsDto extends PaginationQueryDto {
   })
   is_active?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Filtrar por múltiples estados activos/inactivos. Acepta formatos: "true,false", "true%false" o array [true,false]. Si incluye ambos, mostrará ambos estados.',
+    isArray: true,
+    type: Boolean,
+    examples: [[true, false], 'true,false', 'true%false'],
+  })
+  @IsOptional()
+  @Transform(({ value, obj }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+
+    // si viene como string separado por comas o "%"
+    if (typeof value === 'string') {
+      const parts = value
+        .split(/[,%\s]/)
+        .map((p) => p.trim().toLowerCase())
+        .filter((p) => p.length > 0);
+
+      const bools = parts
+        .map((p) => (p === 'true' || p === '1' ? true : p === 'false' || p === '0' ? false : undefined))
+        .filter((b) => b !== undefined) as boolean[];
+
+      // Soportar palabras clave especiales
+      if (parts.some((p) => p === 'both' || p === 'all' || p === 'any' || p === '*')) {
+        return [true, false];
+      }
+
+      return bools.length > 0 ? Array.from(new Set(bools)) : undefined;
+    }
+
+    // si viene como array
+    if (Array.isArray(value)) {
+      const bools = value
+        .map((v) => {
+          if (typeof v === 'boolean') return v;
+          if (typeof v === 'string') {
+            const lower = v.toLowerCase().trim();
+            if (lower === 'true' || lower === '1') return true;
+            if (lower === 'false' || lower === '0') return false;
+            return undefined;
+          }
+          if (typeof v === 'number') return v === 1;
+          return undefined;
+        })
+        .filter((b) => b !== undefined) as boolean[];
+      return bools.length > 0 ? Array.from(new Set(bools)) : undefined;
+    }
+
+    // si el usuario envió is_active='both' en lugar de is_active_values
+    if (typeof obj?.is_active === 'string') {
+      const val = obj.is_active.toLowerCase();
+      if (val === 'both' || val === 'all' || val === 'any' || val === '*') {
+        return [true, false];
+      }
+    }
+
+    return undefined;
+  })
+  is_active_values?: boolean[];
+
   // Alias explícitos para pasar la validación con whitelist/forbidNonWhitelisted
   @ApiPropertyOptional({
     description: 'Alias del filtro activo/inactivo (equivalente a is_active)',
