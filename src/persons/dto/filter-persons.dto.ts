@@ -236,26 +236,70 @@ export class FilterPersonsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => {
+  @Transform(({ value, obj }) => {
+    // Unificar alias: permitir is_active, isActive o active desde la query
+    const raw = value ?? obj?.isActive ?? obj?.active;
+
     // Si no hay valor, no aplicar filtro
-    if (value === undefined || value === null || value === '') return undefined;
+    if (raw === undefined || raw === null || raw === '') return undefined;
 
     // Si ya es boolean, devolver tal cual
-    if (typeof value === 'boolean') return value;
+    if (typeof raw === 'boolean') return raw;
 
     // Si es string, normalizar y convertir
-    if (typeof value === 'string') {
-      const lower = value.toLowerCase().trim();
+    if (typeof raw === 'string') {
+      const lower = raw.toLowerCase().trim();
       if (lower === 'true' || lower === '1') return true;
       if (lower === 'false' || lower === '0') return false;
       return undefined;
     }
 
     // Si es number, convertir a boolean
-    if (typeof value === 'number') return value === 1;
+    if (typeof raw === 'number') return raw === 1;
 
     // Cualquier otro caso, no aplicar filtro
     return undefined;
   })
   is_active?: boolean;
+
+  // Alias explícitos para pasar la validación con whitelist/forbidNonWhitelisted
+  @ApiPropertyOptional({
+    description: 'Alias del filtro activo/inactivo (equivalente a is_active)',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase().trim();
+      if (lower === 'true' || lower === '1') return true;
+      if (lower === 'false' || lower === '0') return false;
+      return undefined;
+    }
+    if (typeof value === 'number') return value === 1;
+    return undefined;
+  })
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Segundo alias del filtro activo/inactivo (equivalente a is_active)',
+    example: 0,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase().trim();
+      if (lower === 'true' || lower === '1') return true;
+      if (lower === 'false' || lower === '0') return false;
+      return undefined;
+    }
+    if (typeof value === 'number') return value === 1;
+    return undefined;
+  })
+  active?: boolean;
 }
