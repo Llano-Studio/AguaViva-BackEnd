@@ -32,6 +32,33 @@ export class CustomerDto {
     example: 'Av. Rivadavia 1234',
   })
   address: string;
+
+  @ApiProperty({
+    description: 'Zona del cliente',
+    required: false,
+  })
+  zone?: {
+    zone_id: number;
+    code: string;
+    name: string;
+  };
+
+  @ApiProperty({
+    description: 'Localidad del cliente',
+    required: false,
+  })
+  locality?: {
+    locality_id: number;
+    code: string;
+    name: string;
+  };
+
+  @ApiProperty({
+    description: 'Instrucciones especiales de entrega',
+    example: 'Dejar en portería',
+    required: false,
+  })
+  special_instructions?: string;
 }
 
 export class ProductDto {
@@ -123,6 +150,12 @@ export class OrderDto {
     type: [OrderItemDto],
   })
   items: OrderItemDto[];
+
+  @ApiProperty({
+    description: 'Notas del pedido',
+    required: false,
+  })
+  notes?: string;
 }
 
 export class RouteSheetDetailResponseDto {
@@ -203,6 +236,17 @@ export class RouteSheetDetailResponseDto {
     required: false, // Se calculará en el backend
   })
   is_current_delivery?: boolean;
+
+  @ApiProperty({
+    description: 'Créditos/saldo de productos asociados a suscripción',
+    required: false,
+  })
+  credits?: {
+    product_description: string;
+    planned_quantity: number;
+    delivered_quantity: number;
+    remaining_balance: number;
+  }[];
 }
 
 export class DriverDto {
