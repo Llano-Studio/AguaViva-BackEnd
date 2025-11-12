@@ -34,6 +34,7 @@ import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { LoanedProductDetailDto } from './dto/person-response.dto';
 import {
   CreateComodatoDto,
@@ -312,7 +313,7 @@ export class PersonsController {
     required: false,
     type: Number,
     description: 'Resultados por página',
-    example: 10,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiQuery({
     name: 'sortBy',

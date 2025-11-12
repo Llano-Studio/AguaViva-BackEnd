@@ -26,6 +26,7 @@ import {
   CustomerSearchResponseDto,
 } from '../dto/customer-search.dto';
 import { PendingCyclesResponseDto } from '../dto/pending-cycles.dto';
+import { BUSINESS_CONFIG } from '../../common/config/business.config';
 import {
   GenerateManualCollectionDto,
   GenerateManualCollectionResponseDto,
@@ -105,8 +106,8 @@ export class ManualCollectionController {
   @ApiQuery({
     name: 'limit',
     required: false,
-    description: 'Cantidad de resultados por página (por defecto: 10)',
-    example: 10,
+    description: `Cantidad de resultados por página (por defecto: ${BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT})`,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiResponse({
     status: 200,
@@ -120,7 +121,7 @@ export class ManualCollectionController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', 'limit no puede ser mayor a 100'] },
+        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`] },
         error: { type: 'string', example: 'Bad Request' }
       }
     }

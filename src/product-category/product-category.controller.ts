@@ -27,6 +27,7 @@ import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('📦 Productos & Artículos')
 @ApiBearerAuth()
@@ -101,8 +102,8 @@ export class ProductCategoryController {
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Cantidad de resultados por página (máximo 100)',
-    example: 10,
+    description: `Cantidad de resultados por página (máximo ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT})`,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiQuery({
     name: 'sortBy',
@@ -152,7 +153,7 @@ export class ProductCategoryController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', 'limit no puede ser mayor a 100'] },
+        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`] },
         error: { type: 'string', example: 'Bad Request' }
       }
     }

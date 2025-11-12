@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { PrismaClient } from '@prisma/client';
 import { AuditRecordDto } from '../cycle-payments/dto';
 
@@ -63,7 +64,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
   async getPaymentAuditHistory(
     tableName: string,
     recordId: number,
-    limit: number = 50,
+    limit: number = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   ): Promise<AuditRecordDto[]> {
     try {
       const auditRecords = await this.payment_audit.findMany({

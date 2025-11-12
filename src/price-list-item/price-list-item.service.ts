@@ -160,8 +160,8 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     const {
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       price_list_id,
       product_id,
@@ -217,7 +217,12 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     data: PriceListItemResponseDto[];
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
-    const { page = 1, limit = 10, sortBy, product_id } = filterDto;
+    const {
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      sortBy,
+      product_id,
+    } = filterDto;
     await this.validatePriceListExists(paramPriceListId);
     try {
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);

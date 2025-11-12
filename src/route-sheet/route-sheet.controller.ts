@@ -409,7 +409,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
     
     🔸 **Paginación:**
     • page o limit con valores negativos o no numéricos
-    • limit excede el máximo permitido (100)
+    • limit excede el máximo permitido (${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT})
     
     🔸 **Ordenamiento:**
     • sortBy con campos no válidos
@@ -1156,3 +1156,4 @@ const routeDetails = oneOffPurchases.map(purchase => {
     };
   }
 }
+import { BUSINESS_CONFIG } from '../common/config/business.config';

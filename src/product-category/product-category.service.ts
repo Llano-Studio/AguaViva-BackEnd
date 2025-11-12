@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
@@ -31,7 +32,13 @@ export class ProductCategoryService
     data: ProductCategoryPrisma[];
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
-    const { page = 1, limit = 10, sortBy, search, name } = filters;
+    const {
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      sortBy,
+      search,
+      name,
+    } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 

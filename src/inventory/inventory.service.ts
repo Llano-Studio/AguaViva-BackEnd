@@ -22,8 +22,8 @@ import {
   InventoryDetailDto,
 } from './dto/filter-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
-import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
 export class InventoryService extends PrismaClient implements OnModuleInit {
@@ -389,8 +389,8 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     filters: FilterInventoryDto,
   ): Promise<PaginatedInventoryResponseDto> {
     const {
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       warehouse_id,
       warehouse_ids,

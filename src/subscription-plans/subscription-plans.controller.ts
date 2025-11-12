@@ -32,6 +32,7 @@ import {
   PaginatedSubscriptionPlanResponseDto,
   FilterSubscriptionPlansDto,
 } from './dto';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('📋 Planes de Suscripción')
 @ApiBearerAuth()
@@ -221,8 +222,8 @@ export class SubscriptionPlansController {
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Resultados por página (mínimo 1, máximo 100)',
-    example: 10,
+    description: `Resultados por página (mínimo 1, máximo ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT})`,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiResponse({
     status: 200,
@@ -245,7 +246,7 @@ export class SubscriptionPlansController {
       ],
       total: 1,
       page: 1,
-      limit: 10,
+      limit: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       totalPages: 1,
     },
   })
