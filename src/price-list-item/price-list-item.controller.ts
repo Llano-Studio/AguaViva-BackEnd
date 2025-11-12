@@ -26,6 +26,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 
@@ -119,7 +120,7 @@ export class PriceListItemController {
           properties: {
             total: { type: 'number', example: 100 },
             page: { type: 'number', example: 1 },
-            limit: { type: 'number', example: 10 },
+            limit: { type: 'number', example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT },
             totalPages: { type: 'number', example: 10 },
           },
         },
@@ -171,7 +172,7 @@ export class PriceListItemController {
     required: false,
     type: Number,
     description: 'Resultados por página',
-    example: 10,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiResponse({
     status: 200,
@@ -194,7 +195,7 @@ export class PriceListItemController {
           properties: {
             total: { type: 'number', example: 100 },
             page: { type: 'number', example: 1 },
-            limit: { type: 'number', example: 10 },
+            limit: { type: 'number', example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT },
             totalPages: { type: 'number', example: 10 },
           },
         },

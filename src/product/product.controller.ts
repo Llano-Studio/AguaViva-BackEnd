@@ -24,6 +24,7 @@ import {
   ApiBody,
   ApiConsumes,
 } from '@nestjs/swagger';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { Role } from '@prisma/client';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -126,7 +127,7 @@ export class ProductController {
     required: false,
     type: Number,
     description: 'Resultados por página',
-    example: 10,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiQuery({
     name: 'sortBy',

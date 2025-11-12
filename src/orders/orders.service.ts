@@ -978,8 +978,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       zoneIds,
       vehicleId,
       vehicleIds,
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
     } = filterDto;
 

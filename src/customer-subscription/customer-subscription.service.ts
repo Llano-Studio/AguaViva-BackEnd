@@ -21,6 +21,7 @@ import { SubscriptionCycleNumberingService } from '../common/services/subscripti
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -360,8 +361,8 @@ export class CustomerSubscriptionService
     );
 
     const {
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy = 'subscription_id',
       ...filterParams
     } = filters;

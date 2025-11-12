@@ -355,14 +355,20 @@ export class SubscriptionQuotaService
   async getAvailableCredits(
     subscriptionId: number,
   ): Promise<ProductQuotaInfo[]> {
-
-    const currentCycle = await this.getCurrentActiveCycle(subscriptionId);
+    let currentCycle = await this.getCurrentActiveCycle(subscriptionId);
     if (!currentCycle) {
-
-      return [];
+      // Si no hay ciclo activo, crearlo y reintentar
+      try {
+        await this.createNewCycleIfNeeded(subscriptionId);
+        currentCycle = await this.getCurrentActiveCycle(subscriptionId);
+      } catch (_) {
+        // Si falla la creación, devolver lista vacía sin romper la llamada
+        return [];
+      }
+      if (!currentCycle) {
+        return [];
+      }
     }
-
-
 
     return currentCycle.subscription_cycle_detail.map((detail) => ({
       product_id: detail.product_id,

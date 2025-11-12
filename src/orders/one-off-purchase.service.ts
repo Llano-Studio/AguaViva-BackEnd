@@ -605,7 +605,10 @@ export class OneOffPurchaseService
       );
 
       // Aplicar paginación al resultado combinado
-      const { page = 1, limit = 10 } = filters;
+      const {
+        page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+        limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      } = filters;
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
       const take = Math.max(1, limit);
       const paginatedData = allOrders.slice(skip, skip + take);
@@ -642,8 +645,8 @@ export class OneOffPurchaseService
       search,
       customerName,
       productName,
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       purchaseDateFrom,
       purchaseDateTo,
@@ -2082,8 +2085,8 @@ export class OneOffPurchaseService
         search,
         customerName,
         productName,
-        page = 1,
-        limit = 10,
+        page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+        limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
         sortBy,
         purchaseDateFrom,
         purchaseDateTo,

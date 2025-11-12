@@ -49,6 +49,7 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('🔐 Autenticación/Usuarios')
 @Controller('auth')
@@ -361,7 +362,7 @@ export class AuthController {
           items: { type: 'string' },
           example: [
             'page debe ser un número positivo',
-            'limit debe estar entre 1 y 100',
+            `limit debe estar entre 1 y ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`,
             'role debe ser un valor válido del enum Role'
           ]
         },

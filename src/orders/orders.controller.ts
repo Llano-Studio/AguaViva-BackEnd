@@ -420,7 +420,7 @@ export class OrdersController {
     required: false,
     description: 'Elementos por página',
     type: Number,
-    example: 10,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiQuery({
     name: 'sortBy',
@@ -465,7 +465,7 @@ export class OrdersController {
     
     🔸 **Paginación:**
     • page o limit con valores negativos o no numéricos
-    • limit excede el máximo permitido (100)
+    • limit excede el máximo permitido (${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT})
     
     🔸 **IDs de Entidades:**
     • customerId, orderId, zoneId con valores no numéricos`,
@@ -728,8 +728,8 @@ export class OrdersController {
   })
   async getCustomerOrderHistory(
     @Param('customerId', ParseIntPipe) customerId: number,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '10',
+    @Query('page') page: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE),
+    @Query('limit') limit: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT),
     @Query('status') status?: string,
     @Query('orderType') orderType?: string,
     @Query('orderDateFrom') orderDateFrom?: string,

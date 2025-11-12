@@ -32,6 +32,7 @@ import {
   AssignZonesToVehicleDto,
   VehicleZoneResponseDto,
 } from './dto';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('🚛 Vehículos')
 @ApiBearerAuth()
@@ -167,14 +168,14 @@ export class VehicleController {
     required: false,
     type: Number,
     description: 'Número de página para paginación',
-    example: 1,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Cantidad de resultados por página (máximo 100)',
-    example: 10,
+    description: `Cantidad de resultados por página (máximo ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT})`,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiResponse({
     status: 200,
