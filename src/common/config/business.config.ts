@@ -57,7 +57,7 @@ export const BUSINESS_CONFIG = {
   PAGINATION: {
     DEFAULT_PAGE: 1,
     DEFAULT_LIMIT: 10,
-    MAX_LIMIT: 100,
+    MAX_LIMIT: 999999,
   },
 } as const;
 

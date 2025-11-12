@@ -38,21 +38,22 @@ import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 import { SubscriptionQuotaService, ProductQuotaInfo } from '../common/services/subscription-quota.service';
 
-type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
-  include: {
-    driver: true;
-    vehicle: {
-      include: {
-        vehicle_zone: {
-          where: { is_active: true };
-          include: {
-            zone: {
-              include: {
-                locality: {
-                  include: {
-                    province: {
-                      include: {
-                        country: true;
+  type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
+    include: {
+      driver: true;
+      vehicle: {
+        include: {
+          vehicle_zone: {
+            where: { is_active: true };
+            include: {
+              zone: {
+                include: {
+                  locality: {
+                    include: {
+                      province: {
+                        include: {
+                          country: true;
+                        };
                       };
                     };
                   };
@@ -62,51 +63,52 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
           };
         };
       };
-    };
-    route_sheet_detail: {
-      include: {
-        order_header: {
-          include: {
-            customer: true;
-            order_item: {
-              include: {
-                product: true;
+      route_sheet_detail: {
+        include: {
+          order_header: {
+            include: {
+              customer: { include: { zone: true, locality: true } };
+              customer_subscription: { select: { notes: true } };
+              order_item: {
+                include: {
+                  product: true;
+                };
               };
             };
           };
-        };
-        one_off_purchase: {
-          include: {
-            person: true;
-            product: true;
+          one_off_purchase: {
+            include: {
+              person: { include: { zone: true, locality: true } };
+              product: true;
+            };
           };
-        };
-        one_off_purchase_header: {
-          include: {
-            person: true;
-            purchase_items: {
-              include: {
-                product: true;
+          one_off_purchase_header: {
+            include: {
+              person: { include: { zone: true, locality: true } };
+              purchase_items: {
+                include: {
+                  product: true;
+                };
               };
             };
           };
-        };
-        cancellation_order: {
-          include: {
-            customer_subscription: {
-              include: {
-                person: true;
+          cancellation_order: {
+            include: {
+              customer_subscription: {
+                include: {
+                  person: { include: { zone: true, locality: true } };
+                };
               };
             };
           };
-        };
-        cycle_payment: {
-          include: {
-            subscription_cycle: {
-              include: {
-                customer_subscription: {
-                  include: {
-                    person: true;
+          cycle_payment: {
+            include: {
+              subscription_cycle: {
+                include: {
+                  customer_subscription: {
+                    include: {
+                      person: { include: { zone: true, locality: true } };
+                    };
                   };
                 };
               };
@@ -115,8 +117,7 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
         };
       };
     };
-  };
-}>;
+  }>;
 
 @Injectable()
 export class RouteSheetService extends PrismaClient implements OnModuleInit {
@@ -592,23 +593,20 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               include: {
                 order_header: {
                   include: {
-                    customer: true,
-                    order_item: {
-                      include: {
-                        product: true,
-                      },
-                    },
+                    customer: { include: { zone: true, locality: true } },
+                    customer_subscription: { select: { notes: true } },
+                    order_item: { include: { product: true } },
                   },
                 },
                 one_off_purchase: {
                   include: {
-                    person: true,
+                    person: { include: { zone: true, locality: true } },
                     product: true,
                   },
                 },
                 one_off_purchase_header: {
                   include: {
-                    person: true,
+                    person: { include: { zone: true, locality: true } },
                     purchase_items: {
                       include: {
                         product: true,
@@ -620,7 +618,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true,
+                        person: { include: { zone: true, locality: true } },
                       },
                     },
                   },
@@ -881,7 +879,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         });
       });
-      return this.mapToRouteSheetResponseDto(result, selectedZoneIds);
+      return await this.mapToRouteSheetResponseDto(result, selectedZoneIds);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
@@ -946,11 +944,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     include: {
                       locality: {
                         include: {
-                          province: {
-                            include: {
-                              country: true,
-                            },
-                          },
+                          province: { include: { country: true } },
                         },
                       },
                     },
@@ -963,35 +957,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                  order_item: {
-                    include: {
-                      product: true,
-                    },
-                  },
+                  customer: { include: { zone: true, locality: true } },
+                  customer_subscription: { select: { notes: true } },
+                  order_item: { include: { product: true } },
                 },
               },
               one_off_purchase: {
                 include: {
-                  person: true,
+                  person: { include: { zone: true, locality: true } },
                   product: true,
                 },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                  purchase_items: {
-                    include: {
-                      product: true,
-                    },
-                  },
+                  person: { include: { zone: true, locality: true } },
+                  purchase_items: { include: { product: true } },
                 },
               },
               cancellation_order: {
                 include: {
                   customer_subscription: {
                     include: {
-                      person: true,
+                      person: { include: { zone: true, locality: true } },
                     },
                   },
                 },
@@ -1002,7 +989,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     include: {
                       customer_subscription: {
                         include: {
-                          person: true,
+                          person: { include: { zone: true, locality: true } },
                         },
                       },
                     },
@@ -1017,8 +1004,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         take: limit,
       });
 
-      const data = routeSheets.map((routeSheet) =>
-        this.mapToRouteSheetResponseDto(routeSheet),
+      const data = await Promise.all(
+        routeSheets.map((routeSheet) =>
+          this.mapToRouteSheetResponseDto(routeSheet),
+        ),
       );
 
       return {
@@ -1075,23 +1064,20 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           include: {
             order_header: {
               include: {
-                customer: true,
-                order_item: {
-                  include: {
-                    product: true,
-                  },
-                },
+                customer: { include: { zone: true, locality: true } },
+                customer_subscription: { select: { notes: true } },
+                order_item: { include: { product: true } },
               },
             },
             one_off_purchase: {
               include: {
-                person: true,
+                person: { include: { zone: true, locality: true } },
                 product: true,
               },
             },
             one_off_purchase_header: {
               include: {
-                person: true,
+                person: { include: { zone: true, locality: true } },
                 purchase_items: {
                   include: {
                     product: true,
@@ -1103,7 +1089,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               include: {
                 customer_subscription: {
                   include: {
-                    person: true,
+                    person: { include: { zone: true, locality: true } },
                   },
                 },
               },
@@ -1114,7 +1100,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true,
+                        person: { include: { zone: true, locality: true } },
                       },
                     },
                   },
@@ -1131,7 +1117,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         `${this.entityName} con ID ${id} no encontrada`,
       );
     }
-    return this.mapToRouteSheetResponseDto(routeSheet);
+    return await this.mapToRouteSheetResponseDto(routeSheet);
   }
 
   async update(
@@ -1577,7 +1563,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         });
       });
       // Pasar zone_ids seleccionadas para que zones_covered respete el payload del PATCH
-      return this.mapToRouteSheetResponseDto(result, zone_ids);
+      return await this.mapToRouteSheetResponseDto(result, zone_ids);
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -1771,10 +1757,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     }
   }
 
-  private mapToRouteSheetResponseDto(
+  private async mapToRouteSheetResponseDto(
     routeSheet: RouteSheetWithDetails,
     selectedZoneIds?: number[],
-  ): RouteSheetResponseDto {
+  ): Promise<RouteSheetResponseDto> {
     const driverDto: DriverDto = {
       id: routeSheet.driver.id,
       name: routeSheet.driver.name,
@@ -1844,6 +1830,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     }
 
     let currentDeliveryFound = false;
+    const normalize = (text?: string | null): string | undefined =>
+      (text || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .substring(0, 500) || undefined; // limitar longitud por seguridad
+
     const detailsDto: RouteSheetDetailResponseDto[] = sortedDetails.map(
       (detail) => {
         let customerDto: CustomerDto;
@@ -1858,6 +1850,24 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             alias: detail.order_header.customer.alias || undefined,
             phone: detail.order_header.customer.phone,
             address: detail.order_header.customer.address || 'Sin dirección',
+            zone: detail.order_header.customer.zone
+              ? {
+                  zone_id: detail.order_header.customer.zone.zone_id,
+                  code: detail.order_header.customer.zone.code,
+                  name: detail.order_header.customer.zone.name,
+                }
+              : undefined,
+            locality: detail.order_header.customer.locality
+              ? {
+                locality_id: detail.order_header.customer.locality.locality_id,
+                code: detail.order_header.customer.locality.code,
+                name: detail.order_header.customer.locality.name,
+              }
+              : undefined,
+            special_instructions: normalize(
+              detail.order_header.customer_subscription?.notes ||
+                (detail.order_header.customer as any)?.notes,
+            ),
           };
 
           const orderItemsDto: OrderItemDto[] =
@@ -1883,6 +1893,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             subscription_id: detail.order_header.subscription_id || undefined,
             customer: customerDto,
             items: orderItemsDto,
+            notes: normalize((detail.order_header as any)?.notes),
           };
         } else if (detail.one_off_purchase) {
           // Compra one-off individual
@@ -1892,6 +1903,23 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             alias: detail.one_off_purchase.person.alias || undefined,
             phone: detail.one_off_purchase.person.phone,
             address: detail.one_off_purchase.person.address || 'Sin dirección',
+            zone: detail.one_off_purchase.person.zone
+              ? {
+                  zone_id: detail.one_off_purchase.person.zone.zone_id,
+                  code: detail.one_off_purchase.person.zone.code,
+                  name: detail.one_off_purchase.person.zone.name,
+                }
+              : undefined,
+            locality: detail.one_off_purchase.person.locality
+              ? {
+                locality_id: detail.one_off_purchase.person.locality.locality_id,
+                code: detail.one_off_purchase.person.locality.code,
+                name: detail.one_off_purchase.person.locality.name,
+              }
+              : undefined,
+            special_instructions: normalize(
+              (detail.one_off_purchase.person as any)?.notes,
+            ),
           };
 
           const productDto: ProductDto = {
@@ -1916,6 +1944,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             status: detail.one_off_purchase.status,
             customer: customerDto,
             items: orderItemsDto,
+            notes: normalize((detail.one_off_purchase as any)?.notes),
           };
         } else if (detail.one_off_purchase_header) {
           // Compra one-off con header
@@ -1926,6 +1955,24 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             phone: detail.one_off_purchase_header.person.phone,
             address:
               detail.one_off_purchase_header.person.address || 'Sin dirección',
+            zone: detail.one_off_purchase_header.person.zone
+              ? {
+                  zone_id: detail.one_off_purchase_header.person.zone.zone_id,
+                  code: detail.one_off_purchase_header.person.zone.code,
+                  name: detail.one_off_purchase_header.person.zone.name,
+                }
+              : undefined,
+            locality: detail.one_off_purchase_header.person.locality
+              ? {
+                locality_id:
+                  detail.one_off_purchase_header.person.locality.locality_id,
+                code: detail.one_off_purchase_header.person.locality.code,
+                name: detail.one_off_purchase_header.person.locality.name,
+              }
+              : undefined,
+            special_instructions: normalize(
+              (detail.one_off_purchase_header.person as any)?.notes,
+            ),
           };
 
           const orderItemsDto: OrderItemDto[] = (
@@ -1953,6 +2000,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             status: detail.one_off_purchase_header.status,
             customer: customerDto,
             items: orderItemsDto,
+            notes: normalize((detail.one_off_purchase_header as any)?.notes),
           };
         } else if (detail.cancellation_order) {
           // Orden de cancelación
@@ -1969,6 +2017,38 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             address:
               detail.cancellation_order.customer_subscription.person.address ||
               'Sin dirección',
+            zone: detail.cancellation_order.customer_subscription.person.zone
+              ? {
+                  zone_id:
+                    detail.cancellation_order.customer_subscription.person.zone
+                      .zone_id,
+                  code:
+                    detail.cancellation_order.customer_subscription.person.zone
+                      .code,
+                  name:
+                    detail.cancellation_order.customer_subscription.person.zone
+                      .name,
+                }
+              : undefined,
+            locality:
+              detail.cancellation_order.customer_subscription.person.locality
+                ? {
+                    locality_id:
+                      detail.cancellation_order.customer_subscription.person
+                        .locality.locality_id,
+                    code:
+                      detail.cancellation_order.customer_subscription.person
+                        .locality.code,
+                    name:
+                      detail.cancellation_order.customer_subscription.person
+                        .locality.name,
+                  }
+                : undefined,
+            special_instructions: normalize(
+              detail.cancellation_order.customer_subscription?.notes ||
+                (detail.cancellation_order.customer_subscription.person as any)
+                  ?.notes,
+            ),
           };
 
           // Para órdenes de cancelación, no tenemos productos específicos
@@ -1982,6 +2062,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             status: 'CANCELLED',
             customer: customerDto,
             items: orderItemsDto,
+            notes: normalize(
+              detail.cancellation_order.customer_subscription?.notes,
+            ),
           };
         } else if (detail.cycle_payment) {
           // Pedido de cobranza
@@ -2001,6 +2084,42 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             address:
               detail.cycle_payment.subscription_cycle.customer_subscription
                 .person.address || 'Sin dirección',
+            zone:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.zone
+                ? {
+                    zone_id:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.zone.zone_id,
+                    code:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.zone.code,
+                    name:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.zone.name,
+                  }
+                : undefined,
+            locality:
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                .person.locality
+                ? {
+                    locality_id:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.locality.locality_id,
+                    code:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.locality.code,
+                    name:
+                      detail.cycle_payment.subscription_cycle
+                        .customer_subscription.person.locality.name,
+                  }
+                : undefined,
+            special_instructions: normalize(
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                ?.notes ||
+                (detail.cycle_payment.subscription_cycle.customer_subscription
+                  .person as any)?.notes,
+            ),
           };
 
           // Para pedidos de cobranza, no tenemos productos específicos
@@ -2013,6 +2132,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             status: 'PENDING', // Los cycle_payments no tienen status, usamos un valor por defecto
             customer: customerDto,
             items: orderItemsDto,
+            notes: normalize(
+              detail.cycle_payment.subscription_cycle.customer_subscription
+                ?.notes,
+            ),
           };
         } else {
           throw new Error('Detalle de hoja de ruta sin orden válida');
@@ -2039,6 +2162,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         };
       },
     );
+    // Enrich details with subscription credits when applicable
+    const detailsWithCredits = await Promise.all(
+      detailsDto.map(async (d) => {
+        const subscriptionId = d.order?.subscription_id;
+        if (subscriptionId) {
+          try {
+            const credits = await this.subscriptionQuotaService.getAvailableCredits(
+              subscriptionId,
+            );
+            d.credits = credits.map((c) => ({
+              product_description: c.product_description,
+              planned_quantity: c.planned_quantity,
+              delivered_quantity: c.delivered_quantity,
+              remaining_balance: c.remaining_balance,
+            }));
+          } catch (err) {
+            // Ignore credit errors to avoid breaking core response
+          }
+        }
+        return d;
+      }),
+    );
 
     return new RouteSheetResponseDto({
       route_sheet_id: routeSheet.route_sheet_id,
@@ -2046,7 +2191,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       vehicle: vehicleDto,
       delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
       route_notes: routeSheet.route_notes || undefined,
-      details: detailsDto,
+      details: detailsWithCredits,
       zones_covered: zonesCoveredDto,
     });
   }
@@ -2118,35 +2263,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                  order_item: {
-                    include: {
-                      product: true,
-                    },
-                  },
+                  customer: { include: { zone: true, locality: true } },
+                  customer_subscription: { select: { notes: true } },
+                  order_item: { include: { product: true } },
                 },
               },
               one_off_purchase: {
                 include: {
-                  person: true,
+                  person: { include: { zone: true, locality: true } },
                   product: true,
                 },
               },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                  purchase_items: {
-                    include: {
-                      product: true,
-                    },
-                  },
+                  person: { include: { zone: true, locality: true } },
+                  purchase_items: { include: { product: true } },
                 },
               },
               cancellation_order: {
                 include: {
                   customer_subscription: {
                     include: {
-                      person: true,
+                      person: { include: { zone: true, locality: true } },
                     },
                   },
                 },
@@ -2157,7 +2295,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     include: {
                       customer_subscription: {
                         include: {
-                          person: true,
+                          person: { include: { zone: true, locality: true } },
                         },
                       },
                     },
@@ -2168,7 +2306,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           },
         },
       });
-      return this.mapToRouteSheetResponseDto(
+      return await this.mapToRouteSheetResponseDto(
         updatedRouteSheet as RouteSheetWithDetails,
       );
     } catch (error) {
@@ -2580,12 +2718,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         include: {
           order_header: {
             include: {
-              customer: true,
-              order_item: {
-                include: {
-                  product: true,
-                },
-              },
+              customer: { include: { zone: true, locality: true } },
+              customer_subscription: { select: { notes: true } },
+              order_item: { include: { product: true } },
             },
           },
         },
@@ -2601,12 +2736,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                  order_item: {
-                    include: {
-                      product: true,
-                    },
-                  },
+                  customer: { include: { zone: true, locality: true } },
+                  customer_subscription: { select: { notes: true } },
+                  order_item: { include: { product: true } },
                 },
               },
             },
@@ -2641,11 +2773,17 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       // Solo agregar información de orden si existe order_header
       if (updatedDetail.order_header) {
+        const normalize = (text?: string | null): string | undefined =>
+          (text || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .substring(0, 500) || undefined;
+
         responseDto.order = {
           order_id: updatedDetail.order_header.order_id,
           order_date: updatedDetail.order_header.order_date.toISOString(),
           total_amount: updatedDetail.order_header.total_amount.toString(),
-          status: 'PENDING',
+          status: updatedDetail.order_header.status,
           subscription_id: updatedDetail.order_header.subscription_id || undefined,
           customer: {
             person_id: updatedDetail.order_header.customer.person_id,
@@ -2653,6 +2791,25 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             alias: updatedDetail.order_header.customer.alias || undefined,
             phone: updatedDetail.order_header.customer.phone,
             address: updatedDetail.order_header.customer.address || '',
+            zone: updatedDetail.order_header.customer.zone
+              ? {
+                  zone_id: updatedDetail.order_header.customer.zone.zone_id,
+                  code: updatedDetail.order_header.customer.zone.code,
+                  name: updatedDetail.order_header.customer.zone.name,
+                }
+              : undefined,
+            locality: updatedDetail.order_header.customer.locality
+              ? {
+                  locality_id:
+                    updatedDetail.order_header.customer.locality.locality_id,
+                  code: updatedDetail.order_header.customer.locality.code,
+                  name: updatedDetail.order_header.customer.locality.name,
+                }
+              : undefined,
+            special_instructions: normalize(
+              updatedDetail.order_header.customer_subscription?.notes ||
+                (updatedDetail.order_header.customer as any)?.notes,
+            ),
           },
           items: updatedDetail.order_header.order_item.map((item) => ({
             order_item_id: item.order_item_id,
@@ -2664,6 +2821,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             delivered_quantity: 0,
             returned_quantity: 0,
           })),
+          notes: normalize((updatedDetail.order_header as any)?.notes),
         };
       }
 

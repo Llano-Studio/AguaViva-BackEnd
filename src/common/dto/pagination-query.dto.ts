@@ -42,7 +42,7 @@ export class PaginationQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(BUSINESS_CONFIG.PAGINATION.MAX_LIMIT)
   limit?: number;
 
   @ApiPropertyOptional({

@@ -231,68 +231,61 @@ export class FilterPersonsDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'Filtrar por estado activo/inactivo de la persona. Por defecto solo muestra activos (true)',
-    example: false,
+      'Filtrar por estado activo/inactivo. Acepta: true, false, "true,false" (ambos estados), "both", "all"',
+    examples: {
+      single_true: { value: true, summary: 'Solo activos' },
+      single_false: { value: false, summary: 'Solo inactivos' },
+      both_comma: { value: 'true,false', summary: 'Ambos estados (comas)' },
+      both_keyword: { value: 'both', summary: 'Ambos estados (keyword)' },
+    },
   })
   @IsOptional()
-  @IsBoolean()
-  @Transform(({ value, obj }) => {
-    // Unificar alias: permitir is_active, isActive o active desde la query
-    const raw = value ?? obj?.isActive ?? obj?.active;
-
+  @Transform(({ value }) => {
     // Si no hay valor, no aplicar filtro
-    if (raw === undefined || raw === null || raw === '') return undefined;
+    if (value === undefined || value === null || value === '') return undefined;
 
     // Si ya es boolean, devolver tal cual
-    if (typeof raw === 'boolean') return raw;
+    if (typeof value === 'boolean') return value;
 
-    // Si es string, normalizar y convertir
-    if (typeof raw === 'string') {
-      const lower = raw.toLowerCase().trim();
+    // Si es string, verificar si contiene múltiples valores
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase().trim();
+
+      // Palabras clave para "ambos estados"
+      if (lower === 'both' || lower === 'all' || lower === 'any' || lower === '*') {
+        return 'BOTH'; // Marcador especial para indicar ambos
+      }
+
+      // Si contiene comas o %, procesar como múltiple
+      if (lower.includes(',') || lower.includes('%')) {
+        const parts = lower
+          .split(/[,%]/)
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+
+        const hasTrue = parts.some(p => p === 'true' || p === '1');
+        const hasFalse = parts.some(p => p === 'false' || p === '0');
+
+        if (hasTrue && hasFalse) {
+          return 'BOTH'; // Ambos estados
+        } else if (hasTrue) {
+          return true;
+        } else if (hasFalse) {
+          return false;
+        }
+        return undefined;
+      }
+
+      // Valor único
       if (lower === 'true' || lower === '1') return true;
       if (lower === 'false' || lower === '0') return false;
       return undefined;
     }
 
     // Si es number, convertir a boolean
-    if (typeof raw === 'number') return raw === 1;
+    if (typeof value === 'number') return value === 1;
 
-    // Cualquier otro caso, no aplicar filtro
-    return undefined;
-  })
-  is_active?: boolean;
-
-  @ApiPropertyOptional({
-    description:
-      'Filtrar por múltiples estados activos/inactivos. Acepta formatos: "true,false", "true%false" o array [true,false]. Si incluye ambos, mostrará ambos estados.',
-    isArray: true,
-    type: Boolean,
-    examples: [[true, false], 'true,false', 'true%false'],
-  })
-  @IsOptional()
-  @Transform(({ value, obj }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-
-    // si viene como string separado por comas o "%"
-    if (typeof value === 'string') {
-      const parts = value
-        .split(/[,%\s]/)
-        .map((p) => p.trim().toLowerCase())
-        .filter((p) => p.length > 0);
-
-      const bools = parts
-        .map((p) => (p === 'true' || p === '1' ? true : p === 'false' || p === '0' ? false : undefined))
-        .filter((b) => b !== undefined) as boolean[];
-
-      // Soportar palabras clave especiales
-      if (parts.some((p) => p === 'both' || p === 'all' || p === 'any' || p === '*')) {
-        return [true, false];
-      }
-
-      return bools.length > 0 ? Array.from(new Set(bools)) : undefined;
-    }
-
-    // si viene como array
+    // Si es array (caso edge), procesar
     if (Array.isArray(value)) {
       const bools = value
         .map((v) => {
@@ -301,65 +294,20 @@ export class FilterPersonsDto extends PaginationQueryDto {
             const lower = v.toLowerCase().trim();
             if (lower === 'true' || lower === '1') return true;
             if (lower === 'false' || lower === '0') return false;
-            return undefined;
           }
           if (typeof v === 'number') return v === 1;
           return undefined;
         })
-        .filter((b) => b !== undefined) as boolean[];
-      return bools.length > 0 ? Array.from(new Set(bools)) : undefined;
-    }
+        .filter((b) => b !== undefined);
 
-    // si el usuario envió is_active='both' en lugar de is_active_values
-    if (typeof obj?.is_active === 'string') {
-      const val = obj.is_active.toLowerCase();
-      if (val === 'both' || val === 'all' || val === 'any' || val === '*') {
-        return [true, false];
-      }
-    }
-
-    return undefined;
-  })
-  is_active_values?: boolean[];
-
-  // Alias explícitos para pasar la validación con whitelist/forbidNonWhitelisted
-  @ApiPropertyOptional({
-    description: 'Alias del filtro activo/inactivo (equivalente a is_active)',
-    example: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-      const lower = value.toLowerCase().trim();
-      if (lower === 'true' || lower === '1') return true;
-      if (lower === 'false' || lower === '0') return false;
+      const unique = Array.from(new Set(bools));
+      if (unique.length === 2) return 'BOTH';
+      if (unique.length === 1) return unique[0];
       return undefined;
     }
-    if (typeof value === 'number') return value === 1;
-    return undefined;
-  })
-  isActive?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Segundo alias del filtro activo/inactivo (equivalente a is_active)',
-    example: 0,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => {
-    if (value === undefined || value === null || value === '') return undefined;
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-      const lower = value.toLowerCase().trim();
-      if (lower === 'true' || lower === '1') return true;
-      if (lower === 'false' || lower === '0') return false;
-      return undefined;
-    }
-    if (typeof value === 'number') return value === 1;
+    // Cualquier otro caso, no aplicar filtro
     return undefined;
   })
-  active?: boolean;
+  is_active?: boolean | 'BOTH';
 }

@@ -307,33 +307,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       sortBy,
     } = filters;
 
-    // Unificar posibles alias del filtro de actividad
-    const isActiveFilterInput =
-      is_active !== undefined
-        ? is_active
-        : (filters as any).isActive !== undefined
-        ? (filters as any).isActive
-        : (filters as any).active !== undefined
-        ? (filters as any).active
-        : undefined;
-
     const where: Prisma.personWhereInput = {};
 
     // Determinar el filtro final de is_active
-    let finalIsActive: boolean | undefined = undefined;
-    if (Array.isArray(filters.is_active_values) && filters.is_active_values.length > 0) {
-      const unique = Array.from(new Set(filters.is_active_values));
-      if (unique.length === 1) {
-        finalIsActive = unique[0];
-      } else {
-        finalIsActive = undefined; // ambos estados: no aplicar filtro
+    // Si is_active es 'BOTH', no aplicar filtro (mostrar ambos estados)
+    // Si is_active es boolean, aplicar filtro directo
+    if (is_active !== undefined) {
+      if (is_active !== 'BOTH' && typeof is_active === 'boolean') {
+        where.is_active = is_active;
       }
-    } else {
-      finalIsActive = isActiveFilterInput !== undefined ? isActiveFilterInput : true;
-    }
-
-    if (finalIsActive !== undefined) {
-      where.is_active = finalIsActive;
+      // Si es 'BOTH', no se aplica ningún filtro (muestra ambos estados)
     }
 
     // Búsqueda general en múltiples campos (como en auth.service.ts)
