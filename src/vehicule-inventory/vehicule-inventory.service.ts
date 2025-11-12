@@ -10,6 +10,7 @@ import { CreateVehiculeInventoryDto } from './dto/create-vehicule-inventory.dto'
 import { UpdateVehiculeInventoryDto } from './dto/update-vehicule-inventory.dto';
 import { FilterVehiculeInventoryDto } from './dto/filter-vehicle-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
@@ -83,7 +84,13 @@ export class VehiculeInventoryService
     limit: number;
     totalPages: number;
   }> {
-    const { page = 1, limit = 10, sortBy, vehicle_id, product_id } = filters;
+    const {
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      sortBy,
+      vehicle_id,
+      product_id,
+    } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 

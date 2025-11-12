@@ -19,6 +19,7 @@ import {
   ApiQuery,
   ApiBody,
 } from '@nestjs/swagger';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { VehiculeInventoryService } from './vehicule-inventory.service';
 import {
   UpdateVehiculeInventoryDto,
@@ -172,7 +173,7 @@ export class VehiculeInventoryController {
     required: false,
     type: Number,
     description: 'Resultados por página',
-    example: 10,
+    example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
   })
   @ApiResponse({
     status: 200,
