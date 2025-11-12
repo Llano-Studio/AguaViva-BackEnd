@@ -11,6 +11,7 @@ import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { FilterZonesDto } from './dto/filter-zones.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
@@ -26,8 +27,8 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     meta: { total: number; page: number; limit: number; totalPages: number };
   }> {
     const {
-      page = 1,
-      limit = 10,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       search,
       name,

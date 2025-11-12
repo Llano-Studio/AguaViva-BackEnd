@@ -28,6 +28,7 @@ import {
 } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 
 @Injectable()
@@ -119,7 +120,14 @@ export class SubscriptionPlansService
   async findAll(
     filters: FilterSubscriptionPlansDto,
   ): Promise<PaginatedSubscriptionPlanResponseDto> {
-    const { sortBy, search, name, is_active, page = 1, limit = 10 } = filters;
+    const {
+      sortBy,
+      search,
+      name,
+      is_active,
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+    } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
