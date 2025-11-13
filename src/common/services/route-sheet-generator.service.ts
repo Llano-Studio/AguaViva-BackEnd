@@ -72,6 +72,16 @@ export interface CollectionRouteSheetPdfData {
       name: string;
       address: string;
       phone: string;
+      zone?: {
+        zone_id: number;
+        code: string;
+        name: string;
+      };
+      locality?: {
+        locality_id: number;
+        code: string;
+        name: string;
+      };
     };
     amount: number;
     payment_due_date: string;
@@ -80,6 +90,13 @@ export interface CollectionRouteSheetPdfData {
     delivery_status: string;
     delivery_time?: string;
     comments?: string;
+    subscription_id?: number;
+    credits?: Array<{
+      product_description: string;
+      planned_quantity: number;
+      delivered_quantity: number;
+      remaining_balance: number;
+    }>;
   }>;
 }
 
