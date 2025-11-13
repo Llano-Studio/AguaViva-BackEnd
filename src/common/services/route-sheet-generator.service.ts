@@ -84,6 +84,10 @@ export interface CollectionRouteSheetPdfData {
       };
     };
     amount: number;
+    payment_reference?: string;
+    payment_notes?: string;
+    payment_method?: string;
+    subscription_notes?: string;
     payment_due_date: string;
     cycle_period: string;
     subscription_plan: string;
