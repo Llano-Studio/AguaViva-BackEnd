@@ -2865,8 +2865,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                     include: {
                       customer_subscription: {
                         include: {
-                          person: true,
+                          person: {
+                            include: {
+                              zone: true,
+                              locality: true,
+                            },
+                          },
                           subscription_plan: true,
+                        },
+                      },
+                      subscription_cycle_detail: {
+                        include: {
+                          product: true,
                         },
                       },
                     },
@@ -2921,21 +2931,44 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           name: routeSheet.vehicle.name,
         },
         zone_identifiers: zoneIdentifiers,
-        collections: collectionDetails.map((detail) => ({
-          cycle_payment_id: detail.cycle_payment_id,
-          customer: {
-            name: detail.cycle_payment.subscription_cycle.customer_subscription.person.name,
-            address: detail.cycle_payment.subscription_cycle.customer_subscription.person.address,
-            phone: detail.cycle_payment.subscription_cycle.customer_subscription.person.phone,
-          },
-          amount: detail.cycle_payment.amount.toNumber(),
-          payment_due_date: detail.cycle_payment.payment_date?.toISOString().split('T')[0] || '',
-          cycle_period: detail.cycle_payment.subscription_cycle.cycle_number.toString(),
-          subscription_plan: detail.cycle_payment.subscription_cycle.customer_subscription.subscription_plan.name,
-          delivery_status: detail.delivery_status,
-          delivery_time: detail.delivery_time,
-          comments: detail.comments,
-        })),
+        collections: collectionDetails.map((detail) => {
+          const person = detail.cycle_payment.subscription_cycle.customer_subscription.person;
+          const subscription = detail.cycle_payment.subscription_cycle.customer_subscription;
+          const cycle = detail.cycle_payment.subscription_cycle;
+
+          return {
+            cycle_payment_id: detail.cycle_payment_id,
+            customer: {
+              name: person.name,
+              address: person.address,
+              phone: person.phone,
+              zone: person.zone ? {
+                zone_id: person.zone.zone_id,
+                code: person.zone.code,
+                name: person.zone.name,
+              } : undefined,
+              locality: person.locality ? {
+                locality_id: person.locality.locality_id,
+                code: person.locality.code,
+                name: person.locality.name,
+              } : undefined,
+            },
+            amount: detail.cycle_payment.amount.toNumber(),
+            payment_due_date: detail.cycle_payment.payment_date?.toISOString().split('T')[0] || '',
+            cycle_period: cycle.cycle_number.toString(),
+            subscription_plan: subscription.subscription_plan.name,
+            delivery_status: detail.delivery_status,
+            delivery_time: detail.delivery_time,
+            comments: detail.comments,
+            subscription_id: subscription.subscription_id,
+            credits: cycle.subscription_cycle_detail?.map((cycleDetail) => ({
+              product_description: cycleDetail.product.description,
+              planned_quantity: cycleDetail.planned_quantity,
+              delivered_quantity: cycleDetail.delivered_quantity,
+              remaining_balance: cycleDetail.remaining_balance,
+            })) || [],
+          };
+        }),
       };
 
       // Generar el PDF usando el servicio de generación de hojas de ruta

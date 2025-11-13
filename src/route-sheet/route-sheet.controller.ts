@@ -51,6 +51,7 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FailedOrderReassignmentService } from '../common/services/failed-order-reassignment.service';
+import { BUSINESS_CONFIG } from '../common/config/business.config';
 
 @ApiTags('🛒 Hojas de Ruta')
 @ApiBearerAuth()
@@ -1156,4 +1157,3 @@ const routeDetails = oneOffPurchases.map(purchase => {
     };
   }
 }
-import { BUSINESS_CONFIG } from '../common/config/business.config';
