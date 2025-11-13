@@ -106,7 +106,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
   
   // Configuración de colores para impresión en blanco y negro
   private readonly colors = {
-    primary: '#000000',        // Negro sólido para encabezados
+    primary: '#000000',        // Rojo para encabezados
     secondary: '#333333',      // Gris oscuro
     bgPrimary: '#F5F5F5',      // Gris muy claro para fondos alternados
     bgSecondary: '#E0E0E0',    // Gris claro
@@ -1182,7 +1182,12 @@ export class RouteSheetGeneratorService extends PrismaClient {
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
       { text: (index + 1).toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
-      { text: collection.customer.address || '-', align: 'center' },
+      { 
+        text: collection.customer.address 
+          ? `${collection.customer.address}${collection.customer.locality?.name ? ` - ${collection.customer.locality.name}` : ''}`
+          : '-', 
+        align: 'center' 
+      },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
       { text: new Date(collection.payment_due_date).toLocaleDateString('es-ES'), align: 'center' },

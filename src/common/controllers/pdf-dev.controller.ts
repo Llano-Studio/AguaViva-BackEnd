@@ -21,91 +21,136 @@ export class PdfDevController {
    */
   @Get('preview-collection-route')
   async previewCollectionRoute(@Res() res: Response) {
-    // Datos de prueba
+    // Usar la nueva estructura CollectionRouteSheetPdfData
     const testData: CollectionRouteSheetPdfData = {
-      route_sheet_id: 1234,
-      delivery_date: new Date().toISOString(),
+      route_sheet_id: 23,
+      delivery_date: "2025-11-14",
       driver: {
-        name: 'Juan Pérez',
-        email: 'juan.perez@aguaviva.com',
+        name: "chofer 1",
+        email: "chofer1@gmail.com"
       },
       vehicle: {
-        code: 'VH-001',
-        name: 'Camión Mercedes Benz 1518',
+        code: "aks-123",
+        name: "mobil 1"
       },
-      route_notes: 'Ruta prioritaria - Clientes con pagos vencidos',
-      zone_identifiers: ['Centro', 'Norte'],
+      route_notes: "cargar combustible en YPF sarmiento",
+      zone_identifiers: ["z-1-res", "z-2-res", "z-3-res"],
       collections: [
         {
-          cycle_payment_id: 1,
+          cycle_payment_id: 42,
           customer: {
-            name: 'María González',
-            address: 'Av. Sarmiento 1234',
-            phone: '3624-123456',
+            name: "elsa moro",
+            address: "jose hernandez 270",
+            phone: "3624950203",
+            zone: {
+              zone_id: 11,
+              code: "z-2-res",
+              name: "zona 2"
+            },
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia"
+            }
           },
-          amount: 5500.50,
-          payment_due_date: new Date().toISOString(),
-          cycle_period: 'Enero 2025',
-          subscription_plan: 'Plan Familiar',
-          delivery_status: 'pending',
-          comments: 'Cliente preferencial',
+          amount: 4500,
+          payment_due_date: "2025-11-15",
+          cycle_period: "MONTHLY",
+          subscription_plan: "Plan Premium",
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          comments: "timbre 6W - avisar antes de ir",
+          subscription_id: 23,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
         },
         {
-          cycle_payment_id: 2,
+          cycle_payment_id: 43,
           customer: {
-            name: 'Carlos Rodríguez',
-            address: 'Calle Francia 567',
-            phone: '3624-654321',
+            name: "daiana gonzalez",
+            address: "san martin 450",
+            phone: "3624888999",
+            zone: {
+              zone_id: 11,
+              code: "z-2-res",
+              name: "zona 2"
+            },
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia"
+            }
           },
-          amount: 3200.00,
-          payment_due_date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 días atrás
-          cycle_period: 'Enero 2025',
-          subscription_plan: 'Plan Básico',
-          delivery_status: 'overdue',
-          comments: 'Pago atrasado',
+          amount: 3200,
+          payment_due_date: "2025-11-10",
+          cycle_period: "MONTHLY",
+          subscription_plan: "Plan Básico",
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          comments: "portón verde - casa con rejas",
+          subscription_id: 24,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
         },
         {
-          cycle_payment_id: 3,
+          cycle_payment_id: 44,
           customer: {
-            name: 'Ana Martínez',
-            address: 'Av. Alberdi 890',
-            phone: '3624-789012',
+            name: "santiago valussi",
+            address: "moreno 789",
+            phone: "3624777888",
+            zone: {
+              zone_id: 12,
+              code: "z-3-res", 
+              name: "zona 3"
+            },
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia"
+            }
           },
-          amount: 4100.75,
-          payment_due_date: new Date().toISOString(),
-          cycle_period: 'Enero 2025',
-          subscription_plan: 'Plan Estándar',
-          delivery_status: 'pending',
-        },
-        {
-          cycle_payment_id: 4,
-          customer: {
-            name: 'Roberto Silva',
-            address: 'Calle Belgrano 234',
-            phone: '3624-345678',
-          },
-          amount: 6800.00,
-          payment_due_date: new Date().toISOString(),
-          cycle_period: 'Enero 2025',
-          subscription_plan: 'Plan Premium',
-          delivery_status: 'delivered',
-          delivery_time: '10:30',
-          comments: 'Pagado en efectivo',
-        },
-        {
-          cycle_payment_id: 5,
-          customer: {
-            name: 'Laura Fernández',
-            address: 'Av. 9 de Julio 456',
-            phone: '3624-901234',
-          },
-          amount: 4500.25,
-          payment_due_date: new Date().toISOString(),
-          cycle_period: 'Enero 2025',
-          subscription_plan: 'Plan Familiar',
-          delivery_status: 'pending',
-        },
-      ],
+          amount: 5800,
+          payment_due_date: "2025-11-12",
+          cycle_period: "MONTHLY", 
+          subscription_plan: "Plan Familiar",
+          delivery_status: "PENDING",
+          delivery_time: "09:00-13:00",
+          comments: "departamento 2B - interfono roto",
+          subscription_id: 25,
+          credits: [
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 8,
+              delivered_quantity: 3,
+              remaining_balance: 5
+            },
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 2,
+              delivered_quantity: 0,
+              remaining_balance: 2
+            }
+          ]
+        }
+      ]
     };
 
     try {
@@ -227,46 +272,6 @@ export class PdfDevController {
                 }
               }
             }
-          },
-          {
-            zone_id: 13,
-            code: "z-4-res",
-            name: "zona 4",
-            locality: {
-              locality_id: 1,
-              code: "RES",
-              name: "Resistencia",
-              province: {
-                province_id: 1,
-                code: "CH",
-                name: "Chaco",
-                country: {
-                  country_id: 1,
-                  code: "AR",
-                  name: "Argentina"
-                }
-              }
-            }
-          },
-          {
-            zone_id: 14,
-            code: "z-5-res",
-            name: "zona 5",
-            locality: {
-              locality_id: 1,
-              code: "RES",
-              name: "Resistencia",
-              province: {
-                province_id: 1,
-                code: "CH",
-                name: "Chaco",
-                country: {
-                  country_id: 1,
-                  code: "AR",
-                  name: "Argentina"
-                }
-              }
-            }
           }
         ]
       },
@@ -347,72 +352,15 @@ export class PdfDevController {
           order: {
             order_id: 42,
             order_date: "2025-11-13T00:00:00.000Z",
-            total_amount: "0",
+            total_amount: "3200",
             status: "READY_FOR_DELIVERY",
-            subscription_id: 30,
+            subscription_id: 24,
             customer: {
-              person_id: 41,
+              person_id: 30,
               name: "daiana gonzalez",
               alias: "Llano Studio",
               phone: "3624958393",
-              address: "sarmiento 1100",
-              zone: {
-                zone_id: 10,
-                code: "z-1-res",
-                name: "zona 1"
-              },
-              locality: {
-                locality_id: 1,
-                code: "RES",
-                name: "Resistencia"
-              },
-              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timnre 103\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
-            },
-            items: [
-              {
-                order_item_id: 59,
-                product: {
-                  product_id: 9,
-                  description: "bidon 12 LTS"
-                },
-                quantity: 2,
-                delivered_quantity: 0,
-                returned_quantity: 0
-              }
-            ],
-            notes: "avisar antes de ir"
-          },
-          delivery_status: "PENDING",
-          delivery_time: "08:00-12:00",
-          is_current_delivery: false,
-          credits: [
-            {
-              product_description: "dispenser agua frio calor",
-              planned_quantity: 1,
-              delivered_quantity: 0,
-              remaining_balance: 1
-            },
-            {
-              product_description: "bidon 12 LTS",
-              planned_quantity: 4,
-              delivered_quantity: 4,
-              remaining_balance: 0
-            }
-          ]
-        },
-        {
-          route_sheet_detail_id: 44,
-          route_sheet_id: 23,
-          order: {
-            order_id: 11,
-            order_date: "2025-11-13T00:00:00.000Z",
-            total_amount: "8500",
-            status: "READY_FOR_DELIVERY",
-            customer: {
-              person_id: 25,
-              name: "santiago valussi",
-              phone: "3624059384",
-              address: "sarmiento 1100",
+              address: "san martin 450",
               zone: {
                 zone_id: 11,
                 code: "z-2-res",
@@ -422,35 +370,92 @@ export class PdfDevController {
                 locality_id: 1,
                 code: "RES",
                 name: "Resistencia"
-              }
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
             },
             items: [
               {
-                order_item_id: 11,
+                order_item_id: 59,
                 product: {
                   product_id: 9,
                   description: "bidon 12 LTS"
                 },
-                quantity: 3,
-                delivered_quantity: 0,
-                returned_quantity: 0
-              },
-              {
-                order_item_id: 12,
-                product: {
-                  product_id: 10,
-                  description: "bidon 20 LTS"
-                },
-                quantity: 2,
+                quantity: 4,
                 delivered_quantity: 0,
                 returned_quantity: 0
               }
             ],
-            notes: "llamar antes de tocar timbre"
+            notes: "casa con rejas"
           },
           delivery_status: "PENDING",
-          delivery_time: "08:00-12:00",
-          is_current_delivery: false
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 44,
+          route_sheet_id: 23,
+          order: {
+            order_id: 43,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "5800",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 25,
+            customer: {
+              person_id: 31,
+              name: "santiago valussi",
+              phone: "3624777888",
+              address: "moreno 789",
+              zone: {
+                zone_id: 12,
+                code: "z-3-res",
+                name: "zona 3"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"departamento 2B\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"09:00-13:00\",\"avoid_times\":[\"12:00-14:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 60,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 8,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "interfono roto"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "09:00-13:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 8,
+              delivered_quantity: 3,
+              remaining_balance: 5
+            },
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 2,
+              delivered_quantity: 0,
+              remaining_balance: 2
+            }
+          ]
         }
       ],
       zones_covered: [
@@ -478,6 +483,26 @@ export class PdfDevController {
           zone_id: 11,
           code: "z-2-res",
           name: "zona 2",
+          locality: {
+            locality_id: 1,
+            code: "RES",
+            name: "Resistencia",
+            province: {
+              province_id: 1,
+              code: "CH",
+              name: "Chaco",
+              country: {
+                country_id: 1,
+                code: "AR",
+                name: "Argentina"
+              }
+            }
+          }
+        },
+        {
+          zone_id: 12,
+          code: "z-3-res",
+          name: "zona 3",
           locality: {
             locality_id: 1,
             code: "RES",
