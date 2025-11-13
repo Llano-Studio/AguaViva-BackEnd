@@ -157,148 +157,344 @@ export class PdfDevController {
   @Get('preview-route')
   async previewRoute(@Res() res: Response) {
     const testData = {
-      route_sheet_id: 15,
-      delivery_date: '2025-11-07',
+      route_sheet_id: 23,
       driver: {
         id: 9,
-        name: 'chofer 1',
-        email: 'chofer1@gmail.com',
+        name: "chofer 1",
+        email: "chofer1@gmail.com"
       },
       vehicle: {
         vehicle_id: 1,
-        code: 'aks-123',
-        name: 'mobil 1',
+        code: "aks-123",
+        name: "mobil 1",
         zones: [
           {
             zone_id: 10,
-            code: 'z-1-res',
-            name: 'zona 1',
+            code: "z-1-res",
+            name: "zona 1",
             locality: {
               locality_id: 1,
-              code: 'RES',
-              name: 'Resistencia',
+              code: "RES",
+              name: "Resistencia",
               province: {
                 province_id: 1,
-                code: 'CH',
-                name: 'Chaco',
+                code: "CH",
+                name: "Chaco",
                 country: {
                   country_id: 1,
-                  code: 'AR',
-                  name: 'Argentina',
-                },
-              },
-            },
+                  code: "AR",
+                  name: "Argentina"
+                }
+              }
+            }
           },
           {
             zone_id: 11,
-            code: 'z-2-res',
-            name: 'zona 2',
+            code: "z-2-res",
+            name: "zona 2",
             locality: {
               locality_id: 1,
-              code: 'RES',
-              name: 'Resistencia',
+              code: "RES",
+              name: "Resistencia",
               province: {
                 province_id: 1,
-                code: 'CH',
-                name: 'Chaco',
+                code: "CH",
+                name: "Chaco",
                 country: {
                   country_id: 1,
-                  code: 'AR',
-                  name: 'Argentina',
-                },
-              },
-            },
+                  code: "AR",
+                  name: "Argentina"
+                }
+              }
+            }
           },
-        ],
+          {
+            zone_id: 12,
+            code: "z-3-res",
+            name: "zona 3",
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia",
+              province: {
+                province_id: 1,
+                code: "CH",
+                name: "Chaco",
+                country: {
+                  country_id: 1,
+                  code: "AR",
+                  name: "Argentina"
+                }
+              }
+            }
+          },
+          {
+            zone_id: 13,
+            code: "z-4-res",
+            name: "zona 4",
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia",
+              province: {
+                province_id: 1,
+                code: "CH",
+                name: "Chaco",
+                country: {
+                  country_id: 1,
+                  code: "AR",
+                  name: "Argentina"
+                }
+              }
+            }
+          },
+          {
+            zone_id: 14,
+            code: "z-5-res",
+            name: "zona 5",
+            locality: {
+              locality_id: 1,
+              code: "RES",
+              name: "Resistencia",
+              province: {
+                province_id: 1,
+                code: "CH",
+                name: "Chaco",
+                country: {
+                  country_id: 1,
+                  code: "AR",
+                  name: "Argentina"
+                }
+              }
+            }
+          }
+        ]
       },
-      route_notes: 'salir por 3 de abril',
+      delivery_date: "2025-11-14",
+      route_notes: "cargar combustible en YPF sarmiento",
       details: [
         {
-          route_sheet_detail_id: 20,
-          route_sheet_id: 15,
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
           order: {
-            order_id: 29,
-            order_date: '2025-11-06T00:00:00.000Z',
-            total_amount: '4000',
-            status: 'READY_FOR_DELIVERY',
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
             customer: {
-              person_id: 22,
-              name: 'julian pinto',
-              alias: 'komsa',
-              address: 'sarmiento 300',
-              phone: '3624857472',
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
             },
             items: [
               {
-                order_item_id: 41,
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
                 quantity: 2,
                 delivered_quantity: 0,
-                returned_quantity: 0,
-                product: {
-                  product_id: 10,
-                  description: 'bidon 20 LTS',
-                },
+                returned_quantity: 0
               },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
             ],
+            notes: "avisar antes de ir"
           },
-          delivery_status: 'PENDING',
-          delivery_time: '08:00-12:00',
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
           is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
         },
         {
-          route_sheet_detail_id: 21,
-          route_sheet_id: 15,
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
           order: {
-            order_id: 30,
-            order_date: '2025-11-06T00:00:00.000Z',
-            total_amount: '6000',
-            status: 'READY_FOR_DELIVERY',
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "0",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 30,
             customer: {
-              person_id: 23,
-              name: 'maria gonzalez',
-              address: 'av. alberdi 1500',
-              phone: '3624999888',
+              person_id: 41,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "sarmiento 1100",
+              zone: {
+                zone_id: 10,
+                code: "z-1-res",
+                name: "zona 1"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timnre 103\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
             },
             items: [
               {
-                order_item_id: 42,
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 4,
+              remaining_balance: 0
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 44,
+          route_sheet_id: 23,
+          order: {
+            order_id: 11,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "8500",
+            status: "READY_FOR_DELIVERY",
+            customer: {
+              person_id: 25,
+              name: "santiago valussi",
+              phone: "3624059384",
+              address: "sarmiento 1100",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              }
+            },
+            items: [
+              {
+                order_item_id: 11,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
                 quantity: 3,
                 delivered_quantity: 0,
-                returned_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 12,
                 product: {
                   product_id: 10,
-                  description: 'bidon 20 LTS',
+                  description: "bidon 20 LTS"
                 },
-              },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
             ],
+            notes: "llamar antes de tocar timbre"
           },
-          delivery_status: 'PENDING',
-          delivery_time: '12:00-16:00',
-          is_current_delivery: true,
-        },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: false
+        }
       ],
       zones_covered: [
         {
           zone_id: 10,
-          code: 'z-1-res',
-          name: 'zona 1',
+          code: "z-1-res",
+          name: "zona 1",
           locality: {
             locality_id: 1,
-            code: 'RES',
-            name: 'Resistencia',
+            code: "RES",
+            name: "Resistencia",
             province: {
               province_id: 1,
-              code: 'CH',
-              name: 'Chaco',
+              code: "CH",
+              name: "Chaco",
               country: {
                 country_id: 1,
-                code: 'AR',
-                name: 'Argentina',
-              },
-            },
-          },
+                code: "AR",
+                name: "Argentina"
+              }
+            }
+          }
         },
-      ],
+        {
+          zone_id: 11,
+          code: "z-2-res",
+          name: "zona 2",
+          locality: {
+            locality_id: 1,
+            code: "RES",
+            name: "Resistencia",
+            province: {
+              province_id: 1,
+              code: "CH",
+              name: "Chaco",
+              country: {
+                country_id: 1,
+                code: "AR",
+                name: "Argentina"
+              }
+            }
+          }
+        }
+      ]
     };
 
     try {

@@ -507,10 +507,14 @@ export class PdfGeneratorService {
     const rowBgColor = isEven ? this.colors.bgWhite : this.colors.bgPrimary;
     
     // Preparar los datos de cada columna
+    const addressText = detail.order.customer.address && detail.order.customer.locality?.name 
+      ? `${detail.order.customer.address} - ${detail.order.customer.locality.name}`
+      : detail.order.customer.address || 'Sin dirección';
+
     const cellData: Array<{ text: string; fontSize: number; font: string; align: 'center' | 'left' | 'right' }> = [
       { text: detail.order.order_id.toString(), fontSize: 10, font: 'Poppins-Bold', align: 'center' },
       { text: detail.order.customer.name, fontSize: 11, font: 'Poppins-Bold', align: 'left' },
-      { text: detail.order.customer.address, fontSize: 10, font: 'Poppins', align: 'left' },
+      { text: addressText, fontSize: 10, font: 'Poppins', align: 'left' },
       { text: detail.order.customer.phone, fontSize: 10, font: 'Poppins', align: 'left' },
       { text: detail.delivery_time || 'N/A', fontSize: 10, font: 'Poppins', align: 'center' },
       { text: `$${detail.order.total_amount}`, fontSize: 10, font: 'Poppins-Bold', align: 'right' },
@@ -569,104 +573,81 @@ export class PdfGeneratorService {
     const productText = detail.order.items
       .map((item: any) => `${item.quantity}x ${item.product.description}`)
       .join(' | ');
-    const commentsText = detail.comments ? `${detail.comments}` : '';
+    // Comentarios: usar notes del pedido (nuevo formato)
+    const commentsText = detail.order && detail.order.notes ? `${detail.order.notes}` : '';
+    
+    // Créditos: mostrar como "remaining_balance x product_description" por cada crédito con balance > 0
     const creditsArray: any[] = Array.isArray(detail.credits) ? detail.credits : [];
     const creditsText = creditsArray.length > 0
       ? creditsArray
-          .filter((c) => (typeof c.remaining_balance === 'number' ? c.remaining_balance > 0 : true))
-          .map(
-            (c) =>
-              `${c.remaining_balance}x ${c.product_description} (plan: ${c.planned_quantity}, entregado: ${c.delivered_quantity})`,
-          )
+          .filter((c) => c.remaining_balance > 0)
+          .map((c) => `${c.remaining_balance}x ${c.product_description}`)
           .join(' | ')
       : '';
 
-    // Calcular altura dinámica según contenido real
-    const paddingY = 8;
-    const innerWidth = tableWidth - 30;
-    const labelGap = 15;
-    const lineGap = 12;
-
-    // Medir alturas de cada posible línea
-    let measuredHeight = paddingY + 17; // base
-    let linesCount = 0;
-    let textY = currentY + paddingY;
-
-    // Alias
-    if (aliasText) {
-      doc.fontSize(10).font('Poppins-Bold');
-      const aliasLabelH = doc.heightOfString('EMPRESA:', { width: innerWidth });
-      doc.fontSize(12).font('Poppins');
-      const aliasValueH = doc.heightOfString(aliasText, { width: innerWidth - 95 });
-      measuredHeight += Math.max(aliasLabelH, aliasValueH) + labelGap;
-      linesCount++;
+    // Notas del cliente: extraer special_instructions del customer
+    let specialInstructionsText = '';
+    const rawSpecial = detail.order && detail.order.customer && detail.order.customer.special_instructions;
+    if (rawSpecial) {
+      if (typeof rawSpecial === 'string') {
+        try {
+          const parsed = JSON.parse(rawSpecial);
+          // Extraer instrucciones específicas si existen
+          specialInstructionsText = parsed?.delivery_preferences?.special_instructions || rawSpecial;
+        } catch (e) {
+          specialInstructionsText = rawSpecial;
+        }
+      } else if (typeof rawSpecial === 'object') {
+        specialInstructionsText = rawSpecial?.delivery_preferences?.special_instructions || JSON.stringify(rawSpecial);
+      } else {
+        specialInstructionsText = String(rawSpecial);
+      }
     }
 
-    // Productos
-    doc.fontSize(10).font('Poppins-Bold');
-    const prodLabelH = doc.heightOfString('PRODUCTOS:', { width: innerWidth });
-    doc.fontSize(12).font('Poppins');
-    const prodValueH = doc.heightOfString(productText, { width: innerWidth - 110 });
-    measuredHeight += Math.max(prodLabelH, prodValueH) + labelGap;
-    linesCount++;
+    // Configuración básica
+    const labelGap = 17;
+    let textY = currentY + 5;
 
-    // Comentarios
-    if (commentsText) {
-      doc.fontSize(10).font('Poppins-Bold');
-      const comLabelH = doc.heightOfString('COMENTARIOS:', { width: innerWidth });
-      doc.fontSize(12).font('Poppins');
-      const comValueH = doc.heightOfString(commentsText, { width: innerWidth - 125 });
-      measuredHeight += Math.max(comLabelH, comValueH) + labelGap;
-      linesCount++;
-    }
-
-    // Créditos
-    if (creditsText) {
-      doc.fontSize(10).font('Poppins-Bold');
-      const credLabelH = doc.heightOfString('CRÉDITOS DISPONIBLES:', { width: innerWidth });
-      doc.fontSize(12).font('Poppins');
-      const credValueH = doc.heightOfString(creditsText, { width: innerWidth - 180 });
-      measuredHeight += Math.max(credLabelH, credValueH) + labelGap;
-      linesCount++;
-    }
-
-    // Ajuste final
-    const boxHeight = Math.max(25, measuredHeight + (linesCount > 0 ? 0 : lineGap));
-    doc.rect(startX + 15, currentY, innerWidth, boxHeight).fill('#F7FBFF').stroke(this.colors.borderColor);
-
-    // Renderizado de líneas
-    textY = currentY + paddingY;
-    if (aliasText) {
-      doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
-      doc.text('EMPRESA:', startX + 25, textY);
-      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(aliasText, startX + 95, textY, { width: innerWidth - 95 });
-      textY += labelGap;
-    }
-
-    doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
-    doc.text('PRODUCTOS:', startX + 25, textY);
+    // Renderizar directamente el contenido sin rectángulo
+    doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+    doc.text('PRODUCTOS PEDIDOS:', startX + 25, textY);
     doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-    doc.text(productText, startX + 110, textY, { width: innerWidth - 110 });
+    doc.text(productText, startX + 170, textY, { width: tableWidth - 180 });
     textY += labelGap;
 
+    if (aliasText) {
+      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+      doc.text('EMPRESA:', startX + 25, textY);
+      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(aliasText, startX + 90, textY - 3, { width: tableWidth - 120 });
+      textY += labelGap;
+    }
+
+    if (specialInstructionsText) {
+      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+      doc.text('NOTAS CLIENTE:', startX + 25, textY);
+      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(specialInstructionsText, startX + 120, textY - 3, { width: tableWidth - 150 });
+      textY += labelGap;
+    }
+
     if (commentsText) {
-      doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
+      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('COMENTARIOS:', startX + 25, textY);
       doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(commentsText, startX + 130, textY, { width: innerWidth - 130 });
+      doc.text(commentsText, startX + 115, textY - 3, { width: tableWidth - 145 });
       textY += labelGap;
     }
 
     if (creditsText) {
-      doc.fontSize(10).fillColor(this.colors.textAccent).font('Poppins-Bold');
-      doc.text('CRÉDITOS DISPONIBLES:', startX + 25, textY);
+      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+      doc.text('EXTRAS DISPONIBLES:', startX + 25, textY);
       doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(creditsText, startX + 180, textY, { width: innerWidth - 180 });
+      doc.text(creditsText, startX + 150, textY - 3, { width: tableWidth - 180 });
       textY += labelGap;
     }
 
-    return currentY + boxHeight + 10;
+    return textY + 5;
   }
 
   /**
@@ -749,26 +730,6 @@ export class PdfGeneratorService {
     };
     
     return statusMap[status.toLowerCase()] || 'PENDIENTE';
-  }
-
-  /**
-   * Obtiene el color correspondiente al estado
-   */
-  private getStatusColor(status: string): string {
-    const colorMap = {
-      'entregado': this.colors.successColor,
-      'delivered': this.colors.successColor,
-      'pendiente': this.colors.warningColor,
-      'pending': this.colors.warningColor,
-      'cancelado': this.colors.errorColor,
-      'cancelled': this.colors.errorColor,
-      'en_ruta': '#93e6ff',
-      'in_route': '#93e6ff',
-      'atrasado': '#B20000',
-      'overdue': '#B20000',
-    };
-    
-    return colorMap[status.toLowerCase()] || this.colors.warningColor;
   }
 
   /**
