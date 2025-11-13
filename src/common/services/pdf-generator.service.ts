@@ -130,6 +130,7 @@ export interface CollectionRouteSheetPdfData {
   };
   route_notes?: string;
   // Identificadores de zona para usar en nombre de archivo (e.g., ["zona1", "zona2"])
+  // Identificadores de zona para usar en nombre de archivo (e.g., ["zona1", "zona2"])
   zone_identifiers?: string[];
   collections: Array<{
     cycle_payment_id: number;
@@ -144,8 +145,8 @@ export interface CollectionRouteSheetPdfData {
         name: string;
       };
       locality?: {
-        locality_id?: number;
-        code?: string;
+        locality_id: number;
+        code: string;
         name: string;
       };
     };
