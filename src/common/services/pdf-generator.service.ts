@@ -68,6 +68,9 @@ export interface RouteSheetPdfData {
         alias?: string;
         address: string;
         phone: string;
+        locality?: {
+          name: string;
+        };
       };
       items: Array<{
         order_item_id: number;
@@ -525,7 +528,7 @@ export class PdfGeneratorService {
     
     // Preparar los datos de cada columna
     const addressText = detail.order.customer.address && detail.order.customer.locality?.name 
-      ? `${detail.order.customer.address} - ${detail.order.customer.locality.name}`
+      ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
       : detail.order.customer.address || 'Sin dirección';
 
     const cellData: Array<{ text: string; fontSize: number; font: string; align: 'center' | 'left' | 'right' }> = [
