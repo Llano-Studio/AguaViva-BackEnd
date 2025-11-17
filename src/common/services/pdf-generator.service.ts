@@ -199,7 +199,7 @@ export class PdfGeneratorService {
       const fileName = this.tempFileManager.generateUniqueFileName('collections-report');
       const filePath = this.tempFileManager.getTempFilePath(fileName);
 
-      const doc = new PDFDocument({ margin: 50 });
+      const doc = new PDFDocument({ margin: 25 });
       const stream = fs.createWriteStream(filePath);
       doc.pipe(stream);
 
@@ -304,7 +304,7 @@ export class PdfGeneratorService {
     const pdfPath = join(pdfDir, filename);
 
     const doc = new PDFDocument({
-      margin: 50,
+      margin: 25,
       size: 'A4',
       autoFirstPage: true,
     });
@@ -335,7 +335,7 @@ export class PdfGeneratorService {
     doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
     doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
 
-    let currentY = 50;
+    let currentY = 25;
     
     // Header
     currentY = this.generateHeader(doc, routeSheet, currentY);
@@ -346,16 +346,16 @@ export class PdfGeneratorService {
     // Notas de ruta
     currentY = this.generateRouteNotes(doc, routeSheet, currentY);
     
-    // Tabla de pedidos
-    currentY = this.generateOrdersTable(doc, routeSheet, currentY, includeProductDetails);
+    // Tabla de pedidos (con paginación y footer integrado)
+    currentY = this.generateOrdersTableWithFooters(doc, routeSheet, currentY, includeProductDetails);
     
     // Sección de confirmación
     if (includeSignatureField) {
       this.generateSignatureSection(doc, currentY);
     }
-
-    // Pie de página eliminado - no es necesario para impresión
   }
+
+
 
   /**
    * Convierte un string a slug seguro para usar en nombres de archivo
@@ -376,61 +376,59 @@ export class PdfGeneratorService {
    */
   private generateHeader(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData, currentY: number): number {
     // Línea superior decorativa
-    doc.rect(50, currentY, 520, 3).fill(this.colors.primary);
+    doc.rect(25, currentY, 545, 3).fill(this.colors.primary);
     currentY += 15;
     
     // Título principal
-    doc.fontSize(20).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('HOJA DE RUTA', 50, currentY);
+    doc.fontSize(15).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.text(`HOJA DE RUTA PEDIDOS #${routeSheet.route_sheet_id}`, 25, currentY);
     
-    // ID de la hoja de ruta
-    doc.fontSize(16).font('Poppins').fillColor(this.colors.textAccent);
-    doc.text(`Número: ${routeSheet.route_sheet_id}`, 50, currentY + 35);
-    
-    // Fecha de entrega
-    doc.fontSize(14).font('Poppins').fillColor(this.colors.textPrimary);
+    // Fecha de entrega (más a la derecha, misma línea)
+    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
-    doc.text(`Fecha: ${displayDate}`, 50, currentY + 55);
+    doc.text(`Fecha: ${displayDate}`, 440, currentY + 4);
     
     // Zonas cubiertas
     if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
       const zonesNames = routeSheet.zones_covered.map(z => z.name).join(', ');
-      doc.fontSize(14).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Zonas: ${zonesNames}`, 50, currentY + 75);
-      return currentY + 105;
+      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(`Zonas: ${zonesNames}`, 25, currentY + 25);
+      return currentY + 60;
     }
     
-    return currentY + 85;
+    return currentY + 40;
   }
+
+
 
   /**
    * Genera la información del conductor y vehículo
    */
   private generateDriverVehicleInfo(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
     // Información del conductor
-    doc.rect(50, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(50, currentY, 4, 70).fill(this.colors.primary);
+    doc.rect(25, currentY, 260, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(25, currentY, 4, 56).fill(this.colors.primary);
     
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('CONDUCTOR', 70, currentY + 10);
+    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.text('CONDUCTOR', 45, currentY + 5);
     
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.driver.name}`, 70, currentY + 30);
+    doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.text(`Nombre: ${routeSheet.driver.name}`, 45, currentY + 20);
 
     // Información del vehículo
-    const vehicleX = 320;
-    doc.rect(vehicleX, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(vehicleX, currentY, 4, 70).fill(this.colors.secondary);
+    const vehicleX = 310;
+    doc.rect(vehicleX, currentY, 260, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(vehicleX, currentY, 4, 56).fill(this.colors.secondary);
     
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('VEHÍCULO', vehicleX + 20, currentY + 10);
+    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.text('VEHÍCULO', vehicleX + 20, currentY + 5);
     
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 45);
-    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 30);
+    doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 20);
+    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 35);
 
 
-    return currentY + 80;
+    return currentY + 70;
   }
 
   /**
@@ -438,82 +436,153 @@ export class PdfGeneratorService {
    */
   private generateRouteNotes(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
     if (routeSheet.route_notes) {
-      doc.rect(50, currentY, 520, 50).fill(this.colors.warningColor).stroke(this.colors.borderColor);
+      doc.rect(25, currentY, 545, 46).fill(this.colors.warningColor).stroke(this.colors.borderColor);
       
-      doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('INSTRUCCIONES ESPECIALES', 70, currentY + 10);
+      doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+      doc.text('INSTRUCCIONES ESPECIALES', 45, currentY + 8);
       
-      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(routeSheet.route_notes, 70, currentY + 30, { width: 480 });
-      return currentY + 70;
-    } else {
-      doc.rect(50, currentY, 520, 40).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-      doc.rect(50, currentY, 4, 40).fill(this.colors.primary);
-      
-      doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('RUTA SUGERIDA', 70, currentY + 10);
-      
-      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text('Salir por Sarmiento - Ruta zona Centro', 70, currentY + 28);
-      return currentY + 60;
+      doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(routeSheet.route_notes, 45, currentY + 25, { width: 505 });
+      return currentY + 63;
     }
   }
 
-  /**
-   * Genera la tabla de pedidos
+
+
+
+
+  /** 
+   * Genera la tabla de pedidos con control de paginación y footers integrados
    */
-  private generateOrdersTable(
+  private generateOrdersTableWithFooters(
     doc: PDFKit.PDFDocument, 
     routeSheet: RouteSheetPdfData, 
     currentY: number, 
     includeProductDetails: boolean
   ): number {
-    // Configuración de tabla
-    const startX = 50;
-    const tableWidth = 520;
+    console.log(`DEBUG: Iniciando generación con paginación dinámica (altura real)`);
+    
+    const startX = 25;
+    const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
+    const rowHeight = 27;
+    
+    // Headers de la tabla
+    const headers = ['N°', 'Cliente', 'Dirección', 'Teléfono', 'Horario', 'Total'];
+    const colWidths = [40, 120, 135, 100, 80, 70];    let pageCount = 1;
+    
+    // Función helper para agregar footer con información completa de la hoja de ruta
+    const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
+      const footerY = doc.page.height - 85; // Más espacio para la información adicional
+      
+      // Para la mayoría de casos, estimamos máximo 3 páginas
+      // Si necesitamos más precisión, se puede implementar regeneración
+      const totalPages = isLastPage ? currentPageNum : Math.max(currentPageNum, 2);
+      
+            // Línea decorativa superior del footer
+      doc.rect(25, footerY - 10, 545, 1).fill(this.colors.borderColor);
+      
+      // Número de hoja de ruta y fecha en la misma línea
+      doc.fontSize(10).font('Poppins').fillColor(this.colors.textAccent);
+      doc.text(`#${routeSheet.route_sheet_id}`, 25, footerY);
+      
+      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
+      doc.text(`Fecha: ${displayDate}`, 200, footerY + 2);
+      
+      // Vehículo en el centro
+      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(`Vehículo: ${routeSheet.vehicle?.name || 'N/A'}`, 350, footerY + 2);
+      
+      // Paginación en el lado derecho de la misma línea
+      doc.fontSize(10).font('Poppins').fillColor(this.colors.secondary);
+      doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, { width: 100, align: 'right' });
+      
+      // Zonas en la línea de abajo (si existen)
+      if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
+        const zonesNames = routeSheet.zones_covered.map(z => z.name).join(', ');
+        doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+        doc.text(`Zonas: ${zonesNames}`, 25, footerY + 15);
+      }
+      
+      return footerY;
+    };
 
-    // Nuevo orden: # - CLIENTE - DIRECCIÓN - TELÉFONO - HORARIO - TOTAL
-    // Anchos ajustados para sumar exactamente 520px
-    const colWidths = [40, 110, 120, 100, 80, 70];
-    const headers = ['#', 'CLIENTE', 'DIRECCIÓN', 'TELÉFONO', 'HORARIO', 'TOTAL'];
-    const rowHeight = 35;
-
-    // Encabezado de tabla
+    // Header inicial de la tabla
     doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
     doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
     
     let colX = startX + 10;
     headers.forEach((header, index) => {
-      doc.text(header, colX, currentY + 12, { 
+      doc.text(header, colX, currentY + 6, { 
         width: colWidths[index] - 20,
         align: index === 0 ? 'center' : 'left'
       });
       colX += colWidths[index];
     });
-
+    
     currentY += rowHeight;
 
-    // Filas de pedidos
+    // Generar órdenes con altura dinámica real
     for (let i = 0; i < routeSheet.details.length; i++) {
       const detail = routeSheet.details[i];
 
-      if (currentY > doc.page.height - 200) {
+      console.log(`DEBUG: Orden ${i + 1} - currentY antes: ${currentY}, límite: ${doc.page.height - 250}`);
+      
+      // Verificar si necesitamos nueva página ANTES de procesar
+      if (currentY > doc.page.height - 250) {
+        console.log(`DEBUG: Creando nueva página. pageCount antes: ${pageCount}`);
+        
+        // Agregar footer a la página actual (solo si no es la primera página)
+        if (pageCount > 1) {
+          addFooter(pageCount);
+        }
+        
+        // Nueva página
         doc.addPage();
-        currentY = 50;
+        pageCount++;
+        console.log(`DEBUG: Nueva página creada. pageCount después: ${pageCount}`);
+        currentY = 25;
+        
+        // Recrear header de tabla en nueva página
+        doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
+        doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
+        
+        colX = startX + 10;
+        headers.forEach((header, index) => {
+          doc.text(header, colX, currentY + 6, { 
+            width: colWidths[index] - 20,
+            align: index === 0 ? 'center' : 'left'
+          });
+          colX += colWidths[index];
+        });
+        
+        currentY += rowHeight;
       }
 
+      // Generar la orden (altura dinámica real de PDFKit)
       currentY = this.generateOrderRow(doc, detail, i, currentY, startX, colWidths, rowHeight);
+      console.log(`DEBUG: Orden ${i + 1} - después de generateOrderRow: ${currentY}`);
 
       if (includeProductDetails && detail.order.items.length > 0) {
         currentY = this.generateProductDetails(doc, detail, currentY, startX, tableWidth);
+        console.log(`DEBUG: Orden ${i + 1} - después de generateProductDetails: ${currentY}`);
       }
 
       doc.rect(startX, currentY, tableWidth, 1).fill(this.colors.borderColor);
       currentY += 5;
+      console.log(`DEBUG: Orden ${i + 1} - currentY final: ${currentY}`);
     }
 
+    // Agregar footer a la última página (marcándola como final) - solo si hay más de una página
+    if (pageCount > 1) {
+      addFooter(pageCount, true);
+    }
+    
+    console.log(`DEBUG: Generación completada con alturas dinámicas reales. Total páginas: ${pageCount}`);
     return currentY;
   }
+
+
 
   /**
    * Genera una fila de pedido con altura dinámica según el contenido
@@ -545,7 +614,7 @@ export class PdfGeneratorService {
     ];
 
     // Calcular la altura necesaria para cada celda
-    const minRowHeight = 35;
+    const minRowHeight = 27;
     const padding = 20;
     let maxHeight = minRowHeight;
 
@@ -559,7 +628,7 @@ export class PdfGeneratorService {
     });
 
     // Dibujar el fondo de la fila con la altura calculada
-    doc.rect(startX, currentY, 520, maxHeight).fill(rowBgColor);
+    doc.rect(startX, currentY, 545, maxHeight).fill(rowBgColor);
     doc.rect(startX, currentY, 4, maxHeight).fill(isEven ? this.colors.primary : this.colors.secondary);
 
     // Renderizar cada celda con texto multilínea
@@ -642,32 +711,32 @@ export class PdfGeneratorService {
     if (aliasText) {
       doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('EMPRESA:', startX + 25, textY);
-      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(aliasText, startX + 90, textY - 3, { width: tableWidth - 120 });
+      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(aliasText, startX + 85, textY - 1, { width: tableWidth - 120 });
       textY += labelGap;
     }
 
     if (specialInstructionsText) {
       doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('NOTAS CLIENTE:', startX + 25, textY);
-      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(specialInstructionsText, startX + 120, textY - 3, { width: tableWidth - 150 });
+      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(specialInstructionsText, startX + 115, textY - 1, { width: tableWidth - 150 });
       textY += labelGap;
     }
 
     if (commentsText) {
       doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('COMENTARIOS:', startX + 25, textY);
-      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(commentsText, startX + 115, textY - 3, { width: tableWidth - 145 });
+      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(commentsText, startX + 112, textY - 1, { width: tableWidth - 145 });
       textY += labelGap;
     }
 
     if (creditsText) {
       doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('EXTRAS DISPONIBLES:', startX + 25, textY);
-      doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(creditsText, startX + 150, textY - 3, { width: tableWidth - 180 });
+      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.text(creditsText, startX + 145, textY - 1, { width: tableWidth - 180 });
       textY += labelGap;
     }
 
@@ -680,35 +749,35 @@ export class PdfGeneratorService {
   private generateSignatureSection(doc: PDFKit.PDFDocument, currentY: number): void {
     if (currentY > doc.page.height - 200) {
       doc.addPage();
-      currentY = 50;
+      currentY = 25;
     }
 
     // Título de confirmación
-    doc.rect(50, currentY, 520, 30).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(16).font('Poppins-Bold');
-    doc.text('CONFIRMACIÓN DE ENTREGAS', 50, currentY + 8, {
+    doc.rect(25, currentY, 545, 25).fill(this.colors.primary);
+    doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
+    doc.text('CONFIRMACIÓN DE ENTREGAS', 25, currentY + 5, {
       align: 'center',
-      width: 520,
+      width: 545,
     });
-    currentY += 50;
+    currentY += 40;
 
     const signatureHeight = 80;
-    const signatureWidth = 250;
+    const signatureWidth = 260;
 
     // Firma del conductor
-    doc.rect(50, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(50, currentY, 4, signatureHeight).fill(this.colors.primary);
+    doc.rect(25, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
+    doc.rect(25, currentY, 4, signatureHeight).fill(this.colors.primary);
     
     doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
-    doc.text('CONDUCTOR', 70, currentY + 10);
+    doc.text('CONDUCTOR', 45, currentY + 10);
     
     doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text('Nombre: _________________________', 70, currentY + 30);
-    doc.text('Fecha: _____ / _____ / _____', 70, currentY + 50);
-    doc.text('Hora: _____ : _____', 70, currentY + 65);
+    doc.text('Nombre: _________________________', 45, currentY + 30);
+    doc.text('Fecha: _____ / _____ / _____', 45, currentY + 50);
+    doc.text('Hora: _____ : _____', 45, currentY + 65);
 
     // Firma del supervisor
-    const supervisorX = 320;
+    const supervisorX = 315;
     doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
     doc.rect(supervisorX, currentY, 4, signatureHeight).fill(this.colors.secondary);
     
@@ -721,20 +790,7 @@ export class PdfGeneratorService {
     doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
   }
 
-  /**
-   * Genera el pie de página
-   */
-  private generateFooter(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData): void {
-    const footerY = doc.page.height - 40;
-    
-    doc.rect(50, footerY - 5, 520, 1).fill(this.colors.borderColor);
-    
-    doc.fillColor(this.colors.textPrimary).fontSize(9).font('Poppins');
-    doc.text(`Documento generado: ${new Date().toLocaleString('es-ES')}`, 50, footerY);
-    doc.text(`Total pedidos: ${routeSheet.details.length}`, 50, footerY + 12);
-    
-    doc.text('Agua Viva Rica - Sistema de Gestión', doc.page.width - 200, footerY, { align: 'right', width: 150 });
-  }
+
 
   /**
    * Traduce el estado de entrega al español
@@ -769,7 +825,7 @@ export class PdfGeneratorService {
     // Asegurar que el directorio existe
     await fs.ensureDir(dirname(pdfPath));
 
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ margin: 25 });
     await this.generateCollectionRouteSheetContent(doc, data, options);
 
     return { doc, filename, pdfPath };
@@ -869,7 +925,7 @@ export class PdfGeneratorService {
     doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
     doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
 
-    let currentY = 50;
+    let currentY = 25;
 
     // Header
     currentY = this.generateCollectionHeader(doc, routeSheet, currentY);
@@ -902,14 +958,14 @@ export class PdfGeneratorService {
    */
   private generateCollectionHeader(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData, currentY: number): number {
     // Línea superior decorativa
-    doc.rect(50, currentY, 520, 3).fill(this.colors.primary);
+    doc.rect(25, currentY, 545, 3).fill(this.colors.primary);
     currentY += 15;
 
     // Título principal
     doc.fontSize(20)
        .font('Poppins-Bold')
        .fillColor(this.colors.primary)
-       .text('HOJA DE RUTA - COBRANZAS AUTOMÁTICAS', 50, currentY, { align: 'left' });
+       .text('HOJA DE RUTA - COBRANZAS AUTOMÁTICAS', 25, currentY, { align: 'left' });
     
     currentY += 30;
 
@@ -919,7 +975,7 @@ export class PdfGeneratorService {
        .fillColor(this.colors.textPrimary);
     
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
-    doc.text(`Fecha: ${displayDate}`, 50, currentY);
+    doc.text(`Fecha: ${displayDate}`, 25, currentY);
     
     currentY += 20;
     
@@ -934,14 +990,14 @@ export class PdfGeneratorService {
     routeSheet: CollectionRouteSheetPdfData, 
     currentY: number
   ): number {
-    const startX = 50;
-    const tableWidth = 520;
+    const startX = 25;
+    const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
     const rowHeight = 25;
     const headerHeight = 35;
     
     // Headers de la tabla
     const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
-    const colWidths = [30, 90, 120, 80, 60, 70, 70];
+    const colWidths = [30, 110, 140, 90, 60, 70, 70];
     
     // Header de la tabla
     let headerX = startX;
@@ -966,7 +1022,7 @@ export class PdfGeneratorService {
     routeSheet.collections.forEach((collection, index) => {
       if (currentY > 700) {
         doc.addPage();
-        currentY = 50;
+        currentY = 25;
       }
       
       currentY = this.generateCollectionRow(
@@ -1069,15 +1125,15 @@ export class PdfGeneratorService {
     // Línea separadora
     doc.strokeColor(this.colors.borderColor)
        .lineWidth(1)
-       .moveTo(50, footerY)
-       .lineTo(550, footerY)
+       .moveTo(25, footerY)
+       .lineTo(570, footerY)
        .stroke();
     
     // Información del footer
     doc.fontSize(8)
        .fillColor(this.colors.textPrimary)
-       .text(`Hoja de Ruta de Cobranzas #${routeSheet.route_sheet_id}`, 50, footerY + 10)
-       .text(`Generado el: ${new Date().toLocaleString('es-ES')}`, 50, footerY + 25)
+       .text(`Hoja de Ruta de Cobranzas #${routeSheet.route_sheet_id}`, 25, footerY + 10)
+       .text(`Generado el: ${new Date().toLocaleString('es-ES')}`, 25, footerY + 25)
        .text(`Total de cobranzas: ${routeSheet.collections.length}`, 350, footerY + 10)
        .text(`Conductor: ${routeSheet.driver.name}`, 350, footerY + 25);
   }

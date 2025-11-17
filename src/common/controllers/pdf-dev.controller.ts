@@ -347,6 +347,414 @@ export class PdfDevController {
           ]
         },
         {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+          {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+        {
+          route_sheet_detail_id: 42,
+          route_sheet_id: 23,
+          order: {
+            order_id: 41,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "4500",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 23,
+            customer: {
+              person_id: 29,
+              name: "elsa moro",
+              phone: "3624950203",
+              address: "jose hernandez 270",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"timbre 6W\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"08:00-12:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 57,
+                product: {
+                  product_id: 10,
+                  description: "bidon 20 LTS"
+                },
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              },
+              {
+                order_item_id: 58,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "avisar antes de ir"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "08:00-12:00",
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: "dispenser agua frio calor",
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1
+            },
+            {
+              product_description: "bidon 20 LTS",
+              planned_quantity: 6,
+              delivered_quantity: 2,
+              remaining_balance: 4
+            }
+          ]
+        },
+        {
           route_sheet_detail_id: 43,
           route_sheet_id: 23,
           order: {
