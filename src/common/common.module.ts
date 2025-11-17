@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PaymentSemaphoreService } from './services/payment-semaphore.service';
 import { ScheduleService } from './services/schedule.service';
 import { PdfGeneratorService } from './services/pdf-generator.service';
+import { RouteSheetGeneratorService } from './services/route-sheet-generator.service';
 import { SubscriptionCycleRenewalService } from './services/subscription-cycle-renewal.service';
 import { FailedOrderReassignmentService } from './services/failed-order-reassignment.service';
 import { PrismaClient } from '@prisma/client';
@@ -17,6 +18,7 @@ import { TempFileManagerService } from './services/temp-file-manager.service';
     PaymentSemaphoreService,
     ScheduleService,
     PdfGeneratorService,
+    RouteSheetGeneratorService,
     TempFileManagerService,
     SubscriptionCycleRenewalService,
     FailedOrderReassignmentService,
@@ -28,6 +30,7 @@ import { TempFileManagerService } from './services/temp-file-manager.service';
     PaymentSemaphoreService,
     ScheduleService,
     PdfGeneratorService,
+    RouteSheetGeneratorService,
     TempFileManagerService,
     SubscriptionCycleRenewalService,
     FailedOrderReassignmentService,
