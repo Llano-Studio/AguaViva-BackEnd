@@ -655,6 +655,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       zone.collections.map(collection => ({
         cycle_payment_id: collection.order_id,
         customer: {
+          customer_id: collection.customer.customer_id || collection.order_id,
           name: collection.customer.name,
           address: collection.customer.address,
           phone: collection.customer.phone,

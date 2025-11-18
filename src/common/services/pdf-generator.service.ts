@@ -1068,7 +1068,7 @@ export class PdfGeneratorService {
     
     // Preparar datos de cada columna
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
-      { text: index.toString(), align: 'center' },
+      { text: collection.customer.customer_id.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
       { text: addressText, align: 'center' },
       { text: collection.customer.phone || '-', align: 'center' },
