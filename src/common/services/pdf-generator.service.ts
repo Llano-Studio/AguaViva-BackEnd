@@ -405,19 +405,24 @@ export class PdfGeneratorService {
    * Genera la información del conductor y vehículo
    */
   private generateDriverVehicleInfo(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
+    // Calcular ancho disponible respetando márgenes de 25px
+    const availableWidth = 545; // 595 - 25 - 25
+    const boxWidth = Math.floor((availableWidth - 25) / 2); // Espacio entre las dos cajas
+    const startX = 25;
+    const vehicleX = startX + boxWidth + 25; // 25px de separación entre las cajas
+    
     // Información del conductor
-    doc.rect(25, currentY, 260, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(25, currentY, 4, 56).fill(this.colors.primary);
+    doc.rect(startX, currentY, boxWidth, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(startX, currentY, 4, 56).fill(this.colors.primary);
     
     doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('CONDUCTOR', 45, currentY + 5);
+    doc.text('CONDUCTOR', startX + 20, currentY + 5);
     
     doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.driver.name}`, 45, currentY + 20);
+    doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 20);
 
     // Información del vehículo
-    const vehicleX = 310;
-    doc.rect(vehicleX, currentY, 260, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(vehicleX, currentY, boxWidth, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
     doc.rect(vehicleX, currentY, 4, 56).fill(this.colors.secondary);
     
     doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
@@ -427,7 +432,6 @@ export class PdfGeneratorService {
     doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 20);
     doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 35);
 
-
     return currentY + 70;
   }
 
@@ -436,13 +440,17 @@ export class PdfGeneratorService {
    */
   private generateRouteNotes(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
     if (routeSheet.route_notes) {
-      doc.rect(25, currentY, 545, 46).fill(this.colors.warningColor).stroke(this.colors.borderColor);
+      const startX = 25;
+      const notesWidth = 545; // 595 - 25 - 25
+      const textWidth = notesWidth - 40; // 20px padding en cada lado
+      
+      doc.rect(startX, currentY, notesWidth, 46).fill(this.colors.warningColor).stroke(this.colors.borderColor);
       
       doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('INSTRUCCIONES ESPECIALES', 45, currentY + 8);
+      doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 8);
       
       doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(routeSheet.route_notes, 45, currentY + 25, { width: 505 });
+      doc.text(routeSheet.route_notes, startX + 20, currentY + 25, { width: textWidth });
       return currentY + 63;
     }
   }
@@ -703,9 +711,9 @@ export class PdfGeneratorService {
 
     // Renderizar directamente el contenido sin rectángulo
     doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-    doc.text('PRODUCTOS PEDIDOS:', startX + 25, textY);
+    doc.text('PEDIDOS:', startX + 25, textY);
     doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-    doc.text(productText, startX + 170, textY, { width: tableWidth - 180 });
+    doc.text(productText, startX + 93, textY, { width: tableWidth - 180 });
     textY += labelGap;
 
     if (aliasText) {
@@ -933,12 +941,11 @@ export class PdfGeneratorService {
 
     // Driver and Vehicle Info
     currentY = this.generateDriverVehicleInfo(doc, routeSheet, currentY);
-    currentY += 20;
 
     // Route Notes
     if (routeSheet.route_notes) {
       currentY = this.generateRouteNotes(doc, routeSheet, currentY);
-      currentY += 20;
+      currentY += 10;
     }
 
     // Collections Table
@@ -962,22 +969,20 @@ export class PdfGeneratorService {
     currentY += 15;
 
     // Título principal
-    doc.fontSize(20)
+    doc.fontSize(15)
        .font('Poppins-Bold')
        .fillColor(this.colors.primary)
-       .text('HOJA DE RUTA - COBRANZAS AUTOMÁTICAS', 25, currentY, { align: 'left' });
-    
-    currentY += 30;
+       .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
 
     // Información básica - solo fecha
-    doc.fontSize(14)
+    doc.fontSize(12)
        .font('Poppins')
        .fillColor(this.colors.textPrimary);
     
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
-    doc.text(`Fecha: ${displayDate}`, 25, currentY);
+    doc.text(`Fecha: ${displayDate}`, 440, currentY);
     
-    currentY += 20;
+    currentY += 15;
     
     return currentY;
   }
@@ -993,11 +998,12 @@ export class PdfGeneratorService {
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
     const rowHeight = 25;
-    const headerHeight = 35;
+    const headerHeight = 25;
     
     // Headers de la tabla
     const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
-    const colWidths = [30, 110, 140, 90, 60, 70, 70];
+    // Ajustado para que sumen exactamente 545px: 30+105+130+85+60+70+65 = 545
+    const colWidths = [30, 105, 130, 85, 60, 70, 65];
     
     // Header de la tabla
     let headerX = startX;
@@ -1009,7 +1015,7 @@ export class PdfGeneratorService {
        .fillColor(this.colors.textWhite);
     
     headers.forEach((header, index) => {
-      doc.text(header, headerX + 5, currentY + 12, { 
+      doc.text(header, headerX + 5, currentY + 4, { 
         width: colWidths[index] - 10, 
         align: 'center' 
       });
@@ -1020,9 +1026,10 @@ export class PdfGeneratorService {
     
     // Filas de datos
     routeSheet.collections.forEach((collection, index) => {
-      if (currentY > 700) {
+      // Verificar si necesitamos nueva página respetando margen inferior de 25px
+      if (currentY > 817) { // 842 (altura A4) - 25 (margen inferior) = 817
         doc.addPage();
-        currentY = 25;
+        currentY = 25; // Margen superior
       }
       
       currentY = this.generateCollectionRow(
@@ -1053,11 +1060,16 @@ export class PdfGeneratorService {
   ): number {
     const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
     
+    // Preparar los datos de dirección con localidad
+    const addressText = collection.customer.address && collection.customer.locality?.name 
+      ? `${collection.customer.address} - ${collection.customer.locality.name}`
+      : collection.customer.address || '-';
+    
     // Preparar datos de cada columna
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
       { text: index.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
-      { text: collection.customer.address || '-', align: 'center' },
+      { text: addressText, align: 'center' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
       { text: new Date(collection.payment_due_date).toLocaleDateString('es-ES'), align: 'center' },
@@ -1096,7 +1108,34 @@ export class PdfGeneratorService {
       cellX += colWidths[colIndex];
     });
     
-    // Bordes
+    // Agregar notas si existen
+    let notesHeight = 0;
+    if (collection.comments && collection.comments.trim()) {
+      const notesY = currentY + maxHeight + 5;
+      const notesText = collection.comments.trim();
+      const notesTextHeight = doc.heightOfString(notesText, {
+        width: colWidths.reduce((a, b) => a + b, 0) - 60,
+      });
+      
+      notesHeight = notesTextHeight + 10;
+      
+      // Fondo destacado para las notas con color warningColor
+      doc.rect(startX, currentY + maxHeight, colWidths.reduce((a, b) => a + b, 0), notesHeight)
+         .fill(this.colors.warningColor)
+         .stroke(this.colors.borderColor);
+         
+      // Texto de las notas sobre el fondo destacado
+      doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+      doc.text('Notas: ', startX + 5, notesY);
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(notesText, startX + 50, notesY, {
+        width: colWidths.reduce((a, b) => a + b, 0) - 60,
+        align: 'left',
+        lineGap: 1
+      });
+    }
+    
+    // Bordes verticales - dibujados al final para no cortar las notas
     doc.strokeColor(this.colors.borderColor).lineWidth(0.5);
     
     let borderX = startX;
@@ -1108,11 +1147,11 @@ export class PdfGeneratorService {
     });
     
     // Borde inferior
-    doc.moveTo(startX, currentY + maxHeight)
-       .lineTo(startX + tableWidth, currentY + maxHeight)
+    doc.moveTo(startX, currentY + maxHeight + notesHeight)
+       .lineTo(startX + tableWidth, currentY + maxHeight + notesHeight)
        .stroke();
     
-    return currentY + maxHeight;
+    return currentY + maxHeight + notesHeight;
   }
 
   /**

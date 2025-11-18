@@ -6,6 +6,7 @@ import * as fsExtra from 'fs-extra';
 import * as path from 'path';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
+import { PdfGeneratorService, CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
 import { isValidYMD, parseYMD, formatLocalYMD } from '../utils/date.utils';
 
@@ -110,7 +111,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
   
   // Configuración de colores para impresión en blanco y negro
   private readonly colors = {
-    primary: '#000000',        // Rojo para encabezados
+    primary: '#000000ff',        // Rojo para encabezados
     secondary: '#333333',      // Gris oscuro
     bgPrimary: '#F5F5F5',      // Gris muy claro para fondos alternados
     bgSecondary: '#E0E0E0',    // Gris claro
@@ -124,7 +125,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
     warningColor: '#BBBBBB',   // Gris claro (reemplaza amarillo)
   };
 
-  constructor(private readonly tempFileManager: TempFileManagerService) {
+  constructor(
+    private readonly tempFileManager: TempFileManagerService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
+  ) {
     super();
   }
 
@@ -598,7 +602,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
   }
 
   /**
-   * Genera el PDF de la hoja de ruta con diseño moderno
+   * Genera el PDF de la hoja de ruta usando el PdfGeneratorService
    */
   private async generateRouteSheetPdf(
     filePath: string,
@@ -612,753 +616,122 @@ export class RouteSheetGeneratorService extends PrismaClient {
   ): Promise<void> {
     const { targetDate, zones, driver, vehicle, notes } = data;
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
+    // Convertir los datos al formato que espera PdfGeneratorService
+    const collections = zones.flatMap(zone => 
+      zone.collections.map(collection => ({
+        cycle_payment_id: collection.order_id,
+        customer: {
+          name: collection.customer.name,
+          address: collection.customer.address,
+          phone: collection.customer.phone,
+        },
+        amount: parseFloat(collection.amount),
+        payment_due_date: collection.due_date || targetDate.toISOString(),
+        delivery_status: collection.status || 'pending',
+        delivery_time: '',
+        cycle_period: 'monthly',
+        subscription_plan: 'Standard',
+        payment_reference: '',
+        payment_notes: collection.notes,
+        payment_method: '',
+        subscription_notes: '',
+        comments: collection.notes,
+        subscription_id: 1,
+        credits: [],
+      }))
+    );
 
-    // Registrar fuentes Poppins
-    const fontsPath = join(process.cwd(), 'public', 'fonts');
-    doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
-    doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
-
-    let currentY = 50;
-
-    // Header moderno
-    currentY = this.generateModernPdfHeader(doc, targetDate, currentY);
-    currentY += 20;
-
-    // Información del conductor y vehículo con diseño moderno
-    currentY = this.generateModernDriverVehicleInfo(doc, driver, vehicle, currentY);
-    currentY += 20;
-
-    // Notas de ruta
-    if (notes) {
-      currentY = this.generateModernRouteNotes(doc, notes, currentY);
-      currentY += 20;
-    }
-
-    // Tabla de cobranzas con diseño moderno
-    currentY = this.generateModernCollectionsTable(doc, zones, currentY);
-    currentY += 30;
-
-    // Sección de firmas
-    this.generateModernSignatureSection(doc, currentY);
-
-    doc.end();
-
-    await new Promise<void>((resolve, reject) => {
-      stream.on('finish', () => resolve());
-      stream.on('error', (err) => reject(err));
-      doc.on('error', (err) => reject(err));
-    });
-  }
-
-  /**
-   * Genera el header del PDF con diseño moderno
-   */
-  private generateModernPdfHeader(doc: PDFKit.PDFDocument, targetDate: Date, currentY: number): number {
-    // Línea superior decorativa
-    doc.rect(50, currentY, 520, 3).fill(this.colors.primary);
-    currentY += 15;
-
-    // Título principal
-    doc.fontSize(20)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.primary)
-       .text('HOJA DE RUTA - COBRANZAS AUTOMÁTICAS', 50, currentY, { align: 'left' });
-    
-    currentY += 30;
-
-    // Información básica - solo fecha
-    doc.fontSize(14)
-       .font('Poppins')
-       .fillColor(this.colors.textPrimary);
-    
-    const displayDate = this.formatDateForDisplay(targetDate.toISOString());
-    doc.text(`Fecha: ${displayDate}`, 50, currentY);
-    
-    currentY += 20;
-    
-    return currentY;
-  }
-
-  /**
-   * Genera la información del conductor y vehículo con diseño moderno
-   */
-  private generateModernDriverVehicleInfo(
-    doc: PDFKit.PDFDocument, 
-    driver?: RouteSheetDriver, 
-    vehicle?: RouteSheetVehicle,
-    currentY: number = 50
-  ): number {
-    // Información del conductor
-    if (driver) {
-      doc.rect(50, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-      doc.rect(50, currentY, 4, 70).fill(this.colors.primary);
-      
-      doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('CONDUCTOR', 70, currentY + 10);
-      
-      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Nombre: ${driver.name}`, 70, currentY + 30);
-    }
-
-    // Información del vehículo
-    if (vehicle) {
-      const vehicleX = 320;
-      doc.rect(vehicleX, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-      doc.rect(vehicleX, currentY, 4, 70).fill(this.colors.secondary);
-      
-      doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('VEHÍCULO', vehicleX + 20, currentY + 10);
-      
-      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Nombre: ${vehicle.model || 'N/A'}`, vehicleX + 20, currentY + 50);
-      doc.text(`Código: ${vehicle.license_plate}`, vehicleX + 20, currentY + 30);
-    }
-
-    return currentY + 80;
-  }
-
-  /**
-   * Genera las notas de ruta con diseño moderno
-   */
-  private generateModernRouteNotes(doc: PDFKit.PDFDocument, notes: string, currentY: number): number {
-    doc.rect(50, currentY, 520, 50).fill(this.colors.warningColor).stroke(this.colors.borderColor);
-    
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('INSTRUCCIONES ESPECIALES', 70, currentY + 10);
-    
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(notes, 70, currentY + 30, { width: 480 });
-    return currentY + 70;
-  }
-
-  /**
-   * Genera la tabla de cobranzas con diseño moderno
-   */
-  private generateModernCollectionsTable(
-    doc: PDFKit.PDFDocument, 
-    zones: RouteSheetZone[], 
-    currentY: number
-  ): number {
-    const startX = 50;
-    const tableWidth = 520;
-    const headerHeight = 35;
-    
-    // Headers de la tabla
-    const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
-    const colWidths = [30, 90, 120, 80, 60, 70, 70];
-    
-    // Header de la tabla
-    let headerX = startX;
-    doc.rect(startX, currentY, tableWidth, headerHeight)
-       .fill(this.colors.primary);
-    
-    doc.fontSize(12)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.textWhite);
-    
-    headers.forEach((header, index) => {
-      doc.text(header, headerX + 5, currentY + 12, { 
-        width: colWidths[index] - 10,
-        align: 'center'
-      });
-      headerX += colWidths[index];
-    });
-    
-    currentY += headerHeight;
-    
-    // Filas de datos
-    let rowIndex = 0;
-    zones.forEach((zone) => {
-      zone.collections.forEach((collection) => {
-        if (currentY > doc.page.height - 200) {
-          doc.addPage();
-          currentY = 50;
-        }
-
-        currentY = this.generateModernCollectionRow(
-          doc, 
-          collection, 
-          rowIndex, 
-          currentY, 
-          startX, 
-          colWidths
-        );
-        rowIndex++;
-      });
-    });
-    
-    return currentY;
-  }
-
-  /**
-   * Genera una fila de la tabla de cobranzas con altura dinámica
-   */
-  private generateModernCollectionRow(
-    doc: PDFKit.PDFDocument,
-    collection: RouteSheetCollection,
-    index: number,
-    currentY: number,
-    startX: number,
-    colWidths: number[]
-  ): number {
-    const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
-    
-    // Preparar datos de cada columna
-    const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
-      { text: (index + 1).toString(), align: 'center' },
-      { text: collection.customer.name, align: 'left' },
-      { text: collection.customer.address || '-', align: 'center' },
-      { text: collection.customer.phone || '-', align: 'center' },
-      { text: `$${parseFloat(collection.amount).toFixed(2)}`, align: 'center' },
-      { text: collection.due_date ? new Date(collection.due_date).toLocaleDateString('es-ES') : '-', align: 'center' },
-      { text: this.translateCollectionStatus(collection.status), align: 'center' }
-    ];
-
-    // Calcular altura necesaria para cada celda
-    const minRowHeight = 25;
-    const padding = 10;
-    let maxHeight = minRowHeight;
-
-    doc.fontSize(10).font('Poppins');
-    cellData.forEach((cell, colIndex) => {
-      const textHeight = doc.heightOfString(cell.text, {
-        width: colWidths[colIndex] - padding,
-        align: cell.align
-      });
-      maxHeight = Math.max(maxHeight, textHeight + padding);
-    });
-
-    const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-
-    // Dibujar fondo de la fila con altura calculada
-    doc.rect(startX, currentY, tableWidth, maxHeight).fill(fillColor);
-    
-    // Renderizar cada celda con texto multilínea
-    let cellX = startX;
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    
-    cellData.forEach((cell, colIndex) => {
-      doc.text(cell.text, cellX + 5, currentY + 5, {
-        width: colWidths[colIndex] - 10,
-        align: cell.align,
-        lineGap: 2
-      });
-      cellX += colWidths[colIndex];
-    });
-    
-    // Bordes
-    doc.strokeColor(this.colors.borderColor).lineWidth(0.5);
-    
-    let borderX = startX;
-    colWidths.forEach(width => {
-      doc.moveTo(borderX, currentY)
-         .lineTo(borderX, currentY + maxHeight)
-         .stroke();
-      borderX += width;
-    });
-    
-    // Borde inferior
-    doc.moveTo(startX, currentY + maxHeight)
-       .lineTo(startX + tableWidth, currentY + maxHeight)
-       .stroke();
-    
-    return currentY + maxHeight;
-  }
-
-  /**
-   * Traduce el estado de cobranza al español
-   */
-  private translateCollectionStatus(status: string): string {
-    const statusMap = {
-      'pending': 'PENDIENTE',
-      'pendiente': 'PENDIENTE',
-      'delivered': 'ENTREGADO',
-      'entregado': 'ENTREGADO',
-      'cancelled': 'CANCELADO',
-      'cancelado': 'CANCELADO',
-      'in_route': 'EN RUTA',
-      'en_ruta': 'EN RUTA',
-      'overdue': 'ATRASADO',
-      'atrasado': 'ATRASADO',
-    };
-    
-    return statusMap[status.toLowerCase()] || 'PENDIENTE';
-  }
-
-  /**
-   * Genera la sección de firmas con diseño moderno
-   */
-  private generateModernSignatureSection(doc: PDFKit.PDFDocument, currentY: number): void {
-    if (currentY > doc.page.height - 200) {
-      doc.addPage();
-      currentY = 50;
-    }
-
-    // Título de confirmación
-    doc.rect(50, currentY, 520, 30).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(16).font('Poppins-Bold');
-    doc.text('CONFIRMACIÓN DE ENTREGAS', 50, currentY + 8, {
-      align: 'center',
-      width: 520,
-    });
-    currentY += 50;
-
-    const signatureHeight = 80;
-    const signatureWidth = 250;
-
-    // Firma del conductor
-    doc.rect(50, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(50, currentY, 4, signatureHeight).fill(this.colors.primary);
-    
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
-    doc.text('CONDUCTOR', 70, currentY + 10);
-    
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text('Nombre: _________________________', 70, currentY + 30);
-    doc.text('Fecha: _____ / _____ / _____', 70, currentY + 50);
-    doc.text('Hora: _____ : _____', 70, currentY + 65);
-
-    // Firma del supervisor
-    const supervisorX = 320;
-    doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(supervisorX, currentY, 4, signatureHeight).fill(this.colors.secondary);
-    
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
-    doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
-    
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text('Nombre: _____________________', supervisorX + 20, currentY + 30);
-    doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
-    doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
-  }
-
-  /**
-   * ============================================================================
-   * MÉTODOS PARA GENERACIÓN DE PDFs DE HOJAS DE RUTA DE COBRANZAS AUTOMÁTICAS
-   * ============================================================================
-   */
-
-  /**
-   * Genera un PDF específico para hojas de ruta de cobranzas automáticas
-   */
-  async generateCollectionRouteSheetPdf(
-    data: CollectionRouteSheetPdfData,
-  ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    const filename = this.buildCollectionRouteSheetFilename(data);
-    const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
-
-    // Asegurar que el directorio existe
-    await fsExtra.ensureDir(dirname(pdfPath));
-
-    const doc = new PDFDocument({ margin: 50 });
-    await this.generateCollectionRouteSheetContent(doc, data);
-
-    return { doc, filename, pdfPath };
-  }
-
-  /**
-   * Construye el nombre de archivo para hoja de ruta de cobranzas automáticas.
-   */
-  private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
-    const base = 'cobranza-automatica-hoja-de-ruta';
-    const ymd = this.formatDateYMD(data.delivery_date);
-
-    // Movil/vehículo
-    const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';
-    const vehiclePart = rawVehicle
-      ? `m${this.slugifyForFilename(rawVehicle)}`
-      : 'mNA';
-
-    // Zonas
-    const zones = Array.isArray(data.zone_identifiers) ? data.zone_identifiers : [];
-    let zonesPart = 'zall';
-    if (zones.length > 0) {
-      const uniqueZones = Array.from(new Set(zones)).map((z) => this.slugifyForFilename(z));
-      zonesPart = `z${uniqueZones.join('-')}`;
-    }
-
-    // Chofer
-    const rawDriver = data.driver?.name || '';
-    const driverPart = rawDriver
-      ? `d${this.slugifyForFilename(rawDriver)}`
-      : 'dNA';
-
-    return `${base}_${ymd}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
-  }
-
-  /**
-   * Formatea fecha a YYYY-MM-DD para uso en nombre de archivo unificado
-   */
-  private formatDateYMD(dateInput: string | Date): string {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  /**
-   * Formatea fecha para mostrar en el PDF como dd/MM/yyyy
-   */
-  private formatDateForDisplay(dateInput: string | Date): string {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
-  }
-
-  /**
-   * Genera el contenido del PDF para hojas de ruta de cobranzas
-   */
-  private async generateCollectionRouteSheetContent(
-    doc: PDFKit.PDFDocument,
-    routeSheet: CollectionRouteSheetPdfData,
-  ): Promise<void> {
-    // Registrar fuentes Poppins
-    const fontsPath = join(process.cwd(), 'public', 'fonts');
-    doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
-    doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
-
-    let currentY = 50;
-
-    // Header
-    currentY = this.generateCollectionHeader(doc, routeSheet, currentY);
-    currentY += 20;
-
-    // Driver and Vehicle Info
-    currentY = this.generateCollectionDriverVehicleInfo(doc, routeSheet, currentY);
-    currentY += 20;
-
-    // Route Notes
-    if (routeSheet.route_notes) {
-      currentY = this.generateCollectionRouteNotes(doc, routeSheet, currentY);
-      currentY += 20;
-    }
-
-    // Collections Table
-    currentY = this.generateCollectionsTable(doc, routeSheet, currentY);
-    currentY += 30;
-
-    // Signature Section
-    this.generateCollectionSignatureSection(doc, currentY);
-  }
-
-  /**
-   * Genera el header específico para hojas de ruta de cobranzas
-   */
-  private generateCollectionHeader(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData, currentY: number): number {
-    // Línea superior decorativa
-    doc.rect(50, currentY, 520, 3).fill(this.colors.primary);
-    currentY += 15;
-
-    // Título principal
-    doc.fontSize(20)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.primary)
-       .text('HOJA DE RUTA - COBRANZAS AUTOMÁTICAS', 50, currentY, { align: 'left' });
-    
-    currentY += 30;
-
-    // Información básica - solo fecha
-    doc.fontSize(14)
-       .font('Poppins')
-       .fillColor(this.colors.textPrimary);
-    
-    const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
-    doc.text(`Fecha: ${displayDate}`, 50, currentY);
-    
-    currentY += 20;
-    
-    return currentY;
-  }
-
-  /**
-   * Genera la información del conductor y vehículo para cobranzas
-   */
-  private generateCollectionDriverVehicleInfo(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData, currentY: number): number {
-    // Información del conductor
-    doc.rect(50, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(50, currentY, 4, 70).fill(this.colors.primary);
-    
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('CONDUCTOR', 70, currentY + 10);
-    
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.driver.name}`, 70, currentY + 30);
-
-    // Información del vehículo
-    const vehicleX = 320;
-    doc.rect(vehicleX, currentY, 250, 70).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(vehicleX, currentY, 4, 70).fill(this.colors.secondary);
-    
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('VEHÍCULO', vehicleX + 20, currentY + 10);
-    
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 45);
-    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 30);
-
-    return currentY + 80;
-  }
-
-  /**
-   * Genera las notas de ruta para cobranzas
-   */
-  private generateCollectionRouteNotes(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData, currentY: number): number {
-    doc.rect(50, currentY, 520, 50).fill(this.colors.warningColor).stroke(this.colors.borderColor);
-    
-    doc.fontSize(14).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('INSTRUCCIONES ESPECIALES', 70, currentY + 10);
-    
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(routeSheet.route_notes, 70, currentY + 30, { width: 480 });
-    return currentY + 70;
-  }
-
-  /**
-   * Genera la tabla de cobranzas
-   */
-  private generateCollectionsTable(
-    doc: PDFKit.PDFDocument, 
-    routeSheet: CollectionRouteSheetPdfData, 
-    currentY: number
-  ): number {
-    const startX = 50;
-    const tableWidth = 520;
-    const rowHeight = 25;
-    const headerHeight = 35;
-    
-    // Headers de la tabla
-    const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
-    const colWidths = [30, 90, 120, 80, 60, 70, 70];
-    
-    // Header de la tabla
-    let headerX = startX;
-    doc.rect(startX, currentY, tableWidth, headerHeight)
-       .fill(this.colors.primary);
-    
-    doc.fontSize(12)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.textWhite);
-    
-    headers.forEach((header, index) => {
-      doc.text(header, headerX + 5, currentY + 12, { 
-        width: colWidths[index] - 10,
-        align: 'center'
-      });
-      headerX += colWidths[index];
-    });
-    
-    currentY += headerHeight;
-    
-    // Filas de datos
-    routeSheet.collections.forEach((collection, index) => {
-      if (currentY > doc.page.height - 200) {
-        doc.addPage();
-        currentY = 50;
-      }
-
-      currentY = this.generateCollectionRow(doc, collection, index, currentY, startX, colWidths, rowHeight);
-    });
-    
-    return currentY;
-  }
-
-  /**
-   * Genera una fila de la tabla de cobranzas con altura dinámica
-   */
-  private generateCollectionRow(
-    doc: PDFKit.PDFDocument,
-    collection: any,
-    index: number,
-    currentY: number,
-    startX: number,
-    colWidths: number[],
-    rowHeight: number
-  ): number {
-    const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
-    
-    // Preparar datos de cada columna
-    const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
-      { text: (index + 1).toString(), align: 'center' },
-      { text: collection.customer.name, align: 'left' },
-      { 
-        text: collection.customer.address 
-          ? `${collection.customer.address}${collection.customer.locality?.name ? ` - ${collection.customer.locality.name}` : ''}`
-          : '-', 
-        align: 'center' 
+    const collectionData: PdfCollectionRouteSheetPdfData = {
+      route_sheet_id: Math.floor(Math.random() * 1000),
+      delivery_date: targetDate.toISOString().split('T')[0],
+      driver: {
+        name: driver?.name || 'No asignado',
+        email: '',
       },
-      { text: collection.customer.phone || '-', align: 'center' },
-      { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
-      { text: new Date(collection.payment_due_date).toLocaleDateString('es-ES'), align: 'center' },
-      { text: this.translateStatus(collection.delivery_status), align: 'center' }
-    ];
-
-    // Calcular altura necesaria para cada celda
-    const minRowHeight = 25;
-    const padding = 10;
-    let maxHeight = minRowHeight;
-
-    doc.fontSize(10).font('Poppins');
-    cellData.forEach((cell, colIndex) => {
-      const textHeight = doc.heightOfString(cell.text, {
-        width: colWidths[colIndex] - padding,
-        align: cell.align
-      });
-      maxHeight = Math.max(maxHeight, textHeight + padding);
-    });
-
-    // Si hay comentarios, calcular altura adicional para renderizarlos bajo la fila
-    const tableWidth = colWidths.reduce((a, b) => a + b, 0);
-    const hasComments = !!(collection.comments && String(collection.comments).trim().length > 0);
-    let commentsHeight = 0;
-    let commentsText = '';
-    if (hasComments) {
-      commentsText = `Obs.: ${String(collection.comments).trim()}`;
-      doc.fontSize(9).font('Poppins');
-      const h = doc.heightOfString(commentsText, {
-        width: tableWidth - 20,
-        align: 'left',
-        lineGap: 2,
-      });
-      commentsHeight = h + 8; // padding para respiración visual
-    }
-
-    // Dibujar fondo de la fila con altura calculada
-    doc.rect(startX, currentY, tableWidth, maxHeight).fill(fillColor);
-    
-    // Renderizar cada celda con texto multilínea
-    let cellX = startX;
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    
-    cellData.forEach((cell, colIndex) => {
-      doc.text(cell.text, cellX + 5, currentY + 5, {
-        width: colWidths[colIndex] - 10,
-        align: cell.align,
-        lineGap: 2
-      });
-      cellX += colWidths[colIndex];
-    });
-    
-    // Bordes
-    doc.strokeColor(this.colors.borderColor).lineWidth(0.5);
-    
-    let borderX = startX;
-    colWidths.forEach(width => {
-      doc.moveTo(borderX, currentY)
-         .lineTo(borderX, currentY + maxHeight)
-         .stroke();
-      borderX += width;
-    });
-    
-    // Comentarios bajo la fila (si existen)
-    let endY = currentY + maxHeight;
-    if (hasComments) {
-      // Fondo ligero para comentarios
-      doc.rect(startX, endY, tableWidth, commentsHeight).fill(this.colors.bgSecondary);
-      // Texto de comentarios
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(commentsText, startX + 10, endY + 4, {
-        width: tableWidth - 20,
-        align: 'left',
-        lineGap: 2,
-      });
-      endY += commentsHeight;
-    }
-    
-    // Borde inferior (considerando posible bloque de comentarios)
-    doc.moveTo(startX, endY)
-       .lineTo(startX + tableWidth, endY)
-       .stroke();
-    
-    return endY;
-  }
-
-  /**
-   * Traduce el estado de entrega al español
-   */
-  private translateStatus(status: string): string {
-    const statusMap = {
-      'pending': 'PENDIENTE',
-      'pendiente': 'PENDIENTE',
-      'delivered': 'ENTREGADO',
-      'entregado': 'ENTREGADO',
-      'cancelled': 'CANCELADO',
-      'cancelado': 'CANCELADO',
-      'in_route': 'EN RUTA',
-      'en_ruta': 'EN RUTA',
-      'overdue': 'ATRASADO',
-      'atrasado': 'ATRASADO',
+      vehicle: {
+        code: vehicle?.license_plate || 'N/A',
+        name: vehicle?.model || 'No asignado',
+      },
+      route_notes: notes,
+      collections,
     };
-    
-    return statusMap[status.toLowerCase()] || 'PENDIENTE';
-  }
 
-  /**
-   * Genera la sección de firmas para cobranzas
-   */
-  private generateCollectionSignatureSection(doc: PDFKit.PDFDocument, currentY: number): void {
-    if (currentY > doc.page.height - 200) {
-      doc.addPage();
-      currentY = 50;
-    }
+    // Usar PdfGeneratorService para generar el PDF
+    const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+      collectionData
+    );
 
-    // Título de confirmación
-    doc.rect(50, currentY, 520, 30).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(16).font('Poppins-Bold');
-    doc.text('CONFIRMACIÓN DE ENTREGAS', 50, currentY + 8, {
-      align: 'center',
-      width: 520,
-    });
-    currentY += 50;
+    // Crear el stream y finalizar el documento
+    const writeStream = fs.createWriteStream(filePath);
+    result.doc.pipe(writeStream);
+    result.doc.end();
 
-    const signatureHeight = 80;
-    const signatureWidth = 250;
-
-    // Firma del conductor
-    doc.rect(50, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(50, currentY, 4, signatureHeight).fill(this.colors.primary);
-    
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
-    doc.text('CONDUCTOR', 70, currentY + 10);
-    
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text('Nombre: _________________________', 70, currentY + 30);
-    doc.text('Fecha: _____ / _____ / _____', 70, currentY + 50);
-    doc.text('Hora: _____ : _____', 70, currentY + 65);
-
-    // Firma del supervisor
-    const supervisorX = 320;
-    doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(supervisorX, currentY, 4, signatureHeight).fill(this.colors.secondary);
-    
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
-    doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
-    
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text('Nombre: _____________________', supervisorX + 20, currentY + 30);
-    doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
-    doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
-  }
-
-  /**
-   * Finaliza la generación del PDF y retorna la URL
-   */
-  async finalizePdf(
-    doc: PDFKit.PDFDocument,
-    writeStream: fs.WriteStream,
-    filename: string,
-  ): Promise<{ url: string; filename: string }> {
-    return new Promise((resolve, reject) => {
-      writeStream.on('finish', () => {
-        resolve({ url: `/public/pdfs/${filename}`, filename });
-      });
+    // Esperar a que termine la escritura
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', () => resolve());
       writeStream.on('error', reject);
-      doc.end();
     });
+
+    return;
+  }
+
+  /**
+   * Genera un PDF de previsualización usando datos de prueba directos
+   * Solo para desarrollo y testing
+   */
+  async generatePreviewPdf(testData: CollectionRouteSheetPdfData): Promise<string> {
+    try {
+      // Generar el PDF usando PdfGeneratorService con los datos de prueba
+      const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(testData);
+      
+      // Crear archivo temporal para previsualización
+      const tempPath = `./temp/preview-collection-${Date.now()}.pdf`;
+      
+      // Crear el write stream
+      const writeStream = fs.createWriteStream(tempPath);
+      result.doc.pipe(writeStream);
+      result.doc.end();
+
+      // Esperar a que termine de escribirse
+      await new Promise<void>((resolve, reject) => {
+        writeStream.on('finish', () => resolve());
+        writeStream.on('error', reject);
+      });
+
+      return tempPath;
+    } catch (error) {
+      this.logger.error('Error generando PDF de previsualización:', error);
+      throw new Error(`Error generando PDF de previsualización: ${error.message}`);
+    }
+  }
+
+  /**
+   * Genera un PDF de previsualización para hojas de ruta normales (no cobranzas)
+   * Solo para desarrollo y testing
+   */
+  async generatePreviewRouteSheetPdf(testData: any): Promise<string> {
+    try {
+      // Generar el PDF usando PdfGeneratorService con los datos de prueba
+      const result = await this.pdfGeneratorService.generateRouteSheetPdf(testData, {
+        includeSignatureField: true,
+        includeProductDetails: true,
+      });
+      
+      // Crear el write stream y finalizar el documento
+      const writeStream = fs.createWriteStream(result.pdfPath);
+      result.doc.pipe(writeStream);
+      result.doc.end();
+
+      // Esperar a que termine de escribirse
+      await new Promise<void>((resolve, reject) => {
+        writeStream.on('finish', () => resolve());
+        writeStream.on('error', reject);
+      });
+
+      return result.pdfPath;
+    } catch (error) {
+      this.logger.error('Error generando PDF de previsualización de hoja de ruta:', error);
+      throw new Error(`Error generando PDF de previsualización de hoja de ruta: ${error.message}`);
+    }
   }
 }

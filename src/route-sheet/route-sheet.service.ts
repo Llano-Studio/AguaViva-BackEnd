@@ -2901,8 +2901,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         }),
       };
 
-      // Generar el PDF usando el servicio de generación de hojas de ruta
-      const { doc, filename, pdfPath } = await this.routeSheetGeneratorService.generateCollectionRouteSheetPdf(
+      // Generar el PDF usando el servicio de generación mejorado
+      const { doc, filename, pdfPath } = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
         collectionData,
       );
 
@@ -2911,7 +2911,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       doc.pipe(writeStream);
 
       // Finalizar y obtener la URL
-      const result = await this.routeSheetGeneratorService.finalizePdf(
+      const result = await this.pdfGeneratorService.finalizePdf(
         doc,
         writeStream,
         filename,
