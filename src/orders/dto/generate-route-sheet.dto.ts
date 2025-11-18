@@ -231,6 +231,19 @@ export class RouteSheetCollectionDto {
     example: 'PENDING',
   })
   status: string;
+
+  @ApiProperty({
+    description: 'Indica si la orden pertenece a backlog (pendiente/atrasada)',
+    example: false,
+  })
+  is_backlog: boolean;
+
+  @ApiProperty({
+    description: 'Tipo de backlog si aplica',
+    example: 'OVERDUE',
+    nullable: true,
+  })
+  backlog_type?: 'PENDING' | 'OVERDUE' | null;
 }
 
 export class RouteSheetZoneDto {
