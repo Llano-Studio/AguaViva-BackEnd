@@ -36,14 +36,14 @@ export class PdfDevController {
       },
       route_notes: "cargar combustible en YPF sarmiento",
       zone_identifiers: ["z-1-res", "z-2-res", "z-3-res"],
-      collections: [
-        {
-          cycle_payment_id: 42,
-          customer: {
-            customer_id: 33,
-            name: "elsa moro",
-            address: "jose hernandez 270",
-            phone: "3624950203",
+          collections: [
+          {
+            cycle_payment_id: 42,
+            customer: {
+              customer_id: 101,
+              name: "elsa moro",
+              address: "jose hernandez 270",
+              phone: "3624950203",
             zone: {
               zone_id: 11,
               code: "z-2-res",
@@ -78,13 +78,13 @@ export class PdfDevController {
             }
           ]
         },
-        {
-          cycle_payment_id: 43,
-          customer: {
-            customer_id: 42,
-            name: "daiana gonzalez",
-            address: "san martin 450",
-            phone: "3624888999",
+          {
+            cycle_payment_id: 43,
+            customer: {
+              customer_id: 102,
+              name: "daiana gonzalez",
+              address: "san martin 450",
+              phone: "3624888999",
             zone: {
               zone_id: 11,
               code: "z-2-res",
@@ -113,13 +113,13 @@ export class PdfDevController {
             }
           ]
         },
-        {
-          cycle_payment_id: 44,
-          customer: {
-            customer_id: 20,
-            name: "santiago valussi",
-            address: "moreno 789",
-            phone: "3624777888",
+          {
+            cycle_payment_id: 44,
+            customer: {
+              customer_id: 103,
+              name: "santiago valussi",
+              address: "moreno 789",
+              phone: "3624777888",
             zone: {
               zone_id: 12,
               code: "z-3-res", 
