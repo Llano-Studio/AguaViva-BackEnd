@@ -1,7 +1,8 @@
 import { Controller, Get, Res } from '@nestjs/common';
 import { Response } from 'express';
-import { PdfGeneratorService } from '../services/pdf-generator.service';
-import { RouteSheetGeneratorService, CollectionRouteSheetPdfData } from '../services/route-sheet-generator.service';
+import { PdfGeneratorService, CollectionRouteSheetPdfData } from '../services/pdf-generator.service';
+import { RouteSheetGeneratorService } from '../services/route-sheet-generator.service';
+import { GenerateRouteSheetDto } from '../../orders/dto/generate-route-sheet.dto';
 import * as fs from 'fs-extra';
 
 /**
@@ -154,33 +155,34 @@ export class PdfDevController {
     };
 
     try {
-      // Generar el PDF usando RouteSheetGeneratorService
-      const { doc, pdfPath } = await this.routeSheetGeneratorService.generateCollectionRouteSheetPdf(
-        testData,
-      );
-
-      // Crear el write stream
-      const writeStream = fs.createWriteStream(pdfPath);
-      doc.pipe(writeStream);
-      doc.end();
+      // Generar el PDF directamente usando PdfGeneratorService
+      const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(testData);
+      
+      // Crear archivo temporal para preview
+      const tempPath = `./temp/preview-collection-${Date.now()}.pdf`;
+      await fs.ensureDir('./temp');
+      
+      const writeStream = fs.createWriteStream(tempPath);
+      result.doc.pipe(writeStream);
+      result.doc.end();
 
       // Esperar a que termine de escribirse
       await new Promise<void>((resolve, reject) => {
         writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
-
-      // Leer el archivo y enviarlo
-      const pdfBuffer = await fs.readFile(pdfPath);
+      
+      // Leer el archivo PDF generado
+      const pdfBuffer = await fs.readFile(tempPath);
       
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'inline; filename="preview.pdf"');
+      res.setHeader('Content-Disposition', 'inline; filename="preview-collection-route.pdf"');
       res.send(pdfBuffer);
 
       // Limpiar el archivo temporal después de 5 segundos
       setTimeout(async () => {
         try {
-          await fs.remove(pdfPath);
+          await fs.remove(tempPath);
         } catch (error) {
           console.error('Error al limpiar archivo temporal:', error);
         }
@@ -931,21 +933,10 @@ export class PdfDevController {
     };
 
     try {
-      const { doc, pdfPath } = await this.pdfGeneratorService.generateRouteSheetPdf(testData, {
-        includeSignatureField: true,
-        includeProductDetails: true,
-      });
+      // Generar el PDF usando RouteSheetGeneratorService con datos de prueba
+      const filePath = await this.routeSheetGeneratorService.generatePreviewRouteSheetPdf(testData);
 
-      const writeStream = fs.createWriteStream(pdfPath);
-      doc.pipe(writeStream);
-      doc.end();
-
-      await new Promise<void>((resolve, reject) => {
-        writeStream.on('finish', () => resolve());
-        writeStream.on('error', reject);
-      });
-
-      const pdfBuffer = await fs.readFile(pdfPath);
+      const pdfBuffer = await fs.readFile(filePath);
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', 'inline; filename="preview-route.pdf"');
@@ -953,7 +944,7 @@ export class PdfDevController {
 
       setTimeout(async () => {
         try {
-          await fs.remove(pdfPath);
+          await fs.remove(filePath);
         } catch (error) {
           console.error('Error al limpiar archivo temporal:', error);
         }
