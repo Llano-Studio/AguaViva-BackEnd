@@ -500,7 +500,7 @@ export class PdfGeneratorService {
       
       // Vehículo en el centro
       doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Vehículo: ${routeSheet.vehicle?.name || 'N/A'}`, 350, footerY + 2);
+      doc.text(`Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`, 350, footerY + 2);
       
       // Paginación en el lado derecho de la misma línea
       doc.fontSize(10).font('Poppins').fillColor(this.colors.secondary);
@@ -618,7 +618,7 @@ export class PdfGeneratorService {
       { text: detail.order.customer.name, fontSize: 11, font: 'Poppins-Bold', align: 'left' },
       { text: addressText, fontSize: 10, font: 'Poppins', align: 'left' },
       { text: detail.order.customer.phone, fontSize: 10, font: 'Poppins', align: 'left' },
-      { text: detail.delivery_time || 'N/A', fontSize: 10, font: 'Poppins', align: 'center' },
+      { text: detail.delivery_time || 'N/D', fontSize: 10, font: 'Poppins', align: 'center' },
       { text: `$${detail.order.total_amount}`, fontSize: 10, font: 'Poppins-Bold', align: 'right' },
     ];
 
@@ -1109,27 +1109,110 @@ export class PdfGeneratorService {
       cellX += colWidths[colIndex];
     });
     
-    // Agregar notas si existen
     let notesHeight = 0;
-    if (collection.comments && collection.comments.trim()) {
+    const buildNotesText = (): string => {
+      const parts: string[] = [];
+      const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
+      if (raw) {
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            const dp = parsed?.delivery_preferences || {};
+            const si = dp?.special_instructions;
+            const days = Array.isArray(dp?.preferred_days) ? dp.preferred_days.join(',') : dp?.preferred_days;
+            const tr = dp?.preferred_time_range;
+            const at = Array.isArray(dp?.avoid_times) ? dp.avoid_times.join(',') : dp?.avoid_times;
+            const segs: string[] = [];
+            if (si) segs.push(String(si));
+            if (days) segs.push(`Días: ${days}`);
+            if (tr) segs.push(`Horario: ${tr}`);
+            if (at) segs.push(`Evitar: ${at}`);
+            if (segs.length > 0) parts.push(segs.join(' - '));
+          } catch {
+            const getMatch = (re: RegExp) => {
+              const m = raw.match(re);
+              return m && m[1] ? m[1] : undefined;
+            };
+            const parseList = (val?: string) => {
+              if (!val) return undefined;
+              let s = val.trim();
+              if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
+              s = s.replace(/"/g, '');
+              const arr = s.split(',').map(x => x.trim()).filter(Boolean);
+              return arr.length ? arr.join(',') : undefined;
+            };
+            const si = getMatch(/"special_instructions"\s*:\s*"([^"]*)"/);
+            const daysRaw = getMatch(/"preferred_days"\s*:\s*(\[[^\]]*\]|"[^"]*")/);
+            const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
+            const atRaw = getMatch(/"avoid_times"\s*:\s*(\[[^\]]*\]|"[^"]*")/);
+            const days = parseList(daysRaw);
+            const at = parseList(atRaw);
+            const segs: string[] = [];
+            if (si) segs.push(String(si));
+            if (days) segs.push(`Días: ${days}`);
+            if (tr) segs.push(`Horario: ${tr}`);
+            if (at) segs.push(`Evitar: ${at}`);
+            if (segs.length > 0) {
+              parts.push(segs.join(' - '));
+            } else {
+              const simplified = raw
+                .replace(/[{}]/g, '')
+                .replace(/"/g, '')
+                .replace(/\s*,\s*/g, ' | ')
+                .replace(/delivery_preferences\s*:\s*/i, '')
+                .trim();
+              if (simplified) parts.push(simplified);
+            }
+          }
+        } else if (typeof raw === 'object') {
+          try {
+            const dp = (raw as any)?.delivery_preferences || {};
+            const si = dp?.special_instructions;
+            const days = Array.isArray(dp?.preferred_days) ? dp.preferred_days.join(',') : dp?.preferred_days;
+            const tr = dp?.preferred_time_range;
+            const at = Array.isArray(dp?.avoid_times) ? dp.avoid_times.join(',') : dp?.avoid_times;
+            const segs: string[] = [];
+            if (si) segs.push(String(si));
+            if (days) segs.push(`Días: ${days}`);
+            if (tr) segs.push(`Horario: ${tr}`);
+            if (at) segs.push(`Evitar: ${at}`);
+            if (segs.length > 0) parts.push(segs.join(' - '));
+          } catch {
+            const simplified = String(raw);
+            if (simplified) parts.push(simplified);
+          }
+        }
+      }
+      const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
+      if (firstCredit) {
+        parts.push(`Abono ${firstCredit.product_description} x ${firstCredit.planned_quantity}`);
+      }
+      if (collection.payment_due_date) {
+        const d = new Date(collection.payment_due_date);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        parts.push(`Vencimiento: ${dd}/${mm}/${yyyy}`);
+      }
+      if (typeof collection.amount === 'number') {
+        parts.push(`Monto a cobrar: $${collection.amount.toFixed(2)}`);
+      }
+      return parts.join(' | ').trim();
+    };
+    const finalNotes = buildNotesText();
+    if (finalNotes) {
       const notesY = currentY + maxHeight + 5;
-      const notesText = collection.comments.trim();
-      const notesTextHeight = doc.heightOfString(notesText, {
+      const notesTextHeight = doc.heightOfString(finalNotes, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
       });
-      
       notesHeight = notesTextHeight + 10;
-      
-      // Fondo destacado para las notas con color warningColor
       doc.rect(startX, currentY + maxHeight, colWidths.reduce((a, b) => a + b, 0), notesHeight)
          .fill(this.colors.warningColor)
          .stroke(this.colors.borderColor);
-         
-      // Texto de las notas sobre el fondo destacado
       doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textPrimary);
       doc.text('Notas: ', startX + 5, notesY);
       doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(notesText, startX + 50, notesY, {
+      doc.text(finalNotes, startX + 50, notesY, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
         align: 'left',
         lineGap: 1
