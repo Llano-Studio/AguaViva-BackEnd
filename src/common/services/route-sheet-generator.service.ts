@@ -36,6 +36,8 @@ export interface RouteSheetCollection {
   priority: number;
   notes: string;
   status: string;
+  is_backlog: boolean;
+  backlog_type?: 'PENDING' | 'OVERDUE' | null;
 }
 
 export interface RouteSheetDriver {
@@ -69,6 +71,7 @@ export interface CollectionRouteSheetPdfData {
   collections: Array<{
     cycle_payment_id: number;
     customer: {
+      customer_id: number;
       name: string;
       address: string;
       phone: string;
@@ -150,7 +153,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       }
 
       const collections = await this.getCollectionsForRouteSheet(filters, targetDate);
-      const zones = this.groupCollectionsByZone(collections);
+      const zones = this.groupCollectionsByZone(collections, targetDate);
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
@@ -224,7 +227,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       }
 
       const collections = await this.getCollectionsForRouteSheet(filters, targetDate);
-      const zones = this.groupCollectionsByZone(collections);
+      const zones = this.groupCollectionsByZone(collections, targetDate);
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
@@ -349,11 +352,6 @@ export class RouteSheetGeneratorService extends PrismaClient {
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-    // Construir cláusula WHERE tolerante:
-    // - is_active=true y order_type='ONE_OFF'
-    // - Coincidir por order_date O scheduled_delivery_date dentro del día
-    // - Considerar órdenes automáticas modernas (es_automatica=true)
-    //   y órdenes automáticas legacy (notas que contienen 'COBRANZA AUTOMÁTICA')
     const whereClause: Prisma.collection_ordersWhereInput = {
       order_type: 'ONE_OFF',
       is_active: true,
@@ -362,6 +360,18 @@ export class RouteSheetGeneratorService extends PrismaClient {
           OR: [
             { order_date: { gte: dayStart, lt: dayEnd } },
             { scheduled_delivery_date: { gte: dayStart, lt: dayEnd } },
+            {
+              AND: [
+                { scheduled_delivery_date: { lt: dayStart } },
+                { payment_status: { in: ['PENDING', 'OVERDUE'] } },
+              ],
+            },
+            {
+              AND: [
+                { order_date: { lt: dayStart } },
+                { payment_status: { in: ['PENDING', 'OVERDUE'] } },
+              ],
+            },
           ],
         },
       ],
@@ -405,6 +415,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
         },
         customer_subscription: {
           include: {
+            subscription_plan: {
+              select: { name: true },
+            },
             subscription_cycle: {
               where: {
                 pending_balance: { gt: 0 },
@@ -436,7 +449,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Agrupa las cobranzas por zona
    */
-  private groupCollectionsByZone(collections: any[]): RouteSheetZone[] {
+  private groupCollectionsByZone(collections: any[], targetDate: Date): RouteSheetZone[] {
     const zoneGroups = new Map<number, RouteSheetZone>();
 
     collections.forEach((collection) => {
@@ -458,7 +471,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         });
       }
 
-      const collectionData = this.createCollectionData(collection, zoneName);
+      const collectionData = this.createCollectionData(collection, zoneName, targetDate);
       const zoneData = zoneGroups.get(zoneKey)!;
       
       zoneData.collections.push(collectionData);
@@ -471,13 +484,31 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Crea los datos de una cobranza
    */
-  private createCollectionData(collection: any, zoneName: string): RouteSheetCollection {
-    const today = new Date();
+  private createCollectionData(collection: any, zoneName: string, targetDate: Date): RouteSheetCollection {
+    const dayStart = new Date(targetDate);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const dueDate = collection.customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
-    const isOverdue = dueDate ? dueDate < today : false;
-    const daysOverdue = isOverdue && dueDate 
-      ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+    const isOverdue = dueDate ? dueDate < dayStart : false;
+    const daysOverdue = isOverdue && dueDate
+      ? Math.floor((dayStart.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
       : 0;
+
+    const orderDate: Date | null = collection.order_date ? new Date(collection.order_date) : null;
+    const scheduledDate: Date | null = collection.scheduled_delivery_date ? new Date(collection.scheduled_delivery_date) : null;
+    const inRange = (d: Date | null) => d ? d >= dayStart && d < dayEnd : false;
+    const isForTargetDay = inRange(orderDate) || inRange(scheduledDate);
+    const isBacklog = !isForTargetDay && ['PENDING', 'OVERDUE'].includes((collection.payment_status || '').toUpperCase());
+    const backlogType: 'PENDING' | 'OVERDUE' | null = isBacklog ? ((collection.payment_status || '').toUpperCase() as 'PENDING' | 'OVERDUE') : null;
+
+    const planName = collection.customer_subscription?.subscription_plan?.name;
+    const subscriptionNotes = collection.customer_subscription?.notes ?? undefined;
+    const amountNumber = Number(collection.total_amount);
+    const formattedNotes = formatCollectionNotesForRouteSheet(
+      subscriptionNotes,
+      planName,
+      dueDate || undefined,
+      isNaN(amountNumber) ? String(collection.total_amount) : amountNumber,
+    );
 
     return {
       order_id: (collection as any).collection_order_id ?? collection.order_id,
@@ -492,11 +523,14 @@ export class RouteSheetGeneratorService extends PrismaClient {
       due_date: dueDate?.toISOString() || null,
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
-      notes: collection.notes,
+      notes: formattedNotes,
       status: collection.status,
+      is_backlog: isBacklog,
+      backlog_type: backlogType,
     };
-  }
 
+
+  }
   /**
    * Actualiza el resumen de la zona
    */
@@ -1361,4 +1395,19 @@ export class RouteSheetGeneratorService extends PrismaClient {
       doc.end();
     });
   }
+}
+
+export function formatCollectionNotesForRouteSheet(
+  subscriptionNotes: string | undefined,
+  planName: string | undefined,
+  dueDate: Date | undefined,
+  amount: number | string,
+): string {
+  const dateStr = dueDate ? dueDate.toISOString().split('T')[0] : 'N/A';
+  const amountStr = typeof amount === 'number' ? String(amount) : amount;
+  const base = `${planName ? planName : ''}  - Vencimiento: ${dateStr} - Monto a cobrar: $${amountStr}`;
+  if (subscriptionNotes && subscriptionNotes.trim().length > 0) {
+    return `${subscriptionNotes.trim()}  |  ${base}`;
+  }
+  return `Suscripción: ${base}`;
 }

@@ -1800,13 +1800,47 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       })) || [],
     };
 
-    const sortedDetails = [...routeSheet.route_sheet_detail].sort((a, b) => {
-      if (a.sequence_number === null || a.sequence_number === undefined)
-        return 1;
-      if (b.sequence_number === null || b.sequence_number === undefined)
-        return -1;
-      return a.sequence_number - b.sequence_number;
-    });
+    const sortedDetails = [...routeSheet.route_sheet_detail]
+      .map((d, idx) => ({ d, idx }))
+      .sort((a, b) => {
+        const as = a.d.sequence_number;
+        const bs = b.d.sequence_number;
+        if (as === null || as === undefined) return 1;
+        if (bs === null || bs === undefined) return -1;
+        return as - bs;
+      });
+
+    const getPersonId = (detail: any): number | null => {
+      if (detail.order_header) return detail.order_header.customer.person_id ?? null;
+      if (detail.one_off_purchase) return detail.one_off_purchase.person.person_id ?? null;
+      if (detail.one_off_purchase_header)
+        return detail.one_off_purchase_header.person.person_id ?? null;
+      if (detail.cancellation_order)
+        return detail.cancellation_order.customer_subscription.person.person_id ?? null;
+      if (detail.cycle_payment)
+        return detail.cycle_payment.subscription_cycle.customer_subscription.person.person_id ?? null;
+      return null;
+    };
+
+    const firstIndexByPerson = new Map<number, number>();
+    for (const item of sortedDetails) {
+      const pid = getPersonId(item.d);
+      if (typeof pid === 'number' && !firstIndexByPerson.has(pid)) {
+        firstIndexByPerson.set(pid, item.idx);
+      }
+    }
+
+    const groupedDetails = sortedDetails
+      .slice()
+      .sort((a, b) => {
+        const pa = getPersonId(a.d);
+        const pb = getPersonId(b.d);
+        const fa = typeof pa === 'number' ? firstIndexByPerson.get(pa)! : a.idx;
+        const fb = typeof pb === 'number' ? firstIndexByPerson.get(pb)! : b.idx;
+        if (fa !== fb) return fa - fb;
+        return a.idx - b.idx;
+      })
+      .map((x) => x.d);
 
     // Calcular zonas cubiertas: si se especifican zone_ids, usar esas; caso contrario, derivar de los detalles
     let zonesCoveredDto: ZoneDto[] = [];
@@ -1816,7 +1850,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       );
     } else {
       const coveredZoneIds = new Set<number>();
-      for (const d of sortedDetails) {
+      for (const d of groupedDetails) {
         let zid: number | null = null;
         if (d.order_header) {
           zid = (d.order_header as any).zone_id ?? d.order_header.customer.zone_id ?? null;
@@ -1837,7 +1871,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     }
 
     let currentDeliveryFound = false;
-    const detailsDto: RouteSheetDetailResponseDto[] = await Promise.all(sortedDetails.map(
+    const detailsDto: RouteSheetDetailResponseDto[] = await Promise.all(groupedDetails.map(
       (detail) => {
         let customerDto: CustomerDto;
         let orderDto: OrderDto;
@@ -2865,6 +2899,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           return {
             cycle_payment_id: detail.cycle_payment_id,
             customer: {
+              customer_id: person.person_id,
               name: person.name,
               address: person.address,
               phone: person.phone,

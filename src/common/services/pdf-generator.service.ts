@@ -133,6 +133,7 @@ export interface CollectionRouteSheetPdfData {
   collections: Array<{
     cycle_payment_id: number;
     customer: {
+      customer_id: number;
       name: string;
       address: string;
       phone: string;

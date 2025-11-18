@@ -39,6 +39,7 @@ export class PdfDevController {
         {
           cycle_payment_id: 42,
           customer: {
+            customer_id: 101,
             name: "elsa moro",
             address: "jose hernandez 270",
             phone: "3624950203",
@@ -79,6 +80,7 @@ export class PdfDevController {
         {
           cycle_payment_id: 43,
           customer: {
+            customer_id: 102,
             name: "daiana gonzalez",
             address: "san martin 450",
             phone: "3624888999",
@@ -113,6 +115,7 @@ export class PdfDevController {
         {
           cycle_payment_id: 44,
           customer: {
+            customer_id: 103,
             name: "santiago valussi",
             address: "moreno 789",
             phone: "3624777888",
