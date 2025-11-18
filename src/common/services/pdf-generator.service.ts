@@ -1062,15 +1062,16 @@ export class PdfGeneratorService {
     const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
     
     // Preparar los datos de dirección con localidad
-    const addressText = collection.customer.address && collection.customer.locality?.name 
-      ? `${collection.customer.address} - ${collection.customer.locality.name}`
-      : collection.customer.address || '-';
+    const addressText = [collection.customer.address, collection.customer.locality?.name]
+      .map(v => (v || '').trim())
+      .filter(Boolean)
+      .join(' - ') || '-';
     
     // Preparar datos de cada columna
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
       { text: collection.customer.customer_id.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
-      { text: addressText, align: 'center' },
+      { text: addressText, align: 'left' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
       { text: new Date(collection.payment_due_date).toLocaleDateString('es-ES'), align: 'center' },
@@ -1119,39 +1120,21 @@ export class PdfGeneratorService {
             const parsed = JSON.parse(raw);
             const dp = parsed?.delivery_preferences || {};
             const si = dp?.special_instructions;
-            const days = Array.isArray(dp?.preferred_days) ? dp.preferred_days.join(',') : dp?.preferred_days;
             const tr = dp?.preferred_time_range;
-            const at = Array.isArray(dp?.avoid_times) ? dp.avoid_times.join(',') : dp?.avoid_times;
             const segs: string[] = [];
-            if (si) segs.push(String(si));
-            if (days) segs.push(`Días: ${days}`);
-            if (tr) segs.push(`Horario: ${tr}`);
-            if (at) segs.push(`Evitar: ${at}`);
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
             if (segs.length > 0) parts.push(segs.join(' - '));
           } catch {
             const getMatch = (re: RegExp) => {
               const m = raw.match(re);
               return m && m[1] ? m[1] : undefined;
             };
-            const parseList = (val?: string) => {
-              if (!val) return undefined;
-              let s = val.trim();
-              if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
-              s = s.replace(/"/g, '');
-              const arr = s.split(',').map(x => x.trim()).filter(Boolean);
-              return arr.length ? arr.join(',') : undefined;
-            };
             const si = getMatch(/"special_instructions"\s*:\s*"([^"]*)"/);
-            const daysRaw = getMatch(/"preferred_days"\s*:\s*(\[[^\]]*\]|"[^"]*")/);
             const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
-            const atRaw = getMatch(/"avoid_times"\s*:\s*(\[[^\]]*\]|"[^"]*")/);
-            const days = parseList(daysRaw);
-            const at = parseList(atRaw);
             const segs: string[] = [];
-            if (si) segs.push(String(si));
-            if (days) segs.push(`Días: ${days}`);
-            if (tr) segs.push(`Horario: ${tr}`);
-            if (at) segs.push(`Evitar: ${at}`);
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
             if (segs.length > 0) {
               parts.push(segs.join(' - '));
             } else {
@@ -1168,14 +1151,10 @@ export class PdfGeneratorService {
           try {
             const dp = (raw as any)?.delivery_preferences || {};
             const si = dp?.special_instructions;
-            const days = Array.isArray(dp?.preferred_days) ? dp.preferred_days.join(',') : dp?.preferred_days;
             const tr = dp?.preferred_time_range;
-            const at = Array.isArray(dp?.avoid_times) ? dp.avoid_times.join(',') : dp?.avoid_times;
             const segs: string[] = [];
-            if (si) segs.push(String(si));
-            if (days) segs.push(`Días: ${days}`);
-            if (tr) segs.push(`Horario: ${tr}`);
-            if (at) segs.push(`Evitar: ${at}`);
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
             if (segs.length > 0) parts.push(segs.join(' - '));
           } catch {
             const simplified = String(raw);
@@ -1191,11 +1170,8 @@ export class PdfGeneratorService {
         const d = new Date(collection.payment_due_date);
         const dd = String(d.getDate()).padStart(2, '0');
         const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        parts.push(`Vencimiento: ${dd}/${mm}/${yyyy}`);
-      }
-      if (typeof collection.amount === 'number') {
-        parts.push(`Monto a cobrar: $${collection.amount.toFixed(2)}`);
+        const yy = String(d.getFullYear()).slice(-2);
+        parts.push(`Vencimiento: ${dd}/${mm}/${yy}`);
       }
       return parts.join(' | ').trim();
     };
