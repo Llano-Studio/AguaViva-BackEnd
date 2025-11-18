@@ -717,30 +717,21 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     return;
   }
-
   /**
    * Genera un PDF de previsualización usando datos de prueba directos
    * Solo para desarrollo y testing
    */
   async generatePreviewPdf(testData: CollectionRouteSheetPdfData): Promise<string> {
     try {
-      // Generar el PDF usando PdfGeneratorService con los datos de prueba
       const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(testData);
-      
-      // Crear archivo temporal para previsualización
       const tempPath = `./temp/preview-collection-${Date.now()}.pdf`;
-      
-      // Crear el write stream
       const writeStream = fs.createWriteStream(tempPath);
       result.doc.pipe(writeStream);
       result.doc.end();
-
-      // Esperar a que termine de escribirse
       await new Promise<void>((resolve, reject) => {
         writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
-
       return tempPath;
     } catch (error) {
       this.logger.error('Error generando PDF de previsualización:', error);
@@ -754,23 +745,17 @@ export class RouteSheetGeneratorService extends PrismaClient {
    */
   async generatePreviewRouteSheetPdf(testData: any): Promise<string> {
     try {
-      // Generar el PDF usando PdfGeneratorService con los datos de prueba
       const result = await this.pdfGeneratorService.generateRouteSheetPdf(testData, {
         includeSignatureField: true,
         includeProductDetails: true,
       });
-      
-      // Crear el write stream y finalizar el documento
       const writeStream = fs.createWriteStream(result.pdfPath);
       result.doc.pipe(writeStream);
       result.doc.end();
-
-      // Esperar a que termine de escribirse
       await new Promise<void>((resolve, reject) => {
         writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
-
       return result.pdfPath;
     } catch (error) {
       this.logger.error('Error generando PDF de previsualización de hoja de ruta:', error);
