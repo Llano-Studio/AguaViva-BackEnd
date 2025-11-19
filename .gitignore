@@ -5,14 +5,14 @@
 /postgres
 /pgadmin
 /public/**
-!/public/**/
+!/public/fonts/
+!/public/fonts/**
 
 # compile
 d output
 /dist
 /node_modules
 /build
-/public
 # Logs
 logs
 *.log
