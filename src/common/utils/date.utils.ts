@@ -118,3 +118,10 @@ export function formatBAHMS(date: Date): string {
   const ss = get('second');
   return `${hh}${mm}${ss}`;
 }
+
+export function formatUTCYMD(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = pad2(date.getUTCMonth() + 1);
+  const d = pad2(date.getUTCDate());
+  return `${y}-${m}-${d}`;
+}

@@ -16,7 +16,7 @@ import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-rou
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
-import { isValidYMD, parseYMD, formatBAYMD, startOfDayBA, formatBATimestampISO } from '../utils/date.utils';
+import { isValidYMD, parseYMD, formatBAYMD, startOfDayBA, formatBATimestampISO, formatUTCYMD, formatLocalYMD } from '../utils/date.utils';
 
 //
 
@@ -593,11 +593,11 @@ export class AutomatedCollectionService
     } else {
       // Crear nueva orden de cobranza en collection_orders
       this.logger.log(
-        `🆕 Creando nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} para cliente ${person.first_name} ${person.last_name}`,
+        `🆕 Creando nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} para cliente ${person.name}`,
       );
 
       const collectionOrderType = isAutomatic ? 'AUTOMÁTICA' : 'MANUAL';
-      const notes = `ORDEN DE COBRANZA ${collectionOrderType} - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id} - Vencimiento: ${formatBAYMD(cycle.payment_due_date || new Date())} - Monto a cobrar: $${cycle.pending_balance}`;
+      const notes = `ORDEN DE COBRANZA ${collectionOrderType} - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id} - Vencimiento: ${formatLocalYMD(targetDate)} - Monto a cobrar: $${cycle.pending_balance}`;
 
       try {
         const newCollectionOrder = await this.collection_orders.create({
@@ -624,7 +624,7 @@ export class AutomatedCollectionService
         orderCreated = true;
 
         this.logger.log(
-          `✅ Orden de cobranza ${collectionOrderType.toLowerCase()} creada: ID ${collectionOrderId} para ciclo ${cycle.cycle_id}, cliente ${person.first_name} ${person.last_name}, monto $${cycle.pending_balance}`,
+          `✅ Orden de cobranza ${collectionOrderType.toLowerCase()} creada: ID ${collectionOrderId} para ciclo ${cycle.cycle_id}, cliente ${person.name}, monto $${cycle.pending_balance}`,
         );
       } catch (error) {
         this.logger.error(
@@ -639,9 +639,9 @@ export class AutomatedCollectionService
       cycle_id: cycle.cycle_id,
       subscription_id: cycle.subscription_id,
       customer_id: person.person_id,
-      customer_name: `${person.first_name} ${person.last_name}`,
+      customer_name: `${person.name ?? ''}`,
       subscription_plan_name: subscription.subscription_plan.name,
-      payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
+      payment_due_date: formatLocalYMD(targetDate),
       pending_balance: Number(cycle.pending_balance),
       order_created: orderCreated,
       order_id: collectionOrderId,

@@ -8,7 +8,7 @@ import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import { PdfGeneratorService, CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
-import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
+import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO, formatUTCYMD } from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -528,7 +528,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         locality_name: collection.customer?.locality?.name,
       },
       amount: collection.total_amount.toString(),
-      due_date: dueDate ? formatBAYMD(dueDate) : null,
+      due_date: isForTargetDay ? formatLocalYMD(targetDate) : (dueDate ? formatUTCYMD(dueDate) : null),
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
       notes: formattedNotes,
