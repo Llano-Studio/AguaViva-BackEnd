@@ -1117,12 +1117,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     if (orderDateFrom || orderDateTo) {
       where.order_date = {};
       if (orderDateFrom) {
-        const fromDate = new Date(orderDateFrom);
+        const rawFrom = String(orderDateFrom).trim();
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+          ? parseYMD(rawFrom)
+          : new Date(orderDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.order_date.gte = fromDate;
       }
       if (orderDateTo) {
-        const toDate = new Date(orderDateTo);
+        const rawTo = String(orderDateTo).trim();
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+          ? parseYMD(rawTo)
+          : new Date(orderDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.order_date.lte = toDate;
       }
@@ -1131,12 +1137,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     if (deliveryDateFrom || deliveryDateTo) {
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
-        const fromDate = new Date(deliveryDateFrom);
+        const rawFrom = String(deliveryDateFrom).trim();
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+          ? parseYMD(rawFrom)
+          : new Date(deliveryDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.scheduled_delivery_date.gte = fromDate;
       }
       if (deliveryDateTo) {
-        const toDate = new Date(deliveryDateTo);
+        const rawTo = String(deliveryDateTo).trim();
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+          ? parseYMD(rawTo)
+          : new Date(deliveryDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.scheduled_delivery_date.lte = toDate;
       }
