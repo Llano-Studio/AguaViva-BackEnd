@@ -428,8 +428,8 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         email: uv.user.email,
         role: uv.user.role,
         isActive: uv.user.isActive,
-        createdAt: uv.user.createdAt.toISOString(),
-        updatedAt: uv.user.updatedAt?.toISOString(),
+        createdAt: formatBATimestampISO(uv.user.createdAt as any),
+        updatedAt: uv.user.updatedAt ? formatBATimestampISO(uv.user.updatedAt as any) : undefined,
         profileImageUrl: undefined, // No tenemos acceso al buildProfileImageUrl aquí
       }));
     } catch (error) {
@@ -447,7 +447,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       vehicle_zone_id: vehicleZone.vehicle_zone_id,
       vehicle_id: vehicleZone.vehicle_id,
       zone_id: vehicleZone.zone_id,
-      assigned_at: vehicleZone.assigned_at.toISOString(),
+      assigned_at: formatBATimestampISO(vehicleZone.assigned_at as any),
       is_active: vehicleZone.is_active,
       notes: vehicleZone.notes || undefined,
       zone: {
@@ -473,3 +473,4 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     };
   }
 }
+import { formatBATimestampISO } from '../common/utils/date.utils';

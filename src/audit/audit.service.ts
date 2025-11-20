@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { formatBATimestampISO, formatBAYMD } from '../common/utils/date.utils';
 import { PrismaClient } from '@prisma/client';
 import { AuditRecordDto } from '../cycle-payments/dto';
 
@@ -95,7 +96,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         operation_type: record.operation_type as 'UPDATE' | 'DELETE',
         old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
         new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
-        created_at: record.created_at.toISOString(),
+        created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
@@ -181,7 +182,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         operation_type: record.operation_type as 'UPDATE' | 'DELETE',
         old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
         new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
-        created_at: record.created_at.toISOString(),
+        created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
@@ -315,7 +316,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         operation_type: record.operation_type,
         old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
         new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
-        created_at: record.created_at.toISOString(),
+        created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
@@ -472,7 +473,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       }));
 
       const dailyActivityFormatted = (dailyActivity as any[]).map(day => ({
-        date: day.date.toISOString().split('T')[0],
+        date: formatBAYMD(new Date(day.date)),
         operation_count: Number(day.operation_count),
       }));
 
@@ -493,8 +494,8 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         daily_activity: dailyActivityFormatted,
         period_info: {
           period,
-          start_date: startDate.toISOString(),
-          end_date: now.toISOString(),
+          start_date: formatBATimestampISO(startDate as any),
+          end_date: formatBATimestampISO(now as any),
         },
       };
     } catch (error) {

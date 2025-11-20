@@ -24,6 +24,7 @@ import {
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { formatBATimestampISO } from 'src/common/utils/date.utils';
 
 @Injectable()
 export class InventoryService extends PrismaClient implements OnModuleInit {
@@ -652,7 +653,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         quantity: inventoryRecord.quantity,
         product_description: product.description,
         warehouse_name: warehouse.name,
-        created_at: new Date().toISOString(),
+        created_at: formatBATimestampISO(new Date()),
       };
     };
 

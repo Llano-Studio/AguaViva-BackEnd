@@ -36,6 +36,7 @@ import {
   ExistingOrderResponseDto,
   ExistingOrderInfoDto,
 } from '../../orders/dto/generate-manual-collection.dto';
+import { formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
 
 @Injectable()
 export class ManualCollectionService extends PrismaClient {
@@ -255,7 +256,7 @@ export class ManualCollectionService extends PrismaClient {
         subscription_plan_name:
           cycle.customer_subscription.subscription_plan.name,
         cycle_number: cycle.cycle_number,
-        payment_due_date: dueDate?.toISOString().split('T')[0] || '',
+        payment_due_date: dueDate ? formatBAYMD(dueDate) : '',
         pending_balance: Number(cycle.pending_balance),
         days_overdue: daysOverdue,
         payment_status: paymentStatus,
@@ -318,7 +319,7 @@ export class ManualCollectionService extends PrismaClient {
 
     const orderInfo: ExistingOrderInfoDto = {
       order_id: existingOrder.order_id,
-      order_date: existingOrder.order_date.toISOString(),
+      order_date: formatBATimestampISO(existingOrder.order_date as any),
       total_amount: Number(existingOrder.total_amount),
       status: existingOrder.status,
       notes: existingOrder.notes || undefined,
@@ -340,7 +341,7 @@ export class ManualCollectionService extends PrismaClient {
     if (adjustedDate.getDay() === 0) {
       adjustedDate.setDate(adjustedDate.getDate() - 1);
       this.logger.log(
-        `📅 Fecha ajustada de domingo a sábado: ${adjustedDate.toISOString().split('T')[0]}`,
+        `📅 Fecha ajustada de domingo a sábado: ${formatBAYMD(adjustedDate)}`,
       );
     }
 
@@ -503,7 +504,7 @@ export class ManualCollectionService extends PrismaClient {
           customer_id: customer_id,
           subscription_id: cycles[0].subscription_id, // Usar la primera suscripción
           sale_channel_id: 1, // Canal por defecto
-          order_date: new Date().toISOString().split('T')[0], // Usar la fecha actual para order_date
+          order_date: formatBAYMD(new Date()),
           scheduled_delivery_date: collection_date, // Usar collection_date para scheduled_delivery_date
           delivery_time: '09:00-18:00',
           total_amount: totalAmount.toString(), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas

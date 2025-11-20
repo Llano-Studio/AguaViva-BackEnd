@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, CancellationOrderStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { formatBAYMD } from '../utils/date.utils';
 
 @Injectable()
 export class CancellationOrderReassignmentService
@@ -137,8 +138,8 @@ export class CancellationOrderReassignmentService
 
       this.logger.log(
         `✅ Orden de cancelación reasignada: ${failedOrder.cancellation_order_id} ` +
-          `de ${failedOrder.scheduled_collection_date.toISOString().split('T')[0]} ` +
-          `a ${newCollectionDate.toISOString().split('T')[0]}`,
+          `de ${formatBAYMD(failedOrder.scheduled_collection_date as any)} ` +
+          `a ${formatBAYMD(newCollectionDate as any)}`,
       );
     } catch (error) {
       this.logger.error(
@@ -272,7 +273,7 @@ export class CancellationOrderReassignmentService
           rescheduled_count: (failedOrder.rescheduled_count || 0) + 1,
           notes:
             (failedOrder.notes || '') +
-            ` | Reprogramado automáticamente el ${new Date().toISOString().split('T')[0]}`,
+            ` | Reprogramado automáticamente el ${formatBAYMD(new Date())}`,
         },
       });
 

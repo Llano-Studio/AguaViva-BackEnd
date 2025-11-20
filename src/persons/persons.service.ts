@@ -57,6 +57,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
+import { formatBATimestampISO, formatBAYMD } from 'src/common/utils/date.utils';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -845,9 +846,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           await this.cancellationOrderService.createCancellationOrder(
             {
               subscription_id: subscriptionId,
-              scheduled_collection_date: scheduledCollectionDate
-                .toISOString()
-                .split('T')[0],
+              scheduled_collection_date: formatBAYMD(scheduledCollectionDate as any),
               notes:
                 `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
             },
@@ -1041,7 +1040,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           status: SubscriptionStatus.CANCELLED,
           cancellation_date: oldSubscriptionEndDate,
           notes:
-            `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${new Date().toISOString()}`.trim(),
+            `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${formatBATimestampISO(new Date())}`.trim(),
         },
       });
 
@@ -1279,7 +1278,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           status: ContractStatus.CANCELLED,
           end_date: oldContractEffectiveEndDate,
           notes:
-            `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${new Date().toISOString()}`.trim(),
+            `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${formatBATimestampISO(new Date())}`.trim(),
         },
       });
 
@@ -1360,7 +1359,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: item.product_id,
             description: item.product.description,
             loaned_quantity: netLoanedForItem,
-            acquisition_date: order.order_date.toISOString().split('T')[0], // Solo la fecha
+            acquisition_date: formatBAYMD(order.order_date as any),
             order_id: order.order_id,
             order_status: order.status,
           });
@@ -2158,7 +2157,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           max_quantity: dto.comodato_quantity || 1, // ← Cantidad máxima según la suscripción
           delivery_date:
             dto.comodato_delivery_date ||
-            new Date().toISOString().split('T')[0],
+            formatBAYMD(new Date()),
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
           notes: dto.comodato_notes

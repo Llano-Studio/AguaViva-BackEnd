@@ -3,6 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
+import { formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 
@@ -188,6 +189,8 @@ export class PdfGeneratorService {
   };
 
   constructor(private readonly tempFileManager: TempFileManagerService) {}
+  private readonly baTimeZone = 'America/Argentina/Buenos_Aires';
+  private readonly baLocale = 'es-AR';
 
   /**
    * Genera un PDF de reporte de cobranzas automáticas
@@ -247,7 +250,7 @@ export class PdfGeneratorService {
 
     // Información del reporte
     doc.fontSize(12);
-    doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`);
+    doc.text(`Fecha de generación: ${this.formatDateForDisplay(new Date())}`);
     doc.text(`Formato: ${filters.reportFormat || 'detailed'}`);
     if (filters.reportTitle) {
       doc.text(`Título: ${filters.reportTitle}`);
@@ -277,7 +280,7 @@ export class PdfGeneratorService {
         doc.text(`${index + 1}. ${collection.customer.name}`);
         doc.text(`   ID: ${collection.order_id} | Monto: $${collection.total_amount}`);
         doc.text(`   Estado: ${collection.status} | Pago: ${collection.payment_status}`);
-        doc.text(`   Fecha venc.: ${collection.due_date || 'N/A'}`);
+        doc.text(`   Fecha venc.: ${collection.due_date ? this.safeFormatDateYMDDisplay(collection.due_date) : 'N/A'}`);
         doc.moveDown(0.5);
       });
     }
@@ -290,7 +293,7 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    const datePart = data.delivery_date || new Date().toISOString().split('T')[0];
+    const datePart = data.delivery_date || formatBAYMD(new Date());
     const vehicleSeg = data.vehicle?.name
       ? this.slugify(data.vehicle.name)
       : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
@@ -846,7 +849,7 @@ export class PdfGeneratorService {
    */
   private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
     const base = 'cobranza-automatica-hoja-de-ruta';
-    const ymd = this.formatDateYMD(data.delivery_date);
+    const ymd = typeof data.delivery_date === 'string' ? data.delivery_date : formatBAYMD(new Date(data.delivery_date));
 
     // Movil/vehículo
     const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';
@@ -877,11 +880,21 @@ export class PdfGeneratorService {
    * en sistemas de archivos, manteniendo la apariencia de barra.
    */
   private formatDateForFilename(dateInput: string | Date): string {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
     const slash = '∕';
+    if (typeof dateInput === 'string') {
+      const m = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}${slash}${m[2]}${slash}${m[1]}`;
+    }
+    const parts = new Intl.DateTimeFormat(this.baLocale, {
+      timeZone: this.baTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(typeof dateInput === 'string' ? new Date(dateInput) : (dateInput as Date));
+    const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+    const dd = get('day');
+    const mm = get('month');
+    const yyyy = get('year');
     return `${dd}${slash}${mm}${slash}${yyyy}`;
   }
 
@@ -889,11 +902,8 @@ export class PdfGeneratorService {
    * Formatea fecha a YYYY-MM-DD para uso en nombre de archivo unificado
    */
   private formatDateYMD(dateInput: string | Date): string {
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${yyyy}-${mm}-${dd}`;
+    if (typeof dateInput === 'string') return dateInput;
+    return formatBAYMD(dateInput as Date);
   }
 
   /**
@@ -914,11 +924,43 @@ export class PdfGeneratorService {
    * Formatea fecha para mostrar en el PDF como dd/MM/yyyy (slash ASCII)
    */
   private formatDateForDisplay(dateInput: string | Date): string {
+    if (typeof dateInput === 'string') {
+      const m = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+    const parts = new Intl.DateTimeFormat(this.baLocale, {
+      timeZone: this.baTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(typeof dateInput === 'string' ? new Date(dateInput) : (dateInput as Date));
+    const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+    const dd = get('day');
+    const mm = get('month');
+    const yyyy = get('year');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  private safeFormatDateYMDDisplay(dateInput: string | Date): string {
+    if (!dateInput) return '-';
+    if (typeof dateInput === 'string') {
+      const m = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    }
+    return this.formatDateForDisplay(dateInput);
+  }
+
+  private safeFormatDateYMDDisplayShort(dateInput: string | Date): string {
+    if (!dateInput) return '';
+    if (typeof dateInput === 'string') {
+      const m = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
+    }
     const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}/${mm}/${yyyy}`;
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}/${mm}/${yy}`;
   }
 
   /**
@@ -1074,7 +1116,7 @@ export class PdfGeneratorService {
       { text: addressText, align: 'left' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
-      { text: new Date(collection.payment_due_date).toLocaleDateString('es-ES'), align: 'center' },
+      { text: this.safeFormatDateYMDDisplay(collection.payment_due_date), align: 'center' },
       { text: this.translateStatus(collection.delivery_status), align: 'center' }
     ];
 
@@ -1164,14 +1206,10 @@ export class PdfGeneratorService {
       }
       const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
       if (firstCredit) {
-        parts.push(`Abono ${firstCredit.product_description} x ${firstCredit.planned_quantity}`);
-      }
-      if (collection.payment_due_date) {
-        const d = new Date(collection.payment_due_date);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yy = String(d.getFullYear()).slice(-2);
-        parts.push(`Vencimiento: ${dd}/${mm}/${yy}`);
+        const plan = Number(firstCredit.planned_quantity ?? 0);
+        const delivered = Number(firstCredit.delivered_quantity ?? 0);
+        const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
+        parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
       }
       return parts.join(' | ').trim();
     };
@@ -1232,7 +1270,7 @@ export class PdfGeneratorService {
     doc.fontSize(8)
        .fillColor(this.colors.textPrimary)
        .text(`Hoja de Ruta de Cobranzas #${routeSheet.route_sheet_id}`, 25, footerY + 10)
-       .text(`Generado el: ${new Date().toLocaleString('es-ES')}`, 25, footerY + 25)
+       .text(`Generado el: ${formatBATimestampISO(new Date())}`, 25, footerY + 25)
        .text(`Total de cobranzas: ${routeSheet.collections.length}`, 350, footerY + 10)
        .text(`Conductor: ${routeSheet.driver.name}`, 350, footerY + 25);
   }

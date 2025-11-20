@@ -44,6 +44,7 @@ import {
 } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { formatBATimestampISO } from '../common/utils/date.utils';
 
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload =
@@ -219,16 +220,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     // Mapear historial de pagos
-    const payments =
-      order.payment_transaction?.map((payment) => ({
-        payment_id: payment.transaction_id,
-        amount: payment.transaction_amount.toString(),
-        payment_date: payment.transaction_date.toISOString(),
-        payment_method:
-          payment.payment_method?.description || 'No especificado',
-        transaction_reference: payment.receipt_number || undefined,
-        notes: payment.notes || undefined,
-      })) || [];
+      const payments =
+        order.payment_transaction?.map((payment) => ({
+          payment_id: payment.transaction_id,
+          amount: payment.transaction_amount.toString(),
+          payment_date: formatBATimestampISO(payment.transaction_date as any),
+          payment_method:
+            payment.payment_method?.description || 'No especificado',
+          transaction_reference: payment.receipt_number || undefined,
+          notes: payment.notes || undefined,
+        })) || [];
 
     return {
       order_id: order.order_id,
@@ -236,9 +237,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       contract_id: order.contract_id ?? undefined,
       subscription_id: order.subscription_id ?? undefined,
       sale_channel_id: order.sale_channel_id,
-      order_date: order.order_date.toISOString(),
+      order_date: formatBATimestampISO(order.order_date as any),
       scheduled_delivery_date: order.scheduled_delivery_date
-        ? order.scheduled_delivery_date.toISOString()
+        ? formatBATimestampISO(order.scheduled_delivery_date as any)
         : undefined,
       delivery_time: order.delivery_time || undefined,
       total_amount: order.total_amount.toString(),
@@ -2205,8 +2206,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         customer_id: person.person_id,
         subscription_id: subscription.subscription_id,
         sale_channel_id: 1, // Canal por defecto para cobranzas automáticas
-        order_date: new Date().toISOString(),
-        scheduled_delivery_date: collectionDate.toISOString(),
+        order_date: formatBATimestampISO(new Date()),
+        scheduled_delivery_date: formatBATimestampISO(collectionDate as any),
         delivery_time: '09:00-18:00',
         total_amount: pendingBalance.toString(), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
         paid_amount: '0.00',
@@ -2218,7 +2219,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           `Ciclo: ${cycleId}`,
           `Monto a cobrar: $${pendingBalance.toString()}`,
           cycle.payment_due_date
-            ? `Vencimiento: ${cycle.payment_due_date.toISOString().split('T')[0]}`
+            ? `Vencimiento: ${formatBATimestampISO(cycle.payment_due_date as any).slice(0,10)}`
             : '',
           notes ? `Notas adicionales: ${notes}` : '',
         ]
@@ -2472,7 +2473,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           oldValues: {
             transaction_amount: currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
-            transaction_date: currentTransaction.transaction_date.toISOString(),
+            transaction_date: formatBATimestampISO(currentTransaction.transaction_date as any),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,
           },
@@ -2557,7 +2558,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           data: {
             transaction_id: updatedTransaction.transaction_id,
             amount: updatedTransaction.transaction_amount.toString(),
-            payment_date: updatedTransaction.transaction_date.toISOString(),
+            payment_date: formatBATimestampISO(updatedTransaction.transaction_date as any),
             reference: updatedTransaction.receipt_number,
             notes: updatedTransaction.notes,
           },
@@ -2618,7 +2619,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           oldValues: {
             transaction_amount: currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
-            transaction_date: currentTransaction.transaction_date.toISOString(),
+            transaction_date: formatBATimestampISO(currentTransaction.transaction_date as any),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,
           },
@@ -2655,7 +2656,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           audit_id: auditRecord,
           metadata: {
             operation_type: 'DELETE' as const,
-            timestamp: new Date().toISOString(),
+            timestamp: formatBATimestampISO(new Date()),
             affected_records: 1,
           },
         };

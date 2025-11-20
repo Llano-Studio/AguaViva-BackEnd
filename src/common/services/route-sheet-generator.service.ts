@@ -8,7 +8,7 @@ import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import { PdfGeneratorService, CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
-import { isValidYMD, parseYMD, formatLocalYMD } from '../utils/date.utils';
+import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -193,7 +193,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         downloadUrl: fileInfo.downloadUrl,
         routeSheet: {
           date: formatLocalYMD(targetDate),
-          generated_at: new Date().toISOString(),
+          generated_at: formatBATimestampISO(new Date()),
           driver,
           vehicle,
           zones,
@@ -295,7 +295,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         downloadUrl,
         routeSheet: {
           date: datePart,
-          generated_at: new Date().toISOString(),
+          generated_at: formatBATimestampISO(new Date()),
           driver,
           vehicle,
           zones,
@@ -524,7 +524,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         zone_name: zoneName,
       },
       amount: collection.total_amount.toString(),
-      due_date: dueDate?.toISOString() || null,
+      due_date: dueDate ? formatBAYMD(dueDate) : null,
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
       notes: formattedNotes,
@@ -661,7 +661,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           phone: collection.customer.phone,
         },
         amount: parseFloat(collection.amount),
-        payment_due_date: collection.due_date || targetDate.toISOString(),
+        payment_due_date: collection.due_date || formatBAYMD(targetDate),
         delivery_status: collection.status || 'pending',
         delivery_time: '',
         cycle_period: 'monthly',
@@ -678,7 +678,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     const collectionData: PdfCollectionRouteSheetPdfData = {
       route_sheet_id: Math.floor(Math.random() * 1000),
-      delivery_date: targetDate.toISOString().split('T')[0],
+      delivery_date: formatBAYMD(targetDate),
       driver: {
         name: driver?.name || 'No asignado',
         email: '',
@@ -777,7 +777,7 @@ export function formatCollectionNotesForRouteSheet(
   dueDate: Date | undefined,
   amount: number | string,
 ): string {
-  const dateStr = dueDate ? dueDate.toISOString().split('T')[0] : 'N/A';
+  const dateStr = dueDate ? formatBAYMD(dueDate) : 'N/A';
   const amountStr = typeof amount === 'number' ? String(amount) : amount;
   const base = `${planName ? planName : ''}  - Vencimiento: ${dateStr} - Monto a cobrar: $${amountStr}`;
   if (subscriptionNotes && subscriptionNotes.trim().length > 0) {

@@ -22,6 +22,7 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { formatBAYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -273,7 +274,7 @@ export class CustomerSubscriptionService
       }
 
       this.logger.log(
-        `Created first cycle for subscription ${subscription.subscription_id} from ${firstCycleStartDate.toISOString().split('T')[0]} to ${firstCycleEndDate.toISOString().split('T')[0]}`,
+        `Created first cycle for subscription ${subscription.subscription_id} from ${formatBAYMD(firstCycleStartDate)} to ${formatBAYMD(firstCycleEndDate)}`,
       );
 
       // Procesar comodatos automáticos para el primer ciclo
@@ -761,7 +762,7 @@ export class CustomerSubscriptionService
       subscription_id: subscription.subscription_id,
       customer_id: subscription.customer_id,
       subscription_plan_id: subscription.subscription_plan_id,
-      start_date: subscription.start_date.toISOString().split('T')[0],
+      start_date: formatBAYMD(subscription.start_date as any),
       // end_date removed - field not present in schema
       collection_day: subscription.collection_day,
       payment_mode: subscription.payment_mode,
@@ -794,8 +795,8 @@ export class CustomerSubscriptionService
       subscription_cycle: subscription.subscription_cycle?.map(
         (cycle: any) => ({
           cycle_id: cycle.cycle_id,
-          cycle_start: cycle.cycle_start.toISOString().split('T')[0],
-          cycle_end: cycle.cycle_end.toISOString().split('T')[0],
+          cycle_start: formatBAYMD(cycle.cycle_start as any),
+          cycle_end: formatBAYMD(cycle.cycle_end as any),
           notes: cycle.notes,
           subscription_cycle_detail:
             cycle.subscription_cycle_detail?.map((detail: any) => ({

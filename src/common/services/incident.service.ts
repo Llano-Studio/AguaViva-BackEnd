@@ -6,6 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { formatBATimestampISO } from '../utils/date.utils';
 
 interface CreateIncidentDto {
   route_sheet_detail_id: number;
@@ -135,7 +136,7 @@ export class IncidentService extends PrismaClient {
         incident_type: incident.incident_type,
         description: incident.description,
         status: incident.status,
-        created_at: incident.created_at.toISOString(),
+        created_at: formatBATimestampISO(incident.created_at as any),
         created_by: incident.created_by,
         creator_name: incident.creator.name,
         order_info: {
@@ -284,10 +285,10 @@ export class IncidentService extends PrismaClient {
         incident_type: updatedIncident.incident_type,
         description: updatedIncident.description,
         status: updatedIncident.status,
-        created_at: updatedIncident.created_at.toISOString(),
+        created_at: formatBATimestampISO(updatedIncident.created_at as any),
         created_by: updatedIncident.created_by,
         resolution: updatedIncident.resolution || undefined,
-        resolved_at: updatedIncident.resolved_at?.toISOString(),
+        resolved_at: updatedIncident.resolved_at ? formatBATimestampISO(updatedIncident.resolved_at as any) : undefined,
         resolved_by: updatedIncident.resolved_by || undefined,
         creator_name: updatedIncident.creator.name,
         resolver_name: updatedIncident.resolver?.name,
@@ -409,7 +410,7 @@ export class IncidentService extends PrismaClient {
           incident_type: incident.incident_type,
           description: incident.description,
           status: incident.status,
-          created_at: incident.created_at.toISOString(),
+          created_at: formatBATimestampISO(incident.created_at as any),
           created_by: incident.created_by,
           creator_name: incident.creator.name,
           resolver_name: incident.resolver?.name,
@@ -555,10 +556,10 @@ export class IncidentService extends PrismaClient {
           incident_type: incident.incident_type,
           description: incident.description,
           status: incident.status,
-          created_at: incident.created_at.toISOString(),
+          created_at: formatBATimestampISO(incident.created_at as any),
           created_by: incident.created_by,
           resolution: incident.resolution || undefined,
-          resolved_at: incident.resolved_at?.toISOString(),
+          resolved_at: incident.resolved_at ? formatBATimestampISO(incident.resolved_at as any) : undefined,
           resolved_by: incident.resolved_by || undefined,
           creator_name: incident.creator.name,
           resolver_name: incident.resolver?.name,
@@ -656,3 +657,4 @@ export class IncidentService extends PrismaClient {
     }
   }
 }
+import { formatBATimestampISO } from '../utils/date.utils';

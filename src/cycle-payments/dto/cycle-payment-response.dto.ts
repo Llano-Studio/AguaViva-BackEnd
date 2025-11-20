@@ -15,10 +15,10 @@ export class CyclePaymentResponseDto {
   cycle_id: number;
 
   @ApiProperty({
-    description: 'Fecha del pago',
-    example: '2024-01-15T10:30:00.000Z',
+    description: 'Fecha del pago (ISO BA -03:00)',
+    example: '2024-01-15T10:30:00-03:00',
   })
-  payment_date: Date;
+  payment_date: string;
 
   @ApiProperty({
     description: 'Monto del pago',
@@ -91,10 +91,10 @@ export class CyclePaymentSummaryDto {
   payment_status: string;
 
   @ApiProperty({
-    description: 'Fecha de vencimiento del pago',
-    example: '2024-01-31T23:59:59.000Z',
+    description: 'Fecha de vencimiento del pago (YYYY-MM-DD en BA)',
+    example: '2024-01-31',
   })
-  payment_due_date: Date;
+  payment_due_date: string;
 
   @ApiProperty({
     description: 'Lista de pagos realizados para este ciclo',

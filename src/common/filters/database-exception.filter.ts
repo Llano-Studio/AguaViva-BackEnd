@@ -9,6 +9,7 @@ import {
   PrismaClientInitializationError,
   PrismaClientKnownRequestError,
 } from '@prisma/client/runtime/library';
+import { formatBATimestampISO } from '../utils/date.utils';
 
 @Catch(PrismaClientInitializationError, PrismaClientKnownRequestError)
 export class DatabaseExceptionFilter implements ExceptionFilter {
@@ -69,7 +70,7 @@ export class DatabaseExceptionFilter implements ExceptionFilter {
     if (request.url.startsWith('/api') || request.accepts('json')) {
       response.status(status).json({
         statusCode: status,
-        timestamp: new Date().toISOString(),
+        timestamp: formatBATimestampISO(new Date()),
         path: request.url,
         message,
         details,

@@ -109,7 +109,7 @@ export class DeliveryEvidenceService extends PrismaClient {
         route_sheet_detail_id: evidence.route_sheet_detail_id,
         evidence_type: evidence.evidence_type as EvidenceType,
         file_path: `/uploads/evidence/${fileName}`,
-        created_at: evidence.created_at.toISOString(),
+        created_at: formatBATimestampISO(evidence.created_at as any),
         created_by: evidence.created_by,
       };
     } catch (error) {
@@ -151,7 +151,7 @@ export class DeliveryEvidenceService extends PrismaClient {
       route_sheet_detail_id: evidence.route_sheet_detail_id,
       evidence_type: evidence.evidence_type as EvidenceType,
       file_path: `/uploads/evidence/${evidence.file_path}`,
-      created_at: evidence.created_at.toISOString(),
+      created_at: formatBATimestampISO(evidence.created_at as any),
       created_by: evidence.created_by,
     }));
   }
@@ -217,3 +217,4 @@ export class DeliveryEvidenceService extends PrismaClient {
     return mimeMap[mimeType] || 'dat';
   }
 }
+import { formatBATimestampISO } from '../utils/date.utils';

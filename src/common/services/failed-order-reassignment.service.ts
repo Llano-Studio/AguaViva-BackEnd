@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { formatBAYMD } from '../utils/date.utils';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
@@ -132,8 +133,8 @@ export class FailedOrderReassignmentService
 
       this.logger.log(
         `✅ Pedido reasignado: ${this.getOrderIdentifier(failedDelivery)} ` +
-          `de ${failedDelivery.route_sheet.delivery_date.toISOString().split('T')[0]} ` +
-          `a ${newDeliveryDate.toISOString().split('T')[0]}`,
+          `de ${formatBAYMD(failedDelivery.route_sheet.delivery_date as any)} ` +
+          `a ${formatBAYMD(newDeliveryDate as any)}`,
       );
     } catch (error) {
       this.logger.error(
