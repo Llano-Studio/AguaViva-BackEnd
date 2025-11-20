@@ -1064,8 +1064,8 @@ export class PdfGeneratorService {
     // Ajustado para que sumen exactamente 545px: 30+100+175+65+60+50+65 = 545
     const colWidths = [30, 95, 145, 80, 65, 60, 70];
     
-    // Calcular límite inferior de página (842 es altura A4, dejamos 25px para margen inferior)
-    const pageBottomLimit = 817; // 842 - 25
+    // Calcular límite inferior de página (842 es altura A4, dejamos 70px de margen para seguridad)
+    const pageBottomLimit = 772; // 842 - 70 (balanceado)
     
     // Helper para dibujar header de tabla
     const drawTableHeader = (y: number): number => {
@@ -1093,11 +1093,11 @@ export class PdfGeneratorService {
     
     // Filas de datos
     routeSheet.collections.forEach((collection, index) => {
-      // Estimar altura mínima de la fila (base + posibles notas)
-      const estimatedRowHeight = 40; // Altura estimada conservadora para fila + notas
+      // Calcular altura real que ocupará esta fila (incluyendo notas)
+      const calculatedRowHeight = this.calculateCollectionRowHeight(doc, collection, colWidths);
       
-      // Verificar si necesitamos nueva página ANTES de renderizar
-      if (currentY + estimatedRowHeight > pageBottomLimit) {
+      // Verificar si necesitamos nueva página ANTES de renderizar (con margen extra de seguridad)
+      if (currentY + calculatedRowHeight + 30 > pageBottomLimit) {
         doc.addPage();
         currentY = 25; // Margen superior
         // Redibujar header en la nueva página
@@ -1116,6 +1116,124 @@ export class PdfGeneratorService {
     });
     
     return currentY;
+  }
+
+  /**
+   * Construye el texto de notas para una cobranza (usado tanto para calcular como para renderizar)
+   */
+  private buildCollectionNotesText(collection: any): string {
+    const parts: string[] = [];
+    const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
+    if (raw) {
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          const dp = parsed?.delivery_preferences || {};
+          const si = dp?.special_instructions;
+          const tr = dp?.preferred_time_range;
+          const segs: string[] = [];
+          if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (segs.length > 0) parts.push(segs.join(' - '));
+        } catch {
+          const getMatch = (re: RegExp) => {
+            const m = raw.match(re);
+            return m && m[1] ? m[1] : undefined;
+          };
+          const si = getMatch(/"special_instructions"\s*:\s*"([^"]*)"/);
+          const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
+          const segs: string[] = [];
+          if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (segs.length > 0) {
+            parts.push(segs.join(' - '));
+          } else {
+            const simplified = raw
+              .replace(/[{}]/g, '')
+              .replace(/"/g, '')
+              .replace(/\s*,\s*/g, ' | ')
+              .replace(/delivery_preferences\s*:\s*/i, '')
+              .trim();
+            if (simplified) parts.push(simplified);
+          }
+        }
+      } else if (typeof raw === 'object') {
+        try {
+          const dp = (raw as any)?.delivery_preferences || {};
+          const si = dp?.special_instructions;
+          const tr = dp?.preferred_time_range;
+          const segs: string[] = [];
+          if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (segs.length > 0) parts.push(segs.join(' - '));
+        } catch {
+          const simplified = String(raw);
+          if (simplified) parts.push(simplified);
+        }
+      }
+    }
+    const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
+    if (firstCredit) {
+      const plan = Number(firstCredit.planned_quantity ?? 0);
+      const delivered = Number(firstCredit.delivered_quantity ?? 0);
+      const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
+      parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
+    }
+    if (collection.subscription_plan) {
+      parts.unshift(`Abono: ${collection.subscription_plan}`);
+    }
+    return parts.join(' | ').trim();
+  }
+
+  /**
+   * Calcula la altura total que ocupará una fila de cobranza (incluyendo notas)
+   */
+  private calculateCollectionRowHeight(
+    doc: PDFKit.PDFDocument,
+    collection: any,
+    colWidths: number[]
+  ): number {
+    // Calcular altura de las celdas
+    const minRowHeight = 17;
+    const padding = 7;
+    let maxHeight = minRowHeight;
+
+    const addressText = [collection.customer.address, collection.customer.locality?.name]
+      .map(v => (v || '').trim())
+      .filter(Boolean)
+      .join(' - ') || '-';
+    
+    const cellData: Array<{ text: string; width: number }> = [
+      { text: collection.customer.customer_id.toString(), width: colWidths[0] },
+      { text: collection.customer.name, width: colWidths[1] },
+      { text: addressText, width: colWidths[2] },
+      { text: collection.customer.phone || '-', width: colWidths[3] },
+      { text: `$${collection.amount.toFixed(2)}`, width: colWidths[4] },
+      { text: this.safeFormatDateYMDDisplay(collection.payment_due_date), width: colWidths[5] },
+      { text: this.translateStatus(collection.delivery_status), width: colWidths[6] }
+    ];
+
+    doc.fontSize(9).font('Poppins');
+    cellData.forEach((cell) => {
+      const textHeight = doc.heightOfString(cell.text, {
+        width: cell.width - padding,
+      });
+      maxHeight = Math.max(maxHeight, textHeight + padding);
+    });
+
+    // Calcular altura de las notas si existen (usando la misma lógica que el renderizado)
+    let notesHeight = 0;
+    const finalNotes = this.buildCollectionNotesText(collection);
+    
+    if (finalNotes) {
+      doc.fontSize(9).font('Poppins');
+      const notesTextHeight = doc.heightOfString(finalNotes, {
+        width: colWidths.reduce((a, b) => a + b, 0) - 60,
+      });
+      notesHeight = notesTextHeight + 10; // +2 margen superior + 5 padding inferior + 3 extra
+    }
+
+    return maxHeight + notesHeight + 5; // +5 para separación entre filas
   }
 
   /**
@@ -1182,70 +1300,7 @@ export class PdfGeneratorService {
     });
     
     let notesHeight = 0;
-    const buildNotesText = (): string => {
-      const parts: string[] = [];
-      const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
-      if (raw) {
-        if (typeof raw === 'string') {
-          try {
-            const parsed = JSON.parse(raw);
-            const dp = parsed?.delivery_preferences || {};
-            const si = dp?.special_instructions;
-            const tr = dp?.preferred_time_range;
-            const segs: string[] = [];
-            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
-            if (segs.length > 0) parts.push(segs.join(' - '));
-          } catch {
-            const getMatch = (re: RegExp) => {
-              const m = raw.match(re);
-              return m && m[1] ? m[1] : undefined;
-            };
-            const si = getMatch(/"special_instructions"\s*:\s*"([^"]*)"/);
-            const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
-            const segs: string[] = [];
-            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
-            if (segs.length > 0) {
-              parts.push(segs.join(' - '));
-            } else {
-              const simplified = raw
-                .replace(/[{}]/g, '')
-                .replace(/"/g, '')
-                .replace(/\s*,\s*/g, ' | ')
-                .replace(/delivery_preferences\s*:\s*/i, '')
-                .trim();
-              if (simplified) parts.push(simplified);
-            }
-          }
-        } else if (typeof raw === 'object') {
-          try {
-            const dp = (raw as any)?.delivery_preferences || {};
-            const si = dp?.special_instructions;
-            const tr = dp?.preferred_time_range;
-            const segs: string[] = [];
-            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
-            if (segs.length > 0) parts.push(segs.join(' - '));
-          } catch {
-            const simplified = String(raw);
-            if (simplified) parts.push(simplified);
-          }
-        }
-      }
-      const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
-      if (firstCredit) {
-        const plan = Number(firstCredit.planned_quantity ?? 0);
-        const delivered = Number(firstCredit.delivered_quantity ?? 0);
-        const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
-        parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
-      }
-      if (collection.subscription_plan) {
-        parts.unshift(`Abono: ${collection.subscription_plan}`);
-      }
-      return parts.join(' | ').trim();
-    };
-    const finalNotes = buildNotesText();
+    const finalNotes = this.buildCollectionNotesText(collection);
     if (finalNotes) {
       const notesY = currentY + maxHeight + 2;
       const notesTextHeight = doc.heightOfString(finalNotes, {
