@@ -30,6 +30,7 @@ export interface RouteSheetCollection {
     address: string;
     phone: string;
     zone_name: string;
+    locality_name?: string;
   };
   amount: string;
   due_date: string | null;
@@ -39,6 +40,7 @@ export interface RouteSheetCollection {
   status: string;
   is_backlog: boolean;
   backlog_type?: 'PENDING' | 'OVERDUE' | null;
+  subscription_plan_name?: string;
 }
 
 export interface RouteSheetDriver {
@@ -415,6 +417,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         customer: {
           include: {
             zone: true,
+            locality: true,
           },
         },
         customer_subscription: {
@@ -522,6 +525,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         address: collection.customer.address || 'Sin dirección',
         phone: collection.customer.phone,
         zone_name: zoneName,
+        locality_name: collection.customer?.locality?.name,
       },
       amount: collection.total_amount.toString(),
       due_date: dueDate ? formatBAYMD(dueDate) : null,
@@ -531,6 +535,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       status: collection.status,
       is_backlog: isBacklog,
       backlog_type: backlogType,
+      subscription_plan_name: planName,
     };
 
 
@@ -659,13 +664,14 @@ export class RouteSheetGeneratorService extends PrismaClient {
           name: collection.customer.name,
           address: collection.customer.address,
           phone: collection.customer.phone,
+          locality: collection.customer.locality_name ? { name: collection.customer.locality_name } : undefined,
         },
         amount: parseFloat(collection.amount),
         payment_due_date: collection.due_date || formatBAYMD(targetDate),
         delivery_status: collection.status || 'pending',
         delivery_time: '',
         cycle_period: 'monthly',
-        subscription_plan: 'Standard',
+        subscription_plan: collection.subscription_plan_name || 'Standard',
         payment_reference: '',
         payment_notes: collection.notes,
         payment_method: '',

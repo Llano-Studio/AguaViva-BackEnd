@@ -175,22 +175,21 @@ export class AutomatedCollectionController {
   })
   async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
     try {
-      // Validar formato de fecha
-      const targetDate = new Date(dto.target_date);
-      if (isNaN(targetDate.getTime())) {
+      let targetDate: Date;
+      try {
+        targetDate = parseYMD(dto.target_date);
+      } catch {
         throw new HttpException(
           'Formato de fecha inválido. Use YYYY-MM-DD',
           HttpStatus.BAD_REQUEST,
         );
       }
 
-      // Ejecutar generación
       const results =
         await this.automatedCollectionService.generateCollectionOrdersForDate(
           targetDate,
         );
 
-      // Calcular estadísticas
       const totalCycles = results.length;
       const ordersCreated = results.filter(
         (r) => r.order_created && r.notes?.includes('Nuevo pedido'),
@@ -213,6 +212,9 @@ export class AutomatedCollectionController {
         },
       };
     } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new HttpException(
         `Error generando pedidos de cobranza: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
