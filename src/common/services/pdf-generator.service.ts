@@ -3,7 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
+import { formatBAYMD, formatBATimestampISO, formatBAHMS } from '../utils/date.utils';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 
@@ -294,6 +294,8 @@ export class PdfGeneratorService {
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
     const datePart = data.delivery_date || formatBAYMD(new Date());
+    const timeRaw = formatBAHMS(new Date());
+    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
     const vehicleSeg = data.vehicle?.name
       ? this.slugify(data.vehicle.name)
       : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
@@ -302,7 +304,7 @@ export class PdfGeneratorService {
       : 'all';
     const zoneSeg = zoneSegRaw.length > 80 ? `multi-${data.zone_identifiers?.length || 0}` : this.slugify(zoneSegRaw);
     const driverSeg = data.driver?.name ? this.slugify(data.driver.name) : 'NA';
-    const filename = `hoja-de-ruta_${datePart}_${vehicleSeg}_${zoneSeg}_${driverSeg}.pdf`;
+    const filename = `hoja-de-ruta_${datePart}-${timePart}_${vehicleSeg}_${zoneSeg}_${driverSeg}.pdf`;
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
     await fs.ensureDir(pdfDir);
     const pdfPath = join(pdfDir, filename);
@@ -472,7 +474,6 @@ export class PdfGeneratorService {
     currentY: number, 
     includeProductDetails: boolean
   ): number {
-    console.log(`DEBUG: Iniciando generación con paginación dinámica (altura real)`);
     
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
@@ -538,11 +539,9 @@ export class PdfGeneratorService {
     for (let i = 0; i < routeSheet.details.length; i++) {
       const detail = routeSheet.details[i];
 
-      console.log(`DEBUG: Orden ${i + 1} - currentY antes: ${currentY}, límite: ${doc.page.height - 250}`);
       
       // Verificar si necesitamos nueva página ANTES de procesar
       if (currentY > doc.page.height - 250) {
-        console.log(`DEBUG: Creando nueva página. pageCount antes: ${pageCount}`);
         
         // Agregar footer a la página actual (solo si no es la primera página)
         if (pageCount > 1) {
@@ -552,7 +551,6 @@ export class PdfGeneratorService {
         // Nueva página
         doc.addPage();
         pageCount++;
-        console.log(`DEBUG: Nueva página creada. pageCount después: ${pageCount}`);
         currentY = 25;
         
         // Recrear header de tabla en nueva página
@@ -573,16 +571,13 @@ export class PdfGeneratorService {
 
       // Generar la orden (altura dinámica real de PDFKit)
       currentY = this.generateOrderRow(doc, detail, i, currentY, startX, colWidths, rowHeight);
-      console.log(`DEBUG: Orden ${i + 1} - después de generateOrderRow: ${currentY}`);
 
       if (includeProductDetails && detail.order.items.length > 0) {
         currentY = this.generateProductDetails(doc, detail, currentY, startX, tableWidth);
-        console.log(`DEBUG: Orden ${i + 1} - después de generateProductDetails: ${currentY}`);
       }
 
       doc.rect(startX, currentY, tableWidth, 1).fill(this.colors.borderColor);
       currentY += 5;
-      console.log(`DEBUG: Orden ${i + 1} - currentY final: ${currentY}`);
     }
 
     // Agregar footer a la última página (marcándola como final) - solo si hay más de una página
@@ -590,7 +585,6 @@ export class PdfGeneratorService {
       addFooter(pageCount, true);
     }
     
-    console.log(`DEBUG: Generación completada con alturas dinámicas reales. Total páginas: ${pageCount}`);
     return currentY;
   }
 
@@ -851,6 +845,8 @@ export class PdfGeneratorService {
   private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
     const base = 'cobranza-automatica-hoja-de-ruta';
     const ymd = typeof data.delivery_date === 'string' ? data.delivery_date : formatBAYMD(new Date(data.delivery_date));
+    const timeRaw = formatBAHMS(new Date());
+    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
 
     // Movil/vehículo
     const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';
@@ -872,7 +868,7 @@ export class PdfGeneratorService {
       ? `d${this.slugifyForFilename(rawDriver)}`
       : 'dNA';
 
-    return `${base}_${ymd}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
+    return `${base}_${ymd}-${timePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
   }
 
   /**
@@ -951,19 +947,6 @@ export class PdfGeneratorService {
     return this.formatDateForDisplay(dateInput);
   }
 
-  private safeFormatDateYMDDisplayShort(dateInput: string | Date): string {
-    if (!dateInput) return '';
-    if (typeof dateInput === 'string') {
-      const m = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (m) return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
-    }
-    const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yy = String(d.getFullYear()).slice(-2);
-    return `${dd}/${mm}/${yy}`;
-  }
-
   /**
    * Genera el contenido del PDF para hojas de ruta de cobranzas
    */
@@ -991,14 +974,6 @@ export class PdfGeneratorService {
       currentY = this.generateRouteNotes(doc, routeSheet, currentY);
       currentY += 10;
     }
-
-    console.log('PDF_COLLECTION_ROUTE_SHEET_DATA', {
-      delivery_date: routeSheet.delivery_date,
-      driver: routeSheet.driver,
-      vehicle: routeSheet.vehicle,
-      route_notes: routeSheet.route_notes,
-      collections: routeSheet.collections,
-    });
     // Collections Table
     currentY = this.generateCollectionsTable(doc, routeSheet, currentY);
     currentY += 30;
@@ -1225,21 +1200,6 @@ export class PdfGeneratorService {
       return parts.join(' | ').trim();
     };
     const finalNotes = buildNotesText();
-    console.log('PDF_COLLECTION_ROW', {
-      index,
-      customer: {
-        id: collection.customer.customer_id,
-        name: collection.customer.name,
-        address: collection.customer.address,
-        locality: collection.customer.locality?.name,
-        phone: collection.customer.phone,
-      },
-      amount: collection.amount,
-      payment_due_date_raw: collection.payment_due_date,
-      payment_due_date_display: this.safeFormatDateYMDDisplay(collection.payment_due_date),
-      status: collection.delivery_status,
-      notes: finalNotes,
-    });
     if (finalNotes) {
       const notesY = currentY + maxHeight + 5;
       const notesTextHeight = doc.heightOfString(finalNotes, {
