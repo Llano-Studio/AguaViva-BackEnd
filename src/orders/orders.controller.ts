@@ -382,7 +382,7 @@ export class OrdersController {
     name: 'status',
     required: false,
     description: 'Filtrar por estado del pedido',
-    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED'],
+    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'RETIRADO', 'CANCELLED'],
   })
   @ApiQuery({
     name: 'orderType',
@@ -460,7 +460,7 @@ export class OrdersController {
     • Rangos de fechas inválidos (desde > hasta)
     
     🔸 **Filtros de Estado:**
-    • status con valores no válidos (debe ser: PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, CANCELLED)
+    • status con valores no válidos (debe ser: PENDING, CONFIRMED, IN_DELIVERY, DELIVERED, RETIRADO, CANCELLED)
     • orderType con valores no válidos (debe ser: SUBSCRIPTION, HYBRID, ONE_OFF, CONTRACT)
     
     🔸 **Paginación:**
@@ -682,7 +682,7 @@ export class OrdersController {
     name: 'status',
     required: false,
     description: 'Filtrar por estado del pedido',
-    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'CANCELLED'],
+    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'RETIRADO', 'CANCELLED'],
   })
   @ApiQuery({
     name: 'orderType',

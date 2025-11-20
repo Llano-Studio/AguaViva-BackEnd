@@ -35,7 +35,7 @@ import {
 } from '../common/services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
-import { formatBAYMD, formatBATimestampISO } from '../common/utils/date.utils';
+import { formatBAYMD, formatBATimestampISO, parseYMD } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 
@@ -367,7 +367,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           ].filter((condition) => Object.keys(condition).length > 0),
           route_sheet: {
             is: {
-              delivery_date: new Date(delivery_date),
+              delivery_date:
+                typeof delivery_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
+                  ? parseYMD(delivery_date.trim())
+                  : new Date(delivery_date),
               is_active: true,
             },
           },
@@ -562,7 +565,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           data: {
             driver_id,
             vehicle_id,
-            delivery_date: new Date(delivery_date),
+            delivery_date:
+              typeof delivery_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
+                ? parseYMD(delivery_date.trim())
+                : new Date(delivery_date),
             route_notes,
           },
           include: {
@@ -919,12 +925,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           filters.from_date &&
           typeof whereClause.delivery_date === 'object'
         ) {
-          const fromDate = new Date(filters.from_date);
+          const rawFrom = String(filters.from_date).trim();
+          const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+            ? parseYMD(rawFrom)
+            : new Date(filters.from_date);
           fromDate.setHours(0, 0, 0, 0);
           (whereClause.delivery_date as Prisma.DateTimeFilter).gte = fromDate;
         }
         if (filters.to_date && typeof whereClause.delivery_date === 'object') {
-          const toDate = new Date(filters.to_date);
+          const rawTo = String(filters.to_date).trim();
+          const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+            ? parseYMD(rawTo)
+            : new Date(filters.to_date);
           toDate.setHours(23, 59, 59, 999);
           (whereClause.delivery_date as Prisma.DateTimeFilter).lte = toDate;
         }
@@ -1172,7 +1184,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         const updateData: Prisma.route_sheetUpdateInput = {};
         if (driver_id) updateData.driver = { connect: { id: driver_id } };
         if (vehicle_id) updateData.vehicle = { connect: { vehicle_id } };
-        if (delivery_date) updateData.delivery_date = new Date(delivery_date);
+        if (delivery_date) {
+          updateData.delivery_date =
+            typeof delivery_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
+              ? parseYMD(delivery_date.trim())
+              : new Date(delivery_date);
+        }
         if (route_notes !== undefined) updateData.route_notes = route_notes;
 
         const updatedRouteSheet = await tx.route_sheet.update({

@@ -44,7 +44,7 @@ import {
 } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO } from '../common/utils/date.utils';
+import { formatBATimestampISO, parseYMD } from '../common/utils/date.utils';
 
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload =
@@ -326,8 +326,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     if (createOrderDto.scheduled_delivery_date) {
-      const orderDate = new Date(createOrderDto.order_date);
-      const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
+      const rawOrderDate = createOrderDto.order_date as any;
+      const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
+      const orderDate = typeof rawOrderDate === 'string'
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
+            ? parseYMD(rawOrderDate.trim())
+            : new Date(rawOrderDate))
+        : new Date(rawOrderDate);
+      const deliveryDate = typeof rawDeliveryDate === 'string'
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
+            ? parseYMD(rawDeliveryDate.trim())
+            : new Date(rawDeliveryDate))
+        : new Date(rawDeliveryDate);
 
       // Para pedidos híbridos, permitir fecha de inicio igual a fecha de entrega
       if (createOrderDto.order_type === 'HYBRID') {
@@ -385,8 +395,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Validar horario usando el servicio de schedule
     if (createOrderDto.scheduled_delivery_date) {
-      const orderDate = new Date(createOrderDto.order_date);
-      const deliveryDate = new Date(createOrderDto.scheduled_delivery_date);
+      const rawOrderDate = createOrderDto.order_date as any;
+      const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
+      const orderDate = typeof rawOrderDate === 'string'
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
+            ? parseYMD(rawOrderDate.trim())
+            : new Date(rawOrderDate))
+        : new Date(rawOrderDate);
+      const deliveryDate = typeof rawDeliveryDate === 'string'
+        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
+            ? parseYMD(rawDeliveryDate.trim())
+            : new Date(rawDeliveryDate))
+        : new Date(rawDeliveryDate);
 
       // Permitir fechas pasadas solo para SUPERADMIN
       const allowPastDates = user?.role === Role.SUPERADMIN;
@@ -810,12 +830,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const newOrderHeader = await prismaTx.order_header.create({
           data: {
             ...restOfDto,
-            order_date: restOfDto.order_date
-              ? new Date(restOfDto.order_date)
-              : new Date(),
-            scheduled_delivery_date: restOfDto.scheduled_delivery_date
-              ? new Date(restOfDto.scheduled_delivery_date)
-              : undefined,
+            order_date:
+              restOfDto.order_date && typeof restOfDto.order_date === 'string'
+                ? (/^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())
+                    ? parseYMD(restOfDto.order_date.trim())
+                    : new Date(restOfDto.order_date))
+                : (restOfDto.order_date as any) instanceof Date
+                ? (restOfDto.order_date as any)
+                : new Date(),
+            scheduled_delivery_date:
+              restOfDto.scheduled_delivery_date && typeof restOfDto.scheduled_delivery_date === 'string'
+                ? (/^\d{4}-\d{2}-\d{2}$/.test(restOfDto.scheduled_delivery_date.trim())
+                    ? parseYMD(restOfDto.scheduled_delivery_date.trim())
+                    : new Date(restOfDto.scheduled_delivery_date))
+                : (restOfDto.scheduled_delivery_date as any) instanceof Date
+                ? (restOfDto.scheduled_delivery_date as any)
+                : undefined,
             total_amount: calculatedTotalFromDB.toString(),
             paid_amount: finalPaidAmount.toString(),
             status:
@@ -1700,7 +1730,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (
           orderToDelete.customer_subscription &&
           orderToDelete.status !== 'IN_DELIVERY' &&
-          orderToDelete.status !== 'DELIVERED'
+          orderToDelete.status !== 'DELIVERED' &&
+          orderToDelete.status !== 'RETIRADO'
         ) {
 
 
@@ -2720,10 +2751,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       );
     }
 
-    // Validar que la orden no esté en estado entregado o cancelado
-    if (transaction.order_header && ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+    // Validar que la orden no esté en estado finalizado o cancelado
+    if (transaction.order_header && ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
       throw new BadRequestException(
-        'No se pueden editar transacciones de órdenes ya entregadas, canceladas o reembolsadas.',
+        'No se pueden editar transacciones de órdenes ya finalizadas, canceladas o reembolsadas.',
       );
     }
   }
@@ -2758,10 +2789,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Sin límite de antigüedad para eliminar transacciones
 
-    // Validar que la orden no esté en estado entregado o cancelado
-    if (transaction.order_header && ['DELIVERED', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+    // Validar que la orden no esté en estado finalizado o cancelado
+    if (transaction.order_header && ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
       throw new BadRequestException(
-        'No se pueden eliminar transacciones de órdenes ya entregadas, canceladas o reembolsadas.',
+        'No se pueden eliminar transacciones de órdenes ya finalizadas, canceladas o reembolsadas.',
       );
     }
 

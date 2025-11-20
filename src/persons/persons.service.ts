@@ -57,7 +57,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
-import { formatBATimestampISO, formatBAYMD } from 'src/common/utils/date.utils';
+import { formatBATimestampISO, formatBAYMD, parseYMD } from 'src/common/utils/date.utils';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -1324,6 +1324,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           in: [
             PrismaOrderStatus.IN_DELIVERY,
             PrismaOrderStatus.DELIVERED,
+            PrismaOrderStatus.RETIRADO,
             PrismaOrderStatus.REFUNDED,
           ],
         },
@@ -1498,9 +1499,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           subscription_id: dto.subscription_id || null, // ← Agregar subscription_id
           quantity: dto.quantity,
           max_quantity: dto.max_quantity || null, // ← Cantidad máxima permitida
-          delivery_date: new Date(dto.delivery_date),
+          delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(String(dto.delivery_date).trim())
+            ? parseYMD(String(dto.delivery_date).trim())
+            : new Date(dto.delivery_date),
           expected_return_date: dto.expected_return_date
-            ? new Date(dto.expected_return_date)
+            ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
+                ? parseYMD(String(dto.expected_return_date).trim())
+                : new Date(dto.expected_return_date))
             : null,
           status: dto.status,
           notes: dto.notes,
@@ -1925,18 +1930,24 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       if (dto.delivery_date !== undefined) {
-        updateData.delivery_date = new Date(dto.delivery_date);
+        updateData.delivery_date = /^\d{4}-\d{2}-\d{2}$/.test(String(dto.delivery_date).trim())
+          ? parseYMD(String(dto.delivery_date).trim())
+          : new Date(dto.delivery_date);
       }
 
       if (dto.expected_return_date !== undefined) {
         updateData.expected_return_date = dto.expected_return_date
-          ? new Date(dto.expected_return_date)
+          ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
+              ? parseYMD(String(dto.expected_return_date).trim())
+              : new Date(dto.expected_return_date))
           : null;
       }
 
       if (dto.actual_return_date !== undefined) {
         updateData.return_date = dto.actual_return_date
-          ? new Date(dto.actual_return_date)
+          ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.actual_return_date).trim())
+              ? parseYMD(String(dto.actual_return_date).trim())
+              : new Date(dto.actual_return_date))
           : null;
       }
 
