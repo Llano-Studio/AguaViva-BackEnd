@@ -35,6 +35,7 @@ import {
 } from '../common/services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
+import { formatBAYMD, formatBATimestampISO } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 
@@ -1695,7 +1696,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 route_sheet_id: routeSheet.route_sheet_id,
                 order: {
                   order_id: detail.order.order_id,
-                  order_date: detail.order.order_date || new Date().toISOString(),
+                  order_date: detail.order.order_date || formatBATimestampISO(new Date()),
                   total_amount: detail.order.total_amount?.toString() || '0',
                   status: detail.order.status || 'PENDING',
                   customer: {
@@ -1920,7 +1921,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
           orderDto = {
             order_id: detail.order_header.order_id,
-            order_date: detail.order_header.order_date.toISOString(),
+            order_date: formatBATimestampISO(detail.order_header.order_date),
             total_amount: detail.order_header.total_amount.toString(),
             status: detail.order_header.status,
             customer: customerDto,
@@ -1968,7 +1969,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
           orderDto = {
             order_id: detail.one_off_purchase.purchase_id,
-            order_date: detail.one_off_purchase.purchase_date.toISOString(),
+            order_date: formatBATimestampISO(detail.one_off_purchase.purchase_date),
             total_amount: detail.one_off_purchase.total_amount.toString(),
             status: detail.one_off_purchase.status,
             customer: customerDto,
@@ -2018,7 +2019,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           orderDto = {
             order_id: detail.one_off_purchase_header.purchase_header_id,
             order_date:
-              detail.one_off_purchase_header.purchase_date.toISOString(),
+              formatBATimestampISO(detail.one_off_purchase_header.purchase_date),
             total_amount:
               detail.one_off_purchase_header.total_amount.toString(),
             status: detail.one_off_purchase_header.status,
@@ -2062,7 +2063,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           orderDto = {
             order_id: detail.cancellation_order.cancellation_order_id,
             order_date:
-              detail.cancellation_order.scheduled_collection_date.toISOString(),
+              formatBATimestampISO(detail.cancellation_order.scheduled_collection_date),
             total_amount: '0.00', // Las cancelaciones no tienen monto
             status: 'CANCELLED',
             customer: customerDto,
@@ -2110,7 +2111,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
           orderDto = {
             order_id: detail.cycle_payment.payment_id,
-            order_date: detail.cycle_payment.payment_date.toISOString(),
+            order_date: formatBATimestampISO(detail.cycle_payment.payment_date),
             total_amount: detail.cycle_payment.amount.toString(),
             status: 'PENDING', // Los cycle_payments no tienen status, usamos un valor por defecto
             customer: customerDto,
@@ -2163,7 +2164,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       route_sheet_id: routeSheet.route_sheet_id,
       driver: driverDto,
       vehicle: vehicleDto,
-      delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
+      delivery_date: formatBAYMD(routeSheet.delivery_date),
       route_notes: routeSheet.route_notes || undefined,
       details: detailsDto,
       zones_covered: zonesCoveredDto,
@@ -2189,7 +2190,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       if (routeSheet.reconciliation_at) {
         throw new BadRequestException(
-          `La ${this.entityName} ${route_sheet_id} ya fue rendida el ${routeSheet.reconciliation_at.toISOString()}.`,
+          `La ${this.entityName} ${route_sheet_id} ya fue rendida el ${formatBATimestampISO(routeSheet.reconciliation_at as any)}.`,
         );
       }
 
@@ -2519,7 +2520,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       const orderDto = new OrderDto();
       orderDto.order_id = updatedDetail.order_header.order_id;
-      orderDto.order_date = updatedDetail.order_header.order_date.toISOString();
+      orderDto.order_date = formatBATimestampISO(updatedDetail.order_header.order_date);
       orderDto.total_amount =
         updatedDetail.order_header.total_amount.toString();
       orderDto.status = updatedDetail.order_header.status;
@@ -2762,7 +2763,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       if (updatedDetail.order_header) {
         responseDto.order = {
           order_id: updatedDetail.order_header.order_id,
-          order_date: updatedDetail.order_header.order_date.toISOString(),
+          order_date: formatBATimestampISO(updatedDetail.order_header.order_date),
           total_amount: updatedDetail.order_header.total_amount.toString(),
           status: 'PENDING',
           customer: {
@@ -2880,7 +2881,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       const collectionData = {
         route_sheet_id: routeSheet.route_sheet_id,
-        delivery_date: routeSheet.delivery_date.toISOString().split('T')[0],
+        delivery_date: formatBAYMD(routeSheet.delivery_date),
         route_notes: routeSheet.route_notes,
         driver: {
           name: routeSheet.driver.name,
@@ -2919,7 +2920,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             payment_notes: detail.cycle_payment.notes || undefined,
             payment_method: detail.cycle_payment.payment_method || undefined,
             subscription_notes: subscription.notes || undefined,
-            payment_due_date: detail.cycle_payment.payment_date?.toISOString().split('T')[0] || '',
+            payment_due_date: detail.cycle_payment.payment_date ? formatBAYMD(detail.cycle_payment.payment_date) : '',
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
             delivery_status: detail.delivery_status,

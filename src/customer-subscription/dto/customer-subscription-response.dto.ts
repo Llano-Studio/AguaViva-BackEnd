@@ -265,7 +265,10 @@ export class CustomerSubscriptionResponseDto {
 
     // Convert dates to strings
     if (partial.start_date instanceof Date) {
-      this.start_date = partial.start_date.toISOString().split('T')[0];
+      const y = String(partial.start_date.getFullYear());
+      const m = String(partial.start_date.getMonth() + 1).padStart(2, '0');
+      const d = String(partial.start_date.getDate()).padStart(2, '0');
+      this.start_date = `${y}-${m}-${d}`;
     }
     // end_date field removed - not present in schema
 

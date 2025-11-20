@@ -27,6 +27,7 @@ import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { formatBATimestampISO } from 'src/common/utils/date.utils';
 
 type PriceListWithRelations = Prisma.price_listGetPayload<{
   include: {
@@ -589,7 +590,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       product_name: historyItem.price_list_item.product.description,
       previous_price: historyItem.previous_price.toString(), // Convertir a string
       new_price: historyItem.new_price.toString(), // Convertir a string
-      change_date: historyItem.change_date.toISOString(), // Asegurar formato ISO string
+      change_date: formatBATimestampISO(historyItem.change_date as any),
       change_percentage: historyItem.change_percentage?.toString(), // Convertir a string si existe
       change_reason: historyItem.change_reason || undefined,
       created_by: historyItem.created_by || undefined,

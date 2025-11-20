@@ -48,6 +48,7 @@ import { MobileInventoryService } from '../common/services/mobile-inventory.serv
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { formatBATimestampISO } from '../common/utils/date.utils';
 import { User } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FailedOrderReassignmentService } from '../common/services/failed-order-reassignment.service';
@@ -1152,7 +1153,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
       url: result.url,
       filename: result.filename,
       route_sheet_id: id,
-      generated_at: new Date().toISOString(),
+      generated_at: formatBATimestampISO(new Date()),
       total_collections: result.total_collections,
     };
   }

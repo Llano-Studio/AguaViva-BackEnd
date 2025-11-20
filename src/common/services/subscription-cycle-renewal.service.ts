@@ -157,7 +157,8 @@ export class SubscriptionCycleRenewalService
 
       this.logger.log(
         `✅ Nuevo ciclo creado para suscripción ${subscription.subscription_id}: ` +
-          `${cycleStartDate.toISOString().split('T')[0]} - ${cycleEndDate.toISOString().split('T')[0]}`,
+          `${cycleStartDate.getFullYear()}-${String(cycleStartDate.getMonth()+1).padStart(2,'0')}-${String(cycleStartDate.getDate()).padStart(2,'0')} - ` +
+          `${cycleEndDate.getFullYear()}-${String(cycleEndDate.getMonth()+1).padStart(2,'0')}-${String(cycleEndDate.getDate()).padStart(2,'0')}`,
       );
     } catch (error) {
       this.logger.error(
@@ -177,18 +178,14 @@ export class SubscriptionCycleRenewalService
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Umbral de 10 días después de la fecha de vencimiento (incluye exactamente 10 días)
     const thresholdDate = new Date(today);
     thresholdDate.setDate(thresholdDate.getDate() - 10);
 
     try {
-      // Buscar ciclos que han pasado 10 días o más desde la fecha de vencimiento de pago, 
-      // tienen saldo pendiente y no tienen recargo aplicado
+      // Buscar ciclos vencidos con saldo pendiente y sin recargo aplicado
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
-          payment_due_date: { 
-            lte: thresholdDate  // Incluye exactamente 10 días de atraso
-          },
+          payment_due_date: { lte: thresholdDate },
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {
@@ -286,7 +283,6 @@ export class SubscriptionCycleRenewalService
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Umbral de 10 días después de la fecha de vencimiento
     const thresholdDate = new Date(today);
     thresholdDate.setDate(thresholdDate.getDate() - 10);
 
@@ -295,9 +291,7 @@ export class SubscriptionCycleRenewalService
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
           subscription_id: subscriptionId,
-          payment_due_date: { 
-            lte: thresholdDate  // Incluye exactamente 10 días de atraso
-          },
+          payment_due_date: { lte: thresholdDate },
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {

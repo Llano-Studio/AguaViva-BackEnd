@@ -28,6 +28,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 import { RouteSheetGeneratorService } from '../../common/services/route-sheet-generator.service';
+import { formatBAYMD, formatBATimestampISO } from '../../common/utils/date.utils';
 import { FilterAutomatedCollectionsDto } from '../dto/filter-automated-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-response.dto';
 import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
@@ -403,7 +404,7 @@ export class AutomatedCollectionController {
         success: true,
         message: `Generación automática completada: ${successful}/${totalProcessed} pedidos procesados exitosamente`,
         data: {
-          execution_date: new Date().toISOString().split('T')[0],
+          execution_date: formatBAYMD(new Date()),
           total_processed: totalProcessed,
           successful: successful,
           failed: failed,
@@ -1298,7 +1299,7 @@ export class AutomatedCollectionController {
               zoneIds: zIds,
               zones,
               sizeBytes: stat.size,
-              createdAt: stat.mtime.toISOString(),
+              createdAt: formatBATimestampISO(stat.mtime as any),
             };
           })
         )

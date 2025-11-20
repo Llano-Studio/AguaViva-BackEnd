@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
 import { buildImageUrl } from '../../common/utils/file-upload.util';
+import { formatBAYMD } from '../utils/date.utils';
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -169,8 +170,8 @@ export class FirstCycleComodatoService extends PrismaClient {
           person_id: subscription.customer_id,
           product_id: planProduct.product_id,
           quantity: 0, // 🆕 CORRECCIÓN: Inicializar con 0 items - se incrementará con cada entrega
-          delivery_date: deliveryDate.toISOString().split('T')[0],
-          expected_return_date: expectedReturnDate.toISOString().split('T')[0],
+          delivery_date: formatBAYMD(deliveryDate),
+          expected_return_date: formatBAYMD(expectedReturnDate),
           status: ComodatoStatus.ACTIVE,
           notes: `Comodato automático - Primer ciclo de suscripción ${subscriptionId} - Cantidad máxima: ${planProduct.product_quantity}`,
           article_description: planProduct.product.description,
@@ -206,7 +207,7 @@ export class FirstCycleComodatoService extends PrismaClient {
           product_id: planProduct.product_id,
           product_description: planProduct.product.description,
           quantity: planProduct.product_quantity,
-          delivery_date: deliveryDate.toISOString().split('T')[0],
+          delivery_date: formatBAYMD(deliveryDate),
         });
 
         this.logger.log(
@@ -470,9 +471,9 @@ export class FirstCycleComodatoService extends PrismaClient {
         product_id: comodato.product_id,
         product_description: comodato.product.description,
         quantity: comodato.quantity,
-        delivery_date: comodato.delivery_date.toISOString().split('T')[0],
+        delivery_date: formatBAYMD(comodato.delivery_date as any),
         expected_return_date:
-          comodato.expected_return_date?.toISOString().split('T')[0] || null,
+          comodato.expected_return_date ? formatBAYMD(comodato.expected_return_date as any) : null,
         notes: comodato.notes,
       })),
       total_active_comodatos: activeComodatos.length,

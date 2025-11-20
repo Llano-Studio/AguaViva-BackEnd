@@ -5,6 +5,7 @@ import {
   PaymentStatus,
 } from '@prisma/client';
 import { CustomerSubscriptionResponseDto } from '../../customer-subscription/dto/customer-subscription-response.dto';
+import { formatBAYMD } from '../utils/date.utils';
 
 export interface MultipleSubscriptionSummaryDto {
   customer_id: number;
@@ -130,7 +131,7 @@ export class MultipleSubscriptionsService
         customer_id: subscription.customer_id,
         customer_name: `${customer.name}`,
         subscription_plan_id: subscription.subscription_plan_id,
-        start_date: subscription.start_date.toISOString().split('T')[0],
+        start_date: formatBAYMD(subscription.start_date as any),
         // end_date field removed - not present in schema
         collection_day: subscription.collection_day || null,
         payment_mode: subscription.payment_mode,
@@ -139,10 +140,9 @@ export class MultipleSubscriptionsService
         notes: subscription.notes,
         cancellation_reason: subscription.cancellation_reason,
         cancellation_date:
-          subscription.cancellation_date?.toISOString().split('T')[0] || null,
+          subscription.cancellation_date ? formatBAYMD(subscription.cancellation_date as any) : null,
         collection_scheduled_date:
-          subscription.collection_scheduled_date?.toISOString().split('T')[0] ||
-          null,
+          subscription.collection_scheduled_date ? formatBAYMD(subscription.collection_scheduled_date as any) : null,
         collection_completed: subscription.collection_completed,
         is_active: subscription.is_active,
         subscription_plan: {
@@ -157,8 +157,8 @@ export class MultipleSubscriptionsService
         subscription_cycle: subscription.subscription_cycle?.map(
           (cycle: any) => ({
             cycle_id: cycle.cycle_id,
-            cycle_start: cycle.cycle_start.toISOString().split('T')[0],
-            cycle_end: cycle.cycle_end.toISOString().split('T')[0],
+            cycle_start: formatBAYMD(cycle.cycle_start as any),
+            cycle_end: formatBAYMD(cycle.cycle_end as any),
             notes: cycle.notes,
           }),
         ),
@@ -218,10 +218,9 @@ export class MultipleSubscriptionsService
         subscription_id: cycle.subscription_id,
         subscription_plan_name:
           cycle.customer_subscription.subscription_plan.name,
-        cycle_start: cycle.cycle_start.toISOString().split('T')[0],
-        cycle_end: cycle.cycle_end.toISOString().split('T')[0],
-        payment_due_date:
-          cycle.payment_due_date?.toISOString().split('T')[0] || '',
+        cycle_start: formatBAYMD(cycle.cycle_start as any),
+        cycle_end: formatBAYMD(cycle.cycle_end as any),
+        payment_due_date: cycle.payment_due_date ? formatBAYMD(cycle.payment_due_date as any) : '',
         total_amount: Number(cycle.total_amount || 0),
         paid_amount: Number(cycle.paid_amount),
         pending_balance: Number(cycle.pending_balance),

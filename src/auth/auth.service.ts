@@ -28,6 +28,7 @@ import {
   UserVehicleResponseDto,
 } from './dto/assign-vehicles.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
+import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 
@@ -154,8 +155,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           name: user.name,
           role: user.role,
           isActive: user.isActive,
-          createdAt: user.createdAt.toISOString(),
-          updatedAt: user.updatedAt?.toISOString(),
+          createdAt: formatBATimestampISO(user.createdAt as any),
+          updatedAt: user.updatedAt ? formatBATimestampISO(user.updatedAt as any) : undefined,
           profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         }),
         accessToken,
@@ -299,9 +300,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         (user) =>
           new UserResponseDto({
             ...user,
-            createdAt: user.createdAt.toISOString(),
+            createdAt: formatBATimestampISO(user.createdAt as any),
             updatedAt: user.updatedAt
-              ? user.updatedAt.toISOString()
+              ? formatBATimestampISO(user.updatedAt as any)
               : undefined,
             profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
           }),
@@ -350,8 +351,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       }
       return new UserResponseDto({
         ...user,
-        createdAt: user.createdAt.toISOString(),
-        updatedAt: user.updatedAt ? user.updatedAt.toISOString() : undefined,
+        createdAt: formatBATimestampISO(user.createdAt as any),
+        updatedAt: user.updatedAt ? formatBATimestampISO(user.updatedAt as any) : undefined,
         profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
       });
     } catch (error) {
@@ -403,9 +404,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return new UserResponseDto({
         ...updatedUser,
-        createdAt: updatedUser.createdAt.toISOString(),
+        createdAt: formatBATimestampISO(updatedUser.createdAt as any),
         updatedAt: updatedUser.updatedAt
-          ? updatedUser.updatedAt.toISOString()
+          ? formatBATimestampISO(updatedUser.updatedAt as any)
           : undefined,
         profileImageUrl: this.buildProfileImageUrl(updatedUser.profileImageUrl),
       });
@@ -591,9 +592,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return new UserResponseDto({
         ...newUser,
-        createdAt: newUser.createdAt.toISOString(),
+        createdAt: formatBATimestampISO(newUser.createdAt as any),
         updatedAt: newUser.updatedAt
-          ? newUser.updatedAt.toISOString()
+          ? formatBATimestampISO(newUser.updatedAt as any)
           : undefined,
         profileImageUrl: this.buildProfileImageUrl(newUser.profileImageUrl),
       });
@@ -887,8 +888,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             name: uv.user.name,
             role: uv.user.role,
             isActive: uv.user.isActive,
-            createdAt: uv.user.createdAt.toISOString(),
-            updatedAt: uv.user.updatedAt?.toISOString(),
+            createdAt: formatBATimestampISO(uv.user.createdAt as any),
+            updatedAt: uv.user.updatedAt ? formatBATimestampISO(uv.user.updatedAt as any) : undefined,
             profileImageUrl: this.buildProfileImageUrl(uv.user.profileImageUrl),
           }),
       );
@@ -907,7 +908,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       user_vehicle_id: userVehicle.user_vehicle_id,
       user_id: userVehicle.user_id,
       vehicle_id: userVehicle.vehicle_id,
-      assigned_at: userVehicle.assigned_at.toISOString(),
+      assigned_at: formatBATimestampISO(userVehicle.assigned_at as any),
       is_active: userVehicle.is_active,
       notes: userVehicle.notes || undefined,
       vehicle: {

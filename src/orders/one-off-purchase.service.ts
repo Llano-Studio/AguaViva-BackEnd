@@ -23,6 +23,7 @@ import {
   mapOneOffHeaderSortFields,
 } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { formatBATimestampISO, formatBAYMD } from 'src/common/utils/date.utils';
 
 @Injectable()
 export class OneOffPurchaseService
@@ -91,7 +92,7 @@ export class OneOffPurchaseService
       return purchases.map((purchase) => ({
         purchase_id: purchase.purchase_id,
         person_id: purchase.person_id,
-        purchase_date: purchase.purchase_date.toISOString(),
+        purchase_date: formatBATimestampISO(purchase.purchase_date),
         total_amount: purchase.total_amount.toString(),
         paid_amount: purchase.paid_amount.toString(),
         notes: purchase.notes,
@@ -1493,8 +1494,7 @@ export class OneOffPurchaseService
               routeSheet.driver?.name || 'Conductor no asignado';
             const vehicleName =
               routeSheet.vehicle?.name || 'Vehículo no asignado';
-            const deliveryDate =
-              routeSheet.delivery_date.toLocaleDateString('es-ES');
+            const deliveryDate = formatBAYMD(routeSheet.delivery_date);
             return `Hoja de Ruta #${routeSheet.route_sheet_id} (${deliveryDate}) - ${driverName} - ${vehicleName}`;
           })
           .join(', ');
@@ -1612,7 +1612,7 @@ export class OneOffPurchaseService
     for (const purchase of purchases) {
       // Agrupar por person_id y fecha de compra (mismo día)
       const purchaseDate = new Date(purchase.purchase_date);
-      const dateKey = purchaseDate.toISOString().split('T')[0]; // Solo fecha, sin hora
+      const dateKey = formatBAYMD(purchaseDate); // Solo fecha, sin hora
       const groupKey = `${purchase.person_id}-${dateKey}`;
 
       if (!grouped.has(groupKey)) {
@@ -1661,9 +1661,9 @@ export class OneOffPurchaseService
       (purchase.payment_transaction || []).map((payment: any) => ({
         payment_id: payment.transaction_id || payment.payment_id,
         amount: (payment.transaction_amount || payment.amount || 0).toString(),
-        payment_date: payment.transaction_date
-          ? payment.transaction_date.toISOString()
-          : new Date().toISOString(),
+        payment_date: formatBATimestampISO(
+          payment.transaction_date || new Date()
+        ),
         payment_method:
           payment.payment_method?.description ||
           payment.payment_method ||
@@ -1692,9 +1692,9 @@ export class OneOffPurchaseService
     return {
       purchase_id: basePurchase.purchase_id,
       person_id: basePurchase.person_id,
-      purchase_date: basePurchase.purchase_date.toISOString(),
+      purchase_date: formatBATimestampISO(basePurchase.purchase_date),
       scheduled_delivery_date:
-        basePurchase.scheduled_delivery_date?.toISOString(),
+        basePurchase.scheduled_delivery_date ? formatBATimestampISO(basePurchase.scheduled_delivery_date) : undefined,
       delivery_time: basePurchase.delivery_time,
       total_amount: totalAmount.toString(),
       paid_amount: basePurchase.paid_amount.toString(),
@@ -1803,11 +1803,9 @@ export class OneOffPurchaseService
         payment.payment_transaction_id ||
         payment.payment_id,
       amount: (payment.transaction_amount || payment.amount || 0).toString(),
-      payment_date: (
-        payment.transaction_date ||
-        payment.payment_date ||
-        new Date()
-      ).toISOString(),
+      payment_date: formatBATimestampISO(
+        payment.transaction_date || payment.payment_date || new Date()
+      ),
       payment_method:
         payment.payment_method?.description ||
         payment.payment_method ||
@@ -1825,8 +1823,8 @@ export class OneOffPurchaseService
       one_off_purchase_id: purchase.purchase_id, // 🆕 ID real de la tabla legacy
       purchase_type: 'LEGACY', // 🆕 Identificar el tipo de estructura
       person_id: purchase.person_id,
-      purchase_date: purchase.purchase_date.toISOString(),
-      scheduled_delivery_date: purchase.scheduled_delivery_date?.toISOString(),
+      purchase_date: formatBATimestampISO(purchase.purchase_date),
+      scheduled_delivery_date: purchase.scheduled_delivery_date ? formatBATimestampISO(purchase.scheduled_delivery_date) : undefined,
       delivery_time: purchase.delivery_time,
       total_amount: purchase.total_amount.toString(),
       paid_amount: purchase.paid_amount.toString(),
@@ -1911,9 +1909,9 @@ export class OneOffPurchaseService
           payment.transaction_id ||
           payment.payment_id,
         amount: (payment.amount || payment.transaction_amount || 0).toString(),
-        payment_date: payment.payment_date
-          ? payment.payment_date.toISOString()
-          : new Date().toISOString(),
+        payment_date: formatBATimestampISO(
+          payment.payment_date || new Date()
+        ),
         payment_method:
           payment.payment_method?.description ||
           payment.payment_method ||
@@ -1941,9 +1939,9 @@ export class OneOffPurchaseService
             payment.amount ||
             0
           ).toString(),
-          payment_date: payment.transaction_date
-            ? payment.transaction_date.toISOString()
-            : new Date().toISOString(),
+          payment_date: formatBATimestampISO(
+            payment.transaction_date || new Date()
+          ),
           payment_method:
             payment.payment_method?.description ||
             payment.payment_method ||
@@ -1966,9 +1964,9 @@ export class OneOffPurchaseService
       purchase_header_id: purchaseHeader.purchase_header_id, // 🆕 ID real de la tabla header
       purchase_type: 'HEADER', // 🆕 Identificar el tipo de estructura
       person_id: purchaseHeader.person_id,
-      purchase_date: purchaseHeader.purchase_date.toISOString(),
+      purchase_date: formatBATimestampISO(purchaseHeader.purchase_date),
       scheduled_delivery_date:
-        purchaseHeader.scheduled_delivery_date?.toISOString(),
+        purchaseHeader.scheduled_delivery_date ? formatBATimestampISO(purchaseHeader.scheduled_delivery_date) : undefined,
       delivery_time: purchaseHeader.delivery_time,
       total_amount: purchaseHeader.total_amount.toString(),
       paid_amount: purchaseHeader.paid_amount.toString(),

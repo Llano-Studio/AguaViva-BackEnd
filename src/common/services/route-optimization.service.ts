@@ -2,9 +2,8 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  BadRequestException,
 } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient} from '@prisma/client';
 import {
   CreateRouteOptimizationDto,
   RouteOptimizationResponseDto,
@@ -157,7 +156,7 @@ export class RouteOptimizationService extends PrismaClient {
         estimated_distance: Number(optimization.estimated_distance),
         optimization_status: optimization.optimization_status,
         waypoints: optimizedWaypoints,
-        created_at: optimization.created_at.toISOString(),
+        created_at: formatBATimestampISO(optimization.created_at as any),
       });
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -192,7 +191,7 @@ export class RouteOptimizationService extends PrismaClient {
       estimated_distance: Number(optimization.estimated_distance),
       optimization_status: optimization.optimization_status,
       waypoints: optimization.waypoints as any,
-      created_at: optimization.created_at.toISOString(),
+      created_at: formatBATimestampISO(optimization.created_at as any),
     });
   }
 
@@ -334,3 +333,4 @@ export class RouteOptimizationService extends PrismaClient {
     return totalMinutes;
   }
 }
+import { formatBATimestampISO } from '../utils/date.utils';

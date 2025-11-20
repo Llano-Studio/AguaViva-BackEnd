@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
+import { formatBATimestampISO } from './common/utils/date.utils';
 
 @Injectable()
 export class AppService {
@@ -24,7 +25,7 @@ export class AppService {
 
     return {
       status: dbHealth ? 'ok' : 'degraded',
-      timestamp: new Date().toISOString(),
+      timestamp: formatBATimestampISO(new Date()),
       database: dbHealth,
       uptime: Math.floor(startTime), // tiempo en segundos
       version,

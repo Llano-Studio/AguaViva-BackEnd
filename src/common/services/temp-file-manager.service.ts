@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
 
 export interface TempFileInfo {
   fileName: string;
@@ -39,10 +40,10 @@ export class TempFileManagerService {
    * Genera un nombre de archivo único con timestamp
    */
   generateUniqueFileName(prefix: string, extension: string = 'pdf'): string {
-    const timestamp = new Date().toISOString()
-      .replace(/[:.]/g, '-')
-      .split('T')[0] + '-' + 
-      new Date().toTimeString().split(' ')[0].replace(/:/g, '');
+    const d = new Date();
+    const ymd = formatBAYMD(d);
+    const hms = formatBAHMS(d);
+    const timestamp = `${ymd}-${hms}`;
     
     return `${prefix}-${timestamp}.${extension}`;
   }
