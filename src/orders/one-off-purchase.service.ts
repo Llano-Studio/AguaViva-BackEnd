@@ -486,7 +486,9 @@ export class OneOffPurchaseService
               person_id: person.person_id,
               sale_channel_id: createDto.sale_channel_id,
               purchase_date: createDto.purchase_date
-                ? new Date(createDto.purchase_date)
+                ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
+                    ? parseYMD(createDto.purchase_date.trim())
+                    : new Date(createDto.purchase_date))
                 : new Date(),
               total_amount: finalTotalAmount.toString(),
               paid_amount: finalPaidAmount.toString(),
@@ -498,7 +500,9 @@ export class OneOffPurchaseService
               scheduled_delivery_date:
                 createDto.scheduled_delivery_date &&
                 createDto.scheduled_delivery_date.trim() !== ''
-                  ? new Date(createDto.scheduled_delivery_date)
+                  ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.scheduled_delivery_date.trim())
+                      ? parseYMD(createDto.scheduled_delivery_date.trim())
+                      : new Date(createDto.scheduled_delivery_date))
                   : null,
               delivery_time:
                 createDto.delivery_time && createDto.delivery_time.trim() !== ''
@@ -751,21 +755,24 @@ export class OneOffPurchaseService
     }
 
     // Validación de rangos de fechas de compra
-    if (purchaseDateFrom && purchaseDateTo) {
-
-      const fromDate = new Date(purchaseDateFrom);
-      const toDate = new Date(purchaseDateTo);
-      if (toDate < fromDate) {
-        throw new BadRequestException(
-          'La fecha de compra "hasta" no puede ser menor que la fecha de compra "desde"',
-        );
+      if (purchaseDateFrom && purchaseDateTo) {
+        const rawFrom = String(purchaseDateFrom).trim();
+        const rawTo = String(purchaseDateTo).trim();
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(purchaseDateFrom);
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(purchaseDateTo);
+        if (toDate < fromDate) {
+          throw new BadRequestException(
+            'La fecha de compra "hasta" no puede ser menor que la fecha de compra "desde"',
+          );
+        }
       }
-    }
 
     // Validación de rangos de fechas de entrega
     if (deliveryDateFrom && deliveryDateTo) {
-      const fromDate = new Date(deliveryDateFrom);
-      const toDate = new Date(deliveryDateTo);
+      const rawFrom = String(deliveryDateFrom).trim();
+      const rawTo = String(deliveryDateTo).trim();
+      const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(deliveryDateFrom);
+      const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(deliveryDateTo);
       if (toDate < fromDate) {
         throw new BadRequestException(
           'La fecha de entrega "hasta" no puede ser menor que la fecha de entrega "desde"',
@@ -777,12 +784,14 @@ export class OneOffPurchaseService
       where.purchase_date = {};
 
       if (purchaseDateFrom) {
-        const fromDate = new Date(purchaseDateFrom);
+        const rawFrom = String(purchaseDateFrom).trim();
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(purchaseDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.purchase_date.gte = fromDate;
       }
       if (purchaseDateTo) {
-        const toDate = new Date(purchaseDateTo);
+        const rawTo = String(purchaseDateTo).trim();
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(purchaseDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.purchase_date.lte = toDate;
       }
@@ -797,12 +806,14 @@ export class OneOffPurchaseService
     if (deliveryDateFrom || deliveryDateTo) {
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
-        const fromDate = new Date(deliveryDateFrom);
+        const rawFrom = String(deliveryDateFrom).trim();
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(deliveryDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.scheduled_delivery_date.gte = fromDate;
       }
       if (deliveryDateTo) {
-        const toDate = new Date(deliveryDateTo);
+        const rawTo = String(deliveryDateTo).trim();
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(deliveryDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.scheduled_delivery_date.lte = toDate;
       }
@@ -1235,7 +1246,9 @@ export class OneOffPurchaseService
             scheduled_delivery_date:
               updateDto.scheduled_delivery_date &&
               updateDto.scheduled_delivery_date.trim() !== ''
-                ? new Date(updateDto.scheduled_delivery_date)
+                ? (/^\d{4}-\d{2}-\d{2}$/.test(updateDto.scheduled_delivery_date.trim())
+                    ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                    : new Date(updateDto.scheduled_delivery_date))
                 : null,
           }),
           ...(updateDto.delivery_time !== undefined && {
@@ -1309,7 +1322,9 @@ export class OneOffPurchaseService
                 scheduled_delivery_date:
                   updateDto.scheduled_delivery_date &&
                   updateDto.scheduled_delivery_date.trim() !== ''
-                    ? new Date(updateDto.scheduled_delivery_date)
+                    ? (/^\d{4}-\d{2}-\d{2}$/.test(updateDto.scheduled_delivery_date.trim())
+                        ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                        : new Date(updateDto.scheduled_delivery_date))
                     : null,
               }),
               ...(updateDto.delivery_time !== undefined && {
@@ -2208,10 +2223,17 @@ export class OneOffPurchaseService
 
       if (purchaseDateFrom || purchaseDateTo) {
         where.purchase_date = {};
-        if (purchaseDateFrom)
-          where.purchase_date.gte = new Date(purchaseDateFrom);
+        if (purchaseDateFrom) {
+          const rawFrom = String(purchaseDateFrom).trim();
+          where.purchase_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+            ? parseYMD(rawFrom)
+            : new Date(purchaseDateFrom);
+        }
         if (purchaseDateTo) {
-          const endDate = new Date(purchaseDateTo);
+          const rawTo = String(purchaseDateTo).trim();
+          const endDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+            ? parseYMD(rawTo)
+            : new Date(purchaseDateTo);
           endDate.setHours(23, 59, 59, 999);
           where.purchase_date.lte = endDate;
         }
@@ -2219,10 +2241,17 @@ export class OneOffPurchaseService
 
       if (deliveryDateFrom || deliveryDateTo) {
         where.scheduled_delivery_date = {};
-        if (deliveryDateFrom)
-          where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+        if (deliveryDateFrom) {
+          const rawFrom = String(deliveryDateFrom).trim();
+          where.scheduled_delivery_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+            ? parseYMD(rawFrom)
+            : new Date(deliveryDateFrom);
+        }
         if (deliveryDateTo) {
-          const endDate = new Date(deliveryDateTo);
+          const rawTo = String(deliveryDateTo).trim();
+          const endDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+            ? parseYMD(rawTo)
+            : new Date(deliveryDateTo);
           endDate.setHours(23, 59, 59, 999);
           where.scheduled_delivery_date.lte = endDate;
         }
