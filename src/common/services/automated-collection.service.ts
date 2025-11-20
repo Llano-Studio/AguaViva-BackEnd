@@ -905,10 +905,16 @@ export class AutomatedCollectionService
     if (filters.orderDateFrom || filters.orderDateTo) {
       whereClause.order_date = {};
       if (filters.orderDateFrom) {
-        whereClause.order_date.gte = new Date(filters.orderDateFrom);
+        const raw = String(filters.orderDateFrom).trim();
+        whereClause.order_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? parseYMD(raw)
+          : new Date(filters.orderDateFrom);
       }
       if (filters.orderDateTo) {
-        const endDate = new Date(filters.orderDateTo);
+        const raw = String(filters.orderDateTo).trim();
+        const endDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? parseYMD(raw)
+          : new Date(filters.orderDateTo);
         endDate.setHours(23, 59, 59, 999);
         whereClause.order_date.lte = endDate;
       }
@@ -919,10 +925,16 @@ export class AutomatedCollectionService
     if (filters.dueDateFrom || filters.dueDateTo) {
       subscriptionCycleSome.payment_due_date = subscriptionCycleSome.payment_due_date || {};
       if (filters.dueDateFrom) {
-        subscriptionCycleSome.payment_due_date.gte = new Date(filters.dueDateFrom);
+        const raw = String(filters.dueDateFrom).trim();
+        subscriptionCycleSome.payment_due_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? parseYMD(raw)
+          : new Date(filters.dueDateFrom);
       }
       if (filters.dueDateTo) {
-        const dueEndDate = new Date(filters.dueDateTo);
+        const raw = String(filters.dueDateTo).trim();
+        const dueEndDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? parseYMD(raw)
+          : new Date(filters.dueDateTo);
         dueEndDate.setHours(23, 59, 59, 999);
         subscriptionCycleSome.payment_due_date.lte = dueEndDate;
       }

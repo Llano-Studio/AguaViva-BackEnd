@@ -34,6 +34,7 @@ import {
 } from '../dto/generate-manual-collection.dto';
 import { Role } from '@prisma/client';
 import { Auth } from '../../auth/decorators/auth.decorator';
+import { parseYMD } from '../../common/utils/date.utils';
 
 @ApiTags('🛒 Pedidos & Compras de una sola vez')
 @Controller('manual-collection')
@@ -355,7 +356,11 @@ export class ManualCollectionController {
 
     try {
       // Validar y parsear la fecha
-      const collectionDate = new Date(generateDto.collection_date);
+      const collectionDateStr = generateDto.collection_date?.trim();
+      if (!collectionDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(collectionDateStr)) {
+        throw new Error('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
+      }
+      const collectionDate = parseYMD(collectionDateStr);
       if (isNaN(collectionDate.getTime())) {
         throw new Error('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
       }

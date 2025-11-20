@@ -77,7 +77,7 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'Estado de la orden (PENDING, DELIVERED, CANCELLED) - para compatibilidad',
+      'Estado de la orden (PENDING, DELIVERED, RETIRADO, CANCELLED) - para compatibilidad',
   })
   @IsOptional()
   @IsString()
@@ -85,8 +85,8 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'Filtrar por múltiples estados. Puede ser un array o string separado por comas "PENDING,DELIVERED,CANCELLED"',
-    example: ['PENDING', 'DELIVERED'],
+      'Filtrar por múltiples estados. Puede ser un array o string separado por comas "PENDING,DELIVERED,RETIRADO,CANCELLED"',
+    example: ['PENDING', 'DELIVERED', 'RETIRADO'],
     type: [String],
   })
   @IsOptional()

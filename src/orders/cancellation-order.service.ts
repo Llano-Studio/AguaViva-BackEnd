@@ -113,7 +113,15 @@ export class CancellationOrderService extends PrismaClient {
     // Validar y convertir la fecha
     let scheduledDate: Date;
     try {
-      scheduledDate = new Date(dto.scheduled_collection_date);
+      const raw = String(dto.scheduled_collection_date || '').trim();
+      if (!raw) {
+        throw new BadRequestException(
+          'scheduled_collection_date must be a valid date string',
+        );
+      }
+      scheduledDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? parseYMD(raw)
+        : new Date(raw);
       if (isNaN(scheduledDate.getTime())) {
         throw new BadRequestException(
           'scheduled_collection_date must be a valid date string',
@@ -728,3 +736,4 @@ export class CancellationOrderService extends PrismaClient {
     };
   }
 }
+import { parseYMD } from '../common/utils/date.utils';

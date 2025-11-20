@@ -813,6 +813,7 @@ export class PdfGeneratorService {
       'pendiente': 'PENDIENTE',
       'delivered': 'ENTREGADO',
       'entregado': 'ENTREGADO',
+      'retirado': 'RETIRADO',
       'cancelled': 'CANCELADO',
       'cancelado': 'CANCELADO',
       'in_route': 'EN RUTA',

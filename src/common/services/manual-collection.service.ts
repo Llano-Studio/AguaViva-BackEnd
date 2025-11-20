@@ -36,7 +36,7 @@ import {
   ExistingOrderResponseDto,
   ExistingOrderInfoDto,
 } from '../../orders/dto/generate-manual-collection.dto';
-import { formatBAYMD, formatBATimestampISO } from '../utils/date.utils';
+import { formatBAYMD, formatBATimestampISO, parseYMD } from '../utils/date.utils';
 
 @Injectable()
 export class ManualCollectionService extends PrismaClient {
@@ -358,7 +358,9 @@ export class ManualCollectionService extends PrismaClient {
       generateDto;
 
     // Validar fecha
-    const targetDate = new Date(collection_date);
+    const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(String(collection_date).trim())
+      ? parseYMD(String(collection_date).trim())
+      : new Date(collection_date);
     targetDate.setHours(0, 0, 0, 0);
     const adjustedDate = this.adjustDateForSunday(targetDate);
 
@@ -529,7 +531,9 @@ export class ManualCollectionService extends PrismaClient {
             subscription_id: cycles[0].subscription_id,
             sale_channel_id: 1,
             order_date: new Date(), // Usar la fecha actual para order_date
-            scheduled_delivery_date: new Date(collection_date), // Usar collection_date para scheduled_delivery_date
+            scheduled_delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(collection_date.trim())
+              ? parseYMD(collection_date.trim())
+              : new Date(collection_date),
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(totalAmount), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas
             paid_amount: new Prisma.Decimal(0),

@@ -36,6 +36,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
             notIn: [
               PrismaOrderStatus.OVERDUE,
               PrismaOrderStatus.DELIVERED,
+              PrismaOrderStatus.RETIRADO,
               PrismaOrderStatus.CANCELLED,
               PrismaOrderStatus.REFUNDED,
             ],
@@ -112,6 +113,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
           notIn: [
             PrismaOrderStatus.OVERDUE,
             PrismaOrderStatus.DELIVERED,
+            PrismaOrderStatus.RETIRADO,
             PrismaOrderStatus.CANCELLED,
             PrismaOrderStatus.REFUNDED,
           ],

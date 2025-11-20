@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { PersonType, OrderType } from '../common/constants/enums';
+import { OrderType, PersonType } from '../common/constants/enums';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
 import { FilterOneOffPurchasesDto } from './dto/filter-one-off-purchases.dto';
@@ -23,7 +23,7 @@ import {
   mapOneOffHeaderSortFields,
 } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO, formatBAYMD } from 'src/common/utils/date.utils';
+import { formatBATimestampISO, formatBAYMD, parseYMD } from 'src/common/utils/date.utils';
 
 @Injectable()
 export class OneOffPurchaseService
@@ -204,7 +204,7 @@ export class OneOffPurchaseService
         // Determinar status basado en requires_delivery o usar el status proporcionado
         const orderStatus =
           createDto.status ||
-          (createDto.requires_delivery === false ? 'DELIVERED' : 'PENDING');
+          (createDto.requires_delivery === false ? 'RETIRADO' : 'PENDING');
 
         const newPurchase = await prismaTx.one_off_purchase.create({
           data: {
@@ -225,12 +225,16 @@ export class OneOffPurchaseService
             paid_amount: new Decimal(0),
             notes: createDto.notes,
             purchase_date: createDto.purchase_date
-              ? new Date(createDto.purchase_date)
+              ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
+                  ? parseYMD(createDto.purchase_date.trim())
+                  : new Date(createDto.purchase_date))
               : new Date(),
             scheduled_delivery_date:
               createDto.scheduled_delivery_date &&
               createDto.scheduled_delivery_date.trim() !== ''
-                ? new Date(createDto.scheduled_delivery_date)
+                ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.scheduled_delivery_date.trim())
+                    ? parseYMD(createDto.scheduled_delivery_date.trim())
+                    : new Date(createDto.scheduled_delivery_date))
                 : null,
             delivery_time:
               createDto.delivery_time && createDto.delivery_time.trim() !== ''
@@ -472,7 +476,7 @@ export class OneOffPurchaseService
         // Determinar status basado en requires_delivery o usar el status proporcionado
         const orderStatus =
           createDto.status ||
-          (createDto.requires_delivery === false ? 'DELIVERED' : 'PENDING');
+          (createDto.requires_delivery === false ? 'RETIRADO' : 'PENDING');
 
         // 🆕 CREAR UNA SOLA ORDEN HEADER CON MÚLTIPLES ITEMS
 
