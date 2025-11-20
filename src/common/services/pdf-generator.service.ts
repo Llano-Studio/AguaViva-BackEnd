@@ -144,8 +144,8 @@ export interface CollectionRouteSheetPdfData {
         name: string;
       };
       locality?: {
-        locality_id: number;
-        code: string;
+        locality_id?: number;
+        code?: string;
         name: string;
       };
     };
@@ -991,6 +991,13 @@ export class PdfGeneratorService {
       currentY += 10;
     }
 
+    console.log('PDF_COLLECTION_ROUTE_SHEET_DATA', {
+      delivery_date: routeSheet.delivery_date,
+      driver: routeSheet.driver,
+      vehicle: routeSheet.vehicle,
+      route_notes: routeSheet.route_notes,
+      collections: routeSheet.collections,
+    });
     // Collections Table
     currentY = this.generateCollectionsTable(doc, routeSheet, currentY);
     currentY += 30;
@@ -1211,9 +1218,27 @@ export class PdfGeneratorService {
         const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
         parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
       }
+      if (collection.subscription_plan) {
+        parts.unshift(`Abono: ${collection.subscription_plan}`);
+      }
       return parts.join(' | ').trim();
     };
     const finalNotes = buildNotesText();
+    console.log('PDF_COLLECTION_ROW', {
+      index,
+      customer: {
+        id: collection.customer.customer_id,
+        name: collection.customer.name,
+        address: collection.customer.address,
+        locality: collection.customer.locality?.name,
+        phone: collection.customer.phone,
+      },
+      amount: collection.amount,
+      payment_due_date_raw: collection.payment_due_date,
+      payment_due_date_display: this.safeFormatDateYMDDisplay(collection.payment_due_date),
+      status: collection.delivery_status,
+      notes: finalNotes,
+    });
     if (finalNotes) {
       const notesY = currentY + maxHeight + 5;
       const notesTextHeight = doc.heightOfString(finalNotes, {
