@@ -386,7 +386,7 @@ export class PdfGeneratorService {
     currentY += 15;
     
     // Título principal
-    doc.fontSize(15).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
     doc.text(`HOJA DE RUTA PEDIDOS #${routeSheet.route_sheet_id}`, 25, currentY);
     
     // Fecha de entrega (más a la derecha, misma línea)
@@ -398,11 +398,11 @@ export class PdfGeneratorService {
     if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
       const zonesNames = routeSheet.zones_covered.map(z => z.name).join(', ');
       doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Zonas: ${zonesNames}`, 25, currentY + 25);
-      return currentY + 60;
+      doc.text(`Zonas: ${zonesNames}`, 25, currentY + 15);
+      return currentY + 35;
     }
     
-    return currentY + 40;
+    return currentY + 20;
   }
 
 
@@ -418,27 +418,27 @@ export class PdfGeneratorService {
     const vehicleX = startX + boxWidth + 25; // 25px de separación entre las cajas
     
     // Información del conductor
-    doc.rect(startX, currentY, boxWidth, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(startX, currentY, 4, 56).fill(this.colors.primary);
+    doc.rect(startX, currentY, boxWidth, 49).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(startX, currentY, 4, 49).fill(this.colors.primary);
     
-    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('CONDUCTOR', startX + 20, currentY + 5);
+    doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.text('CONDUCTOR', startX + 20, currentY + 3);
     
-    doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 20);
+    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 17);
 
     // Información del vehículo
-    doc.rect(vehicleX, currentY, boxWidth, 56).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
-    doc.rect(vehicleX, currentY, 4, 56).fill(this.colors.secondary);
+    doc.rect(vehicleX, currentY, boxWidth, 49).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc.rect(vehicleX, currentY, 4, 49).fill(this.colors.secondary);
     
-    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text('VEHÍCULO', vehicleX + 20, currentY + 5);
+    doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.text('VEHÍCULO', vehicleX + 20, currentY + 3);
     
-    doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 20);
-    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 35);
-
-    return currentY + 70;
+    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 17);
+    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 32);
+    
+    return currentY + 55;
   }
 
   /**
@@ -450,14 +450,14 @@ export class PdfGeneratorService {
       const notesWidth = 545; // 595 - 25 - 25
       const textWidth = notesWidth - 40; // 20px padding en cada lado
       
-      doc.rect(startX, currentY, notesWidth, 46).fill(this.colors.warningColor).stroke(this.colors.borderColor);
+      doc.rect(startX, currentY, notesWidth, 30).fill(this.colors.warningColor).stroke(this.colors.borderColor);
       
-      doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-      doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 8);
+      doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+      doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 3);
       
-      doc.fontSize(11).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(routeSheet.route_notes, startX + 20, currentY + 25, { width: textWidth });
-      return currentY + 63;
+      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.text(routeSheet.route_notes, startX + 20, currentY + 15, { width: textWidth });
+      return currentY + 33;
     }
   }
 
@@ -477,15 +477,15 @@ export class PdfGeneratorService {
     
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
-    const rowHeight = 27;
+    const rowHeight = 17;
     
     // Headers de la tabla
     const headers = ['N°', 'Cliente', 'Dirección', 'Teléfono', 'Horario', 'Total'];
-    const colWidths = [40, 120, 135, 100, 80, 70];    let pageCount = 1;
+    const colWidths = [30, 110, 195, 70, 70, 70];    let pageCount = 1;
     
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
-      const footerY = doc.page.height - 85; // Más espacio para la información adicional
+      const footerY = doc.page.height - 60; // Más espacio para la información adicional
       
       // Para la mayoría de casos, estimamos máximo 3 páginas
       // Si necesitamos más precisión, se puede implementar regeneración
@@ -495,19 +495,19 @@ export class PdfGeneratorService {
       doc.rect(25, footerY - 10, 545, 1).fill(this.colors.borderColor);
       
       // Número de hoja de ruta y fecha en la misma línea
-      doc.fontSize(10).font('Poppins').fillColor(this.colors.textAccent);
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.textAccent);
       doc.text(`#${routeSheet.route_sheet_id}`, 25, footerY);
       
-      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
       const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
       doc.text(`Fecha: ${displayDate}`, 200, footerY + 2);
       
       // Vehículo en el centro
-      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
       doc.text(`Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`, 350, footerY + 2);
       
       // Paginación en el lado derecho de la misma línea
-      doc.fontSize(10).font('Poppins').fillColor(this.colors.secondary);
+      doc.fontSize(9).font('Poppins').fillColor(this.colors.secondary);
       doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, { width: 100, align: 'right' });
       
       // Zonas en la línea de abajo (si existen)
@@ -522,11 +522,11 @@ export class PdfGeneratorService {
 
     // Header inicial de la tabla
     doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
+    doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
     
     let colX = startX + 10;
     headers.forEach((header, index) => {
-      doc.text(header, colX, currentY + 6, { 
+      doc.text(header, colX, currentY + 3, { 
         width: colWidths[index] - 20,
         align: index === 0 ? 'center' : 'left'
       });
@@ -535,13 +535,19 @@ export class PdfGeneratorService {
     
     currentY += rowHeight;
 
+    // Calcular altura del footer para usar en paginación
+    const footerHeight = 80; // Altura reservada para el footer
+    const pageBottomLimit = doc.page.height - footerHeight;
+
     // Generar órdenes con altura dinámica real
     for (let i = 0; i < routeSheet.details.length; i++) {
       const detail = routeSheet.details[i];
 
+      // Estimar altura aproximada que ocupará esta orden
+      const estimatedRowHeight = 60; // Altura mínima estimada para fila + detalles
       
       // Verificar si necesitamos nueva página ANTES de procesar
-      if (currentY > doc.page.height - 250) {
+      if (currentY + estimatedRowHeight > pageBottomLimit) {
         
         // Agregar footer a la página actual (solo si no es la primera página)
         if (pageCount > 1) {
@@ -555,11 +561,11 @@ export class PdfGeneratorService {
         
         // Recrear header de tabla en nueva página
         doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
-        doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
+        doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
         
         colX = startX + 10;
         headers.forEach((header, index) => {
-          doc.text(header, colX, currentY + 6, { 
+          doc.text(header, colX, currentY + 3, { 
             width: colWidths[index] - 20,
             align: index === 0 ? 'center' : 'left'
           });
@@ -611,17 +617,17 @@ export class PdfGeneratorService {
       : detail.order.customer.address || 'Sin dirección';
 
     const cellData: Array<{ text: string; fontSize: number; font: string; align: 'center' | 'left' | 'right' }> = [
-      { text: detail.order.order_id.toString(), fontSize: 10, font: 'Poppins-Bold', align: 'center' },
-      { text: detail.order.customer.name, fontSize: 11, font: 'Poppins-Bold', align: 'left' },
-      { text: addressText, fontSize: 10, font: 'Poppins', align: 'left' },
-      { text: detail.order.customer.phone, fontSize: 10, font: 'Poppins', align: 'left' },
-      { text: detail.delivery_time || 'N/D', fontSize: 10, font: 'Poppins', align: 'center' },
-      { text: `$${detail.order.total_amount}`, fontSize: 10, font: 'Poppins-Bold', align: 'right' },
+      { text: detail.order.order_id.toString(), fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      { text: detail.order.customer.name, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      { text: addressText, fontSize: 9, font: 'Poppins', align: 'left' },
+      { text: detail.order.customer.phone, fontSize: 9, font: 'Poppins', align: 'left' },
+      { text: detail.delivery_time || 'N/D', fontSize: 9, font: 'Poppins', align: 'left' },
+      { text: `$${detail.order.total_amount}`, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
     ];
 
-    // Calcular la altura necesaria para cada celda
-    const minRowHeight = 27;
-    const padding = 20;
+    // Calcular la altura necesaria para cada celd
+    const minRowHeight = 17;
+    const padding = 5;
     let maxHeight = minRowHeight;
 
     cellData.forEach((cell, colIndex) => {
@@ -645,7 +651,7 @@ export class PdfGeneratorService {
         colIndex === 0 || colIndex === 5 ? this.colors.textAccent : this.colors.textPrimary
       );
       
-      doc.text(cell.text, colX, currentY + 10, {
+      doc.text(cell.text, colX, currentY + 3, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
         lineGap: 2
@@ -704,46 +710,78 @@ export class PdfGeneratorService {
     }
 
     // Configuración básica
-    const labelGap = 17;
-    let textY = currentY + 5;
+    const labelGap = 10;
+    let textY = currentY + 2;
 
-    // Renderizar directamente el contenido sin rectángulo
-    doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+    // Renderizar PEDIDOS y calcular altura dinámica
+    doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
     doc.text('PEDIDOS:', startX + 25, textY);
-    doc.fontSize(12).fillColor(this.colors.textPrimary).font('Poppins');
-    doc.text(productText, startX + 93, textY, { width: tableWidth - 180 });
-    textY += labelGap;
+    doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+    const productTextHeight = doc.heightOfString(productText, { width: tableWidth - 180 });
+    doc.text(productText, startX + 72, textY, { width: tableWidth - 180 });
+    textY += Math.max(productTextHeight, labelGap);
 
-    if (aliasText) {
-      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-      doc.text('EMPRESA:', startX + 25, textY);
-      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(aliasText, startX + 85, textY - 1, { width: tableWidth - 120 });
-      textY += labelGap;
-    }
+    // Renderizar los tres elementos en una sola línea horizontal
+    if (aliasText || specialInstructionsText || commentsText) {
+      const col1X = startX + 25;
+      const col2X = startX + 165;
+      const col3X = startX + 365;
+      const colWidth = 160;
 
-    if (specialInstructionsText) {
-      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-      doc.text('NOTAS CLIENTE:', startX + 25, textY);
-      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(specialInstructionsText, startX + 115, textY - 1, { width: tableWidth - 150 });
-      textY += labelGap;
-    }
+      // Calcular altura máxima necesaria entre los tres elementos
+      let maxRowHeight = 0;
 
-    if (commentsText) {
-      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-      doc.text('COMENTARIOS:', startX + 25, textY);
-      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(commentsText, startX + 112, textY - 1, { width: tableWidth - 145 });
-      textY += labelGap;
+      if (aliasText) {
+        doc.fontSize(9).font('Poppins');
+        const aliasHeight = doc.heightOfString(aliasText, { width: colWidth - 105 });
+        maxRowHeight = Math.max(maxRowHeight, aliasHeight);
+      }
+
+      if (specialInstructionsText) {
+        doc.fontSize(9).font('Poppins');
+        const notesHeight = doc.heightOfString(specialInstructionsText, { width: colWidth - 75 });
+        maxRowHeight = Math.max(maxRowHeight, notesHeight);
+      }
+
+      if (commentsText) {
+        doc.fontSize(9).font('Poppins');
+        const commentsHeight = doc.heightOfString(commentsText, { width: colWidth - 72 });
+        maxRowHeight = Math.max(maxRowHeight, commentsHeight);
+      }
+
+      // Renderizar los elementos en la misma línea
+      if (aliasText) {
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.text('EMPRESA:', col1X, textY);
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.text(aliasText, col1X + 50, textY, { width: colWidth - 105 });
+      }
+
+      if (specialInstructionsText) {
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.text('NOTAS CLIENTE:', col2X, textY);
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.text(specialInstructionsText, col2X + 78, textY, { width: colWidth - 75 });
+      }
+
+      if (commentsText) {
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.text('COMENTARIOS:', col3X, textY);
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.text(commentsText, col3X + 73, textY, { width: colWidth - 72 });
+      }
+
+      // Avanzar según la altura máxima calculada
+      textY += Math.max(maxRowHeight, labelGap);
     }
 
     if (creditsText) {
-      doc.fontSize(10).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+      doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('EXTRAS DISPONIBLES:', startX + 25, textY);
-      doc.fontSize(11).fillColor(this.colors.textPrimary).font('Poppins');
-      doc.text(creditsText, startX + 145, textY - 1, { width: tableWidth - 180 });
-      textY += labelGap;
+      doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+      const creditsTextHeight = doc.heightOfString(creditsText, { width: tableWidth - 180 });
+      doc.text(creditsText, startX + 127, textY, { width: tableWidth - 180 });
+      textY += Math.max(creditsTextHeight, labelGap);
     }
 
     return textY + 5;
@@ -812,7 +850,7 @@ export class PdfGeneratorService {
       'cancelado': 'CANCELADO',
       'in_route': 'EN RUTA',
       'en_ruta': 'EN RUTA',
-      'overdue': 'ATRASADO',
+      'overdue': 'VENCIDO',
       'atrasado': 'ATRASADO',
     };
     
@@ -969,11 +1007,6 @@ export class PdfGeneratorService {
     // Driver and Vehicle Info
     currentY = this.generateDriverVehicleInfo(doc, routeSheet, currentY);
 
-    // Route Notes
-    if (routeSheet.route_notes) {
-      currentY = this.generateRouteNotes(doc, routeSheet, currentY);
-      currentY += 10;
-    }
     // Collections Table
     currentY = this.generateCollectionsTable(doc, routeSheet, currentY);
     currentY += 30;
@@ -995,7 +1028,7 @@ export class PdfGeneratorService {
     currentY += 15;
 
     // Título principal
-    doc.fontSize(15)
+    doc.fontSize(12)
        .font('Poppins-Bold')
        .fillColor(this.colors.primary)
        .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
@@ -1008,7 +1041,7 @@ export class PdfGeneratorService {
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY);
     
-    currentY += 15;
+    currentY += 5;
     
     return currentY;
   }
@@ -1023,39 +1056,52 @@ export class PdfGeneratorService {
   ): number {
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
-    const rowHeight = 25;
-    const headerHeight = 25;
+    const rowHeight = 17;
+    const headerHeight = 17;
     
     // Headers de la tabla
     const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
-    // Ajustado para que sumen exactamente 545px: 30+105+130+85+60+70+65 = 545
-    const colWidths = [30, 105, 130, 85, 60, 70, 65];
+    // Ajustado para que sumen exactamente 545px: 30+100+175+65+60+50+65 = 545
+    const colWidths = [30, 95, 145, 80, 65, 60, 70];
     
-    // Header de la tabla
-    let headerX = startX;
-    doc.rect(startX, currentY, tableWidth, headerHeight)
-       .fill(this.colors.primary);
+    // Calcular límite inferior de página (842 es altura A4, dejamos 25px para margen inferior)
+    const pageBottomLimit = 817; // 842 - 25
     
-    doc.fontSize(12)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.textWhite);
-    
-    headers.forEach((header, index) => {
-      doc.text(header, headerX + 5, currentY + 4, { 
-        width: colWidths[index] - 10, 
-        align: 'center' 
+    // Helper para dibujar header de tabla
+    const drawTableHeader = (y: number): number => {
+      let headerX = startX;
+      doc.rect(startX, y, tableWidth, headerHeight)
+         .fill(this.colors.primary);
+      
+      doc.fontSize(9)
+         .font('Poppins-Bold')
+         .fillColor(this.colors.textWhite);
+      
+      headers.forEach((header, index) => {
+        doc.text(header, headerX + 5, y + 4, { 
+          width: colWidths[index] - 10, 
+          align: 'center' 
+        });
+        headerX += colWidths[index];
       });
-      headerX += colWidths[index];
-    });
+      
+      return y + headerHeight;
+    };
     
-    currentY += headerHeight;
+    // Header de la tabla inicial
+    currentY = drawTableHeader(currentY);
     
     // Filas de datos
     routeSheet.collections.forEach((collection, index) => {
-      // Verificar si necesitamos nueva página respetando margen inferior de 25px
-      if (currentY > 817) { // 842 (altura A4) - 25 (margen inferior) = 817
+      // Estimar altura mínima de la fila (base + posibles notas)
+      const estimatedRowHeight = 40; // Altura estimada conservadora para fila + notas
+      
+      // Verificar si necesitamos nueva página ANTES de renderizar
+      if (currentY + estimatedRowHeight > pageBottomLimit) {
         doc.addPage();
         currentY = 25; // Margen superior
+        // Redibujar header en la nueva página
+        currentY = drawTableHeader(currentY);
       }
       
       currentY = this.generateCollectionRow(
@@ -1104,17 +1150,17 @@ export class PdfGeneratorService {
     ];
 
     // Calcular altura necesaria para cada celda
-    const minRowHeight = 25;
-    const padding = 10;
+    const minRowHeight = 17;
+    const padding = 7;
     let maxHeight = minRowHeight;
 
-    doc.fontSize(10).font('Poppins');
+    doc.fontSize(9).font('Poppins');
     cellData.forEach((cell, colIndex) => {
       const textHeight = doc.heightOfString(cell.text, {
         width: colWidths[colIndex] - padding,
         align: cell.align
       });
-      maxHeight = Math.max(maxHeight, textHeight + padding + 6);
+      maxHeight = Math.max(maxHeight, textHeight + padding);
     });
 
     const tableWidth = colWidths.reduce((a, b) => a + b, 0);
@@ -1124,10 +1170,10 @@ export class PdfGeneratorService {
     
     // Renderizar cada celda con texto multilínea
     let cellX = startX;
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
     
     cellData.forEach((cell, colIndex) => {
-      doc.text(cell.text, cellX + 5, currentY + 8, {
+      doc.text(cell.text, cellX + 5, currentY + 5, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
         lineGap: 2
@@ -1201,11 +1247,11 @@ export class PdfGeneratorService {
     };
     const finalNotes = buildNotesText();
     if (finalNotes) {
-      const notesY = currentY + maxHeight + 5;
+      const notesY = currentY + maxHeight + 2;
       const notesTextHeight = doc.heightOfString(finalNotes, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
       });
-      notesHeight = notesTextHeight + 10;
+      notesHeight = notesTextHeight + 5;
       doc.rect(startX, currentY + maxHeight, colWidths.reduce((a, b) => a + b, 0), notesHeight)
          .fill(this.colors.warningColor)
          .stroke(this.colors.borderColor);

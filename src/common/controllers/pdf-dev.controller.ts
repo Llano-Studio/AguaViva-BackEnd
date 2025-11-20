@@ -131,11 +131,11 @@ export class PdfDevController {
               name: "Resistencia"
             }
           },
-          amount: 5800,
+          amount: 580000,
           payment_due_date: "2025-11-12",
           cycle_period: "MONTHLY", 
           subscription_plan: "Plan Familiar",
-          delivery_status: "PENDING",
+          delivery_status: "OVERDUE",
           delivery_time: "09:00-13:00",
           comments: "departamento 2B - interfono roto",
           subscription_id: 25,
@@ -760,6 +760,537 @@ export class PdfDevController {
           ]
         },
         {
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
+          route_sheet_detail_id: 43,
+          route_sheet_id: 23,
+          order: {
+            order_id: 42,
+            order_date: "2025-11-13T00:00:00.000Z",
+            total_amount: "3200",
+            status: "READY_FOR_DELIVERY",
+            subscription_id: 24,
+            customer: {
+              person_id: 30,
+              name: "daiana gonzalez",
+              alias: "Llano Studio",
+              phone: "3624958393",
+              address: "san martin 450",
+              zone: {
+                zone_id: 11,
+                code: "z-2-res",
+                name: "zona 2"
+              },
+              locality: {
+                locality_id: 1,
+                code: "RES",
+                name: "Resistencia"
+              },
+              special_instructions: "{\"delivery_preferences\":{\"special_instructions\":\"portón verde\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"14:00-18:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
+            },
+            items: [
+              {
+                order_item_id: 59,
+                product: {
+                  product_id: 9,
+                  description: "bidon 12 LTS"
+                },
+                quantity: 4,
+                delivered_quantity: 0,
+                returned_quantity: 0
+              }
+            ],
+            notes: "casa con rejas"
+          },
+          delivery_status: "PENDING",
+          delivery_time: "14:00-18:00",
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: "bidon 12 LTS",
+              planned_quantity: 4,
+              delivered_quantity: 1,
+              remaining_balance: 3
+            }
+          ]
+        },
+{
           route_sheet_detail_id: 43,
           route_sheet_id: 23,
           order: {
