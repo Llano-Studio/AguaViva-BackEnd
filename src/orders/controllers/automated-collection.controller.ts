@@ -983,7 +983,7 @@ export class AutomatedCollectionController {
       description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
 
     Formatos de nombre de archivo:
-    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD-HH-mm_<movil-nombre-slug|NA>_<zonas-nombres-slug|all>_<chofer-nombre-slug|NA>.pdf
+    - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD-HH-mm-ss_<movil-nombre-slug|NA>_<zonas-nombres-slug|all>_<chofer-nombre-slug|NA>.pdf
     - Transición (solo versión): cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_vX.pdf
     - Legado: collection-route-sheet_YYYY-MM-DD_v<vehiculo|vNA>_z<ids|zall>_d<driver|dNA>.pdf
 
@@ -1062,9 +1062,9 @@ export class AutomatedCollectionController {
       const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
       // Nuevo formato sin prefijos m/z/d: incluye nombres (slug) para móvil, zonas y chofer
       // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<vehiculo-slug|NA>_<zonas-slugs|all>_<driver-slug|NA>.pdf
-      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2})?_([^_]+)_(all|[^_]+)_([^_]+)\.pdf$/;
+      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_([^_]+)_(all|[^_]+)_([^_]+)\.pdf$/;
       // Soporte de transición: formato nuevo anterior sólo con versión (sin zonas/driver)
-      const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2})?_v(\d+)\.pdf$/;
+      const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_v(\d+)\.pdf$/;
 
       const parseZonesLegacy = (zonesStr: string): number[] => {
         if (zonesStr === 'zall') return [];

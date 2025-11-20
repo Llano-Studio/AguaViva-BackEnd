@@ -295,7 +295,7 @@ export class PdfGeneratorService {
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
     const datePart = data.delivery_date || formatBAYMD(new Date());
     const timeRaw = formatBAHMS(new Date());
-    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
+    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
     const vehicleSeg = data.vehicle?.name
       ? this.slugify(data.vehicle.name)
       : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
@@ -846,7 +846,7 @@ export class PdfGeneratorService {
     const base = 'cobranza-automatica-hoja-de-ruta';
     const ymd = typeof data.delivery_date === 'string' ? data.delivery_date : formatBAYMD(new Date(data.delivery_date));
     const timeRaw = formatBAHMS(new Date());
-    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
+    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
 
     // Movil/vehículo
     const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';

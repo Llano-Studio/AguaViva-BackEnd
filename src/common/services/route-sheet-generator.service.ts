@@ -277,7 +277,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         ? `${this.slugifyForFilename(driver.name)}`
         : 'NA';
       const timeRaw = formatBAHMS(new Date());
-      const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
+      const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
       const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}-${timePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
