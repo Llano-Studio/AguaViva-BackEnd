@@ -35,7 +35,7 @@ import {
 } from '../common/services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
-import { formatBAYMD, formatBATimestampISO, parseYMD } from '../common/utils/date.utils';
+import { formatBAYMD, formatBATimestampISO, parseYMD, formatUTCYMD } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 
@@ -2181,7 +2181,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       route_sheet_id: routeSheet.route_sheet_id,
       driver: driverDto,
       vehicle: vehicleDto,
-      delivery_date: formatBAYMD(routeSheet.delivery_date),
+      delivery_date: formatUTCYMD(routeSheet.delivery_date),
       route_notes: routeSheet.route_notes || undefined,
       details: detailsDto,
       zones_covered: zonesCoveredDto,
@@ -2898,7 +2898,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       const collectionData = {
         route_sheet_id: routeSheet.route_sheet_id,
-        delivery_date: formatBAYMD(routeSheet.delivery_date),
+        delivery_date: formatUTCYMD(routeSheet.delivery_date),
         route_notes: routeSheet.route_notes,
         driver: {
           name: routeSheet.driver.name,

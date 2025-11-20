@@ -8,7 +8,7 @@ import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import { PdfGeneratorService, CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
 import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
-import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO, formatUTCYMD } from '../utils/date.utils';
+import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO, formatUTCYMD, formatBAHMS } from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -276,7 +276,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const driverPart = driver?.name
         ? `${this.slugifyForFilename(driver.name)}`
         : 'NA';
-      const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
+      const timeRaw = formatBAHMS(new Date());
+      const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}`;
+      const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}-${timePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
       // Evitar duplicados: si existe, reescribirlo con contenido actualizado

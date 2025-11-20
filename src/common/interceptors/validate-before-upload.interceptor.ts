@@ -24,7 +24,6 @@ export class CleanupFileOnErrorInterceptor implements NestInterceptor {
             // Verificar si el archivo existe antes de intentar eliminarlo
             if (fs.existsSync(uploadedFile.path)) {
               fs.unlinkSync(uploadedFile.path);
-              console.log(`Archivo eliminado debido a error de validación: ${uploadedFile.path}`);
             }
           } catch (deleteError) {
             console.error('Error eliminando archivo:', deleteError);
