@@ -140,6 +140,13 @@ export class OrderDto {
   subscription_id?: number;
 
   @ApiProperty({
+    description: 'Fecha de vencimiento del abono (ciclo actual)',
+    example: '2025-11-30',
+    required: false,
+  })
+  subscription_due_date?: string;
+
+  @ApiProperty({
     description: 'Cliente',
     type: CustomerDto,
   })

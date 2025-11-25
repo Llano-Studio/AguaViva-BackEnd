@@ -24,7 +24,7 @@ import {
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
-import { formatBATimestampISO } from 'src/common/utils/date.utils';
+import { formatBATimestampISO } from '../common/utils/date.utils';
 
 @Injectable()
 export class InventoryService extends PrismaClient implements OnModuleInit {
