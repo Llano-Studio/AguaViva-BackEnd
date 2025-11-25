@@ -27,7 +27,7 @@ import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO } from 'src/common/utils/date.utils';
+import { formatBATimestampISO } from '../common/utils/date.utils';
 
 type PriceListWithRelations = Prisma.price_listGetPayload<{
   include: {
