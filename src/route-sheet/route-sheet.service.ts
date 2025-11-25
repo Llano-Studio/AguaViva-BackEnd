@@ -600,6 +600,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 order_header: {
                   include: {
                     customer: true,
+                    customer_subscription: {
+                      include: {
+                        subscription_cycle: {
+                          orderBy: { cycle_number: 'desc' },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
                         product: true,
@@ -838,6 +846,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 order_header: {
                   include: {
                     customer: true,
+                    customer_subscription: {
+                      include: {
+                        subscription_cycle: {
+                          orderBy: { cycle_number: 'desc' },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
                         product: true,
@@ -977,7 +993,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 order_header: {
                   include: {
                     customer: { include: { zone: true, locality: true } },
-                    customer_subscription: { select: { notes: true } },
+                    customer_subscription: {
+                      include: {
+                        subscription_cycle: {
+                          orderBy: { cycle_number: 'desc' },
+                          take: 1,
+                        },
+                      },
+                      select: { notes: true },
+                    },
                     order_item: {
                       include: {
                         product: true,
@@ -1092,7 +1116,15 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             order_header: {
               include: {
                 customer: { include: { zone: true, locality: true } },
-                customer_subscription: { select: { notes: true } },
+                customer_subscription: {
+                  include: {
+                    subscription_cycle: {
+                      orderBy: { cycle_number: 'desc' },
+                      take: 1,
+                    },
+                  },
+                  select: { notes: true },
+                },
                 order_item: {
                   include: {
                     product: true,
@@ -1224,6 +1256,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 order_header: {
                   include: {
                     customer: true,
+                    customer_subscription: {
+                      include: {
+                        subscription_cycle: {
+                          orderBy: { cycle_number: 'desc' },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
                         product: true,
@@ -1548,6 +1588,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 order_header: {
                   include: {
                     customer: true,
+                    customer_subscription: {
+                      include: {
+                        subscription_cycle: {
+                          orderBy: { cycle_number: 'desc' },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
                         product: true,
@@ -1945,6 +1993,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             items: orderItemsDto,
             notes: detail.order_header.notes || undefined,
           };
+
+          const cycle = (detail.order_header as any).customer_subscription?.subscription_cycle?.[0];
+          if (cycle?.payment_due_date) {
+            orderDto.subscription_due_date = formatUTCYMD(cycle.payment_due_date);
+          }
         } else if (detail.one_off_purchase) {
           // Compra one-off individual
           customerDto = {
@@ -2134,6 +2187,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             customer: customerDto,
             items: orderItemsDto,
           };
+
+          const due = detail.cycle_payment.subscription_cycle?.payment_due_date;
+          if (due) {
+            orderDto.subscription_due_date = formatUTCYMD(due as any);
+          }
         } else {
           throw new Error('Detalle de hoja de ruta sin orden válida');
         }
@@ -2256,6 +2314,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               order_header: {
                 include: {
                   customer: true,
+                  customer_subscription: {
+                    include: {
+                      subscription_cycle: {
+                        orderBy: { cycle_number: 'desc' },
+                        take: 1,
+                      },
+                    },
+                  },
                   order_item: {
                     include: {
                       product: true,

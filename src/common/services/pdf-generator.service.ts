@@ -155,6 +155,7 @@ export interface CollectionRouteSheetPdfData {
     payment_method?: string;
     subscription_notes?: string;
     payment_due_date: string;
+    all_due_dates?: string[];
     cycle_period: string;
     subscription_plan: string;
     delivery_status: string;
@@ -1110,8 +1111,8 @@ export class PdfGeneratorService {
         index + 1, 
         currentY, 
         startX, 
-        colWidths, 
-        rowHeight
+        colWidths,
+        routeSheet.delivery_date
       );
     });
     
@@ -1246,7 +1247,7 @@ export class PdfGeneratorService {
     currentY: number,
     startX: number,
     colWidths: number[],
-    rowHeight: number
+    deliveryYmd: string
   ): number {
     const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
     
@@ -1257,13 +1258,19 @@ export class PdfGeneratorService {
       .join(' - ') || '-';
     
     // Preparar datos de cada columna
+    const allDueDates: string[] = Array.isArray(collection.all_due_dates) ? collection.all_due_dates : [];
+    const sameDayCount = allDueDates.filter((d) => d === deliveryYmd).length;
+    const vencText = sameDayCount > 1
+      ? `${this.safeFormatDateYMDDisplay(collection.payment_due_date)} (+${sameDayCount - 1})`
+      : this.safeFormatDateYMDDisplay(collection.payment_due_date);
+
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
       { text: collection.customer.customer_id.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
       { text: addressText, align: 'left' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
-      { text: this.safeFormatDateYMDDisplay(collection.payment_due_date), align: 'center' },
+      { text: vencText, align: 'center' },
       { text: this.translateStatus(collection.delivery_status), align: 'center' }
     ];
 
@@ -1300,7 +1307,84 @@ export class PdfGeneratorService {
     });
     
     let notesHeight = 0;
-    const finalNotes = this.buildCollectionNotesText(collection);
+    const buildNotesText = (): string => {
+      const parts: string[] = [];
+      const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
+      if (raw) {
+        if (typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            const dp = parsed?.delivery_preferences || {};
+            const si = dp?.special_instructions;
+            const tr = dp?.preferred_time_range;
+            const segs: string[] = [];
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (segs.length > 0) parts.push(segs.join(' - '));
+          } catch {
+            const getMatch = (re: RegExp) => {
+              const m = raw.match(re);
+              return m && m[1] ? m[1] : undefined;
+            };
+            const si = getMatch(/"special_instructions"\s*:\s*"([^"]*)"/);
+            const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
+            const segs: string[] = [];
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (segs.length > 0) {
+              parts.push(segs.join(' - '));
+            } else {
+              const simplified = raw
+                .replace(/[{}]/g, '')
+                .replace(/"/g, '')
+                .replace(/\s*,\s*/g, ' | ')
+                .replace(/delivery_preferences\s*:\s*/i, '')
+                .trim();
+              if (simplified) parts.push(simplified);
+            }
+          }
+        } else if (typeof raw === 'object') {
+          try {
+            const dp = (raw as any)?.delivery_preferences || {};
+            const si = dp?.special_instructions;
+            const tr = dp?.preferred_time_range;
+            const segs: string[] = [];
+            if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
+            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (segs.length > 0) parts.push(segs.join(' - '));
+          } catch {
+            const simplified = String(raw);
+            if (simplified) parts.push(simplified);
+          }
+        }
+      }
+      const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
+      if (firstCredit) {
+        const plan = Number(firstCredit.planned_quantity ?? 0);
+        const delivered = Number(firstCredit.delivered_quantity ?? 0);
+        const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
+        parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
+      }
+      if (collection.subscription_plan) {
+        parts.unshift(`Abono: ${collection.subscription_plan}`);
+      }
+      // Agregar información de cuotas vencidas (de abonos) si existen
+      const overdueDates = allDueDates.filter((d) => typeof d === 'string' && d < deliveryYmd);
+      if (overdueDates.length > 0) {
+        const displayList = overdueDates
+          .slice()
+          .sort()
+          .map((d) => this.safeFormatDateYMDDisplay(d))
+          .join(', ');
+        parts.push(`Cuotas vencidas: ${displayList}`);
+      }
+      // Agregar marca si hay múltiples abonos con vencimiento hoy
+      if (sameDayCount > 1) {
+        parts.push(`Vencimientos hoy: ${sameDayCount}`);
+      }
+      return parts.join(' | ').trim();
+    };
+    const finalNotes = buildNotesText();
     if (finalNotes) {
       const notesY = currentY + maxHeight + 2;
       const notesTextHeight = doc.heightOfString(finalNotes, {

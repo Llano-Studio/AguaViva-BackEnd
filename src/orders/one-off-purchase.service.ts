@@ -23,7 +23,7 @@ import {
   mapOneOffHeaderSortFields,
 } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO, formatBAYMD, parseYMD } from 'src/common/utils/date.utils';
+import { formatBATimestampISO, formatBAYMD, parseYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class OneOffPurchaseService

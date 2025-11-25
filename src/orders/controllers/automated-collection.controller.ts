@@ -887,6 +887,60 @@ export class AutomatedCollectionController {
     description: 'Hoja de ruta generada exitosamente',
     type: RouteSheetResponseDto,
   })
+  @ApiResponse({
+    status: 200,
+    description: `Estructura de respuesta del JSON para front:
+
+## Estructura de Respuesta (Cobranzas)
+
+{
+  success: boolean,
+  message: string,
+  downloadUrl: string,
+  routeSheet: {
+    date: string,                 // YYYY-MM-DD
+    generated_at: string,         // ISO
+    driver?: { driver_id, name, license_number?, phone? },
+    vehicle?: { vehicle_id, license_plate, model?, capacity? },
+    zones: [
+      {
+        zone_id: number,
+        name: string,
+        collections: [
+          {
+            order_id: number,
+            customer: { customer_id, name, address, phone?, zone_name, locality_name? },
+            amount: string,
+            due_dates?: string[], // todas las fechas de vencimiento con saldo pendiente
+            days_overdue: number,
+            priority: number,
+            notes?: string,
+            status: string,
+            is_backlog: boolean,
+            backlog_type?: 'PENDING' | 'OVERDUE' | null,
+            subscription_plan_name?: string
+          }
+        ],
+        summary: {
+          total_collections: number,
+          total_amount: string,
+          overdue_collections: number,
+          overdue_amount: string
+        }
+      }
+    ],
+    summary: {
+      total_zones: number,
+      total_collections: number,
+      total_amount: string,
+      overdue_collections: number,
+      overdue_amount: string,
+      estimated_duration_hours: number
+    },
+    notes?: string
+  }
+}`,
+  })
   @ApiResponse({ status: 400, description: 'Parámetros de filtro inválidos' })
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async generateRouteSheet(@Body() filters: GenerateRouteSheetDto) {

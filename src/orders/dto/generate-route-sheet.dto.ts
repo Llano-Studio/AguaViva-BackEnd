@@ -200,12 +200,12 @@ export class RouteSheetCollectionDto {
   })
   amount: string;
 
-  @ApiProperty({
-    description: 'Fecha de vencimiento',
-    example: '2024-01-20T00:00:00Z',
-    nullable: true,
+  @ApiPropertyOptional({
+    description: 'Fechas de vencimiento de todos los abonos del cliente',
+    example: ['2024-01-20', '2024-02-15'],
+    type: [String],
   })
-  due_date?: string;
+  due_dates?: string[];
 
   @ApiProperty({
     description: 'Días de atraso',

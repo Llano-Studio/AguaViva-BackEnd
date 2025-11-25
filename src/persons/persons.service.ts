@@ -57,7 +57,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
-import { formatBATimestampISO, formatBAYMD, parseYMD } from 'src/common/utils/date.utils';
+import { formatBATimestampISO, formatBAYMD, parseYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {

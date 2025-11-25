@@ -33,7 +33,7 @@ export interface RouteSheetCollection {
     locality_name?: string;
   };
   amount: string;
-  due_date: string | null;
+  due_dates?: string[];
   days_overdue: number;
   priority: number;
   notes: string;
@@ -420,6 +420,14 @@ export class RouteSheetGeneratorService extends PrismaClient {
           include: {
             zone: true,
             locality: true,
+            customer_subscription: {
+              include: {
+                subscription_cycle: {
+                  where: { pending_balance: { gt: 0 } },
+                  orderBy: { payment_due_date: 'desc' },
+                },
+              },
+            },
           },
         },
         customer_subscription: {
@@ -530,7 +538,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
         locality_name: collection.customer?.locality?.name,
       },
       amount: collection.total_amount.toString(),
-      due_date: isForTargetDay ? formatLocalYMD(targetDate) : (dueDate ? formatUTCYMD(dueDate) : null),
+      due_dates: (collection.customer?.customer_subscription || [])
+        .flatMap((cs: any) => (cs.subscription_cycle || []).map((c: any) => c?.payment_due_date))
+        .filter((d: Date | undefined) => !!d)
+        .map((d: Date) => formatUTCYMD(d)),
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
       notes: formattedNotes,
@@ -669,7 +680,8 @@ export class RouteSheetGeneratorService extends PrismaClient {
           locality: collection.customer.locality_name ? { name: collection.customer.locality_name } : undefined,
         },
         amount: parseFloat(collection.amount),
-        payment_due_date: collection.due_date || formatBAYMD(targetDate),
+        payment_due_date: (collection.due_dates && collection.due_dates[0]) ? collection.due_dates[0] : formatBAYMD(targetDate),
+        all_due_dates: collection.due_dates || [],
         delivery_status: collection.status || 'pending',
         delivery_time: '',
         cycle_period: 'monthly',

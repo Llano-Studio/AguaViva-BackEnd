@@ -498,7 +498,47 @@ const routeDetails = oneOffPurchases.map(purchase => {
 - **Gestión de Conductores**: Información para el personal de campo
 - **Control de Calidad**: Verificación de cumplimiento y evidencias
 - **Auditorías**: Revisión detallada de operaciones específicas
-- **Resolución de Problemas**: Análisis de incidencias en entregas`,
+- **Resolución de Problemas**: Análisis de incidencias en entregas
+
+## Estructura de Respuesta (Pedidos)
+
+RouteSheetResponseDto:
+{
+  route_sheet_id: number,
+  driver: { id, name, email },
+  vehicle: {
+    vehicle_id,
+    code,
+    name,
+    zones?: [{ zone_id, code, name, locality: { locality_id, code, name, province: { province_id, code, name, country: { country_id, code, name } } } }]
+  },
+  delivery_date: string, // YYYY-MM-DD
+  route_notes?: string,
+  details: [
+    {
+      route_sheet_detail_id: number,
+      route_sheet_id: number,
+      order?: {
+        order_id: number,
+        order_date: string, // ISO
+        total_amount: string,
+        status: string,
+        subscription_id?: number,
+        subscription_due_date?: string,
+        customer: { person_id, name, alias?, address, phone, zone?, locality?, special_instructions? },
+        items: [{ order_item_id, quantity, delivered_quantity, returned_quantity, product: { product_id, description } }],
+        notes?: string
+      },
+      delivery_status: string,
+      delivery_time?: string,
+      comments?: string,
+      digital_signature_id?: string,
+      is_current_delivery?: boolean,
+      credits?: [{ product_description, planned_quantity, delivered_quantity, remaining_balance }]
+    }
+  ],
+  zones_covered?: [{ zone_id, code, name, locality: { locality_id, code, name, province: { province_id, code, name, country: { country_id, code, name } } } }]
+}`,
   })
   @ApiParam({
     name: 'id',
@@ -622,8 +662,44 @@ const routeDetails = oneOffPurchases.map(purchase => {
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Generar e imprimir una hoja de ruta',
-    description:
-      'Genera un documento PDF con la hoja de ruta completa y listado de entregas',
+    description: `Genera un documento PDF con la hoja de ruta completa y listado de entregas.
+
+## Estructura del PDF (Pedidos)
+
+Campos principales que el PDF utiliza (derivados de la respuesta de hoja de ruta):
+- route_sheet_id (number)
+- delivery_date (YYYY-MM-DD)
+- driver: { id, name, email }
+- vehicle: { vehicle_id, code, name, zones: [{ zone_id, code, name, locality: { ... } }] }
+- route_notes (string)
+- zones_covered: [{ zone_id, code, name, locality: { ... } }]
+- details: [
+  {
+    route_sheet_detail_id,
+    route_sheet_id,
+    order: {
+      order_id,
+      order_date (ISO),
+      total_amount (string),
+      status,
+      subscription_id?,
+      subscription_due_date?,
+      customer: { person_id, name, alias?, address, phone, locality?, zone?, special_instructions? },
+      items: [{ order_item_id, quantity, delivered_quantity, returned_quantity, product: { product_id, description } }],
+      notes?
+    },
+    delivery_status,
+    delivery_time?,
+    is_current_delivery,
+    comments?,
+    credits?: [{ product_description, planned_quantity, delivered_quantity, remaining_balance }]
+  }
+]
+
+Notas:
+- Si el cliente tiene suscripción, se incluye subscription_due_date (vencimiento del ciclo actual).
+- Las "Notas" del PDF combinan observaciones del pedido y las instrucciones especiales del cliente.
+`,
   })
   @ApiBody({ type: PrintRouteSheetDto })
   @ApiResponse({
@@ -1097,10 +1173,32 @@ const routeDetails = oneOffPurchases.map(purchase => {
 - Tabla detallada de cobranzas con:
   - Datos del cliente (nombre, dirección, teléfono)
   - Monto a cobrar
-  - Fecha de vencimiento
+  - Fecha de vencimiento principal y conteo de vencimientos adicionales del mismo día
   - Plan de suscripción
   - Estado de entrega
   - Horario programado
+
+## Estructura del PDF (Cobranzas)
+
+Cada cobranza mapeada incluye:
+{
+  cycle_payment_id: number,
+  customer: { customer_id, name, address, phone, zone?, locality? },
+  amount: number,
+  payment_due_date: 'YYYY-MM-DD',
+  all_due_dates?: string[],
+  cycle_period: string,
+  subscription_plan: string,
+  delivery_status: string,
+  delivery_time?: string,
+  comments?: string,
+  subscription_id?: number,
+  credits?: [{ product_description, planned_quantity, delivered_quantity, remaining_balance }]
+}
+
+Notas:
+- En la columna "Venc.", si hay múltiples abonos con vencimiento en el día, se muestra "(+N)".
+- En "Notas" se agregan "Cuotas vencidas: dd/MM/yyyy, ..." cuando existan.
 
 ## 🎯 CASOS DE USO
 
