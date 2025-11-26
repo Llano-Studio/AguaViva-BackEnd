@@ -3243,11 +3243,25 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               : '',
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
-            payment_status: cycle.payment_status,
+            payment_status: (() => {
+              const pbRaw = (cycle as any)?.pending_balance;
+              const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
+              if (!Number.isNaN(pb)) {
+                if (pb <= 0) return 'PAID';
+                const isOver = Boolean((cycle as any)?.is_overdue) ||
+                  (cycle?.payment_due_date && new Date(cycle.payment_due_date) < new Date());
+                if (isOver) return 'OVERDUE';
+                const paidRaw = (cycle as any)?.paid_amount;
+                const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
+                if (paid > 0) return 'PARTIAL';
+                return 'PENDING';
+              }
+              return cycle.payment_status;
+            })(),
             delivery_status: detail.delivery_status,
             delivery_time: detail.delivery_time,
             comments: detail.comments,
-            subscription_id: subscription.subscription_id,
+            subscription_id: (cycle as any).subscription_id,
             credits:
               cycle.subscription_cycle_detail?.map((cycleDetail) => ({
                 product_description: cycleDetail.product.description,
