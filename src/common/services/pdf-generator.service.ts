@@ -306,6 +306,7 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
+    console.log('generateROuteSheetPdf:', data)
     const datePart = data.delivery_date || formatBAYMD(new Date());
     const timeRaw = formatBAHMS(new Date());
     const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
@@ -350,6 +351,7 @@ export class PdfGeneratorService {
       includeSignatureField = true,
       includeProductDetails = true,
     } = options;
+        console.log('routeSheet data:', routeSheet)
 
     // Registrar fuentes Poppins
     const fontsPath = join(process.cwd(), 'public', 'fonts');
@@ -699,7 +701,7 @@ export class PdfGeneratorService {
 
     // Renderizar cada celda con texto multilínea
     let colX = startX + 10;
-    
+    console.log('celldata', cellData)
     cellData.forEach((cell, colIndex) => {
       // Si es la columna V (índice 1) y el vencimiento es hoy, usar texto blanco
       const textColor = (colIndex === 1 && isDueToday) 
@@ -1323,12 +1325,35 @@ export class PdfGeneratorService {
       .filter(Boolean)
       .join(' - ') || '-';
     
-    // Preparar datos de cada columna
-    const allDueDates: string[] = Array.isArray(collection.all_due_dates) ? collection.all_due_dates : [];
-    const sameDayCount = allDueDates.filter((d) => d === deliveryYmd).length;
-    const vencText = sameDayCount > 1
-      ? `${this.safeFormatDateYMDDisplay(collection.payment_due_date)} (+${sameDayCount - 1})`
-      : this.safeFormatDateYMDDisplay(collection.payment_due_date);
+    // Lógica para fechas de vencimiento similar a generateOrderRow
+    const extractDay = (dateStr: string) => {
+      if (!dateStr) return null;
+      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
+      return match ? match[1] : null;
+    };
+
+    const deliveryDay = extractDay(deliveryYmd);
+    let vencText = this.safeFormatDateYMDDisplay(collection.payment_due_date);
+    let isDueToday = false;
+
+    if (collection.all_due_dates && Array.isArray(collection.all_due_dates) && collection.all_due_dates.length > 0) {
+      const days = collection.all_due_dates
+        .map((d: string) => extractDay(d))
+        .filter((d: string | null) => d !== null) as string[];
+
+      if (days.length > 0) {
+        const uniqueDays = [...new Set(days)].sort();
+        vencText = uniqueDays.join(', ');
+        if (deliveryDay) {
+          isDueToday = days.includes(deliveryDay);
+        }
+      }
+    } else {
+      const day = extractDay(collection.payment_due_date);
+      if (day && deliveryDay && day === deliveryDay) {
+        isDueToday = true;
+      }
+    }
 
     const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
       { text: collection.customer.customer_id.toString(), align: 'center' },
@@ -1358,12 +1383,21 @@ export class PdfGeneratorService {
 
     // Dibujar fondo de la fila con altura calculada
     doc.rect(startX, currentY, tableWidth, maxHeight).fill(fillColor);
+
+    // Si el vencimiento es hoy, dibujar fondo negro en la columna Venc. (índice 5)
+    if (isDueToday) {
+      const vColX = startX + colWidths.slice(0, 5).reduce((a, b) => a + b, 0);
+      doc.rect(vColX, currentY, colWidths[5], maxHeight).fill(this.colors.primary);
+    }
     
     // Renderizar cada celda con texto multilínea
     let cellX = startX;
-    doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
     
     cellData.forEach((cell, colIndex) => {
+      // Usar texto blanco para la columna de Vencimiento (índice 5) si es hoy
+      const textColor = (isDueToday && colIndex === 5) ? this.colors.textWhite : this.colors.textPrimary;
+      
+      doc.fontSize(9).font('Poppins').fillColor(textColor);
       doc.text(cell.text, cellX + 5, currentY + 5, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
@@ -1434,17 +1468,19 @@ export class PdfGeneratorService {
       if (collection.subscription_plan) {
         parts.unshift(`Abono: ${collection.subscription_plan}`);
       }
+      const allDueDates = Array.isArray(collection.all_due_dates) ? collection.all_due_dates : [];
       // Agregar información de cuotas vencidas (de abonos) si existen
-      const overdueDates = allDueDates.filter((d) => typeof d === 'string' && d < deliveryYmd);
+      const overdueDates = allDueDates.filter((d: any) => typeof d === 'string' && d < deliveryYmd);
       if (overdueDates.length > 0) {
         const displayList = overdueDates
           .slice()
           .sort()
-          .map((d) => this.safeFormatDateYMDDisplay(d))
+          .map((d: any) => this.safeFormatDateYMDDisplay(d))
           .join(', ');
         parts.push(`Cuotas vencidas: ${displayList}`);
       }
       // Agregar marca si hay múltiples abonos con vencimiento hoy
+      const sameDayCount = allDueDates.filter((d: any) => d === deliveryYmd).length;
       if (sameDayCount > 1) {
         parts.push(`Vencimientos hoy: ${sameDayCount}`);
       }
@@ -1489,28 +1525,6 @@ export class PdfGeneratorService {
     return currentY + maxHeight + notesHeight;
   }
 
-  /**
-   * Genera el footer específico para hojas de ruta de cobranzas
-   */
-  private generateCollectionFooter(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData): void {
-    const pageHeight = doc.page.height;
-    const footerY = pageHeight - 80;
-    
-    // Línea separadora
-    doc.strokeColor(this.colors.borderColor)
-       .lineWidth(1)
-       .moveTo(25, footerY)
-       .lineTo(570, footerY)
-       .stroke();
-    
-    // Información del footer
-    doc.fontSize(8)
-       .fillColor(this.colors.textPrimary)
-       .text(`Hoja de Ruta de Cobranzas #${routeSheet.route_sheet_id}`, 25, footerY + 10)
-       .text(`Generado el: ${formatBATimestampISO(new Date())}`, 25, footerY + 25)
-       .text(`Total de cobranzas: ${routeSheet.collections.length}`, 350, footerY + 10)
-       .text(`Conductor: ${routeSheet.driver.name}`, 350, footerY + 25);
-  }
 
   /**
    * Finaliza la generación del PDF y retorna la URL
