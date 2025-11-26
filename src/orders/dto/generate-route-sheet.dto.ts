@@ -12,7 +12,8 @@ export class GenerateRouteSheetDto {
   @IsOptional()
   @IsDateString()
   @ApiPropertyOptional({
-    description: 'Fecha específica para la hoja de ruta (YYYY-MM-DD). Si no se especifica, se usa la fecha actual',
+    description:
+      'Fecha específica para la hoja de ruta (YYYY-MM-DD). Si no se especifica, se usa la fecha actual',
     example: '2024-01-15',
   })
   date?: string;
@@ -201,7 +202,8 @@ export class RouteSheetCollectionDto {
   amount: string;
 
   @ApiPropertyOptional({
-    description: 'Fechas de vencimiento con saldo pendiente del cliente. Ordenadas por relevancia; el primer elemento es el principal del día, los restantes incluyen adicionales y vencidos.',
+    description:
+      'Fechas de vencimiento con saldo pendiente del cliente. Ordenadas por relevancia; el primer elemento es el principal del día, los restantes incluyen adicionales y vencidos.',
     example: ['2024-01-20', '2024-02-15'],
     type: [String],
   })
@@ -238,7 +240,13 @@ export class RouteSheetCollectionDto {
     enum: ['NONE', 'PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CREDITED'],
     required: false,
   })
-  payment_status?: 'NONE' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CREDITED';
+  payment_status?:
+    | 'NONE'
+    | 'PENDING'
+    | 'PARTIAL'
+    | 'PAID'
+    | 'OVERDUE'
+    | 'CREDITED';
 
   @ApiProperty({
     description: 'Indica si la orden pertenece a backlog (pendiente/atrasada)',

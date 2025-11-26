@@ -63,7 +63,7 @@ export class RouteSheetController {
     private readonly routeOptimizationService: RouteOptimizationService,
     private readonly mobileInventoryService: MobileInventoryService,
     private readonly failedOrderReassignmentService: FailedOrderReassignmentService,
-  ) { }
+  ) {}
 
   @Post()
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
@@ -199,7 +199,7 @@ const routeDetails = oneOffPurchases.map(purchase => {
 - Cada detalle debe tener al menos uno de: order_id, one_off_purchase_id, one_off_purchase_header_id, o cycle_payment_id
 - Solo incluir order_type cuando uses order_id
  - NO mezclar purchase_id con los campos específicos (one_off_purchase_id / purchase_header_id)
- - Si se envía zone_ids: deben estar asignadas al vehículo y los detalles deben pertenecer a esas zonas`
+ - Si se envía zone_ids: deben estar asignadas al vehículo y los detalles deben pertenecer a esas zonas`,
   })
   @ApiBody({ type: CreateRouteSheetDto })
   @ApiResponse({
@@ -233,10 +233,13 @@ const routeDetails = oneOffPurchases.map(purchase => {
         details: {
           type: 'array',
           items: { type: 'string' },
-          example: ['order_type es requerido cuando se especifica order_id', 'driver_id no existe']
-        }
-      }
-    }
+          example: [
+            'order_type es requerido cuando se especifica order_id',
+            'driver_id no existe',
+          ],
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -245,43 +248,53 @@ const routeDetails = oneOffPurchases.map(purchase => {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Unauthorized' },
-        statusCode: { type: 'number', example: 401 }
-      }
-    }
+        statusCode: { type: 'number', example: 401 },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
-    description: '🚫 Prohibido - El usuario no tiene permisos suficientes para crear hojas de ruta',
+    description:
+      '🚫 Prohibido - El usuario no tiene permisos suficientes para crear hojas de ruta',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Forbidden resource' },
-        statusCode: { type: 'number', example: 403 }
-      }
-    }
+        statusCode: { type: 'number', example: 403 },
+      },
+    },
   })
   @ApiResponse({
     status: 409,
-    description: '⚠️ Conflicto - Órdenes ya asignadas a otra hoja de ruta activa',
+    description:
+      '⚠️ Conflicto - Órdenes ya asignadas a otra hoja de ruta activa',
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Las siguientes órdenes ya están asignadas: [21, 15]' },
+        message: {
+          type: 'string',
+          example: 'Las siguientes órdenes ya están asignadas: [21, 15]',
+        },
         statusCode: { type: 'number', example: 409 },
         conflictingOrders: {
           type: 'array',
           items: { type: 'number' },
-          example: [21, 15]
-        }
-      }
-    }
+          example: [21, 15],
+        },
+      },
+    },
   })
   create(@Body() createRouteSheetDto: CreateRouteSheetDto) {
     return this.routeSheetService.create(createRouteSheetDto);
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Listar hojas de ruta con filtros avanzados',
     description: `Obtiene un listado completo de hojas de ruta con capacidades avanzadas de filtrado, búsqueda y paginación para gestión logística.
@@ -421,9 +434,9 @@ const routeDetails = oneOffPurchases.map(purchase => {
       properties: {
         message: { type: 'string', example: 'Invalid query parameters' },
         error: { type: 'string', example: 'Bad Request' },
-        statusCode: { type: 'number', example: 400 }
-      }
-    }
+        statusCode: { type: 'number', example: 400 },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -432,9 +445,9 @@ const routeDetails = oneOffPurchases.map(purchase => {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Unauthorized' },
-        statusCode: { type: 'number', example: 401 }
-      }
-    }
+        statusCode: { type: 'number', example: 401 },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -443,9 +456,9 @@ const routeDetails = oneOffPurchases.map(purchase => {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Forbidden resource' },
-        statusCode: { type: 'number', example: 403 }
-      }
-    }
+        statusCode: { type: 'number', example: 403 },
+      },
+    },
   })
   findAll(
     @Query(
@@ -460,7 +473,12 @@ const routeDetails = oneOffPurchases.map(purchase => {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener hoja de ruta específica por ID',
     description: `Devuelve la información completa y detallada de una hoja de ruta específica según su ID único.
@@ -574,106 +592,111 @@ RouteSheetResponseDto:
       }
     }`,
   })
-@ApiResponse({
-  status: 401,
-  description: '🔐 No autorizado - Token JWT requerido',
-  schema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string', example: 'Unauthorized' },
-      statusCode: { type: 'number', example: 401 }
-    }
-  }
-})
-@ApiResponse({
-  status: 403,
-  description: '🚫 Prohibido - Rol insuficiente para consultar detalles de hojas de ruta',
-  schema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string', example: 'Forbidden resource' },
-      statusCode: { type: 'number', example: 403 }
-    }
-  }
-})
-@ApiResponse({
-  status: 404,
-  description: '🔍 Hoja de ruta no encontrada - No existe una hoja de ruta con el ID especificado',
-  schema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string', example: 'Route sheet with ID 123 not found' },
-      error: { type: 'string', example: 'Not Found' },
-      statusCode: { type: 'number', example: 404 }
-    }
-  }
-})
-findOne(@Param('id', ParseIntPipe) id: number) {
-  return this.routeSheetService.findOne(id);
-}
-
-@Patch(':id')
-@Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({ summary: 'Actualizar una hoja de ruta' })
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta a actualizar',
-  type: Number,
-  example: 1,
-})
-@ApiBody({ type: UpdateRouteSheetDto })
-@ApiResponse({
-  status: 200,
-  description: 'Hoja de ruta actualizada',
-  type: RouteSheetResponseDto,
-})
-@ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
-@ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
-update(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() updateRouteSheetDto: UpdateRouteSheetDto,
-) {
-  return this.routeSheetService.update(id, updateRouteSheetDto);
-}
-
-@Delete(':id')
-@Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Eliminar una hoja de ruta',
-  description:
-    'Desactiva la hoja de ruta (soft delete) y revierte a "PENDING" el estado de todos los pedidos asociados a esa hoja (suscripciones y compras one-off).',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta a eliminar',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description:
-    'Hoja de ruta desactivada y estados de pedidos revertidos a PENDING',
-  schema: {
-    properties: {
-      message: {
-        type: 'string',
-        example:
-          'Hoja de Ruta con ID 123 desactivada y pedidos revertidos a PENDING',
+  @ApiResponse({
+    status: 401,
+    description: '🔐 No autorizado - Token JWT requerido',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Unauthorized' },
+        statusCode: { type: 'number', example: 401 },
       },
-      deleted: { type: 'boolean', example: true },
     },
-  },
-})
-@ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
-remove(@Param('id', ParseIntPipe) id: number) {
-  return this.routeSheetService.remove(id);
-}
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      '🚫 Prohibido - Rol insuficiente para consultar detalles de hojas de ruta',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Forbidden resource' },
+        statusCode: { type: 'number', example: 403 },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      '🔍 Hoja de ruta no encontrada - No existe una hoja de ruta con el ID especificado',
+    schema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          example: 'Route sheet with ID 123 not found',
+        },
+        error: { type: 'string', example: 'Not Found' },
+        statusCode: { type: 'number', example: 404 },
+      },
+    },
+  })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.routeSheetService.findOne(id);
+  }
 
-@Post('print')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Generar e imprimir una hoja de ruta',
-  description: `Genera un documento PDF con la hoja de ruta completa y listado de entregas.
+  @Patch(':id')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({ summary: 'Actualizar una hoja de ruta' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta a actualizar',
+    type: Number,
+    example: 1,
+  })
+  @ApiBody({ type: UpdateRouteSheetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Hoja de ruta actualizada',
+    type: RouteSheetResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
+  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateRouteSheetDto: UpdateRouteSheetDto,
+  ) {
+    return this.routeSheetService.update(id, updateRouteSheetDto);
+  }
+
+  @Delete(':id')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Eliminar una hoja de ruta',
+    description:
+      'Desactiva la hoja de ruta (soft delete) y revierte a "PENDING" el estado de todos los pedidos asociados a esa hoja (suscripciones y compras one-off).',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta a eliminar',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Hoja de ruta desactivada y estados de pedidos revertidos a PENDING',
+    schema: {
+      properties: {
+        message: {
+          type: 'string',
+          example:
+            'Hoja de Ruta con ID 123 desactivada y pedidos revertidos a PENDING',
+        },
+        deleted: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.routeSheetService.remove(id);
+  }
+
+  @Post('print')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Generar e imprimir una hoja de ruta',
+    description: `Genera un documento PDF con la hoja de ruta completa y listado de entregas.
 
 ## Estructura del PDF (Pedidos)
 
@@ -711,465 +734,465 @@ Notas:
 - Si el cliente tiene suscripción, se incluye subscription_due_date (vencimiento del ciclo actual).
 - Las "Notas" del PDF combinan observaciones del pedido y las instrucciones especiales del cliente.
 `,
-})
-@ApiBody({ type: PrintRouteSheetDto })
-@ApiResponse({
-  status: 200,
-  description: 'Documento generado correctamente',
-  schema: {
-    properties: {
-      url: { type: 'string' },
-      filename: { type: 'string' },
-    },
-  },
-})
-@ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
-print(@Body() printRouteSheetDto: PrintRouteSheetDto) {
-  return this.routeSheetService.generatePrintableDocument(
-    printRouteSheetDto.route_sheet_id,
-    {
-      format: printRouteSheetDto.format,
-      includeMap: printRouteSheetDto.include_map,
-      includeSignatureField: printRouteSheetDto.include_signature_field,
-      includeProductDetails: printRouteSheetDto.include_product_details,
-    },
-  );
-}
-
-// Endpoints de optimización de rutas
-
-@Post(':id/optimize')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Optimizar una hoja de ruta',
-  description: 'Calcula la ruta óptima para las entregas',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta a optimizar',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Ruta optimizada correctamente',
-  type: RouteOptimizationResponseDto,
-})
-@ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
-optimizeRoute(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() optimizationDto: CreateRouteOptimizationDto,
-) {
-  // Asegurar que el ID en el DTO coincide con el de la ruta
-  optimizationDto.route_sheet_id = id;
-  return this.routeOptimizationService.optimizeRoute(optimizationDto);
-}
-
-@Get(':id/optimization')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Obtener la optimización de una hoja de ruta',
-  description:
-    'Devuelve la última optimización calculada para una hoja de ruta',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para obtener su optimización',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Optimización encontrada',
-  type: RouteOptimizationResponseDto,
-})
-@ApiResponse({
-  status: 404,
-  description: 'No se encontró optimización para la hoja de ruta',
-})
-getRouteOptimization(@Param('id', ParseIntPipe) id: number) {
-  return this.routeOptimizationService.getRouteOptimization(id);
-}
-
-// Endpoints de inventario móvil
-
-@Post(':id/inventory')
-@Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Inicializar inventario para una hoja de ruta',
-  description: 'Registra el inventario inicial cargado en el vehículo',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para inicializar inventario',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 201,
-  description: 'Inventario inicializado correctamente',
-  type: VehicleRouteInventoryResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'Datos de entrada inválidos o inventario ya existente',
-})
-initializeInventory(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() inventoryDto: CreateVehicleRouteInventoryDto,
-) {
-  // Asegurar que el ID en el DTO coincide con el de la ruta
-  inventoryDto.route_sheet_id = id;
-  return this.mobileInventoryService.initializeRouteInventory(inventoryDto);
-}
-
-@Get(':id/inventory')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Obtener el inventario de una hoja de ruta',
-  description: 'Muestra el estado actual del inventario en el vehículo',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para obtener su inventario',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Inventario encontrado',
-  type: VehicleRouteInventoryResponseDto,
-})
-@ApiResponse({
-  status: 404,
-  description: 'No se encontró inventario para la hoja de ruta',
-})
-getInventory(@Param('id', ParseIntPipe) id: number) {
-  return this.mobileInventoryService.getRouteInventory(id);
-}
-
-@Post(':id/inventory/transaction')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Registrar una transacción de inventario',
-  description:
-    'Registra entregas, devoluciones o cargas adicionales en el inventario',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para la transacción de inventario',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Transacción registrada correctamente',
-  type: VehicleRouteInventoryResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'Datos de entrada inválidos o inventario insuficiente',
-})
-registerInventoryTransaction(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() transactionDto: InventoryTransactionDto,
-) {
-  // Asegurar que el ID en el DTO coincide con el de la ruta
-  transactionDto.route_sheet_id = id;
-  return this.mobileInventoryService.registerInventoryTransaction(
-    transactionDto,
-  );
-}
-
-@Get(':id/inventory/alerts')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Verificar alertas de inventario bajo',
-  description:
-    'Chequea si hay productos con inventario insuficiente para completar todas las entregas',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para verificar alertas',
-  type: Number,
-  example: 1,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Verificación de alertas completada',
-  schema: {
-    properties: {
-      route_sheet_id: { type: 'number' },
-      has_alerts: { type: 'boolean' },
-      alerts: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            product_id: { type: 'number' },
-            product_description: { type: 'string' },
-            current_quantity: { type: 'number' },
-            required_quantity: { type: 'number' },
-            shortage: { type: 'number' },
-          },
-        },
+  })
+  @ApiBody({ type: PrintRouteSheetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Documento generado correctamente',
+    schema: {
+      properties: {
+        url: { type: 'string' },
+        filename: { type: 'string' },
       },
     },
-  },
-})
-checkInventoryAlerts(@Param('id', ParseIntPipe) id: number) {
-  return this.mobileInventoryService.checkLowInventoryAlerts(id);
-}
-
-@Post(':id/reconcile-driver')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Registrar la rendición de una hoja de ruta por el chofer',
-  description:
-    'Guarda la firma de conformidad del chofer para la rendición de la hoja de ruta.',
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta a rendir',
-  type: Number,
-  example: 1,
-})
-@ApiBody({ type: ReconcileRouteSheetDto })
-@ApiResponse({
-  status: 200,
-  description: 'Rendición registrada exitosamente',
-  type: RouteSheetResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'Datos de entrada inválidos o la hoja de ruta ya fue rendida',
-})
-@ApiResponse({ status: 401, description: 'No autorizado' })
-@ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
-reconcileByDriver(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() reconcileDto: ReconcileRouteSheetDto,
-) {
-  return this.routeSheetService.reconcileRouteSheetByDriver(id, reconcileDto);
-}
-
-@Post('details/:detailId/payments')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary:
-    'Registrar un pago para una entrega específica de una hoja de ruta',
-  description:
-    'Permite al chofer (o un admin) registrar un pago en efectivo o QR para una entrega.',
-})
-@ApiParam({
-  name: 'detailId',
-  description: 'ID del detalle de la hoja de ruta para el pago',
-  type: Number,
-  example: 101,
-})
-@ApiResponse({ status: 201, description: 'Pago registrado exitosamente.' })
-@ApiResponse({
-  status: 400,
-  description:
-    'Datos de entrada inválidos (ej. monto incorrecto, método de pago no válido).',
-})
-@ApiResponse({ status: 401, description: 'No autorizado.' })
-@ApiResponse({
-  status: 404,
-  description:
-    'Detalle de hoja de ruta, pedido o método de pago no encontrado.',
-})
-async recordPaymentForDelivery(
-  @Param('detailId', ParseIntPipe) detailId: number,
-  @Body(ValidationPipe) recordPaymentDto: RecordPaymentDto,
-  @GetUser() user: User,
-) {
-  return this.routeSheetService.recordPaymentForDelivery(
-    detailId,
-    recordPaymentDto,
-    user.id,
-  );
-}
-
-@Put('details/:detailId/skip')
-@UseGuards(JwtAuthGuard)
-@ApiOperation({
-  summary: 'Omitir una entrega (marcar como no entregada por el chofer)',
-})
-@ApiParam({
-  name: 'detailId',
-  description: 'ID del detalle de la hoja de ruta',
-  type: 'number',
-})
-@ApiBody({ type: SkipDeliveryDto })
-@ApiResponse({
-  status: 200,
-  description: 'Entrega omitida exitosamente.',
-  type: RouteSheetDetailResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'Datos inválidos o la entrega no se puede omitir.',
-})
-@ApiResponse({ status: 401, description: 'No autorizado.' })
-@ApiResponse({
-  status: 404,
-  description: 'Detalle de hoja de ruta no encontrado.',
-})
-async skipDelivery(
-  @Param('detailId', ParseIntPipe) detailId: number,
-  @Body() skipDeliveryDto: SkipDeliveryDto,
-  @GetUser('sub') userId: number,
-) {
-  return this.routeSheetService.skipDelivery(
-    detailId,
-    skipDeliveryDto,
-    userId,
-  );
-}
-
-@Post('validate-delivery-times')
-@Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Validar horarios de entrega contra preferencias de suscripción',
-  description:
-    'Valida que los horarios de entrega propuestos respeten las preferencias de horario de los clientes con suscripción',
-})
-@ApiBody({
-  description: 'Lista de pedidos con horarios de entrega propuestos',
-  type: ValidateDeliveryTimesDto,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Validación completada',
-  type: [DeliveryTimeValidationResponseDto],
-})
-async validateDeliveryTimes(@Body() body: ValidateDeliveryTimesDto) {
-  const validations: DeliveryTimeValidationResponseDto[] = [];
-
-  for (const delivery of body.deliveries) {
-    const validation =
-      await this.routeSheetService.validateDeliveryTimeAgainstSubscription(
-        delivery.order_id,
-        delivery.proposed_delivery_time,
-      );
-
-    // Obtener información adicional del cliente
-    const order = await this.routeSheetService.order_header.findUnique({
-      where: { order_id: delivery.order_id },
-      include: {
-        customer: true,
-        customer_subscription: {
-          include: {
-            subscription_delivery_schedule: true,
-          },
-        },
+  })
+  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  print(@Body() printRouteSheetDto: PrintRouteSheetDto) {
+    return this.routeSheetService.generatePrintableDocument(
+      printRouteSheetDto.route_sheet_id,
+      {
+        format: printRouteSheetDto.format,
+        includeMap: printRouteSheetDto.include_map,
+        includeSignatureField: printRouteSheetDto.include_signature_field,
+        includeProductDetails: printRouteSheetDto.include_product_details,
       },
-    });
-
-    validations.push({
-      order_id: delivery.order_id,
-      customer_name: order?.customer?.name || 'Cliente desconocido',
-      is_valid: validation.isValid,
-      message: validation.message,
-      suggested_time: validation.suggestedTime,
-      preferred_schedules:
-        order?.customer_subscription?.subscription_delivery_schedule || [],
-    });
+    );
   }
 
-  return { validations };
-}
+  // Endpoints de optimización de rutas
 
-@Patch(':detailId/delivery-time')
-@Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Actualizar horario de entrega de un detalle de hoja de ruta',
-  description:
-    'Actualiza el horario de entrega de un detalle específico con validación contra las preferencias de suscripción del cliente',
-})
-@ApiParam({
-  name: 'detailId',
-  description: 'ID del detalle de hoja de ruta',
-  example: 1,
-})
-@ApiBody({
-  description: 'Nuevo horario de entrega',
-  type: UpdateDeliveryTimeDto,
-})
-@ApiResponse({
-  status: 200,
-  description: 'Horario de entrega actualizado exitosamente',
-  type: RouteSheetDetailResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'Horario inválido o datos de entrada incorrectos',
-})
-@ApiResponse({
-  status: 404,
-  description: 'Detalle de hoja de ruta no encontrado',
-})
-async updateDeliveryTime(
-  @Param('detailId', ParseIntPipe) detailId: number,
-  @Body() updateDeliveryTimeDto: UpdateDeliveryTimeDto,
-) {
-  return this.routeSheetService.updateDeliveryTime(
-    detailId,
-    updateDeliveryTimeDto,
-  );
-}
+  @Post(':id/optimize')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Optimizar una hoja de ruta',
+    description: 'Calcula la ruta óptima para las entregas',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta a optimizar',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ruta optimizada correctamente',
+    type: RouteOptimizationResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  optimizeRoute(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() optimizationDto: CreateRouteOptimizationDto,
+  ) {
+    // Asegurar que el ID en el DTO coincide con el de la ruta
+    optimizationDto.route_sheet_id = id;
+    return this.routeOptimizationService.optimizeRoute(optimizationDto);
+  }
 
-@Post('failed-orders/reassign')
-@Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Ejecutar manualmente la reasignación de pedidos fallidos',
-})
-@ApiResponse({
-  status: 200,
-  description: 'Reasignación ejecutada exitosamente',
-  schema: {
-    type: 'object',
-    properties: {
-      message: { type: 'string' },
-      reassignedCount: { type: 'number' },
+  @Get(':id/optimization')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Obtener la optimización de una hoja de ruta',
+    description:
+      'Devuelve la última optimización calculada para una hoja de ruta',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para obtener su optimización',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Optimización encontrada',
+    type: RouteOptimizationResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No se encontró optimización para la hoja de ruta',
+  })
+  getRouteOptimization(@Param('id', ParseIntPipe) id: number) {
+    return this.routeOptimizationService.getRouteOptimization(id);
+  }
+
+  // Endpoints de inventario móvil
+
+  @Post(':id/inventory')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Inicializar inventario para una hoja de ruta',
+    description: 'Registra el inventario inicial cargado en el vehículo',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para inicializar inventario',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Inventario inicializado correctamente',
+    type: VehicleRouteInventoryResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos o inventario ya existente',
+  })
+  initializeInventory(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() inventoryDto: CreateVehicleRouteInventoryDto,
+  ) {
+    // Asegurar que el ID en el DTO coincide con el de la ruta
+    inventoryDto.route_sheet_id = id;
+    return this.mobileInventoryService.initializeRouteInventory(inventoryDto);
+  }
+
+  @Get(':id/inventory')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Obtener el inventario de una hoja de ruta',
+    description: 'Muestra el estado actual del inventario en el vehículo',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para obtener su inventario',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inventario encontrado',
+    type: VehicleRouteInventoryResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No se encontró inventario para la hoja de ruta',
+  })
+  getInventory(@Param('id', ParseIntPipe) id: number) {
+    return this.mobileInventoryService.getRouteInventory(id);
+  }
+
+  @Post(':id/inventory/transaction')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Registrar una transacción de inventario',
+    description:
+      'Registra entregas, devoluciones o cargas adicionales en el inventario',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para la transacción de inventario',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transacción registrada correctamente',
+    type: VehicleRouteInventoryResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos o inventario insuficiente',
+  })
+  registerInventoryTransaction(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() transactionDto: InventoryTransactionDto,
+  ) {
+    // Asegurar que el ID en el DTO coincide con el de la ruta
+    transactionDto.route_sheet_id = id;
+    return this.mobileInventoryService.registerInventoryTransaction(
+      transactionDto,
+    );
+  }
+
+  @Get(':id/inventory/alerts')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Verificar alertas de inventario bajo',
+    description:
+      'Chequea si hay productos con inventario insuficiente para completar todas las entregas',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para verificar alertas',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Verificación de alertas completada',
+    schema: {
+      properties: {
+        route_sheet_id: { type: 'number' },
+        has_alerts: { type: 'boolean' },
+        alerts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              product_id: { type: 'number' },
+              product_description: { type: 'string' },
+              current_quantity: { type: 'number' },
+              required_quantity: { type: 'number' },
+              shortage: { type: 'number' },
+            },
+          },
+        },
+      },
     },
-  },
-})
-@ApiResponse({ status: 401, description: 'No autorizado' })
-async forceReassignFailedOrders() {
-  const result =
-    await this.failedOrderReassignmentService.reassignFailedOrders();
-  return {
-    message: 'Reasignación de pedidos fallidos ejecutada exitosamente',
-    reassignedCount: result,
-  };
-}
+  })
+  checkInventoryAlerts(@Param('id', ParseIntPipe) id: number) {
+    return this.mobileInventoryService.checkLowInventoryAlerts(id);
+  }
 
-@Get('failed-orders/stats')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({ summary: 'Obtener estadísticas de pedidos fallidos' })
-@ApiResponse({
-  status: 200,
-  description: 'Estadísticas de pedidos fallidos',
-  schema: {
-    type: 'object',
-    properties: {
-      totalFailed: { type: 'number' },
-      pendingReassignment: { type: 'number' },
-      reassignedToday: { type: 'number' },
+  @Post(':id/reconcile-driver')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Registrar la rendición de una hoja de ruta por el chofer',
+    description:
+      'Guarda la firma de conformidad del chofer para la rendición de la hoja de ruta.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta a rendir',
+    type: Number,
+    example: 1,
+  })
+  @ApiBody({ type: ReconcileRouteSheetDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Rendición registrada exitosamente',
+    type: RouteSheetResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos de entrada inválidos o la hoja de ruta ya fue rendida',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  reconcileByDriver(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() reconcileDto: ReconcileRouteSheetDto,
+  ) {
+    return this.routeSheetService.reconcileRouteSheetByDriver(id, reconcileDto);
+  }
+
+  @Post('details/:detailId/payments')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary:
+      'Registrar un pago para una entrega específica de una hoja de ruta',
+    description:
+      'Permite al chofer (o un admin) registrar un pago en efectivo o QR para una entrega.',
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de la hoja de ruta para el pago',
+    type: Number,
+    example: 101,
+  })
+  @ApiResponse({ status: 201, description: 'Pago registrado exitosamente.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Datos de entrada inválidos (ej. monto incorrecto, método de pago no válido).',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Detalle de hoja de ruta, pedido o método de pago no encontrado.',
+  })
+  async recordPaymentForDelivery(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body(ValidationPipe) recordPaymentDto: RecordPaymentDto,
+    @GetUser() user: User,
+  ) {
+    return this.routeSheetService.recordPaymentForDelivery(
+      detailId,
+      recordPaymentDto,
+      user.id,
+    );
+  }
+
+  @Put('details/:detailId/skip')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Omitir una entrega (marcar como no entregada por el chofer)',
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de la hoja de ruta',
+    type: 'number',
+  })
+  @ApiBody({ type: SkipDeliveryDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Entrega omitida exitosamente.',
+    type: RouteSheetDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos o la entrega no se puede omitir.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Detalle de hoja de ruta no encontrado.',
+  })
+  async skipDelivery(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() skipDeliveryDto: SkipDeliveryDto,
+    @GetUser('sub') userId: number,
+  ) {
+    return this.routeSheetService.skipDelivery(
+      detailId,
+      skipDeliveryDto,
+      userId,
+    );
+  }
+
+  @Post('validate-delivery-times')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Validar horarios de entrega contra preferencias de suscripción',
+    description:
+      'Valida que los horarios de entrega propuestos respeten las preferencias de horario de los clientes con suscripción',
+  })
+  @ApiBody({
+    description: 'Lista de pedidos con horarios de entrega propuestos',
+    type: ValidateDeliveryTimesDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Validación completada',
+    type: [DeliveryTimeValidationResponseDto],
+  })
+  async validateDeliveryTimes(@Body() body: ValidateDeliveryTimesDto) {
+    const validations: DeliveryTimeValidationResponseDto[] = [];
+
+    for (const delivery of body.deliveries) {
+      const validation =
+        await this.routeSheetService.validateDeliveryTimeAgainstSubscription(
+          delivery.order_id,
+          delivery.proposed_delivery_time,
+        );
+
+      // Obtener información adicional del cliente
+      const order = await this.routeSheetService.order_header.findUnique({
+        where: { order_id: delivery.order_id },
+        include: {
+          customer: true,
+          customer_subscription: {
+            include: {
+              subscription_delivery_schedule: true,
+            },
+          },
+        },
+      });
+
+      validations.push({
+        order_id: delivery.order_id,
+        customer_name: order?.customer?.name || 'Cliente desconocido',
+        is_valid: validation.isValid,
+        message: validation.message,
+        suggested_time: validation.suggestedTime,
+        preferred_schedules:
+          order?.customer_subscription?.subscription_delivery_schedule || [],
+      });
+    }
+
+    return { validations };
+  }
+
+  @Patch(':detailId/delivery-time')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Actualizar horario de entrega de un detalle de hoja de ruta',
+    description:
+      'Actualiza el horario de entrega de un detalle específico con validación contra las preferencias de suscripción del cliente',
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de hoja de ruta',
+    example: 1,
+  })
+  @ApiBody({
+    description: 'Nuevo horario de entrega',
+    type: UpdateDeliveryTimeDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Horario de entrega actualizado exitosamente',
+    type: RouteSheetDetailResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Horario inválido o datos de entrada incorrectos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Detalle de hoja de ruta no encontrado',
+  })
+  async updateDeliveryTime(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() updateDeliveryTimeDto: UpdateDeliveryTimeDto,
+  ) {
+    return this.routeSheetService.updateDeliveryTime(
+      detailId,
+      updateDeliveryTimeDto,
+    );
+  }
+
+  @Post('failed-orders/reassign')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Ejecutar manualmente la reasignación de pedidos fallidos',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reasignación ejecutada exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        reassignedCount: { type: 'number' },
+      },
     },
-  },
-})
-async getFailedOrderStats() {
-  return this.failedOrderReassignmentService.getFailedOrdersStats();
-}
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async forceReassignFailedOrders() {
+    const result =
+      await this.failedOrderReassignmentService.reassignFailedOrders();
+    return {
+      message: 'Reasignación de pedidos fallidos ejecutada exitosamente',
+      reassignedCount: result,
+    };
+  }
 
-@Post(':id/generate-collection-pdf')
-@Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-@ApiOperation({
-  summary: 'Generar PDF de hoja de ruta de cobranzas automáticas',
-  description: `Genera un PDF específico para hojas de ruta que contienen cobranzas automáticas (cycle payments).
+  @Get('failed-orders/stats')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({ summary: 'Obtener estadísticas de pedidos fallidos' })
+  @ApiResponse({
+    status: 200,
+    description: 'Estadísticas de pedidos fallidos',
+    schema: {
+      type: 'object',
+      properties: {
+        totalFailed: { type: 'number' },
+        pendingReassignment: { type: 'number' },
+        reassignedToday: { type: 'number' },
+      },
+    },
+  })
+  async getFailedOrderStats() {
+    return this.failedOrderReassignmentService.getFailedOrdersStats();
+  }
+
+  @Post(':id/generate-collection-pdf')
+  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Generar PDF de hoja de ruta de cobranzas automáticas',
+    description: `Genera un PDF específico para hojas de ruta que contienen cobranzas automáticas (cycle payments).
 
 ## 📋 FUNCIONALIDAD
 
@@ -1228,47 +1251,47 @@ Notas:
 - La hoja de ruta debe existir
 - Debe contener al menos una cobranza automática (cycle_payment_id)
 - Solo incluye detalles con cycle_payment_id válido`,
-})
-@ApiParam({
-  name: 'id',
-  description: 'ID de la hoja de ruta para generar PDF de cobranzas',
-  type: Number,
-  example: 123,
-})
-@ApiBody({
-  description: 'Opciones para la generación del PDF',
-  type: GenerateCollectionPdfDto,
-  required: false,
-})
-@ApiResponse({
-  status: 201,
-  description: 'PDF de cobranzas generado exitosamente',
-  type: CollectionPdfResponseDto,
-})
-@ApiResponse({
-  status: 400,
-  description: 'La hoja de ruta no contiene cobranzas automáticas',
-})
-@ApiResponse({
-  status: 404,
-  description: 'Hoja de ruta no encontrada',
-})
-@ApiResponse({ status: 401, description: 'No autorizado' })
-async generateCollectionPdf(
-  @Param('id', ParseIntPipe) id: number,
-  @Body() generatePdfDto: GenerateCollectionPdfDto = {},
-): Promise < CollectionPdfResponseDto > {
-  const result = await this.routeSheetService.generateCollectionRouteSheetPdf(
-    id,
-    generatePdfDto,
-  );
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta para generar PDF de cobranzas',
+    type: Number,
+    example: 123,
+  })
+  @ApiBody({
+    description: 'Opciones para la generación del PDF',
+    type: GenerateCollectionPdfDto,
+    required: false,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'PDF de cobranzas generado exitosamente',
+    type: CollectionPdfResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'La hoja de ruta no contiene cobranzas automáticas',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Hoja de ruta no encontrada',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado' })
+  async generateCollectionPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() generatePdfDto: GenerateCollectionPdfDto = {},
+  ): Promise<CollectionPdfResponseDto> {
+    const result = await this.routeSheetService.generateCollectionRouteSheetPdf(
+      id,
+      generatePdfDto,
+    );
 
-  return {
-    url: result.url,
-    filename: result.filename,
-    route_sheet_id: id,
-    generated_at: formatBATimestampISO(new Date()),
-    total_collections: result.total_collections,
-  };
-}
+    return {
+      url: result.url,
+      filename: result.filename,
+      route_sheet_id: id,
+      generated_at: formatBATimestampISO(new Date()),
+      total_collections: result.total_collections,
+    };
+  }
 }

@@ -374,7 +374,11 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     priceListItemId: number,
     paginationDto: PaginationQueryDto,
   ): Promise<PaginatedPriceHistoryResponse> {
-    const { page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE, limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT, sortBy } = paginationDto;
+    const {
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      sortBy,
+    } = paginationDto;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     const orderBy = parseSortByString(sortBy, [{ change_date: 'desc' }]);
@@ -422,7 +426,11 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     priceListId: number,
     paginationDto: PaginationQueryDto,
   ): Promise<PaginatedPriceHistoryResponse> {
-    const { page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE, limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT, sortBy } = paginationDto;
+    const {
+      page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+      sortBy,
+    } = paginationDto;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     const orderBy = parseSortByString(sortBy, [{ change_date: 'desc' }]);

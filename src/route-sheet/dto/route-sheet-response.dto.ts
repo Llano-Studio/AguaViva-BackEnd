@@ -199,25 +199,25 @@ export class RouteSheetDetailResponseDto {
     examples: {
       pending: {
         value: DeliveryStatus.PENDING,
-        description: 'Entrega pendiente'
+        description: 'Entrega pendiente',
       },
       assigned: {
         value: DeliveryStatus.ASSIGNED,
-        description: 'Asignado al conductor'
+        description: 'Asignado al conductor',
       },
       inTransit: {
         value: DeliveryStatus.IN_TRANSIT,
-        description: 'En tránsito'
+        description: 'En tránsito',
       },
       delivered: {
         value: DeliveryStatus.DELIVERED,
-        description: 'Entregado exitosamente'
+        description: 'Entregado exitosamente',
       },
       failed: {
         value: DeliveryStatus.FAILED,
-        description: 'Entrega fallida'
-      }
-    }
+        description: 'Entrega fallida',
+      },
+    },
   })
   delivery_status: DeliveryStatus;
 

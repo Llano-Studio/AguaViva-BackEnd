@@ -57,7 +57,11 @@ import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
-import { formatBATimestampISO, formatBAYMD, parseYMD } from '../common/utils/date.utils';
+import {
+  formatBATimestampISO,
+  formatBAYMD,
+  parseYMD,
+} from '../common/utils/date.utils';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -846,7 +850,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           await this.cancellationOrderService.createCancellationOrder(
             {
               subscription_id: subscriptionId,
-              scheduled_collection_date: formatBAYMD(scheduledCollectionDate as any),
+              scheduled_collection_date: formatBAYMD(
+                scheduledCollectionDate as any,
+              ),
               notes:
                 `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
             },
@@ -903,7 +909,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       // Generar órdenes de recuperación y una sola orden de retiro para todos los comodatos activos
       try {
-
         const activeComodatos = await tx.comodato.findMany({
           where: {
             person_id: personId,
@@ -925,7 +930,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 `Orden de recuperación generada automáticamente por cancelación de suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId})`,
                 tx,
               );
-
             } catch (recoveryError) {
               console.error(
                 `Error al crear orden de recuperación para comodato ${comodato.comodato_id}:`,
@@ -962,7 +966,6 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               },
             },
           });
-
         }
       } catch (error) {
         console.error(
@@ -1499,13 +1502,17 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           subscription_id: dto.subscription_id || null, // ← Agregar subscription_id
           quantity: dto.quantity,
           max_quantity: dto.max_quantity || null, // ← Cantidad máxima permitida
-          delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(String(dto.delivery_date).trim())
+          delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(
+            String(dto.delivery_date).trim(),
+          )
             ? parseYMD(String(dto.delivery_date).trim())
             : new Date(dto.delivery_date),
           expected_return_date: dto.expected_return_date
-            ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
-                ? parseYMD(String(dto.expected_return_date).trim())
-                : new Date(dto.expected_return_date))
+            ? /^\d{4}-\d{2}-\d{2}$/.test(
+                String(dto.expected_return_date).trim(),
+              )
+              ? parseYMD(String(dto.expected_return_date).trim())
+              : new Date(dto.expected_return_date)
             : null,
           status: dto.status,
           notes: dto.notes,
@@ -1930,24 +1937,26 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       if (dto.delivery_date !== undefined) {
-        updateData.delivery_date = /^\d{4}-\d{2}-\d{2}$/.test(String(dto.delivery_date).trim())
+        updateData.delivery_date = /^\d{4}-\d{2}-\d{2}$/.test(
+          String(dto.delivery_date).trim(),
+        )
           ? parseYMD(String(dto.delivery_date).trim())
           : new Date(dto.delivery_date);
       }
 
       if (dto.expected_return_date !== undefined) {
         updateData.expected_return_date = dto.expected_return_date
-          ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
-              ? parseYMD(String(dto.expected_return_date).trim())
-              : new Date(dto.expected_return_date))
+          ? /^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
+            ? parseYMD(String(dto.expected_return_date).trim())
+            : new Date(dto.expected_return_date)
           : null;
       }
 
       if (dto.actual_return_date !== undefined) {
         updateData.return_date = dto.actual_return_date
-          ? (/^\d{4}-\d{2}-\d{2}$/.test(String(dto.actual_return_date).trim())
-              ? parseYMD(String(dto.actual_return_date).trim())
-              : new Date(dto.actual_return_date))
+          ? /^\d{4}-\d{2}-\d{2}$/.test(String(dto.actual_return_date).trim())
+            ? parseYMD(String(dto.actual_return_date).trim())
+            : new Date(dto.actual_return_date)
           : null;
       }
 
@@ -2166,9 +2175,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           subscription_id: subscription.subscription_id, // ← Agregar subscription_id
           quantity: 0, // ← Inicializar con 0 items - se incrementará con cada entrega
           max_quantity: dto.comodato_quantity || 1, // ← Cantidad máxima según la suscripción
-          delivery_date:
-            dto.comodato_delivery_date ||
-            formatBAYMD(new Date()),
+          delivery_date: dto.comodato_delivery_date || formatBAYMD(new Date()),
           expected_return_date: dto.comodato_expected_return_date,
           status: dto.comodato_status || ComodatoStatus.ACTIVE,
           notes: dto.comodato_notes

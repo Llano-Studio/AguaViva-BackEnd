@@ -1,11 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNumber, IsString, IsOptional, IsDateString, Min, MaxLength, IsIn } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsDateString,
+  Min,
+  MaxLength,
+  IsIn,
+} from 'class-validator';
 
 export class UpdatePaymentTransactionDto {
   @ApiProperty({
     description: 'Nuevo monto de la transacción',
-    example: 35000.00,
+    example: 35000.0,
     minimum: 0.01,
   })
   @IsNumber()
@@ -16,12 +24,28 @@ export class UpdatePaymentTransactionDto {
   @ApiProperty({
     description: 'Método de pago actualizado',
     example: 'TRANSFERENCIA',
-    enum: ['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE'],
+    enum: [
+      'EFECTIVO',
+      'TRANSFERENCIA',
+      'TARJETA_DEBITO',
+      'TARJETA_CREDITO',
+      'CHEQUE',
+    ],
   })
   @IsString()
-  @IsIn(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'CHEQUE'], {
-    message: 'El método de pago debe ser uno de: EFECTIVO, TRANSFERENCIA, TARJETA_DEBITO, TARJETA_CREDITO, CHEQUE',
-  })
+  @IsIn(
+    [
+      'EFECTIVO',
+      'TRANSFERENCIA',
+      'TARJETA_DEBITO',
+      'TARJETA_CREDITO',
+      'CHEQUE',
+    ],
+    {
+      message:
+        'El método de pago debe ser uno de: EFECTIVO, TRANSFERENCIA, TARJETA_DEBITO, TARJETA_CREDITO, CHEQUE',
+    },
+  )
   payment_method: string;
 
   @ApiPropertyOptional({

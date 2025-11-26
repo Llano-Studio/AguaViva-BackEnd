@@ -21,7 +21,7 @@ export class QueryBooleanPreserveInterceptor implements NestInterceptor {
         if (request.query[field] !== undefined) {
           // Preservar el valor original como string
           const originalValue = request.query[field];
-          
+
           // Asegurar que se mantenga como string para que @Transform pueda procesarlo
           request.query[field] = String(originalValue);
         }

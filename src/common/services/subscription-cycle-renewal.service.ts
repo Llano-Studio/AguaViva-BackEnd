@@ -21,7 +21,7 @@ export class SubscriptionCycleRenewalService
   async onModuleInit() {
     await this.$connect();
     this.logger.log('SubscriptionCycleRenewalService initialized');
-    
+
     // Aplicar recargos pendientes al iniciar el servicio
     this.logger.log('🔍 Verificando recargos pendientes al iniciar...');
     await this.checkAndApplyLateFees();
@@ -33,9 +33,11 @@ export class SubscriptionCycleRenewalService
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async renewExpiredCycles() {
     // Primero aplicar recargos por mora antes de renovar ciclos
-    this.logger.log('💰 Aplicando recargos por mora antes de renovar ciclos...');
+    this.logger.log(
+      '💰 Aplicando recargos por mora antes de renovar ciclos...',
+    );
     await this.checkAndApplyLateFees();
-    
+
     this.logger.log(
       '🔄 Iniciando renovación automática de ciclos de suscripción...',
     );
@@ -157,8 +159,8 @@ export class SubscriptionCycleRenewalService
 
       this.logger.log(
         `✅ Nuevo ciclo creado para suscripción ${subscription.subscription_id}: ` +
-          `${cycleStartDate.getFullYear()}-${String(cycleStartDate.getMonth()+1).padStart(2,'0')}-${String(cycleStartDate.getDate()).padStart(2,'0')} - ` +
-          `${cycleEndDate.getFullYear()}-${String(cycleEndDate.getMonth()+1).padStart(2,'0')}-${String(cycleEndDate.getDate()).padStart(2,'0')}`,
+          `${cycleStartDate.getFullYear()}-${String(cycleStartDate.getMonth() + 1).padStart(2, '0')}-${String(cycleStartDate.getDate()).padStart(2, '0')} - ` +
+          `${cycleEndDate.getFullYear()}-${String(cycleEndDate.getMonth() + 1).padStart(2, '0')}-${String(cycleEndDate.getDate()).padStart(2, '0')}`,
       );
     } catch (error) {
       this.logger.error(
@@ -208,8 +210,8 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base de la cuota (del plan) y calcular recargo del 20%
-          const planPriceRaw =
-            cycle.customer_subscription?.subscription_plan?.price as any;
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan
+            ?.price as any;
           const currentTotalRaw = cycle.total_amount as any;
           const paidAmountRaw = cycle.paid_amount as any;
 
@@ -220,9 +222,13 @@ export class SubscriptionCycleRenewalService
           // Si no tenemos total actual, usar el precio del plan como base
           const baseAmount = currentTotal > 0 ? currentTotal : planPrice;
           const lateFeePercentage = 0.2; // 20%
-          const surcharge = Math.round(baseAmount * lateFeePercentage * 100) / 100;
+          const surcharge =
+            Math.round(baseAmount * lateFeePercentage * 100) / 100;
           const newTotal = Math.round((baseAmount + surcharge) * 100) / 100;
-          const newPending = Math.max(0, Math.round((newTotal - paidAmount) * 100) / 100);
+          const newPending = Math.max(
+            0,
+            Math.round((newTotal - paidAmount) * 100) / 100,
+          );
           const newPaymentStatus = newPending > 0 ? 'OVERDUE' : 'PAID';
 
           // Marcar como vencido, aplicar recargo y actualizar montos
@@ -275,14 +281,16 @@ export class SubscriptionCycleRenewalService
   /**
    * Verifica y aplica recargos por mora para una suscripción específica
    */
-  async checkAndApplyLateFeesForSubscription(subscriptionId: number): Promise<void> {
+  async checkAndApplyLateFeesForSubscription(
+    subscriptionId: number,
+  ): Promise<void> {
     this.logger.log(
       `🔍 Verificando recargos por mora para suscripción ${subscriptionId}...`,
     );
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const thresholdDate = new Date(today);
     thresholdDate.setDate(thresholdDate.getDate() - 10);
 
@@ -321,7 +329,8 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base y calcular recargo del 20%
-          const planPriceRaw = cycle.customer_subscription?.subscription_plan?.price as any;
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan
+            ?.price as any;
           const currentTotalRaw = cycle.total_amount as any;
           const paidAmountRaw = cycle.paid_amount as any;
 
@@ -332,9 +341,13 @@ export class SubscriptionCycleRenewalService
           // Si no tenemos total actual, usar el precio del plan como base
           const baseAmount = currentTotal > 0 ? currentTotal : planPrice;
           const lateFeePercentage = 0.2; // 20%
-          const surcharge = Math.round(baseAmount * lateFeePercentage * 100) / 100;
+          const surcharge =
+            Math.round(baseAmount * lateFeePercentage * 100) / 100;
           const newTotal = Math.round((baseAmount + surcharge) * 100) / 100;
-          const newPending = Math.max(0, Math.round((newTotal - paidAmount) * 100) / 100);
+          const newPending = Math.max(
+            0,
+            Math.round((newTotal - paidAmount) * 100) / 100,
+          );
 
           // Marcar como vencido, aplicar recargo y actualizar montos
           await this.subscription_cycle.update({

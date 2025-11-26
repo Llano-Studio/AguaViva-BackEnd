@@ -12,8 +12,6 @@ export const FormDataBody = createParamDecorator(
     const request = ctx.switchToHttp().getRequest();
     const body = request.body;
 
-
-
     // Solo procesar si es multipart/form-data
     if (request.headers['content-type']?.includes('multipart/form-data')) {
       // Lista de campos boolean que deben preservarse como string
@@ -85,11 +83,8 @@ export const FormDataBody = createParamDecorator(
         if (filteredBody[field] !== undefined) {
           // Asegurar que sea string
           filteredBody[field] = String(filteredBody[field]);
-
         }
       });
-
-
 
       // Transformar a la clase DTO
       const dtoClass = data; // La clase DTO se pasa como parámetro
@@ -98,8 +93,6 @@ export const FormDataBody = createParamDecorator(
           enableImplicitConversion: false,
           excludeExtraneousValues: false,
         });
-
-
 
         // Validar el DTO
         const errors = await validate(dto as object);

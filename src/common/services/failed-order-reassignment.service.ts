@@ -133,7 +133,7 @@ export class FailedOrderReassignmentService
 
       this.logger.log(
         `✅ Pedido reasignado: ${this.getOrderIdentifier(failedDelivery)} ` +
-          `de ${formatBAYMD(failedDelivery.route_sheet.delivery_date as any)} ` +
+          `de ${formatBAYMD(failedDelivery.route_sheet.delivery_date)} ` +
           `a ${formatBAYMD(newDeliveryDate as any)}`,
       );
     } catch (error) {

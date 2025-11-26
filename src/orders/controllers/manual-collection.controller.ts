@@ -115,29 +115,36 @@ export class ManualCollectionController {
     description: 'Lista de clientes encontrados',
     type: CustomerSearchResponseDto,
   })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 400,
     description: 'Parámetros de consulta inválidos',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`] },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        message: {
+          type: 'array',
+          items: { type: 'string' },
+          example: [
+            'page debe ser un número positivo',
+            `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`,
+          ],
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'No autorizado - Token JWT inválido o expirado',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -146,10 +153,13 @@ export class ManualCollectionController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'No tienes permisos para acceder a este recurso',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   async searchCustomers(
     @Query() searchParams: CustomerSearchDto,
@@ -357,7 +367,10 @@ export class ManualCollectionController {
     try {
       // Validar y parsear la fecha
       const collectionDateStr = generateDto.collection_date?.trim();
-      if (!collectionDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(collectionDateStr)) {
+      if (
+        !collectionDateStr ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(collectionDateStr)
+      ) {
         throw new Error('Fecha de cobranza inválida. Use formato YYYY-MM-DD');
       }
       const collectionDate = parseYMD(collectionDateStr);

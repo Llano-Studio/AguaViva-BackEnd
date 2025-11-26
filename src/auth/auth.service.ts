@@ -156,7 +156,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: user.role,
           isActive: user.isActive,
           createdAt: formatBATimestampISO(user.createdAt as any),
-          updatedAt: user.updatedAt ? formatBATimestampISO(user.updatedAt as any) : undefined,
+          updatedAt: user.updatedAt
+            ? formatBATimestampISO(user.updatedAt as any)
+            : undefined,
           profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         }),
         accessToken,
@@ -352,7 +354,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       return new UserResponseDto({
         ...user,
         createdAt: formatBATimestampISO(user.createdAt as any),
-        updatedAt: user.updatedAt ? formatBATimestampISO(user.updatedAt as any) : undefined,
+        updatedAt: user.updatedAt
+          ? formatBATimestampISO(user.updatedAt as any)
+          : undefined,
         profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
       });
     } catch (error) {
@@ -889,7 +893,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: uv.user.role,
             isActive: uv.user.isActive,
             createdAt: formatBATimestampISO(uv.user.createdAt as any),
-            updatedAt: uv.user.updatedAt ? formatBATimestampISO(uv.user.updatedAt as any) : undefined,
+            updatedAt: uv.user.updatedAt
+              ? formatBATimestampISO(uv.user.updatedAt as any)
+              : undefined,
             profileImageUrl: this.buildProfileImageUrl(uv.user.profileImageUrl),
           }),
       );
@@ -908,7 +914,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       user_vehicle_id: userVehicle.user_vehicle_id,
       user_id: userVehicle.user_id,
       vehicle_id: userVehicle.vehicle_id,
-      assigned_at: formatBATimestampISO(userVehicle.assigned_at as any),
+      assigned_at: formatBATimestampISO(userVehicle.assigned_at),
       is_active: userVehicle.is_active,
       notes: userVehicle.notes || undefined,
       vehicle: {

@@ -12,23 +12,23 @@ import { Transform } from 'class-transformer';
 import { parseInteger, parseDecimal } from '../../common/utils/parse-number';
 
 export class CreateProductDto {
-  @ApiProperty({ 
-    example: 1, 
+  @ApiProperty({
+    example: 1,
     description: 'ID de la categoría del producto',
     examples: {
       water: {
         value: 1,
-        description: 'Categoría de agua embotellada'
+        description: 'Categoría de agua embotellada',
       },
       dispensers: {
         value: 2,
-        description: 'Categoría de dispensadores'
+        description: 'Categoría de dispensadores',
       },
       accessories: {
         value: 3,
-        description: 'Categoría de accesorios'
-      }
-    }
+        description: 'Categoría de accesorios',
+      },
+    },
   })
   @IsInt()
   @Transform(({ value }) => parseInteger(value))
@@ -40,45 +40,46 @@ export class CreateProductDto {
     examples: {
       water_20l: {
         value: 'Botellón de agua purificada 20L',
-        description: 'Producto principal de agua'
+        description: 'Producto principal de agua',
       },
       water_500ml: {
         value: 'Agua mineral natural 500ml',
-        description: 'Botella individual'
+        description: 'Botella individual',
       },
       dispenser: {
         value: 'Dispensador de agua fría/caliente modelo Premium',
-        description: 'Dispensador eléctrico'
+        description: 'Dispensador eléctrico',
       },
       accessories: {
         value: 'Bomba manual para botellón',
-        description: 'Accesorio para dispensar agua'
-      }
-    }
+        description: 'Accesorio para dispensar agua',
+      },
+    },
   })
   @IsString()
   description: string;
 
   @ApiProperty({
     example: 20.0,
-    description: 'Volumen en litros (permite decimales como 0.5 para botellas pequeñas)',
+    description:
+      'Volumen en litros (permite decimales como 0.5 para botellas pequeñas)',
     examples: {
       large_bottle: {
         value: 20.0,
-        description: 'Botellón estándar de 20 litros'
+        description: 'Botellón estándar de 20 litros',
       },
       medium_bottle: {
         value: 12.0,
-        description: 'Botellón mediano de 12 litros'
+        description: 'Botellón mediano de 12 litros',
       },
       small_bottle: {
         value: 0.5,
-        description: 'Botella individual de 500ml'
+        description: 'Botella individual de 500ml',
       },
       dispenser: {
         value: null,
-        description: 'No aplica para dispensadores'
-      }
+        description: 'No aplica para dispensadores',
+      },
     },
     required: false,
     nullable: true,
@@ -99,45 +100,45 @@ export class CreateProductDto {
   })
   volume_liters?: number | null;
 
-  @ApiProperty({ 
-    example: 1200.0, 
+  @ApiProperty({
+    example: 1200.0,
     description: 'Precio unitario del producto en pesos',
     examples: {
       water_20l: {
         value: 1200.0,
-        description: 'Precio botellón 20L'
+        description: 'Precio botellón 20L',
       },
       water_500ml: {
         value: 150.0,
-        description: 'Precio botella 500ml'
+        description: 'Precio botella 500ml',
       },
       dispenser_premium: {
         value: 45000.0,
-        description: 'Precio dispensador premium'
+        description: 'Precio dispensador premium',
       },
       pump: {
         value: 800.0,
-        description: 'Precio bomba manual'
-      }
-    }
+        description: 'Precio bomba manual',
+      },
+    },
   })
   @IsNumber()
   @Transform(({ value }) => parseDecimal(value))
   price: number;
 
-  @ApiProperty({ 
-    example: true, 
+  @ApiProperty({
+    example: true,
     description: 'Indica si el producto es retornable (envase se devuelve)',
     examples: {
       returnable: {
         value: true,
-        description: 'Botellones retornables (se devuelve el envase)'
+        description: 'Botellones retornables (se devuelve el envase)',
       },
       non_returnable: {
         value: false,
-        description: 'Productos no retornables (dispensadores, accesorios)'
-      }
-    }
+        description: 'Productos no retornables (dispensadores, accesorios)',
+      },
+    },
   })
   @IsBoolean()
   @Transform(({ value }) => {
@@ -173,16 +174,16 @@ export class CreateProductDto {
     examples: {
       water_bottle: {
         value: 'AV-BOT-20L-001',
-        description: 'Código para botellón 20L'
+        description: 'Código para botellón 20L',
       },
       dispenser: {
         value: 'AV-DISP-PREM-2024-001',
-        description: 'Código para dispensador premium'
+        description: 'Código para dispensador premium',
       },
       accessory: {
         value: 'AV-BOMB-MAN-001',
-        description: 'Código para bomba manual'
-      }
+        description: 'Código para bomba manual',
+      },
     },
     required: false,
     nullable: true,
@@ -197,17 +198,19 @@ export class CreateProductDto {
     description: 'Notas adicionales sobre el producto',
     examples: {
       water: {
-        value: 'Agua purificada con proceso de ósmosis inversa - Certificación SENASA',
-        description: 'Notas para productos de agua'
+        value:
+          'Agua purificada con proceso de ósmosis inversa - Certificación SENASA',
+        description: 'Notas para productos de agua',
       },
       dispenser: {
-        value: 'Dispensador con garantía de 2 años - Incluye instalación gratuita',
-        description: 'Notas para dispensadores'
+        value:
+          'Dispensador con garantía de 2 años - Incluye instalación gratuita',
+        description: 'Notas para dispensadores',
       },
       seasonal: {
         value: 'Producto de temporada - Stock limitado',
-        description: 'Notas para productos estacionales'
-      }
+        description: 'Notas para productos estacionales',
+      },
     },
     required: false,
     nullable: true,

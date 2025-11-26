@@ -111,17 +111,17 @@ export class OneOffPurchaseZoneResponseDto {
 }
 
 export class OneOffPurchaseResponseDto {
-  @ApiProperty({ 
-    example: 1, 
+  @ApiProperty({
+    example: 1,
     description: `ID genérico de la compra para referencia general.
     
 ⚠️ IMPORTANTE: NO usar este campo para crear hojas de ruta.
-Use purchase_type para determinar qué ID específico usar.` 
+Use purchase_type para determinar qué ID específico usar.`,
   })
   purchase_id: number;
 
-  @ApiPropertyOptional({ 
-    example: 5, 
+  @ApiPropertyOptional({
+    example: 5,
     description: `🔹 ID de la tabla one_off_purchase (compras de UN SOLO producto).
     
 ✅ CUÁNDO USAR:
@@ -139,12 +139,12 @@ Use purchase_type para determinar qué ID específico usar.`
       "delivery_time": "08:00-12:00"
     }
   ]
-}` 
+}`,
   })
   one_off_purchase_id?: number;
 
-  @ApiPropertyOptional({ 
-    example: 3, 
+  @ApiPropertyOptional({
+    example: 3,
     description: `🔹 ID de la tabla one_off_purchase_header (compras de MÚLTIPLES productos).
     
 ✅ CUÁNDO USAR:
@@ -162,12 +162,12 @@ Use purchase_type para determinar qué ID específico usar.`
       "delivery_time": "08:00-12:00"
     }
   ]
-}` 
+}`,
   })
   purchase_header_id?: number;
 
-  @ApiPropertyOptional({ 
-    example: 'HEADER', 
+  @ApiPropertyOptional({
+    example: 'HEADER',
     enum: ['LEGACY', 'HEADER'],
     description: `🎯 CAMPO CLAVE para determinar qué ID usar en hojas de ruta.
 
@@ -213,7 +213,7 @@ Payload para hoja de ruta:
       "delivery_time": "08:00-12:00"
     }
   ]
-}` 
+}`,
   })
   purchase_type?: string;
 

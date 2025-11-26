@@ -252,7 +252,12 @@ export class FilterPersonsDto extends PaginationQueryDto {
       const lower = value.toLowerCase().trim();
 
       // Palabras clave para "ambos estados"
-      if (lower === 'both' || lower === 'all' || lower === 'any' || lower === '*') {
+      if (
+        lower === 'both' ||
+        lower === 'all' ||
+        lower === 'any' ||
+        lower === '*'
+      ) {
         return 'BOTH'; // Marcador especial para indicar ambos
       }
 
@@ -263,8 +268,8 @@ export class FilterPersonsDto extends PaginationQueryDto {
           .map((p) => p.trim())
           .filter((p) => p.length > 0);
 
-        const hasTrue = parts.some(p => p === 'true' || p === '1');
-        const hasFalse = parts.some(p => p === 'false' || p === '0');
+        const hasTrue = parts.some((p) => p === 'true' || p === '1');
+        const hasFalse = parts.some((p) => p === 'false' || p === '0');
 
         if (hasTrue && hasFalse) {
           return 'BOTH'; // Ambos estados

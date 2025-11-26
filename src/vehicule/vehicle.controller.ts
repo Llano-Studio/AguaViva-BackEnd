@@ -346,7 +346,6 @@ export class VehicleController {
 
   @Delete(':vehicleId/zones/:zoneId')
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
-
   @ApiOperation({
     summary: 'Remover zona de un vehículo',
     description:

@@ -68,7 +68,8 @@ export class AuditController {
   })
   @ApiQuery({
     name: 'table',
-    description: 'Tabla específica a consultar (cycle_payment o payment_transaction)',
+    description:
+      'Tabla específica a consultar (cycle_payment o payment_transaction)',
     required: false,
     enum: ['cycle_payment', 'payment_transaction'],
     example: 'cycle_payment',
@@ -95,17 +96,23 @@ export class AuditController {
               table_name: { type: 'string', example: 'cycle_payment' },
               record_id: { type: 'number', example: 123 },
               operation_type: { type: 'string', example: 'UPDATE' },
-              old_values: { 
+              old_values: {
                 type: 'object',
-                example: { amount: 15000, payment_method: 'EFECTIVO' }
+                example: { amount: 15000, payment_method: 'EFECTIVO' },
               },
-              new_values: { 
+              new_values: {
                 type: 'object',
-                example: { amount: 17500, payment_method: 'TRANSFERENCIA' }
+                example: { amount: 17500, payment_method: 'TRANSFERENCIA' },
               },
-              created_at: { type: 'string', example: '2024-01-15T10:30:00.000Z' },
+              created_at: {
+                type: 'string',
+                example: '2024-01-15T10:30:00.000Z',
+              },
               created_by: { type: 'number', example: 1 },
-              reason: { type: 'string', example: 'Corrección de monto por error de digitación' },
+              reason: {
+                type: 'string',
+                example: 'Corrección de monto por error de digitación',
+              },
               ip_address: { type: 'string', example: '192.168.1.100' },
               user_agent: { type: 'string', example: 'Mozilla/5.0...' },
               user_name: { type: 'string', example: 'Admin Usuario' },
@@ -254,7 +261,7 @@ export class AuditController {
           properties: {
             operation_type: { type: 'string', example: 'UPDATE' },
             table_name: { type: 'string', example: 'cycle_payment' },
-            date_range: { 
+            date_range: {
               type: 'object',
               properties: {
                 start: { type: 'string', example: '2024-01-01T00:00:00.000Z' },
@@ -309,10 +316,13 @@ export class AuditController {
         operation_type: operationType,
         table_name: tableName,
         user_id: userId,
-        date_range: startDate && endDate ? {
-          start: startDate,
-          end: endDate,
-        } : null,
+        date_range:
+          startDate && endDate
+            ? {
+                start: startDate,
+                end: endDate,
+              }
+            : null,
       },
     };
   }

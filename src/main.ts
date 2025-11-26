@@ -236,29 +236,51 @@ Para comenzar a usar la API:
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: '🔑 Ingrese el token JWT obtenido del endpoint /auth/login. El token se renovará automáticamente.',
+        description:
+          '🔑 Ingrese el token JWT obtenido del endpoint /auth/login. El token se renovará automáticamente.',
         name: 'Authorization',
         in: 'header',
       },
       'JWT-auth',
     )
     .addTag('🏥 Health', 'Endpoints de verificación del estado del sistema')
-    .addTag('🔐 Autenticación/Usuarios', 'Gestión de usuarios, roles y autenticación JWT')
+    .addTag(
+      '🔐 Autenticación/Usuarios',
+      'Gestión de usuarios, roles y autenticación JWT',
+    )
     .addTag('👥 Clientes', 'Gestión de personas, clientes y datos de contacto')
-    .addTag('📦 Productos & Artículos', 'Catálogo de productos, categorías y artículos')
+    .addTag(
+      '📦 Productos & Artículos',
+      'Catálogo de productos, categorías y artículos',
+    )
     .addTag('📊 Inventario', 'Control de stock, movimientos y almacenes')
     .addTag('🚛 Vehículos', 'Gestión de flota de vehículos y conductores')
     .addTag('📦 Inventario de Vehículos', 'Stock móvil y carga en vehículos')
     .addTag('🗺️ Zonas', 'Gestión de zonas geográficas y rutas')
-    .addTag('📋 Planes de Suscripción', 'Planes, configuraciones y productos incluidos')
-    .addTag('🔄 Suscripciones de Clientes', 'Gestión de suscripciones activas y ciclos')
-    .addTag('💳 Pagos de Ciclos', 'Cobranzas automáticas, manuales y gestión de créditos')
+    .addTag(
+      '📋 Planes de Suscripción',
+      'Planes, configuraciones y productos incluidos',
+    )
+    .addTag(
+      '🔄 Suscripciones de Clientes',
+      'Gestión de suscripciones activas y ciclos',
+    )
+    .addTag(
+      '💳 Pagos de Ciclos',
+      'Cobranzas automáticas, manuales y gestión de créditos',
+    )
     .addTag('🛒 Pedidos & Órdenes', 'Órdenes híbridas, suscripciones y one-off')
     .addTag('🛍️ Compras One-Off', 'Compras únicas y productos adicionales')
     .addTag('❌ Órdenes de Cancelación', 'Gestión de cancelaciones y retiros')
     .addTag('🏠 Comodatos', 'Sistema de préstamo de dispensadores y equipos')
-    .addTag('🗺️ Hojas de Ruta', 'Planificación, seguimiento y entregas multi-tipo')
-    .addTag('💰 Listas de Precios', 'Gestión de precios diferenciados por cliente')
+    .addTag(
+      '🗺️ Hojas de Ruta',
+      'Planificación, seguimiento y entregas multi-tipo',
+    )
+    .addTag(
+      '💰 Listas de Precios',
+      'Gestión de precios diferenciados por cliente',
+    )
     .addTag('🌍 Ubicaciones', 'Países, provincias y localidades')
     .build();
 

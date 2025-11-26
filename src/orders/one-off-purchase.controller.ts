@@ -36,7 +36,12 @@ export class OneOffPurchaseController {
   constructor(private readonly oneOffPurchaseService: OneOffPurchaseService) {}
 
   @Post('one-off')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary:
       'Crear una nueva compra one-off (con verificación automática de cliente)',
@@ -102,7 +107,12 @@ export class OneOffPurchaseController {
   }
 
   @Get('one-off')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener todas las compras one-off con filtros opcionales',
     description: `Retorna una lista paginada de compras one-off con opciones de filtrado avanzado.
@@ -241,9 +251,10 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
             requires_delivery: true,
             person: { name: 'Juan Pérez', phone: '3625123456' },
             products: [
-              { product_id: 1, description: 'Botella 500ml', quantity: 2 }
+              { product_id: 1, description: 'Botella 500ml', quantity: 2 },
             ],
-            _comment: '⬆️ Compra LEGACY (1 producto) - Usar one_off_purchase_id: 5 en hoja de ruta'
+            _comment:
+              '⬆️ Compra LEGACY (1 producto) - Usar one_off_purchase_id: 5 en hoja de ruta',
           },
           {
             purchase_id: 4,
@@ -259,17 +270,18 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
             person: { name: 'María García', phone: '3625987654' },
             products: [
               { product_id: 1, description: 'Botella 500ml', quantity: 2 },
-              { product_id: 2, description: 'Dispenser', quantity: 1 }
+              { product_id: 2, description: 'Dispenser', quantity: 1 },
             ],
-            _comment: '⬆️ Compra HEADER (múltiples productos) - Usar purchase_header_id: 4 en hoja de ruta'
-          }
+            _comment:
+              '⬆️ Compra HEADER (múltiples productos) - Usar purchase_header_id: 4 en hoja de ruta',
+          },
         ],
         meta: {
           total: 2,
           page: 1,
           limit: 10,
-          totalPages: 1
-        }
+          totalPages: 1,
+        },
       },
       properties: {
         data: {
@@ -303,7 +315,12 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
   }
 
   @Get('one-off/:id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener una compra one-off por su ID',
     description: `Retorna los detalles completos de una compra one-off específica.
@@ -335,7 +352,12 @@ Cada compra incluye el campo 'purchase_type' que indica qué ID usar al crear ho
   }
 
   @Patch('one-off/:id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Actualizar una compra one-off por su ID',
     description: `Actualiza los detalles de una compra one-off existente.

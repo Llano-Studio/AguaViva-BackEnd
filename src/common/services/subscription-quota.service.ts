@@ -142,13 +142,9 @@ export class SubscriptionQuotaService
       },
     });
 
-
-
     // Crear los detalles del ciclo con las cantidades planificadas
     for (const planProduct of subscription.subscription_plan
       .subscription_plan_product) {
-
-
       await prisma.subscription_cycle_detail.create({
         data: {
           cycle_id: newCycle.cycle_id,
@@ -165,7 +161,6 @@ export class SubscriptionQuotaService
       await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
         newCycle.cycle_id,
       );
-
     } catch (error) {
       console.error(
         `🆕 ERROR - No se pudo calcular total para ciclo ${newCycle.cycle_id}:`,
@@ -185,9 +180,6 @@ export class SubscriptionQuotaService
       },
     });
 
-
-
-
     return reloadedCycle;
   }
 
@@ -201,13 +193,10 @@ export class SubscriptionQuotaService
   ): Promise<SubscriptionQuotaValidation> {
     const prisma = tx || this;
 
-
-
     // Obtener o crear ciclo actual
     let currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
 
     if (!currentCycle) {
-
       currentCycle = await this.createNewCycleIfNeeded(subscriptionId, prisma);
       // Recargar con los detalles
       currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
@@ -227,15 +216,11 @@ export class SubscriptionQuotaService
     let hasAdditionalCharges = false;
 
     for (const requestedProduct of requestedProducts) {
-
-
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
         (detail) => detail.product_id === requestedProduct.product_id,
       );
 
       if (cycleDetail) {
-
-
         // Producto está en el plan de suscripción
         const availableBalance = Math.max(0, cycleDetail.remaining_balance);
         const coveredBySubscription = Math.min(
@@ -246,8 +231,6 @@ export class SubscriptionQuotaService
           0,
           requestedProduct.quantity - coveredBySubscription,
         );
-
-
 
         if (additionalQuantity > 0) {
           hasAdditionalCharges = true;
@@ -264,7 +247,6 @@ export class SubscriptionQuotaService
           additional_quantity: additionalQuantity,
         });
       } else {
-
         // Producto NO está en el plan → todo es adicional
         const product = await prisma.product.findUnique({
           where: { product_id: requestedProduct.product_id },
@@ -393,17 +375,13 @@ export class SubscriptionQuotaService
   ): Promise<void> {
     const prisma = tx || this;
 
-
     const currentCycle = await this.getCurrentActiveCycle(
       subscriptionId,
       prisma,
     );
     if (!currentCycle) {
-
       return; // No hay ciclo activo, no hay nada que reiniciar
     }
-
-
 
     for (const orderItem of orderItems) {
       const cycleDetail = currentCycle.subscription_cycle_detail.find(
@@ -411,8 +389,6 @@ export class SubscriptionQuotaService
       );
 
       if (cycleDetail) {
-
-
         // Solo reiniciar créditos para productos que están en el plan de suscripción
         // Los productos adicionales no afectan los créditos
         const newDeliveredQuantity = Math.max(
@@ -424,8 +400,6 @@ export class SubscriptionQuotaService
           cycleDetail.planned_quantity - newDeliveredQuantity,
         );
 
-
-
         await prisma.subscription_cycle_detail.update({
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
@@ -433,12 +407,8 @@ export class SubscriptionQuotaService
             remaining_balance: newRemainingBalance,
           },
         });
-
-
       } else {
-
       }
     }
-
   }
 }

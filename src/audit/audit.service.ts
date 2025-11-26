@@ -38,8 +38,12 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           table_name: params.tableName,
           record_id: params.recordId,
           operation_type: params.operationType,
-          old_values: params.oldValues ? JSON.stringify(params.oldValues) : null,
-          new_values: params.newValues ? JSON.stringify(params.newValues) : null,
+          old_values: params.oldValues
+            ? JSON.stringify(params.oldValues)
+            : null,
+          new_values: params.newValues
+            ? JSON.stringify(params.newValues)
+            : null,
           created_by: params.userId,
           reason: params.reason,
           ip_address: params.ipAddress,
@@ -94,19 +98,25 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         table_name: record.table_name,
         record_id: record.record_id,
         operation_type: record.operation_type as 'UPDATE' | 'DELETE',
-        old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
-        new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
+        old_values: record.old_values
+          ? JSON.parse(record.old_values as string)
+          : null,
+        new_values: record.new_values
+          ? JSON.parse(record.new_values as string)
+          : null,
         created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
         user_agent: record.user_agent,
-        user: record.created_by_user ? {
-          user_id: record.created_by_user.id,
-          username: record.created_by_user.name,
-          email: record.created_by_user.email,
-          role: record.created_by_user.role,
-        } : undefined,
+        user: record.created_by_user
+          ? {
+              user_id: record.created_by_user.id,
+              username: record.created_by_user.name,
+              email: record.created_by_user.email,
+              role: record.created_by_user.role,
+            }
+          : undefined,
       }));
     } catch (error) {
       this.logger.error('Error fetching audit history:', error);
@@ -180,19 +190,25 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         table_name: record.table_name,
         record_id: record.record_id,
         operation_type: record.operation_type as 'UPDATE' | 'DELETE',
-        old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
-        new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
+        old_values: record.old_values
+          ? JSON.parse(record.old_values as string)
+          : null,
+        new_values: record.new_values
+          ? JSON.parse(record.new_values as string)
+          : null,
         created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
         user_agent: record.user_agent,
-        user: record.created_by_user ? {
-          user_id: record.created_by_user.id,
-          username: record.created_by_user.name,
-          email: record.created_by_user.email,
-          role: record.created_by_user.role,
-        } : undefined,
+        user: record.created_by_user
+          ? {
+              user_id: record.created_by_user.id,
+              username: record.created_by_user.name,
+              email: record.created_by_user.email,
+              role: record.created_by_user.role,
+            }
+          : undefined,
       }));
 
       return { records, total };
@@ -205,7 +221,10 @@ export class AuditService extends PrismaClient implements OnModuleInit {
   /**
    * Valida si un usuario tiene permisos para realizar operaciones de auditoría
    */
-  async validateAuditPermissions(userId: number, operation: string): Promise<boolean> {
+  async validateAuditPermissions(
+    userId: number,
+    operation: string,
+  ): Promise<boolean> {
     try {
       const user = await this.user.findUnique({
         where: { id: userId },
@@ -217,7 +236,11 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       }
 
       // Roles válidos según el esquema del sistema
-      const allowedRoles = ['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'];
+      const allowedRoles = [
+        'SUPERADMIN',
+        'BOSSADMINISTRATIVE',
+        'ADMINISTRATIVE',
+      ];
       return allowedRoles.includes(user.role as any);
     } catch (error) {
       this.logger.error('Error validating audit permissions:', error);
@@ -241,10 +264,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
     // Validación flexible del formato del código
     // 1) Formato generado por el sistema: CONF + 6 dígitos + 6 caracteres alfanuméricos
     // 2) Formato documentado en Swagger: CONF-YYYY-NNN (por ejemplo: CONF-2024-001)
-    const patterns = [
-      /^CONF\d{6}[A-Z0-9]{6}$/i,
-      /^CONF-\d{4}-\d{3}$/i,
-    ];
+    const patterns = [/^CONF\d{6}[A-Z0-9]{6}$/i, /^CONF-\d{4}-\d{3}$/i];
     return patterns.some((p) => p.test(code));
   }
 
@@ -314,8 +334,12 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         table_name: record.table_name,
         record_id: record.record_id,
         operation_type: record.operation_type,
-        old_values: record.old_values ? JSON.parse(record.old_values as string) : null,
-        new_values: record.new_values ? JSON.parse(record.new_values as string) : null,
+        old_values: record.old_values
+          ? JSON.parse(record.old_values as string)
+          : null,
+        new_values: record.new_values
+          ? JSON.parse(record.new_values as string)
+          : null,
         created_at: formatBATimestampISO(record.created_at as any),
         created_by: record.created_by,
         reason: record.reason,
@@ -336,14 +360,20 @@ export class AuditService extends PrismaClient implements OnModuleInit {
   /**
    * Obtiene estadísticas de auditoría para el período especificado
    */
-  async getAuditStatistics(period: 'day' | 'week' | 'month' | 'year' = 'month') {
+  async getAuditStatistics(
+    period: 'day' | 'week' | 'month' | 'year' = 'month',
+  ) {
     try {
       const now = new Date();
       let startDate: Date;
 
       switch (period) {
         case 'day':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          startDate = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+          );
           break;
         case 'week':
           const dayOfWeek = now.getDay();
@@ -440,7 +470,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       ]);
 
       // Obtener información de usuarios para top_users
-      const userIds = topUsers.map(u => u.created_by);
+      const userIds = topUsers.map((u) => u.created_by);
       const users = await this.user.findMany({
         where: {
           id: {
@@ -453,26 +483,32 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      const userMap = new Map(users.map(u => [u.id, u.name]));
+      const userMap = new Map(users.map((u) => [u.id, u.name]));
 
       // Formatear resultados
-      const operationsByTypeFormatted = operationsByType.reduce((acc, item) => {
-        acc[item.operation_type] = item._count.operation_type;
-        return acc;
-      }, {} as Record<string, number>);
+      const operationsByTypeFormatted = operationsByType.reduce(
+        (acc, item) => {
+          acc[item.operation_type] = item._count.operation_type;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
-      const operationsByTableFormatted = operationsByTable.reduce((acc, item) => {
-        acc[item.table_name] = item._count.table_name;
-        return acc;
-      }, {} as Record<string, number>);
+      const operationsByTableFormatted = operationsByTable.reduce(
+        (acc, item) => {
+          acc[item.table_name] = item._count.table_name;
+          return acc;
+        },
+        {} as Record<string, number>,
+      );
 
-      const topUsersFormatted = topUsers.map(user => ({
+      const topUsersFormatted = topUsers.map((user) => ({
         user_id: user.created_by,
         user_name: userMap.get(user.created_by) || 'Usuario desconocido',
         operation_count: user._count.created_by,
       }));
 
-      const dailyActivityFormatted = (dailyActivity as any[]).map(day => ({
+      const dailyActivityFormatted = (dailyActivity as any[]).map((day) => ({
         date: formatBAYMD(new Date(day.date)),
         operation_count: Number(day.operation_count),
       }));
@@ -487,7 +523,8 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           },
           operations_by_table: {
             cycle_payment: operationsByTableFormatted.cycle_payment || 0,
-            payment_transaction: operationsByTableFormatted.payment_transaction || 0,
+            payment_transaction:
+              operationsByTableFormatted.payment_transaction || 0,
           },
         },
         top_users: topUsersFormatted,
