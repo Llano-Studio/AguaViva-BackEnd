@@ -55,8 +55,8 @@ export interface RouteSheetPdfData {
       };
     }>;
   };
-  route_notes?: string;
-  zone_identifiers?: string[];
+  zone_identifiers: string[];
+  route_notes: string;
   details: Array<{
     route_sheet_detail_id: number;
     route_sheet_id: number;
@@ -65,26 +65,21 @@ export interface RouteSheetPdfData {
       order_date: string;
       total_amount: string;
       status: string;
-      subscription_id?: number;
-      subscription_due_date?: string;
-      all_due_dates?: string[];
+      subscription_id: number;
+      subscription_due_date: string;
+      all_due_dates: string[];
       customer: {
         person_id: number;
         name: string;
         alias?: string;
         address: string;
         phone: string;
-        zone?: {
-          zone_id: number;
-          code: string;
-          name: string;
-        };
-        locality?: {
+        locality: {
           locality_id: number;
           code: string;
           name: string;
         };
-        special_instructions?: string;
+        special_instructions: string;
       };
       items: Array<{
         order_item_id: number;
@@ -96,13 +91,12 @@ export interface RouteSheetPdfData {
           description: string;
         };
       }>;
-      notes?: string;
+      notes: string;
     };
     delivery_status: string;
-    delivery_time?: string;
+    delivery_time: string;
     is_current_delivery: boolean;
-    comments?: string;
-    credits?: Array<{
+    credits: Array<{
       product_description: string;
       planned_quantity: number;
       delivered_quantity: number;
@@ -558,8 +552,44 @@ export class PdfGeneratorService {
       'Horario',
       'Total',
     ];
-    const colWidths = [30, 20, 105, 170, 70, 70, 80];
+  const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
     let pageCount = 1;
+
+    // Helper para obtener los días de vencimiento de una fila (igual que en generateOrderRow)
+    const getDueDays = (detail: any): string[] => {
+      const extractDay = (dateStr: string) => {
+        const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
+        return match ? match[1] : null;
+      };
+      if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
+        const days = detail.order.all_due_dates
+          .map((d: string) => extractDay(d))
+          .filter((d: string | null): d is string => d !== null);
+        if (days.length > 0) {
+          return (Array.from(new Set(days)) as string[]).sort();
+        }
+      } else if (detail.order.subscription_due_date) {
+        const day = extractDay(detail.order.subscription_due_date);
+        if (day) {
+          return [day];
+        }
+      }
+      return ['-'];
+    };
+
+    // Para headers, usar la primera fila para calcular los anchos dinámicos
+    let headerDueDaysCount = 1;
+    if (routeSheet.details && routeSheet.details.length > 0) {
+      headerDueDaysCount = getDueDays(routeSheet.details[0]).length;
+    }
+  const vColBaseWidth = 15;
+    const vColWidth = vColBaseWidth * headerDueDaysCount;
+    const clienteBaseWidth = 105;
+    const clienteWidth = clienteBaseWidth - vColBaseWidth * (headerDueDaysCount - 1);
+    // Usar estos anchos para los headers
+    const headerColWidths = [...baseColWidths];
+    headerColWidths[1] = vColWidth;
+    headerColWidths[2] = clienteWidth;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -616,10 +646,10 @@ export class PdfGeneratorService {
     let colX = startX + 10;
     headers.forEach((header, index) => {
       doc.text(header, colX, currentY + 3, {
-        width: colWidths[index] - 20,
+        width: headerColWidths[index] - 20,
         align: index === 0 ? 'center' : 'left',
       });
-      colX += colWidths[index];
+      colX += headerColWidths[index];
     });
 
     currentY += rowHeight;
@@ -629,6 +659,7 @@ export class PdfGeneratorService {
     const pageBottomLimit = doc.page.height - footerHeight;
 
     // Generar órdenes con altura dinámica real
+
     for (let i = 0; i < routeSheet.details.length; i++) {
       const detail = routeSheet.details[i];
 
@@ -653,13 +684,24 @@ export class PdfGeneratorService {
           .fill(this.colors.primary);
         doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
 
+        // Para cada nueva página, usar la fila actual para calcular los anchos
+        let pageDueDaysCount = 1;
+        if (routeSheet.details && routeSheet.details.length > i) {
+          pageDueDaysCount = getDueDays(routeSheet.details[i]).length;
+        }
+        const pageVColWidth = vColBaseWidth * pageDueDaysCount;
+        const pageClienteWidth = clienteBaseWidth - vColBaseWidth * (pageDueDaysCount - 1);
+        const pageColWidths = [...baseColWidths];
+        pageColWidths[1] = pageVColWidth;
+        pageColWidths[2] = pageClienteWidth;
+
         colX = startX + 10;
         headers.forEach((header, index) => {
           doc.text(header, colX, currentY + 3, {
-            width: colWidths[index] - 20,
+            width: pageColWidths[index] - 20,
             align: index === 0 ? 'center' : 'left',
           });
-          colX += colWidths[index];
+          colX += pageColWidths[index];
         });
 
         currentY += rowHeight;
@@ -672,7 +714,7 @@ export class PdfGeneratorService {
         i,
         currentY,
         startX,
-        colWidths,
+        baseColWidths,
         rowHeight,
       );
 
@@ -719,43 +761,52 @@ export class PdfGeneratorService {
         ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
         : detail.order.customer.address || 'Sin dirección';
 
-    // Extraer solo el día del mes de las fechas de vencimiento
-    let dueDay = '-';
-    let isDueToday = false;
+    // --- NUEVA LÓGICA PARA LA COLUMNA V (Vencimientos) ---
+    // Extraer días de vencimiento
+    let dueDays: string[] = [];
     const today = new Date();
     const currentDay = today.getDate().toString().padStart(2, '0');
-
     const extractDay = (dateStr: string) => {
       const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
       return match ? match[1] : null;
     };
-
     if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-      // Manejar múltiples fechas
       const days = detail.order.all_due_dates
         .map((d) => extractDay(d))
-        .filter((d) => d !== null);
-
+        .filter((d): d is string => d !== null);
       if (days.length > 0) {
         // Eliminar duplicados y ordenar
-        const uniqueDays = [...new Set(days)].sort();
-        dueDay = uniqueDays.join(', '); // ej: "10, 25"
-        isDueToday = days.includes(currentDay);
+        dueDays = (Array.from(new Set(days)) as string[]).sort();
       }
     } else if (detail.order.subscription_due_date) {
-      // Fallback a fecha única
       const day = extractDay(detail.order.subscription_due_date);
       if (day) {
-        dueDay = day;
-        isDueToday = dueDay === currentDay;
+        dueDays = [day];
       }
     }
+    if (dueDays.length === 0) {
+      dueDays = ['-'];
+    }
 
+  // Calcular el ancho de la columna V dinámicamente
+  const vColBaseWidth = 15;
+  const vColWidth = vColBaseWidth * dueDays.length;
+  // Ajustar el ancho de la columna Cliente para compensar
+  const clienteBaseWidth = 105;
+  const clienteWidth = clienteBaseWidth - vColBaseWidth * (dueDays.length - 1);
+
+  // Actualizar colWidths para esta fila
+  const localColWidths = [...colWidths];
+  localColWidths[1] = vColWidth;
+  localColWidths[2] = clienteWidth;
+
+    // Preparar los datos de cada columna
     const cellData: Array<{
       text: string;
       fontSize: number;
       font: string;
       align: 'center' | 'left' | 'right';
+      customRender?: (x: number, y: number, width: number, height: number) => void;
     }> = [
       {
         text: detail.order.order_id.toString(),
@@ -763,12 +814,48 @@ export class PdfGeneratorService {
         font: 'Poppins-Bold',
         align: 'left',
       },
-      { text: dueDay, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      {
+        text: '', // Se renderiza manualmente abajo
+        fontSize: 9,
+        font: 'Poppins-Bold',
+        align: 'left',
+        customRender: (x, y, width, height) => {
+          // Renderizar cada día como una caja de 15px de ancho
+          let boxX = x;
+          dueDays.forEach((day) => {
+            const isToday = day === currentDay;
+            // Fondo
+            if (isToday) {
+              doc.rect(boxX, y, vColBaseWidth, height).fill(this.colors.primary);
+            }
+            // Texto
+            doc.fontSize(9)
+              .font('Poppins-Bold')
+              .fillColor(isToday ? this.colors.textWhite : this.colors.textAccent)
+              .text(day, boxX + 2, y + 3, {
+                width: vColBaseWidth - 4,
+                align: 'center',
+              });
+            boxX += vColBaseWidth;
+          });
+        },
+      },
       {
         text: detail.order.customer.name,
         fontSize: 9,
         font: 'Poppins-Bold',
         align: 'left',
+        customRender: (x, y, width, height) => {
+          // Agregar margen izquierdo de 3px
+          doc.fontSize(9)
+            .font('Poppins-Bold')
+            .fillColor(this.colors.textAccent)
+            .text(detail.order.customer.name, x + 3, y + 3, {
+              width: width - 3 - 5, // padding derecho
+              align: 'left',
+              lineGap: 2,
+            });
+        },
       },
       { text: addressText, fontSize: 9, font: 'Poppins', align: 'left' },
       {
@@ -791,18 +878,23 @@ export class PdfGeneratorService {
       },
     ];
 
-    // Calcular la altura necesaria para cada celd
+    // Calcular la altura necesaria para cada celda
     const minRowHeight = 17;
     const padding = 5;
     let maxHeight = minRowHeight;
 
     cellData.forEach((cell, colIndex) => {
-      doc.fontSize(cell.fontSize).font(cell.font);
-      const textHeight = doc.heightOfString(cell.text, {
-        width: colWidths[colIndex] - padding,
-        align: cell.align,
-      });
-      maxHeight = Math.max(maxHeight, textHeight + padding);
+      if (cell.customRender) {
+        // Estimar altura como 1 línea
+        maxHeight = Math.max(maxHeight, 12 + padding);
+      } else {
+        doc.fontSize(cell.fontSize).font(cell.font);
+        const textHeight = doc.heightOfString(cell.text, {
+          width: localColWidths[colIndex] - padding,
+          align: cell.align,
+        });
+        maxHeight = Math.max(maxHeight, textHeight + padding);
+      }
     });
 
     // Dibujar el fondo de la fila con la altura calculada
@@ -811,35 +903,25 @@ export class PdfGeneratorService {
       .rect(startX, currentY, 4, maxHeight)
       .fill(isEven ? this.colors.primary : this.colors.secondary);
 
-    // Si el vencimiento es hoy, dibujar fondo negro en la columna V
-    if (isDueToday) {
-      const vColX = startX + 5 + colWidths[0]; // Posición X de la columna V (después de N°)
-      doc
-        .rect(vColX, currentY, colWidths[1], maxHeight)
-        .fill(this.colors.primary); // Negro
-    }
-
-    // Renderizar cada celda con texto multilínea
+    // Renderizar cada celda
     let colX = startX + 10;
-    console.log('celldata', cellData);
     cellData.forEach((cell, colIndex) => {
-      // Si es la columna V (índice 1) y el vencimiento es hoy, usar texto blanco
-      const textColor =
-        colIndex === 1 && isDueToday
-          ? this.colors.textWhite
-          : colIndex === 0 || colIndex === 1 || colIndex === 6
+      if (cell.customRender) {
+        cell.customRender(colX, currentY, localColWidths[colIndex], maxHeight);
+      } else {
+        // Color de texto
+        const textColor =
+          colIndex === 0 || colIndex === 1 || colIndex === 6
             ? this.colors.textAccent
             : this.colors.textPrimary;
-
-      doc.fontSize(cell.fontSize).font(cell.font).fillColor(textColor);
-
-      doc.text(cell.text, colX, currentY + 3, {
-        width: colWidths[colIndex] - padding,
-        align: cell.align,
-        lineGap: 2,
-      });
-
-      colX += colWidths[colIndex];
+        doc.fontSize(cell.fontSize).font(cell.font).fillColor(textColor);
+        doc.text(cell.text, colX, currentY + 3, {
+          width: localColWidths[colIndex] - padding,
+          align: cell.align,
+          lineGap: 2,
+        });
+      }
+      colX += localColWidths[colIndex];
     });
 
     return currentY + maxHeight;
