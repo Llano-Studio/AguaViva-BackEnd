@@ -300,6 +300,7 @@ export class PdfDevController {
       total_amount: string,
       status: string,
       subscription_id?: number,
+      all_due_dates?: string[],
       customer: {
         person_id: number,
         name: string,
@@ -415,6 +416,7 @@ export class PdfDevController {
             status: "READY_FOR_DELIVERY",
             subscription_id: 23,
             subscription_due_date: "2025-11-25",
+            all_due_dates: ["2025-11-25", "2025-11-30"],
             customer: {
               person_id: 29,
               name: "elsa moro",
