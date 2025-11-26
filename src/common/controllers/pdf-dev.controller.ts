@@ -114,7 +114,7 @@ export class PdfDevController {
             },
           },
           amount: 4500,
-          payment_due_date: '2025-11-26',
+          payment_due_date: '2025-11-15',
           cycle_period: 'MONTHLY',
           subscription_plan: 'Plan Premium',
           payment_status: 'PENDING',
