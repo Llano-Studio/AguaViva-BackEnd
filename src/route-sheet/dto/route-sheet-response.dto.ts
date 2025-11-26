@@ -147,6 +147,13 @@ export class OrderDto {
   subscription_due_date?: string;
 
   @ApiProperty({
+    description: 'Lista completa de fechas de vencimiento pendientes',
+    example: ['2025-11-30', '2025-12-30'],
+    required: false,
+  })
+  all_due_dates?: string[];
+
+  @ApiProperty({
     description: 'Cliente',
     type: CustomerDto,
   })
