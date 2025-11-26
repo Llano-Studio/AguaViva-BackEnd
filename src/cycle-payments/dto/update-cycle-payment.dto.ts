@@ -1,12 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNumber, IsString, IsOptional, IsDateString, Min, MaxLength, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsOptional,
+  IsDateString,
+  Min,
+  MaxLength,
+  IsEnum,
+} from 'class-validator';
 import { PaymentMethod } from '../../common/constants/enums';
 
 export class UpdateCyclePaymentDto {
   @ApiProperty({
     description: 'Nuevo monto del pago',
-    example: 25000.00,
+    example: 25000.0,
     minimum: 0.01,
   })
   @IsNumber()
@@ -20,7 +28,8 @@ export class UpdateCyclePaymentDto {
     enum: PaymentMethod,
   })
   @IsEnum(PaymentMethod, {
-    message: 'El método de pago debe ser uno de los valores válidos del enum PaymentMethod',
+    message:
+      'El método de pago debe ser uno de los valores válidos del enum PaymentMethod',
   })
   payment_method: PaymentMethod;
 

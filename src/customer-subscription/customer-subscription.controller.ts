@@ -390,7 +390,8 @@ export class CustomerSubscriptionController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Eliminar suscripción',
-    description: 'Elimina permanentemente una suscripción del sistema. Disponible para SUPERADMIN y Jefe Administrativo.',
+    description:
+      'Elimina permanentemente una suscripción del sistema. Disponible para SUPERADMIN y Jefe Administrativo.',
   })
   @ApiParam({
     name: 'id',

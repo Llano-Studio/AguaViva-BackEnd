@@ -8,15 +8,29 @@ import { OrderCollectionEditService } from './order-collection-edit.service';
 import { FilterAutomatedCollectionsDto } from '../../orders/dto/filter-automated-collections.dto';
 import {
   AutomatedCollectionResponseDto,
-  AutomatedCollectionListResponseDto
+  AutomatedCollectionListResponseDto,
 } from '../../orders/dto/automated-collection-response.dto';
-import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
-import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
+import {
+  GeneratePdfCollectionsDto,
+  PdfGenerationResponseDto,
+} from '../../orders/dto/generate-pdf-collections.dto';
+import {
+  GenerateRouteSheetDto,
+  RouteSheetResponseDto,
+} from '../../orders/dto/generate-route-sheet.dto';
 import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-route-sheets.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
-import { isValidYMD, parseYMD, formatBAYMD, startOfDayBA, formatBATimestampISO, formatUTCYMD, formatLocalYMD } from '../utils/date.utils';
+import {
+  isValidYMD,
+  parseYMD,
+  formatBAYMD,
+  startOfDayBA,
+  formatBATimestampISO,
+  formatUTCYMD,
+  formatLocalYMD,
+} from '../utils/date.utils';
 
 //
 
@@ -36,9 +50,9 @@ export interface CollectionOrderSummaryDto {
 @Injectable()
 export class AutomatedCollectionService
   extends PrismaClient
-  implements OnModuleInit {
+  implements OnModuleInit
+{
   private readonly logger = new Logger(AutomatedCollectionService.name);
-
 
   constructor(
     private readonly ordersService: OrdersService,
@@ -62,7 +76,7 @@ export class AutomatedCollectionService
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
           payment_due_date: {
-            lte: thresholdDate
+            lte: thresholdDate,
           },
           late_fee_applied: false,
           pending_balance: { gt: 0 },
@@ -86,7 +100,8 @@ export class AutomatedCollectionService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base y calcular recargo del 20%
-          const planPriceRaw = cycle.customer_subscription?.subscription_plan?.price as any;
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan
+            ?.price as any;
           const currentTotalRaw = cycle.total_amount as any;
           const paidAmountRaw = cycle.paid_amount as any;
 
@@ -97,9 +112,13 @@ export class AutomatedCollectionService
           // Si no tenemos total actual, usar el precio del plan como base
           const baseAmount = currentTotal > 0 ? currentTotal : planPrice;
           const lateFeePercentage = 0.2; // 20%
-          const surcharge = Math.round(baseAmount * lateFeePercentage * 100) / 100;
+          const surcharge =
+            Math.round(baseAmount * lateFeePercentage * 100) / 100;
           const newTotal = Math.round((baseAmount + surcharge) * 100) / 100;
-          const newPending = Math.max(0, Math.round((newTotal - paidAmount) * 100) / 100);
+          const newPending = Math.max(
+            0,
+            Math.round((newTotal - paidAmount) * 100) / 100,
+          );
 
           // Marcar como vencido, aplicar recargo y actualizar montos
           await this.subscription_cycle.update({
@@ -146,7 +165,9 @@ export class AutomatedCollectionService
     );
 
     // Primero aplicar recargos por mora a ciclos vencidos
-    this.logger.log('💰 Aplicando recargos por mora antes de generar órdenes...');
+    this.logger.log(
+      '💰 Aplicando recargos por mora antes de generar órdenes...',
+    );
     await this.applyLateFeesToOverdueCycles();
 
     try {
@@ -167,7 +188,9 @@ export class AutomatedCollectionService
       for (const cycle of cyclesDueToday) {
         try {
           // Verificar si ya existe una orden de cobranza manual para este ciclo
-          const hasManualOrder = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+          const hasManualOrder = await this.hasCollectionOrderForCycle(
+            cycle.cycle_id,
+          );
 
           if (hasManualOrder) {
             this.logger.log(
@@ -178,11 +201,15 @@ export class AutomatedCollectionService
               subscription_id: cycle.subscription_id,
               customer_id: cycle.customer_subscription.customer_id,
               customer_name: cycle.customer_subscription.person.name,
-              subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
-              payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
+              subscription_plan_name:
+                cycle.customer_subscription.subscription_plan.name,
+              payment_due_date: formatBAYMD(
+                cycle.payment_due_date || new Date(),
+              ),
               pending_balance: Number(cycle.pending_balance),
               order_created: false,
-              notes: 'Ciclo ya tiene orden de cobranza manual - no se genera automática',
+              notes:
+                'Ciclo ya tiene orden de cobranza manual - no se genera automática',
             });
             continue;
           }
@@ -234,7 +261,9 @@ export class AutomatedCollectionService
    */
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   async generateDailyCollectionRouteSheets() {
-    this.logger.log('🗺️ Iniciando generación automática de hojas de ruta de cobranzas...');
+    this.logger.log(
+      '🗺️ Iniciando generación automática de hojas de ruta de cobranzas...',
+    );
 
     try {
       const today = startOfDayBA(new Date());
@@ -274,9 +303,10 @@ export class AutomatedCollectionService
           } as any;
 
           // Generar y persistir PDF en /public/pdfs/collections
-          const result = await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
-            filters,
-          );
+          const result =
+            await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
+              filters,
+            );
 
           generatedCount++;
           this.logger.log(
@@ -307,7 +337,9 @@ export class AutomatedCollectionService
    * Ajusta la fecha si cae en domingo para alinearse con la generación de órdenes.
    */
   async triggerDailyCollectionRouteSheets(dto: GenerateDailyRouteSheetsDto) {
-    this.logger.log('🗺️ Disparo manual de generación diaria de hojas de ruta de cobranzas...');
+    this.logger.log(
+      '🗺️ Disparo manual de generación diaria de hojas de ruta de cobranzas...',
+    );
     let baseDate: Date;
     if (dto.date) {
       if (!isValidYMD(dto.date)) {
@@ -323,19 +355,25 @@ export class AutomatedCollectionService
 
     // Primero: generar/actualizar órdenes automáticas para la fecha
     try {
-      const orderResults = await this.generateCollectionOrdersForDate(adjustedDate);
+      const orderResults =
+        await this.generateCollectionOrdersForDate(adjustedDate);
       const createdCount = orderResults.filter((r) => r.order_created).length;
       this.logger.log(
         `🧾 Órdenes de cobranza para ${dateIso}: ${createdCount}/${orderResults.length} creadas/actualizadas`,
       );
     } catch (error) {
-      this.logger.error('❌ Error generando órdenes automáticas previas:', error);
+      this.logger.error(
+        '❌ Error generando órdenes automáticas previas:',
+        error,
+      );
       // Continuar con hojas de ruta aunque haya fallos parciales
     }
 
     // Selección de vehículos
     const vehicles = await this.vehicle.findMany({
-      where: dto.vehicleId ? { vehicle_id: dto.vehicleId, is_active: true } : { is_active: true },
+      where: dto.vehicleId
+        ? { vehicle_id: dto.vehicleId, is_active: true }
+        : { is_active: true },
       include: {
         vehicle_zone: { where: { is_active: true }, select: { zone_id: true } },
       },
@@ -357,9 +395,10 @@ export class AutomatedCollectionService
     }> = [];
 
     for (const vehicle of vehicles) {
-      const zoneIds = dto.zoneIds && dto.zoneIds.length > 0
-        ? dto.zoneIds
-        : vehicle.vehicle_zone.map((vz) => vz.zone_id);
+      const zoneIds =
+        dto.zoneIds && dto.zoneIds.length > 0
+          ? dto.zoneIds
+          : vehicle.vehicle_zone.map((vz) => vz.zone_id);
 
       if (!zoneIds || zoneIds.length === 0) {
         this.logger.log(
@@ -385,14 +424,18 @@ export class AutomatedCollectionService
             orderBy: { assigned_at: 'desc' },
           });
           drivers = userVehicles
-            .filter((uv) => uv.user && typeof uv.user.id === 'number' && !!uv.user.name)
+            .filter(
+              (uv) =>
+                uv.user && typeof uv.user.id === 'number' && !!uv.user.name,
+            )
             .map((uv) => ({ id: uv.user.id, name: uv.user.name }));
         } catch (_) {
           drivers = [];
         }
 
         // Resolver driver asignado: si no se provee en dto, tomar el más recientemente asignado al vehículo
-        const effectiveDriverId: number | undefined = dto.driverId ?? (drivers.length > 0 ? drivers[0].id : undefined);
+        const effectiveDriverId: number | undefined =
+          dto.driverId ?? (drivers.length > 0 ? drivers[0].id : undefined);
         let assignedDriverName: string | null = null;
         if (typeof effectiveDriverId === 'number') {
           try {
@@ -409,7 +452,8 @@ export class AutomatedCollectionService
               assignedDriverName = person?.name ?? null;
             }
           } catch (_) {
-            assignedDriverName = drivers.find((d) => d.id === effectiveDriverId)?.name ?? null;
+            assignedDriverName =
+              drivers.find((d) => d.id === effectiveDriverId)?.name ?? null;
           }
         }
         const filters: GenerateRouteSheetDto = {
@@ -425,9 +469,10 @@ export class AutomatedCollectionService
             `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}`,
         } as any;
 
-        const result = await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
-          filters,
-        );
+        const result =
+          await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
+            filters,
+          );
 
         generatedCount++;
         results.push({
@@ -510,7 +555,9 @@ export class AutomatedCollectionService
       where: {
         payment_due_date: {
           gte: startOfDayBA(targetDate),
-          lt: new Date(startOfDayBA(targetDate).getTime() + 24 * 60 * 60 * 1000),
+          lt: new Date(
+            startOfDayBA(targetDate).getTime() + 24 * 60 * 60 * 1000,
+          ),
         },
         pending_balance: {
           gt: 0, // Solo ciclos con saldo pendiente
@@ -661,16 +708,18 @@ export class AutomatedCollectionService
       `🔧 Generación manual de pedidos de cobranza para ${formatBAYMD(targetDate)}`,
     );
 
-      const adjustedDate = this.adjustDateForSunday(targetDate);
-      await this.applyLateFeesToOverdueCycles();
-      const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
+    const adjustedDate = this.adjustDateForSunday(targetDate);
+    await this.applyLateFeesToOverdueCycles();
+    const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
 
     const results: CollectionOrderSummaryDto[] = [];
 
     for (const cycle of cyclesDue) {
       try {
         // Verificar si ya existe una orden de cobranza manual para este ciclo
-        const hasManualOrder = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+        const hasManualOrder = await this.hasCollectionOrderForCycle(
+          cycle.cycle_id,
+        );
 
         if (hasManualOrder) {
           this.logger.log(
@@ -681,11 +730,13 @@ export class AutomatedCollectionService
             subscription_id: cycle.subscription_id,
             customer_id: cycle.customer_subscription.customer_id,
             customer_name: cycle.customer_subscription.person.name,
-            subscription_plan_name: cycle.customer_subscription.subscription_plan.name,
+            subscription_plan_name:
+              cycle.customer_subscription.subscription_plan.name,
             payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
             pending_balance: Number(cycle.pending_balance),
             order_created: false,
-            notes: 'Ciclo ya tiene orden de cobranza manual - no se genera automática',
+            notes:
+              'Ciclo ya tiene orden de cobranza manual - no se genera automática',
           });
           continue;
         }
@@ -923,10 +974,13 @@ export class AutomatedCollectionService
     // Construir filtros para subscription_cycle (due dates / overdue)
     const subscriptionCycleSome: any = {};
     if (filters.dueDateFrom || filters.dueDateTo) {
-      subscriptionCycleSome.payment_due_date = subscriptionCycleSome.payment_due_date || {};
+      subscriptionCycleSome.payment_due_date =
+        subscriptionCycleSome.payment_due_date || {};
       if (filters.dueDateFrom) {
         const raw = String(filters.dueDateFrom).trim();
-        subscriptionCycleSome.payment_due_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        subscriptionCycleSome.payment_due_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(
+          raw,
+        )
           ? parseYMD(raw)
           : new Date(filters.dueDateFrom);
       }
@@ -977,7 +1031,9 @@ export class AutomatedCollectionService
         },
         {
           collection_order_id: {
-            equals: isNaN(parseInt(filters.search)) ? undefined : parseInt(filters.search),
+            equals: isNaN(parseInt(filters.search))
+              ? undefined
+              : parseInt(filters.search),
           },
         },
         {
@@ -1009,17 +1065,15 @@ export class AutomatedCollectionService
     if (filters.overdue === 'true') {
       const today = startOfDayBA(new Date());
 
-      subscriptionCycleSome.payment_due_date = subscriptionCycleSome.payment_due_date || {};
+      subscriptionCycleSome.payment_due_date =
+        subscriptionCycleSome.payment_due_date || {};
       subscriptionCycleSome.payment_due_date.lt = today;
       subscriptionCycleSome.pending_balance = { gt: 0 };
 
       // Mantener compatibilidad con estados de pago del pedido
       whereClause.AND = [
         {
-          OR: [
-            { payment_status: 'PENDING' },
-            { payment_status: 'OVERDUE' },
-          ],
+          OR: [{ payment_status: 'PENDING' }, { payment_status: 'OVERDUE' }],
         },
       ];
     }
@@ -1116,18 +1170,26 @@ export class AutomatedCollectionService
     // Transformar datos
     const data: AutomatedCollectionResponseDto[] = orders.map((order) => {
       const today = new Date();
-      const dueDate = (order as any).customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
+      const dueDate = (order as any).customer_subscription
+        ?.subscription_cycle?.[0]?.payment_due_date;
       const isOverdue = dueDate ? dueDate < today : false;
-      const daysOverdue = isOverdue && dueDate
-        ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-        : 0;
+      const daysOverdue =
+        isOverdue && dueDate
+          ? Math.floor(
+              (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+            )
+          : 0;
 
-      const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+      const pendingAmount =
+        parseFloat(order.total_amount.toString()) -
+        parseFloat(order.paid_amount.toString());
 
       const result: AutomatedCollectionResponseDto = {
         order_id: (order as any).collection_order_id ?? (order as any).order_id,
-        order_date: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
-        due_date: dueDate ? formatBATimestampISO(dueDate as any) : null,
+        order_date: order.order_date
+          ? formatBATimestampISO(order.order_date as any)
+          : '',
+        due_date: dueDate ? formatBATimestampISO(dueDate) : null,
         total_amount: order.total_amount.toString(),
         paid_amount: order.paid_amount.toString(),
         pending_amount: pendingAmount.toFixed(2),
@@ -1143,30 +1205,60 @@ export class AutomatedCollectionService
           phone: (order as any).customer.phone,
           email: (order as any).customer.email,
           address: (order as any).customer.address,
-          zone: (order as any).customer.zone ? {
-            zone_id: (order as any).customer.zone.zone_id,
-            name: (order as any).customer.zone.name,
-          } : null,
+          zone: (order as any).customer.zone
+            ? {
+                zone_id: (order as any).customer.zone.zone_id,
+                name: (order as any).customer.zone.name,
+              }
+            : null,
         },
-        subscription_info: (order as any).customer_subscription ? {
-          subscription_id: (order as any).customer_subscription.subscription_id,
-          subscription_plan: {
-            subscription_plan_id: (order as any).customer_subscription.subscription_plan.subscription_plan_id,
-            name: (order as any).customer_subscription.subscription_plan.name,
-            price: (order as any).customer_subscription.subscription_plan.price.toString(),
-            billing_frequency: (order as any).customer_subscription.subscription_plan.billing_frequency,
-          },
-          cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
-            cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
-            cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
-            start_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].start_date),
-            end_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].end_date),
-            due_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].payment_due_date),
-            pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
-          } : null,
-        } : null,
-        created_at: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
-        updated_at: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
+        subscription_info: (order as any).customer_subscription
+          ? {
+              subscription_id: (order as any).customer_subscription
+                .subscription_id,
+              subscription_plan: {
+                subscription_plan_id: (order as any).customer_subscription
+                  .subscription_plan.subscription_plan_id,
+                name: (order as any).customer_subscription.subscription_plan
+                  .name,
+                price: (
+                  order as any
+                ).customer_subscription.subscription_plan.price.toString(),
+                billing_frequency: (order as any).customer_subscription
+                  .subscription_plan.billing_frequency,
+              },
+              cycle_info: (order as any).customer_subscription
+                .subscription_cycle?.[0]
+                ? {
+                    cycle_id: (order as any).customer_subscription
+                      .subscription_cycle[0].cycle_id,
+                    cycle_number: (order as any).customer_subscription
+                      .subscription_cycle[0].cycle_number,
+                    start_date: formatBATimestampISO(
+                      (order as any).customer_subscription.subscription_cycle[0]
+                        .start_date,
+                    ),
+                    end_date: formatBATimestampISO(
+                      (order as any).customer_subscription.subscription_cycle[0]
+                        .end_date,
+                    ),
+                    due_date: formatBATimestampISO(
+                      (order as any).customer_subscription.subscription_cycle[0]
+                        .payment_due_date,
+                    ),
+                    pending_balance: (
+                      order as any
+                    ).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+                  }
+                : null,
+            }
+          : null,
+        created_at: order.order_date
+          ? formatBATimestampISO(order.order_date as any)
+          : '',
+        updated_at: order.order_date
+          ? formatBATimestampISO(order.order_date as any)
+          : '',
       };
 
       return result;
@@ -1174,14 +1266,31 @@ export class AutomatedCollectionService
 
     // Calcular resumen
     const summary = {
-      total_amount: orders.reduce((sum, order) => sum + parseFloat(order.total_amount.toString()), 0).toFixed(2),
-      total_paid: orders.reduce((sum, order) => sum + parseFloat(order.paid_amount.toString()), 0).toFixed(2),
-      total_pending: orders.reduce((sum, order) => {
-        const pending = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
-        return sum + pending;
-      }, 0).toFixed(2),
-      overdue_amount: data.filter(d => d.is_overdue).reduce((sum, d) => sum + parseFloat(d.pending_amount), 0).toFixed(2),
-      overdue_count: data.filter(d => d.is_overdue).length,
+      total_amount: orders
+        .reduce(
+          (sum, order) => sum + parseFloat(order.total_amount.toString()),
+          0,
+        )
+        .toFixed(2),
+      total_paid: orders
+        .reduce(
+          (sum, order) => sum + parseFloat(order.paid_amount.toString()),
+          0,
+        )
+        .toFixed(2),
+      total_pending: orders
+        .reduce((sum, order) => {
+          const pending =
+            parseFloat(order.total_amount.toString()) -
+            parseFloat(order.paid_amount.toString());
+          return sum + pending;
+        }, 0)
+        .toFixed(2),
+      overdue_amount: data
+        .filter((d) => d.is_overdue)
+        .reduce((sum, d) => sum + parseFloat(d.pending_amount), 0)
+        .toFixed(2),
+      overdue_count: data.filter((d) => d.is_overdue).length,
     };
 
     // Información de paginación
@@ -1205,7 +1314,9 @@ export class AutomatedCollectionService
   /**
    * Obtiene los detalles de una cobranza automática específica
    */
-  async getAutomatedCollectionById(orderId: number): Promise<AutomatedCollectionResponseDto> {
+  async getAutomatedCollectionById(
+    orderId: number,
+  ): Promise<AutomatedCollectionResponseDto> {
     const order = await this.collection_orders.findFirst({
       where: {
         collection_order_id: orderId,
@@ -1242,18 +1353,26 @@ export class AutomatedCollectionService
     }
 
     const today = new Date();
-    const dueDate = (order as any).customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
+    const dueDate = (order as any).customer_subscription
+      ?.subscription_cycle?.[0]?.payment_due_date;
     const isOverdue = dueDate ? dueDate < today : false;
-    const daysOverdue = isOverdue && dueDate
-      ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
+    const daysOverdue =
+      isOverdue && dueDate
+        ? Math.floor(
+            (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          )
+        : 0;
 
-    const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+    const pendingAmount =
+      parseFloat(order.total_amount.toString()) -
+      parseFloat(order.paid_amount.toString());
 
     const result: AutomatedCollectionResponseDto = {
       order_id: (order as any).collection_order_id ?? (order as any).order_id,
-      order_date: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
-      due_date: dueDate ? formatBATimestampISO(dueDate as any) : null,
+      order_date: order.order_date
+        ? formatBATimestampISO(order.order_date as any)
+        : '',
+      due_date: dueDate ? formatBATimestampISO(dueDate) : null,
       total_amount: order.total_amount.toString(),
       paid_amount: order.paid_amount.toString(),
       pending_amount: pendingAmount.toFixed(2),
@@ -1269,30 +1388,59 @@ export class AutomatedCollectionService
         phone: (order as any).customer.phone,
         email: (order as any).customer.email,
         address: (order as any).customer.address,
-        zone: (order as any).customer.zone ? {
-          zone_id: (order as any).customer.zone.zone_id,
-          name: (order as any).customer.zone.name,
-        } : null,
+        zone: (order as any).customer.zone
+          ? {
+              zone_id: (order as any).customer.zone.zone_id,
+              name: (order as any).customer.zone.name,
+            }
+          : null,
       },
-      subscription_info: (order as any).customer_subscription ? {
-        subscription_id: (order as any).customer_subscription.subscription_id,
-        subscription_plan: {
-          subscription_plan_id: (order as any).customer_subscription.subscription_plan.subscription_plan_id,
-          name: (order as any).customer_subscription.subscription_plan.name,
-          price: (order as any).customer_subscription.subscription_plan.price.toString(),
-          billing_frequency: (order as any).customer_subscription.subscription_plan.billing_frequency,
-        },
-        cycle_info: (order as any).customer_subscription.subscription_cycle?.[0] ? {
-          cycle_id: (order as any).customer_subscription.subscription_cycle[0].cycle_id,
-          cycle_number: (order as any).customer_subscription.subscription_cycle[0].cycle_number,
-          start_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].start_date),
-          end_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].end_date),
-          due_date: formatBATimestampISO((order as any).customer_subscription.subscription_cycle[0].payment_due_date),
-          pending_balance: (order as any).customer_subscription.subscription_cycle[0].pending_balance.toString(),
-        } : null,
-      } : null,
-      created_at: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
-      updated_at: order.order_date ? formatBATimestampISO(order.order_date as any) : '',
+      subscription_info: (order as any).customer_subscription
+        ? {
+            subscription_id: (order as any).customer_subscription
+              .subscription_id,
+            subscription_plan: {
+              subscription_plan_id: (order as any).customer_subscription
+                .subscription_plan.subscription_plan_id,
+              name: (order as any).customer_subscription.subscription_plan.name,
+              price: (
+                order as any
+              ).customer_subscription.subscription_plan.price.toString(),
+              billing_frequency: (order as any).customer_subscription
+                .subscription_plan.billing_frequency,
+            },
+            cycle_info: (order as any).customer_subscription
+              .subscription_cycle?.[0]
+              ? {
+                  cycle_id: (order as any).customer_subscription
+                    .subscription_cycle[0].cycle_id,
+                  cycle_number: (order as any).customer_subscription
+                    .subscription_cycle[0].cycle_number,
+                  start_date: formatBATimestampISO(
+                    (order as any).customer_subscription.subscription_cycle[0]
+                      .start_date,
+                  ),
+                  end_date: formatBATimestampISO(
+                    (order as any).customer_subscription.subscription_cycle[0]
+                      .end_date,
+                  ),
+                  due_date: formatBATimestampISO(
+                    (order as any).customer_subscription.subscription_cycle[0]
+                      .payment_due_date,
+                  ),
+                  pending_balance: (
+                    order as any
+                  ).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+                }
+              : null,
+          }
+        : null,
+      created_at: order.order_date
+        ? formatBATimestampISO(order.order_date as any)
+        : '',
+      updated_at: order.order_date
+        ? formatBATimestampISO(order.order_date as any)
+        : '',
     };
 
     return result;
@@ -1301,7 +1449,9 @@ export class AutomatedCollectionService
   /**
    * Elimina lógicamente una cobranza automática
    */
-  async deleteAutomatedCollection(orderId: number): Promise<DeleteAutomatedCollectionResponseDto> {
+  async deleteAutomatedCollection(
+    orderId: number,
+  ): Promise<DeleteAutomatedCollectionResponseDto> {
     const order = await this.collection_orders.findFirst({
       where: {
         collection_order_id: orderId,
@@ -1322,7 +1472,9 @@ export class AutomatedCollectionService
     // Verificar si tiene pagos
     const hasPaidAmount = parseFloat(order.paid_amount.toString()) > 0;
     if (hasPaidAmount) {
-      throw new Error('No se puede eliminar una cobranza que ya tiene pagos registrados');
+      throw new Error(
+        'No se puede eliminar una cobranza que ya tiene pagos registrados',
+      );
     }
 
     // Eliminar lógicamente (cambiar estado)
@@ -1334,7 +1486,9 @@ export class AutomatedCollectionService
       },
     });
 
-    const pendingAmount = parseFloat(order.total_amount.toString()) - parseFloat(order.paid_amount.toString());
+    const pendingAmount =
+      parseFloat(order.total_amount.toString()) -
+      parseFloat(order.paid_amount.toString());
 
     return {
       success: true,
@@ -1353,7 +1507,9 @@ export class AutomatedCollectionService
   /**
    * Genera un PDF con el reporte de cobranzas automáticas
    */
-  async generatePdfReport(filters: GeneratePdfCollectionsDto): Promise<PdfGenerationResponseDto> {
+  async generatePdfReport(
+    filters: GeneratePdfCollectionsDto,
+  ): Promise<PdfGenerationResponseDto> {
     try {
       // Obtener datos para el reporte
       const filterDto: FilterAutomatedCollectionsDto = {
@@ -1375,7 +1531,10 @@ export class AutomatedCollectionService
       const collectionsData = await this.listAutomatedCollections(filterDto);
 
       // Usar el servicio de generación de PDFs
-      return await this.pdfGeneratorService.generateCollectionReportPdf(filters, collectionsData);
+      return await this.pdfGeneratorService.generateCollectionReportPdf(
+        filters,
+        collectionsData,
+      );
     } catch (error) {
       this.logger.error('Error generando PDF:', error);
       throw new Error(`Error generando PDF: ${error.message}`);
@@ -1385,7 +1544,9 @@ export class AutomatedCollectionService
   /**
    * Genera una hoja de ruta para cobranzas
    */
-  async generateRouteSheet(filters: GenerateRouteSheetDto): Promise<RouteSheetResponseDto> {
+  async generateRouteSheet(
+    filters: GenerateRouteSheetDto,
+  ): Promise<RouteSheetResponseDto> {
     try {
       // Usar el servicio de generación de hojas de ruta
       return await this.routeSheetGeneratorService.generateRouteSheet(filters);

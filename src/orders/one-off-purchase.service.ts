@@ -23,7 +23,11 @@ import {
   mapOneOffHeaderSortFields,
 } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO, formatBAYMD, parseYMD } from '../common/utils/date.utils';
+import {
+  formatBATimestampISO,
+  formatBAYMD,
+  parseYMD,
+} from '../common/utils/date.utils';
 
 @Injectable()
 export class OneOffPurchaseService
@@ -225,16 +229,18 @@ export class OneOffPurchaseService
             paid_amount: new Decimal(0),
             notes: createDto.notes,
             purchase_date: createDto.purchase_date
-              ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
-                  ? parseYMD(createDto.purchase_date.trim())
-                  : new Date(createDto.purchase_date))
+              ? /^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
+                ? parseYMD(createDto.purchase_date.trim())
+                : new Date(createDto.purchase_date)
               : new Date(),
             scheduled_delivery_date:
               createDto.scheduled_delivery_date &&
               createDto.scheduled_delivery_date.trim() !== ''
-                ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.scheduled_delivery_date.trim())
-                    ? parseYMD(createDto.scheduled_delivery_date.trim())
-                    : new Date(createDto.scheduled_delivery_date))
+                ? /^\d{4}-\d{2}-\d{2}$/.test(
+                    createDto.scheduled_delivery_date.trim(),
+                  )
+                  ? parseYMD(createDto.scheduled_delivery_date.trim())
+                  : new Date(createDto.scheduled_delivery_date)
                 : null,
             delivery_time:
               createDto.delivery_time && createDto.delivery_time.trim() !== ''
@@ -315,7 +321,6 @@ export class OneOffPurchaseService
         });
 
         if (!person) {
-
           // Validar que se proporcionen los campos obligatorios para cliente nuevo
           if (!createDto.customer.name) {
             throw new BadRequestException(
@@ -443,8 +448,8 @@ export class OneOffPurchaseService
         const finalPaidAmount = new Decimal(0);
 
         // Validación completada exitosamente
-        
-        // NOTA: Se removió la validación de paid_amount vs total_amount ya que 
+
+        // NOTA: Se removió la validación de paid_amount vs total_amount ya que
         // las órdenes oneOff siempre se crean sin pagos registrados
 
         // Determinar dirección, localidad y zona según requires_delivery
@@ -486,9 +491,9 @@ export class OneOffPurchaseService
               person_id: person.person_id,
               sale_channel_id: createDto.sale_channel_id,
               purchase_date: createDto.purchase_date
-                ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
-                    ? parseYMD(createDto.purchase_date.trim())
-                    : new Date(createDto.purchase_date))
+                ? /^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
+                  ? parseYMD(createDto.purchase_date.trim())
+                  : new Date(createDto.purchase_date)
                 : new Date(),
               total_amount: finalTotalAmount.toString(),
               paid_amount: finalPaidAmount.toString(),
@@ -500,9 +505,11 @@ export class OneOffPurchaseService
               scheduled_delivery_date:
                 createDto.scheduled_delivery_date &&
                 createDto.scheduled_delivery_date.trim() !== ''
-                  ? (/^\d{4}-\d{2}-\d{2}$/.test(createDto.scheduled_delivery_date.trim())
-                      ? parseYMD(createDto.scheduled_delivery_date.trim())
-                      : new Date(createDto.scheduled_delivery_date))
+                  ? /^\d{4}-\d{2}-\d{2}$/.test(
+                      createDto.scheduled_delivery_date.trim(),
+                    )
+                    ? parseYMD(createDto.scheduled_delivery_date.trim())
+                    : new Date(createDto.scheduled_delivery_date)
                   : null,
               delivery_time:
                 createDto.delivery_time && createDto.delivery_time.trim() !== ''
@@ -560,9 +567,7 @@ export class OneOffPurchaseService
               stockMovement,
               prismaTx,
             );
-
           } else if (product && product.is_returnable) {
-
           }
         }
 
@@ -597,13 +602,11 @@ export class OneOffPurchaseService
 
   async findAllOneOff(filters: FilterOneOffPurchasesDto): Promise<any> {
     try {
-      
       // 🆕 NUEVA LÓGICA: Combinar resultados de ambas estructuras
       const [legacyResults, headerResults] = await Promise.all([
         this.findAllLegacyOneOff(filters),
         this.findAllHeaderOneOff(filters),
       ]);
-
 
       // Combinar y ordenar resultados por fecha
       const allOrders = [...legacyResults.data, ...headerResults.data];
@@ -708,8 +711,6 @@ export class OneOffPurchaseService
       where.status = status;
     }
 
-
-
     const personFilter: Prisma.personWhereInput = {};
     if (customerName) {
       personFilter.name = { contains: customerName, mode: 'insensitive' };
@@ -741,8 +742,16 @@ export class OneOffPurchaseService
         { person: { name: { contains: search, mode: 'insensitive' } } },
         { product: { description: { contains: search, mode: 'insensitive' } } },
         { person: { phone: { contains: search, mode: 'insensitive' } } },
-        { person: { secondary_phone: { contains: search, mode: 'insensitive' } } },
-        { person: { additional_phones: { contains: search, mode: 'insensitive' } } },
+        {
+          person: {
+            secondary_phone: { contains: search, mode: 'insensitive' },
+          },
+        },
+        {
+          person: {
+            additional_phones: { contains: search, mode: 'insensitive' },
+          },
+        },
       ];
       if (!isNaN(searchNum)) {
         orConditions.push({ purchase_id: searchNum });
@@ -755,24 +764,32 @@ export class OneOffPurchaseService
     }
 
     // Validación de rangos de fechas de compra
-      if (purchaseDateFrom && purchaseDateTo) {
-        const rawFrom = String(purchaseDateFrom).trim();
-        const rawTo = String(purchaseDateTo).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(purchaseDateFrom);
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(purchaseDateTo);
-        if (toDate < fromDate) {
-          throw new BadRequestException(
-            'La fecha de compra "hasta" no puede ser menor que la fecha de compra "desde"',
-          );
-        }
+    if (purchaseDateFrom && purchaseDateTo) {
+      const rawFrom = String(purchaseDateFrom).trim();
+      const rawTo = String(purchaseDateTo).trim();
+      const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+        ? parseYMD(rawFrom)
+        : new Date(purchaseDateFrom);
+      const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+        ? parseYMD(rawTo)
+        : new Date(purchaseDateTo);
+      if (toDate < fromDate) {
+        throw new BadRequestException(
+          'La fecha de compra "hasta" no puede ser menor que la fecha de compra "desde"',
+        );
       }
+    }
 
     // Validación de rangos de fechas de entrega
     if (deliveryDateFrom && deliveryDateTo) {
       const rawFrom = String(deliveryDateFrom).trim();
       const rawTo = String(deliveryDateTo).trim();
-      const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(deliveryDateFrom);
-      const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(deliveryDateTo);
+      const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+        ? parseYMD(rawFrom)
+        : new Date(deliveryDateFrom);
+      const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+        ? parseYMD(rawTo)
+        : new Date(deliveryDateTo);
       if (toDate < fromDate) {
         throw new BadRequestException(
           'La fecha de entrega "hasta" no puede ser menor que la fecha de entrega "desde"',
@@ -785,20 +802,23 @@ export class OneOffPurchaseService
 
       if (purchaseDateFrom) {
         const rawFrom = String(purchaseDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(purchaseDateFrom);
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+          ? parseYMD(rawFrom)
+          : new Date(purchaseDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.purchase_date.gte = fromDate;
       }
       if (purchaseDateTo) {
         const rawTo = String(purchaseDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(purchaseDateTo);
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+          ? parseYMD(rawTo)
+          : new Date(purchaseDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.purchase_date.lte = toDate;
       }
 
       // Log para debugging del filtrado de fechas
       if (purchaseDateFrom && purchaseDateTo) {
-
       }
     }
 
@@ -807,13 +827,17 @@ export class OneOffPurchaseService
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
         const rawFrom = String(deliveryDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom) ? parseYMD(rawFrom) : new Date(deliveryDateFrom);
+        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+          ? parseYMD(rawFrom)
+          : new Date(deliveryDateFrom);
         fromDate.setHours(0, 0, 0, 0);
         where.scheduled_delivery_date.gte = fromDate;
       }
       if (deliveryDateTo) {
         const rawTo = String(deliveryDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? parseYMD(rawTo) : new Date(deliveryDateTo);
+        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
+          ? parseYMD(rawTo)
+          : new Date(deliveryDateTo);
         toDate.setHours(23, 59, 59, 999);
         where.scheduled_delivery_date.lte = toDate;
       }
@@ -1134,10 +1158,10 @@ export class OneOffPurchaseService
         const isHeaderStructure = !!headerPurchase;
 
         // Obtener cantidad actual según estructura
-        const currentQuantity = isLegacyStructure 
-          ? legacyPurchase.quantity 
-          : (headerPurchase.purchase_items[0]?.quantity || 0);
-          
+        const currentQuantity = isLegacyStructure
+          ? legacyPurchase.quantity
+          : headerPurchase.purchase_items[0]?.quantity || 0;
+
         let newQuantity = currentQuantity;
         let newTotalAmount =
           existingPurchase.total_amount || headerPurchase?.total_amount;
@@ -1246,9 +1270,11 @@ export class OneOffPurchaseService
             scheduled_delivery_date:
               updateDto.scheduled_delivery_date &&
               updateDto.scheduled_delivery_date.trim() !== ''
-                ? (/^\d{4}-\d{2}-\d{2}$/.test(updateDto.scheduled_delivery_date.trim())
-                    ? parseYMD(updateDto.scheduled_delivery_date.trim())
-                    : new Date(updateDto.scheduled_delivery_date))
+                ? /^\d{4}-\d{2}-\d{2}$/.test(
+                    updateDto.scheduled_delivery_date.trim(),
+                  )
+                  ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                  : new Date(updateDto.scheduled_delivery_date)
                 : null,
           }),
           ...(updateDto.delivery_time !== undefined && {
@@ -1322,9 +1348,11 @@ export class OneOffPurchaseService
                 scheduled_delivery_date:
                   updateDto.scheduled_delivery_date &&
                   updateDto.scheduled_delivery_date.trim() !== ''
-                    ? (/^\d{4}-\d{2}-\d{2}$/.test(updateDto.scheduled_delivery_date.trim())
-                        ? parseYMD(updateDto.scheduled_delivery_date.trim())
-                        : new Date(updateDto.scheduled_delivery_date))
+                    ? /^\d{4}-\d{2}-\d{2}$/.test(
+                        updateDto.scheduled_delivery_date.trim(),
+                      )
+                      ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                      : new Date(updateDto.scheduled_delivery_date)
                     : null,
               }),
               ...(updateDto.delivery_time !== undefined && {
@@ -1681,7 +1709,7 @@ export class OneOffPurchaseService
         payment_id: payment.transaction_id || payment.payment_id,
         amount: (payment.transaction_amount || payment.amount || 0).toString(),
         payment_date: formatBATimestampISO(
-          payment.transaction_date || new Date()
+          payment.transaction_date || new Date(),
         ),
         payment_method:
           payment.payment_method?.description ||
@@ -1712,8 +1740,9 @@ export class OneOffPurchaseService
       purchase_id: basePurchase.purchase_id,
       person_id: basePurchase.person_id,
       purchase_date: formatBATimestampISO(basePurchase.purchase_date),
-      scheduled_delivery_date:
-        basePurchase.scheduled_delivery_date ? formatBATimestampISO(basePurchase.scheduled_delivery_date) : undefined,
+      scheduled_delivery_date: basePurchase.scheduled_delivery_date
+        ? formatBATimestampISO(basePurchase.scheduled_delivery_date)
+        : undefined,
       delivery_time: basePurchase.delivery_time,
       total_amount: totalAmount.toString(),
       paid_amount: basePurchase.paid_amount.toString(),
@@ -1823,7 +1852,7 @@ export class OneOffPurchaseService
         payment.payment_id,
       amount: (payment.transaction_amount || payment.amount || 0).toString(),
       payment_date: formatBATimestampISO(
-        payment.transaction_date || payment.payment_date || new Date()
+        payment.transaction_date || payment.payment_date || new Date(),
       ),
       payment_method:
         payment.payment_method?.description ||
@@ -1843,7 +1872,9 @@ export class OneOffPurchaseService
       purchase_type: 'LEGACY', // 🆕 Identificar el tipo de estructura
       person_id: purchase.person_id,
       purchase_date: formatBATimestampISO(purchase.purchase_date),
-      scheduled_delivery_date: purchase.scheduled_delivery_date ? formatBATimestampISO(purchase.scheduled_delivery_date) : undefined,
+      scheduled_delivery_date: purchase.scheduled_delivery_date
+        ? formatBATimestampISO(purchase.scheduled_delivery_date)
+        : undefined,
       delivery_time: purchase.delivery_time,
       total_amount: purchase.total_amount.toString(),
       paid_amount: purchase.paid_amount.toString(),
@@ -1928,9 +1959,7 @@ export class OneOffPurchaseService
           payment.transaction_id ||
           payment.payment_id,
         amount: (payment.amount || payment.transaction_amount || 0).toString(),
-        payment_date: formatBATimestampISO(
-          payment.payment_date || new Date()
-        ),
+        payment_date: formatBATimestampISO(payment.payment_date || new Date()),
         payment_method:
           payment.payment_method?.description ||
           payment.payment_method ||
@@ -1959,7 +1988,7 @@ export class OneOffPurchaseService
             0
           ).toString(),
           payment_date: formatBATimestampISO(
-            payment.transaction_date || new Date()
+            payment.transaction_date || new Date(),
           ),
           payment_method:
             payment.payment_method?.description ||
@@ -1984,8 +2013,9 @@ export class OneOffPurchaseService
       purchase_type: 'HEADER', // 🆕 Identificar el tipo de estructura
       person_id: purchaseHeader.person_id,
       purchase_date: formatBATimestampISO(purchaseHeader.purchase_date),
-      scheduled_delivery_date:
-        purchaseHeader.scheduled_delivery_date ? formatBATimestampISO(purchaseHeader.scheduled_delivery_date) : undefined,
+      scheduled_delivery_date: purchaseHeader.scheduled_delivery_date
+        ? formatBATimestampISO(purchaseHeader.scheduled_delivery_date)
+        : undefined,
       delivery_time: purchaseHeader.delivery_time,
       total_amount: purchaseHeader.total_amount.toString(),
       paid_amount: purchaseHeader.paid_amount.toString(),
@@ -2040,8 +2070,14 @@ export class OneOffPurchaseService
     const prisma = tx || this;
 
     // Para actualizaciones, permitir validaciones parciales
-    const isUpdate = 'status' in dto || 'customer' in dto || 'delivery_address' in dto || 'notes' in dto || 'paid_amount' in dto;
-    const isStatusOnlyUpdate = isUpdate && dto.items === undefined && dto.sale_channel_id === undefined;
+    const isUpdate =
+      'status' in dto ||
+      'customer' in dto ||
+      'delivery_address' in dto ||
+      'notes' in dto ||
+      'paid_amount' in dto;
+    const isStatusOnlyUpdate =
+      isUpdate && dto.items === undefined && dto.sale_channel_id === undefined;
 
     // Validar que hay items (solo requerido para creación o actualizaciones que incluyen items)
     if (!isStatusOnlyUpdate && (!dto.items || dto.items.length === 0)) {
@@ -2168,8 +2204,16 @@ export class OneOffPurchaseService
         searchConditions = [
           { person: { name: { contains: search, mode: 'insensitive' } } },
           { person: { phone: { contains: search, mode: 'insensitive' } } },
-          { person: { secondary_phone: { contains: search, mode: 'insensitive' } } },
-          { person: { additional_phones: { contains: search, mode: 'insensitive' } } },
+          {
+            person: {
+              secondary_phone: { contains: search, mode: 'insensitive' },
+            },
+          },
+          {
+            person: {
+              additional_phones: { contains: search, mode: 'insensitive' },
+            },
+          },
           { notes: { contains: search, mode: 'insensitive' } },
         ];
 
@@ -2188,16 +2232,13 @@ export class OneOffPurchaseService
           deliveryConditions = {
             AND: [
               { delivery_address: { not: null } },
-              { delivery_address: { not: '' } }
-            ]
+              { delivery_address: { not: '' } },
+            ],
           };
         } else {
           // Si no requiere entrega, delivery_address debe ser null o vacío
           deliveryConditions = {
-            OR: [
-              { delivery_address: null },
-              { delivery_address: '' }
-            ]
+            OR: [{ delivery_address: null }, { delivery_address: '' }],
           };
         }
       }
@@ -2243,7 +2284,9 @@ export class OneOffPurchaseService
         where.scheduled_delivery_date = {};
         if (deliveryDateFrom) {
           const rawFrom = String(deliveryDateFrom).trim();
-          where.scheduled_delivery_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
+          where.scheduled_delivery_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(
+            rawFrom,
+          )
             ? parseYMD(rawFrom)
             : new Date(deliveryDateFrom);
         }

@@ -126,7 +126,12 @@ export class CancellationOrderController {
   }
 
   @Get()
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener órdenes de cancelación',
     description:
@@ -206,7 +211,12 @@ export class CancellationOrderController {
   }
 
   @Get('with-products')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener órdenes de cancelación con información de productos',
     description:
@@ -260,7 +270,12 @@ export class CancellationOrderController {
   }
 
   @Get('pending')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener órdenes pendientes',
     description:
@@ -289,7 +304,12 @@ export class CancellationOrderController {
   }
 
   @Get('by-date/:date')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener órdenes por fecha',
     description:
@@ -324,7 +344,12 @@ export class CancellationOrderController {
   }
 
   @Get(':id')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener orden de cancelación por ID',
     description: 'Obtiene una orden de cancelación específica por su ID',
@@ -490,7 +515,12 @@ Cuando el estado de la orden cambia a 'COMPLETED' (equivalente a DELIVERED), se 
   }
 
   @Post(':id/complete')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Completar orden de cancelación',
     description:
@@ -562,7 +592,12 @@ Cuando el estado de la orden cambia a 'COMPLETED' (equivalente a DELIVERED), se 
   }
 
   @Post(':id/mark-failed')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({ summary: 'Marcar orden de cancelación como fallida' })
   @ApiResponse({
     status: 200,

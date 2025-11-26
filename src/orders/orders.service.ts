@@ -179,10 +179,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Determinar payment_status
     let paymentStatus = 'PENDING';
-    
+
     // 🔧 CORRECCIÓN CRÍTICA: Lógica mejorada para pedidos híbridos con cobranzas
-    if (order.order_type === 'HYBRID' && order.notes && 
-        (order.notes.includes('COBRANZA') || order.notes.includes('Ciclo'))) {
+    if (
+      order.order_type === 'HYBRID' &&
+      order.notes &&
+      (order.notes.includes('COBRANZA') || order.notes.includes('Ciclo'))
+    ) {
       // Para pedidos híbridos con cobranzas, usar la lógica basada en montos
       if (totalAmount.equals(0)) {
         // Si no hay monto total, no hay nada que pagar
@@ -220,16 +223,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     // Mapear historial de pagos
-      const payments =
-        order.payment_transaction?.map((payment) => ({
-          payment_id: payment.transaction_id,
-          amount: payment.transaction_amount.toString(),
-          payment_date: formatBATimestampISO(payment.transaction_date as any),
-          payment_method:
-            payment.payment_method?.description || 'No especificado',
-          transaction_reference: payment.receipt_number || undefined,
-          notes: payment.notes || undefined,
-        })) || [];
+    const payments =
+      order.payment_transaction?.map((payment) => ({
+        payment_id: payment.transaction_id,
+        amount: payment.transaction_amount.toString(),
+        payment_date: formatBATimestampISO(payment.transaction_date as any),
+        payment_method:
+          payment.payment_method?.description || 'No especificado',
+        transaction_reference: payment.receipt_number || undefined,
+        notes: payment.notes || undefined,
+      })) || [];
 
     return {
       order_id: order.order_id,
@@ -328,16 +331,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     if (createOrderDto.scheduled_delivery_date) {
       const rawOrderDate = createOrderDto.order_date as any;
       const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
-      const orderDate = typeof rawOrderDate === 'string'
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
+      const orderDate =
+        typeof rawOrderDate === 'string'
+          ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
             ? parseYMD(rawOrderDate.trim())
-            : new Date(rawOrderDate))
-        : new Date(rawOrderDate);
-      const deliveryDate = typeof rawDeliveryDate === 'string'
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
+            : new Date(rawOrderDate)
+          : new Date(rawOrderDate);
+      const deliveryDate =
+        typeof rawDeliveryDate === 'string'
+          ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
             ? parseYMD(rawDeliveryDate.trim())
-            : new Date(rawDeliveryDate))
-        : new Date(rawDeliveryDate);
+            : new Date(rawDeliveryDate)
+          : new Date(rawDeliveryDate);
 
       // Para pedidos híbridos, permitir fecha de inicio igual a fecha de entrega
       if (createOrderDto.order_type === 'HYBRID') {
@@ -397,16 +402,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     if (createOrderDto.scheduled_delivery_date) {
       const rawOrderDate = createOrderDto.order_date as any;
       const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
-      const orderDate = typeof rawOrderDate === 'string'
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
+      const orderDate =
+        typeof rawOrderDate === 'string'
+          ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
             ? parseYMD(rawOrderDate.trim())
-            : new Date(rawOrderDate))
-        : new Date(rawOrderDate);
-      const deliveryDate = typeof rawDeliveryDate === 'string'
-        ? (/^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
+            : new Date(rawOrderDate)
+          : new Date(rawOrderDate);
+      const deliveryDate =
+        typeof rawDeliveryDate === 'string'
+          ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
             ? parseYMD(rawDeliveryDate.trim())
-            : new Date(rawDeliveryDate))
-        : new Date(rawDeliveryDate);
+            : new Date(rawDeliveryDate)
+          : new Date(rawDeliveryDate);
 
       // Permitir fechas pasadas solo para SUPERADMIN
       const allowPastDates = user?.role === Role.SUPERADMIN;
@@ -515,8 +522,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             });
 
-
-
           let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
           let itemSubtotal = new Decimal(0);
           let usedPriceListId: number | null = null;
@@ -558,7 +563,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
             // DEBUG: Log para entender el cálculo
 
-
             // Calcular precio basado en cuotas
             if (productQuota.covered_by_subscription > 0) {
               // Producto está en el plan de suscripción
@@ -592,17 +596,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 itemSubtotal = additionalPrice.mul(
                   productQuota.additional_quantity,
                 );
-
-
               } else {
                 // Todo está cubierto por suscripción
                 itemPrice = new Decimal(0);
                 itemSubtotal = new Decimal(0);
-
               }
             } else {
               // Todo el producto es adicional (no está en el plan o no hay créditos)
-
 
               if (itemDto.price_list_id) {
                 const customPriceItem =
@@ -616,7 +616,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 if (customPriceItem) {
                   itemPrice = new Decimal(customPriceItem.unit_price);
                   usedPriceListId = itemDto.price_list_id;
-
                 } else {
                   throw new BadRequestException(
                     `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`,
@@ -640,14 +639,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 }
               }
               itemSubtotal = itemPrice.mul(itemDto.quantity);
-
             }
 
             // NUEVO: Agregar el ítem al array de creación después de procesar suscripción
 
             // 🆕 IMPORTANTE: Actualizar el total antes de continuar
             calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
-
 
             orderItemsDataForCreation.push({
               product_id: itemDto.product_id,
@@ -657,8 +654,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               price_list_id: usedPriceListId,
               notes: itemDto.notes,
             });
-
-
 
             // 🆕 IMPORTANTE: Continuar al siguiente producto después de procesar suscripción
             continue;
@@ -679,8 +674,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             }
             itemSubtotal = itemPrice.mul(itemDto.quantity);
-
-
           } else {
             // ✅ PRIORIDAD 4: Lista de precios estándar → último recurso
             const standardPriceItem = await prismaTx.price_list_item.findFirst({
@@ -711,8 +704,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           });
         }
 
-
-
         // 🆕 NUEVO: Aplicar recargo por mora del 20% si corresponde
         let lateFeeAmount = new Decimal(0);
         if (
@@ -725,7 +716,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           );
           lateFeeAmount = calculatedTotalFromDB.mul(lateFeePercentage).div(100);
           calculatedTotalFromDB = calculatedTotalFromDB.plus(lateFeeAmount);
-
         }
 
         let finalPaidAmount: Decimal;
@@ -804,7 +794,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               if (productQuota && productQuota.covered_by_subscription > 0) {
                 // Producto está en suscripción - solo validar la cantidad adicional
                 quantityToValidate = productQuota.additional_quantity;
-
               }
             }
 
@@ -822,7 +811,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
               );
             }
-
           } else {
           }
         }
@@ -832,20 +820,23 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             ...restOfDto,
             order_date:
               restOfDto.order_date && typeof restOfDto.order_date === 'string'
-                ? (/^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())
-                    ? parseYMD(restOfDto.order_date.trim())
-                    : new Date(restOfDto.order_date))
+                ? /^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())
+                  ? parseYMD(restOfDto.order_date.trim())
+                  : new Date(restOfDto.order_date)
                 : (restOfDto.order_date as any) instanceof Date
-                ? (restOfDto.order_date as any)
-                : new Date(),
+                  ? (restOfDto.order_date as any)
+                  : new Date(),
             scheduled_delivery_date:
-              restOfDto.scheduled_delivery_date && typeof restOfDto.scheduled_delivery_date === 'string'
-                ? (/^\d{4}-\d{2}-\d{2}$/.test(restOfDto.scheduled_delivery_date.trim())
-                    ? parseYMD(restOfDto.scheduled_delivery_date.trim())
-                    : new Date(restOfDto.scheduled_delivery_date))
+              restOfDto.scheduled_delivery_date &&
+              typeof restOfDto.scheduled_delivery_date === 'string'
+                ? /^\d{4}-\d{2}-\d{2}$/.test(
+                    restOfDto.scheduled_delivery_date.trim(),
+                  )
+                  ? parseYMD(restOfDto.scheduled_delivery_date.trim())
+                  : new Date(restOfDto.scheduled_delivery_date)
                 : (restOfDto.scheduled_delivery_date as any) instanceof Date
-                ? (restOfDto.scheduled_delivery_date as any)
-                : undefined,
+                  ? (restOfDto.scheduled_delivery_date as any)
+                  : undefined,
             total_amount: calculatedTotalFromDB.toString(),
             paid_amount: finalPaidAmount.toString(),
             status:
@@ -903,7 +894,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             if (productQuota && productQuota.covered_by_subscription > 0) {
               // Para órdenes SUBSCRIPTION puras, solo la cantidad adicional afecta el stock
               quantityForStockMovement = productQuota.additional_quantity;
-
             }
           }
           // Para órdenes HYBRID, ONE_OFF, o cualquier otra, SIEMPRE restar toda la cantidad
@@ -1266,7 +1256,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (key === 'order_date' || key === 'scheduled_delivery_date') {
           const rawValue = (orderHeaderDataToUpdateInput as any)[key];
           // Permitir null para fecha de entrega programada
-          if (key === 'scheduled_delivery_date' && (rawValue === null || rawValue === '')) {
+          if (
+            key === 'scheduled_delivery_date' &&
+            (rawValue === null || rawValue === '')
+          ) {
             (dataToUpdate as any)[key] = null;
           } else if (typeof rawValue === 'string') {
             const trimmed = rawValue.trim();
@@ -1294,7 +1287,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             (dataToUpdate as any)[key] = parsed;
           }
         } else {
-          (dataToUpdate as any)[key] = (orderHeaderDataToUpdateInput as any)[key];
+          (dataToUpdate as any)[key] = (orderHeaderDataToUpdateInput as any)[
+            key
+          ];
         }
       }
     }
@@ -1745,8 +1740,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           orderToDelete.status !== 'DELIVERED' &&
           orderToDelete.status !== 'RETIRADO'
         ) {
-
-
           // Obtener información del plan de suscripción para determinar qué productos afectan los créditos
           const subscription = await tx.customer_subscription.findUnique({
             where: {
@@ -1774,8 +1767,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               planProductIds.includes(item.product_id),
             );
 
-
-
             if (subscriptionItems.length > 0) {
               const itemsForCreditReset = subscriptionItems.map((item) => ({
                 product_id: item.product_id,
@@ -1787,7 +1778,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 itemsForCreditReset,
                 tx,
               );
-
             } else {
             }
           } else {
@@ -1797,8 +1787,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         for (const item of orderItems) {
           if (item.quantity > 0) {
-
-
             // 🔧 CORRECCIÓN: Determinar la cantidad correcta a devolver al stock
             const quantityToReturn = item.quantity;
 
@@ -1829,8 +1817,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 },
                 tx,
               );
-
-
             }
           }
         }
@@ -2262,7 +2248,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           `Ciclo: ${cycleId}`,
           `Monto a cobrar: $${pendingBalance.toString()}`,
           cycle.payment_due_date
-            ? `Vencimiento: ${formatBATimestampISO(cycle.payment_due_date as any).slice(0,10)}`
+            ? `Vencimiento: ${formatBATimestampISO(cycle.payment_due_date as any).slice(0, 10)}`
             : '',
           notes ? `Notas adicionales: ${notes}` : '',
         ]
@@ -2375,9 +2361,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           if (isDownPaymentItem) {
             newDownPaymentItems.push(item);
             // For subscription items, the price is 0 (already paid in subscription)
-            const itemSubtotal = new Decimal(0).mul(
-              new Decimal(item.quantity),
-            );
+            const itemSubtotal = new Decimal(0).mul(new Decimal(item.quantity));
             newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
           }
         }
@@ -2391,16 +2375,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           if (isDownPaymentItem) {
             newDownPaymentItems.push(item);
             // Para items de suscripción, el precio es 0 (ya pagado en suscripción)
-            let itemPrice = new Decimal(0);
+            const itemPrice = new Decimal(0);
             const itemSubtotal = itemPrice.mul(new Decimal(item.quantity));
             newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
           }
         }
       }
 
-
       // 5. Calcular el ajuste de créditos
-      const creditAdjustment = originalDownPaymentTotal.minus(newDownPaymentTotal);
+      const creditAdjustment =
+        originalDownPaymentTotal.minus(newDownPaymentTotal);
 
       this.logger.log(
         `⚖️ Ajuste de créditos calculado: ${creditAdjustment.toString()}`,
@@ -2514,26 +2498,29 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           recordId: transactionId,
           operationType: 'UPDATE',
           oldValues: {
-            transaction_amount: currentTransaction.transaction_amount.toString(),
+            transaction_amount:
+              currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
-            transaction_date: formatBATimestampISO(currentTransaction.transaction_date as any),
+            transaction_date: formatBATimestampISO(
+              currentTransaction.transaction_date as any,
+            ),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,
           },
           newValues: {
-              transaction_amount: updateDto.amount?.toString(),
-              payment_method_id: updateDto.payment_method,
-              transaction_date: updateDto.transaction_date,
-              receipt_number: updateDto.reference,
-              notes: updateDto.notes,
-            },
+            transaction_amount: updateDto.amount?.toString(),
+            payment_method_id: updateDto.payment_method,
+            transaction_date: updateDto.transaction_date,
+            receipt_number: updateDto.reference,
+            notes: updateDto.notes,
+          },
           userId,
           reason: `Actualización de transacción de pago`,
         });
 
         // Preparar datos de actualización
         const updateData: any = {};
-        
+
         if (updateDto.amount !== undefined) {
           const newAmount = new Decimal(updateDto.amount);
           if (newAmount.isNegative() || newAmount.isZero()) {
@@ -2567,8 +2554,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           updateData.notes = updateDto.notes;
         }
 
-
-
         // Actualizar la transacción
         const updatedTransaction = await tx.payment_transaction.update({
           where: { transaction_id: transactionId },
@@ -2586,7 +2571,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           } else if (
             currentTransaction.document_number?.startsWith('ONE-OFF-')
           ) {
-            const idStr = currentTransaction.document_number.replace('ONE-OFF-', '');
+            const idStr = currentTransaction.document_number.replace(
+              'ONE-OFF-',
+              '',
+            );
             const purchaseId = parseInt(idStr);
             if (!isNaN(purchaseId)) {
               await this.recalculateOneOffBalance(purchaseId, tx);
@@ -2601,7 +2589,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           data: {
             transaction_id: updatedTransaction.transaction_id,
             amount: updatedTransaction.transaction_amount.toString(),
-            payment_date: formatBATimestampISO(updatedTransaction.transaction_date as any),
+            payment_date: formatBATimestampISO(
+              updatedTransaction.transaction_date as any,
+            ),
             reference: updatedTransaction.receipt_number,
             notes: updatedTransaction.notes,
           },
@@ -2660,9 +2650,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           recordId: transactionId,
           operationType: 'DELETE',
           oldValues: {
-            transaction_amount: currentTransaction.transaction_amount.toString(),
+            transaction_amount:
+              currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
-            transaction_date: formatBATimestampISO(currentTransaction.transaction_date as any),
+            transaction_date: formatBATimestampISO(
+              currentTransaction.transaction_date as any,
+            ),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,
           },
@@ -2683,10 +2676,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             currentTransaction.customer_id,
             tx,
           );
-        } else if (
-          currentTransaction.document_number?.startsWith('ONE-OFF-')
-        ) {
-          const idStr = currentTransaction.document_number.replace('ONE-OFF-', '');
+        } else if (currentTransaction.document_number?.startsWith('ONE-OFF-')) {
+          const idStr = currentTransaction.document_number.replace(
+            'ONE-OFF-',
+            '',
+          );
           const purchaseId = parseInt(idStr);
           if (!isNaN(purchaseId)) {
             await this.recalculateOneOffBalance(purchaseId, tx);
@@ -2764,7 +2758,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     // Validar que la orden no esté en estado finalizado o cancelado
-    if (transaction.order_header && ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+    if (
+      transaction.order_header &&
+      ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(
+        transaction.order_header.status,
+      )
+    ) {
       throw new BadRequestException(
         'No se pueden editar transacciones de órdenes ya finalizadas, canceladas o reembolsadas.',
       );
@@ -2802,7 +2801,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     // Sin límite de antigüedad para eliminar transacciones
 
     // Validar que la orden no esté en estado finalizado o cancelado
-    if (transaction.order_header && ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(transaction.order_header.status)) {
+    if (
+      transaction.order_header &&
+      ['DELIVERED', 'RETIRADO', 'CANCELLED', 'REFUNDED'].includes(
+        transaction.order_header.status,
+      )
+    ) {
       throw new BadRequestException(
         'No se pueden eliminar transacciones de órdenes ya finalizadas, canceladas o reembolsadas.',
       );
@@ -2814,7 +2818,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         where: { order_id: transaction.order_id },
       });
 
-      if (orderTransactions === 1 && transaction.order_header?.payment_status === 'PAID') {
+      if (
+        orderTransactions === 1 &&
+        transaction.order_header?.payment_status === 'PAID'
+      ) {
         throw new BadRequestException(
           'No se puede eliminar la única transacción de una orden completamente pagada.',
         );
@@ -2839,7 +2846,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Calcular el total pagado
     const totalPaid = transactions.reduce(
-      (sum, transaction) => sum.plus(new Decimal(transaction.transaction_amount)),
+      (sum, transaction) =>
+        sum.plus(new Decimal(transaction.transaction_amount)),
       new Decimal(0),
     );
 
@@ -2851,7 +2859,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     if (!order) return;
 
     const totalAmount = new Decimal(order.total_amount);
-    
+
     // Determinar el estado de pago
     let paymentStatus = 'PENDING';
     if (totalPaid.equals(0)) {
@@ -2898,7 +2906,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const totalAmount = new Decimal(header.total_amount);
       let paymentStatus = 'PENDING';
       if (totalPaid.equals(0)) paymentStatus = 'PENDING';
-      else if (totalPaid.greaterThanOrEqualTo(totalAmount)) paymentStatus = 'PAID';
+      else if (totalPaid.greaterThanOrEqualTo(totalAmount))
+        paymentStatus = 'PAID';
       else paymentStatus = 'PARTIAL';
 
       await tx.one_off_purchase_header.update({

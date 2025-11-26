@@ -274,8 +274,9 @@ export class CancellationOrderService extends PrismaClient {
 
     // 🆕 LÓGICA DE ELIMINACIÓN DE COMODATOS
     // Si el estado cambia a COMPLETED (equivalente a DELIVERED), eliminar comodatos asociados
-    const isChangingToCompleted = dto.status === CancellationOrderStatus.COMPLETED && 
-                                  existingOrder.status !== CancellationOrderStatus.COMPLETED;
+    const isChangingToCompleted =
+      dto.status === CancellationOrderStatus.COMPLETED &&
+      existingOrder.status !== CancellationOrderStatus.COMPLETED;
 
     const updatedOrder = await prisma.cancellation_order.update({
       where: { cancellation_order_id: id },
@@ -301,7 +302,10 @@ export class CancellationOrderService extends PrismaClient {
 
     // Eliminar comodatos asociados a la suscripción cuando la orden se marca como completada
     if (isChangingToCompleted) {
-      await this.deleteComodatosForSubscription(existingOrder.subscription_id, prisma);
+      await this.deleteComodatosForSubscription(
+        existingOrder.subscription_id,
+        prisma,
+      );
     }
 
     this.logger.log(`Updated cancellation order ${id}`);
@@ -341,8 +345,8 @@ export class CancellationOrderService extends PrismaClient {
 
       if (activeComodatos.length > 0) {
         // Marcar comodatos como devueltos y desactivarlos
-        const comodatoIds = activeComodatos.map(c => c.comodato_id);
-        
+        const comodatoIds = activeComodatos.map((c) => c.comodato_id);
+
         await prisma.comodato.updateMany({
           where: {
             comodato_id: {
@@ -353,12 +357,13 @@ export class CancellationOrderService extends PrismaClient {
             status: 'RETURNED',
             return_date: new Date(),
             is_active: false,
-            notes: 'Comodato eliminado automáticamente por orden de cancelación completada',
+            notes:
+              'Comodato eliminado automáticamente por orden de cancelación completada',
           },
         });
 
         this.logger.log(
-          `Eliminados ${activeComodatos.length} comodatos para la suscripción ${subscriptionId}: ${activeComodatos.map(c => `${c.product.description} (Cliente: ${c.person.name})`).join(', ')}`,
+          `Eliminados ${activeComodatos.length} comodatos para la suscripción ${subscriptionId}: ${activeComodatos.map((c) => `${c.product.description} (Cliente: ${c.person.name})`).join(', ')}`,
         );
       } else {
         this.logger.log(

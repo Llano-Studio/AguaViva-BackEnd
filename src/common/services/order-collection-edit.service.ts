@@ -143,8 +143,14 @@ export class OrderCollectionEditService
 
       // Crear nota de cobranza
       const y = String(collectionData.payment_due_date.getFullYear());
-      const m = String(collectionData.payment_due_date.getMonth() + 1).padStart(2, '0');
-      const d = String(collectionData.payment_due_date.getDate()).padStart(2, '0');
+      const m = String(collectionData.payment_due_date.getMonth() + 1).padStart(
+        2,
+        '0',
+      );
+      const d = String(collectionData.payment_due_date.getDate()).padStart(
+        2,
+        '0',
+      );
       const collectionNote = `COBRANZA AGREGADA: Suscripción ${collectionData.subscription_plan_name} - Ciclo ${collectionData.cycle_id} - Monto pendiente: $${collectionData.pending_balance} - Vencimiento: ${y}-${m}-${d}`;
 
       const updatedNotes = existingOrder.notes

@@ -3,8 +3,14 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBATimestampISO, formatBAHMS } from '../utils/date.utils';
-import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
+import {
+  formatBAYMD,
+  formatBAHMS,
+} from '../utils/date.utils';
+import {
+  GeneratePdfCollectionsDto,
+  PdfGenerationResponseDto,
+} from '../../orders/dto/generate-pdf-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 
 export interface PdfGenerationOptions {
@@ -167,7 +173,6 @@ export interface CollectionRouteSheetPdfData {
     payment_method?: string;
     subscription_notes?: string;
     payment_due_date: string;
-    all_due_dates?: string[];
     cycle_period: string;
     subscription_plan: string;
     payment_status: string;
@@ -188,18 +193,18 @@ export interface CollectionRouteSheetPdfData {
 export class PdfGeneratorService {
   // Configuración de colores para impresión en blanco y negro
   private readonly colors = {
-    primary: '#000000',        // Negro sólido para encabezados
-    secondary: '#333333',      // Gris oscuro
-    bgPrimary: '#F5F5F5',      // Gris muy claro para fondos alternados
-    bgSecondary: '#E0E0E0',    // Gris claro
-    bgWhite: '#FFFFFF',        // Blanco
-    textPrimary: '#000000',    // Negro para texto principal
-    textWhite: '#FFFFFF',      // Blanco para texto sobre fondos oscuros
-    textAccent: '#000000',     // Negro para acentos
-    borderColor: '#CCCCCC',    // Gris medio para bordes
-    successColor: '#DDDDDD',   // Gris claro (reemplaza verde)
-    errorColor: '#999999',     // Gris medio (reemplaza rojo)
-    warningColor: '#BBBBBB',   // Gris claro (reemplaza amarillo)
+    primary: '#000000', // Negro sólido para encabezados
+    secondary: '#333333', // Gris oscuro
+    bgPrimary: '#F5F5F5', // Gris muy claro para fondos alternados
+    bgSecondary: '#E0E0E0', // Gris claro
+    bgWhite: '#FFFFFF', // Blanco
+    textPrimary: '#000000', // Negro para texto principal
+    textWhite: '#FFFFFF', // Blanco para texto sobre fondos oscuros
+    textAccent: '#000000', // Negro para acentos
+    borderColor: '#CCCCCC', // Gris medio para bordes
+    successColor: '#DDDDDD', // Gris claro (reemplaza verde)
+    errorColor: '#999999', // Gris medio (reemplaza rojo)
+    warningColor: '#BBBBBB', // Gris claro (reemplaza amarillo)
   };
 
   constructor(private readonly tempFileManager: TempFileManagerService) {}
@@ -211,10 +216,11 @@ export class PdfGeneratorService {
    */
   async generateCollectionReportPdf(
     filters: GeneratePdfCollectionsDto,
-    collectionsData: AutomatedCollectionListResponseDto
+    collectionsData: AutomatedCollectionListResponseDto,
   ): Promise<PdfGenerationResponseDto> {
     try {
-      const fileName = this.tempFileManager.generateUniqueFileName('collections-report');
+      const fileName =
+        this.tempFileManager.generateUniqueFileName('collections-report');
       const filePath = this.tempFileManager.getTempFilePath(fileName);
 
       const doc = new PDFDocument({ margin: 25 });
@@ -256,10 +262,12 @@ export class PdfGeneratorService {
   private generateCollectionReportContent(
     doc: PDFKit.PDFDocument,
     filters: GeneratePdfCollectionsDto,
-    collectionsData: AutomatedCollectionListResponseDto
+    collectionsData: AutomatedCollectionListResponseDto,
   ): void {
     // Título del reporte
-    doc.fontSize(20).text('Reporte de Cobranzas Automáticas', { align: 'center' });
+    doc
+      .fontSize(20)
+      .text('Reporte de Cobranzas Automáticas', { align: 'center' });
     doc.moveDown();
 
     // Información del reporte
@@ -270,15 +278,19 @@ export class PdfGeneratorService {
       doc.text(`Título: ${filters.reportTitle}`);
       doc.moveDown();
     }
-    
+
     // Resumen
     doc.fontSize(14).text('Resumen del Reporte', { underline: true });
     doc.fontSize(10);
     doc.text(`Total de registros: ${collectionsData.data.length}`);
-    doc.text(`Monto total: $${parseFloat(collectionsData.summary.total_amount).toFixed(2)}`);
+    doc.text(
+      `Monto total: $${parseFloat(collectionsData.summary.total_amount).toFixed(2)}`,
+    );
     doc.text(`Total pendientes: ${collectionsData.summary.total_pending}`);
     doc.text(`Total vencidas: ${collectionsData.summary.overdue_count}`);
-    doc.text(`Monto vencido: $${parseFloat(collectionsData.summary.overdue_amount).toFixed(2)}`);
+    doc.text(
+      `Monto vencido: $${parseFloat(collectionsData.summary.overdue_amount).toFixed(2)}`,
+    );
     doc.moveDown();
 
     // Detalles de las cobranzas
@@ -292,9 +304,15 @@ export class PdfGeneratorService {
         }
 
         doc.text(`${index + 1}. ${collection.customer.name}`);
-        doc.text(`   ID: ${collection.order_id} | Monto: $${collection.total_amount}`);
-        doc.text(`   Estado: ${collection.status} | Pago: ${collection.payment_status}`);
-        doc.text(`   Fecha venc.: ${collection.due_date ? this.safeFormatDateYMDDisplay(collection.due_date) : 'N/A'}`);
+        doc.text(
+          `   ID: ${collection.order_id} | Monto: $${collection.total_amount}`,
+        );
+        doc.text(
+          `   Estado: ${collection.status} | Pago: ${collection.payment_status}`,
+        );
+        doc.text(
+          `   Fecha venc.: ${collection.due_date ? this.safeFormatDateYMDDisplay(collection.due_date) : 'N/A'}`,
+        );
         doc.moveDown(0.5);
       });
     }
@@ -307,19 +325,25 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    console.log('generateROuteSheetPdf:', data)
+    console.log('generateROuteSheetPdf:', data);
     const datePart = data.delivery_date || formatBAYMD(new Date());
     const timeRaw = formatBAHMS(new Date());
-    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
+    const timePart = `${timeRaw.slice(0, 2)}-${timeRaw.slice(2, 4)}-${timeRaw.slice(4, 6)}`;
     const vehicleSeg = data.vehicle?.name
       ? this.slugify(data.vehicle.name)
-      : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
-    const zoneSegRaw = (data.zone_identifiers && data.zone_identifiers.length > 0)
-      ? data.zone_identifiers.join('-')
-      : (data.zones_covered && data.zones_covered.length > 0)
-        ? data.zones_covered.map(z => z.code).join('-')
-        : 'all';
-    const zoneSeg = zoneSegRaw.length > 80 ? `multi-${data.zone_identifiers?.length || data.zones_covered?.length || 0}` : this.slugify(zoneSegRaw);
+      : data.vehicle?.code
+        ? this.slugify(data.vehicle.code)
+        : 'NA';
+    const zoneSegRaw =
+      data.zone_identifiers && data.zone_identifiers.length > 0
+        ? data.zone_identifiers.join('-')
+        : data.zones_covered && data.zones_covered.length > 0
+          ? data.zones_covered.map((z) => z.code).join('-')
+          : 'all';
+    const zoneSeg =
+      zoneSegRaw.length > 80
+        ? `multi-${data.zone_identifiers?.length || data.zones_covered?.length || 0}`
+        : this.slugify(zoneSegRaw);
     const driverSeg = data.driver?.name ? this.slugify(data.driver.name) : 'NA';
     const filename = `hoja-de-ruta_${datePart}-${timePart}_${vehicleSeg}_${zoneSeg}_${driverSeg}.pdf`;
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
@@ -348,11 +372,9 @@ export class PdfGeneratorService {
     routeSheet: RouteSheetPdfData,
     options: PdfGenerationOptions,
   ): Promise<void> {
-    const {
-      includeSignatureField = true,
-      includeProductDetails = true,
-    } = options;
-        console.log('routeSheet data:', routeSheet)
+    const { includeSignatureField = true, includeProductDetails = true } =
+      options;
+    console.log('routeSheet data:', routeSheet);
 
     // Registrar fuentes Poppins
     const fontsPath = join(process.cwd(), 'public', 'fonts');
@@ -360,26 +382,29 @@ export class PdfGeneratorService {
     doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
 
     let currentY = 25;
-    
+
     // Header
     currentY = this.generateHeader(doc, routeSheet, currentY);
-    
+
     // Información del conductor y vehículo
     currentY = this.generateDriverVehicleInfo(doc, routeSheet, currentY);
-    
+
     // Notas de ruta
     currentY = this.generateRouteNotes(doc, routeSheet, currentY);
-    
+
     // Tabla de pedidos (con paginación y footer integrado)
-    currentY = this.generateOrdersTableWithFooters(doc, routeSheet, currentY, includeProductDetails);
-    
+    currentY = this.generateOrdersTableWithFooters(
+      doc,
+      routeSheet,
+      currentY,
+      includeProductDetails,
+    );
+
     // Sección de confirmación
     if (includeSignatureField) {
       this.generateSignatureSection(doc, currentY);
     }
   }
-
-
 
   /**
    * Convierte un string a slug seguro para usar en nombres de archivo
@@ -398,159 +423,207 @@ export class PdfGeneratorService {
   /**
    * Genera el header del PDF
    */
-  private generateHeader(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData, currentY: number): number {
+  private generateHeader(
+    doc: PDFKit.PDFDocument,
+    routeSheet: RouteSheetPdfData,
+    currentY: number,
+  ): number {
     // Línea superior decorativa
     doc.rect(25, currentY, 545, 3).fill(this.colors.primary);
     currentY += 15;
-    
+
     // Título principal
     doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
-    doc.text(`HOJA DE RUTA PEDIDOS #${routeSheet.route_sheet_id}`, 25, currentY);
-    
+    doc.text(
+      `HOJA DE RUTA PEDIDOS #${routeSheet.route_sheet_id}`,
+      25,
+      currentY,
+    );
+
     // Fecha de entrega (más a la derecha, misma línea)
     doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY + 4);
-    
+
     // Zonas cubiertas
     if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
-      const zonesNames = routeSheet.zones_covered.map(z => z.name).join(', ');
+      const zonesNames = routeSheet.zones_covered.map((z) => z.name).join(', ');
       doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
       doc.text(`Zonas: ${zonesNames}`, 25, currentY + 15);
       return currentY + 35;
     }
-    
+
     return currentY + 20;
   }
-
-
 
   /**
    * Genera la información del conductor y vehículo
    */
-  private generateDriverVehicleInfo(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
+  private generateDriverVehicleInfo(
+    doc: PDFKit.PDFDocument,
+    routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData,
+    currentY: number,
+  ): number {
     // Calcular ancho disponible respetando márgenes de 25px
     const availableWidth = 545; // 595 - 25 - 25
     const boxWidth = Math.floor((availableWidth - 25) / 2); // Espacio entre las dos cajas
     const startX = 25;
     const vehicleX = startX + boxWidth + 25; // 25px de separación entre las cajas
-    
+
     // Información del conductor
-    doc.rect(startX, currentY, boxWidth, 49).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc
+      .rect(startX, currentY, boxWidth, 49)
+      .fill(this.colors.bgPrimary)
+      .stroke(this.colors.borderColor);
     doc.rect(startX, currentY, 4, 49).fill(this.colors.primary);
-    
+
     doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
     doc.text('CONDUCTOR', startX + 20, currentY + 3);
-    
+
     doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
     doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 17);
 
     // Información del vehículo
-    doc.rect(vehicleX, currentY, boxWidth, 49).fill(this.colors.bgPrimary).stroke(this.colors.borderColor);
+    doc
+      .rect(vehicleX, currentY, boxWidth, 49)
+      .fill(this.colors.bgPrimary)
+      .stroke(this.colors.borderColor);
     doc.rect(vehicleX, currentY, 4, 49).fill(this.colors.secondary);
-    
+
     doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
     doc.text('VEHÍCULO', vehicleX + 20, currentY + 3);
-    
+
     doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-    doc.text(`Nombre: ${routeSheet.vehicle.name}`, vehicleX + 20, currentY + 17);
-    doc.text(`Código: ${routeSheet.vehicle.code}`, vehicleX + 20, currentY + 32);
-    
+    doc.text(
+      `Nombre: ${routeSheet.vehicle.name}`,
+      vehicleX + 20,
+      currentY + 17,
+    );
+    doc.text(
+      `Código: ${routeSheet.vehicle.code}`,
+      vehicleX + 20,
+      currentY + 32,
+    );
+
     return currentY + 55;
   }
 
   /**
    * Genera las notas de ruta
    */
-  private generateRouteNotes(doc: PDFKit.PDFDocument, routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData, currentY: number): number {
+  private generateRouteNotes(
+    doc: PDFKit.PDFDocument,
+    routeSheet: RouteSheetPdfData | CollectionRouteSheetPdfData,
+    currentY: number,
+  ): number {
     if (routeSheet.route_notes) {
       const startX = 25;
       const notesWidth = 545; // 595 - 25 - 25
       const textWidth = notesWidth - 40; // 20px padding en cada lado
-      
-      doc.rect(startX, currentY, notesWidth, 30).fill(this.colors.warningColor).stroke(this.colors.borderColor);
-      
+
+      doc
+        .rect(startX, currentY, notesWidth, 30)
+        .fill(this.colors.warningColor)
+        .stroke(this.colors.borderColor);
+
       doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
       doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 3);
-      
+
       doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(routeSheet.route_notes, startX + 20, currentY + 15, { width: textWidth });
+      doc.text(routeSheet.route_notes, startX + 20, currentY + 15, {
+        width: textWidth,
+      });
       return currentY + 33;
     }
   }
 
-
-
-
-
-  /** 
+  /**
    * Genera la tabla de pedidos con control de paginación y footers integrados
    */
   private generateOrdersTableWithFooters(
-    doc: PDFKit.PDFDocument, 
-    routeSheet: RouteSheetPdfData, 
-    currentY: number, 
-    includeProductDetails: boolean
+    doc: PDFKit.PDFDocument,
+    routeSheet: RouteSheetPdfData,
+    currentY: number,
+    includeProductDetails: boolean,
   ): number {
-    
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
     const rowHeight = 17;
-    
+
     // Headers de la tabla
-    const headers = ['N°', 'V', 'Cliente', 'Dirección', 'Teléfono', 'Horario', 'Total'];
-    const colWidths = [30, 20, 105, 170, 70, 70, 80];    let pageCount = 1;
-    
+    const headers = [
+      'N°',
+      'V',
+      'Cliente',
+      'Dirección',
+      'Teléfono',
+      'Horario',
+      'Total',
+    ];
+    const colWidths = [30, 20, 105, 170, 70, 70, 80];
+    let pageCount = 1;
+
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
       const footerY = doc.page.height - 60; // Más espacio para la información adicional
-      
+
       // Para la mayoría de casos, estimamos máximo 3 páginas
       // Si necesitamos más precisión, se puede implementar regeneración
-      const totalPages = isLastPage ? currentPageNum : Math.max(currentPageNum, 2);
-      
-            // Línea decorativa superior del footer
+      const totalPages = isLastPage
+        ? currentPageNum
+        : Math.max(currentPageNum, 2);
+
+      // Línea decorativa superior del footer
       doc.rect(25, footerY - 10, 545, 1).fill(this.colors.borderColor);
-      
+
       // Número de hoja de ruta y fecha en la misma línea
       doc.fontSize(9).font('Poppins').fillColor(this.colors.textAccent);
       doc.text(`#${routeSheet.route_sheet_id}`, 25, footerY);
-      
+
       doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
       const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
       doc.text(`Fecha: ${displayDate}`, 200, footerY + 2);
-      
+
       // Vehículo en el centro
       doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
-      doc.text(`Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`, 350, footerY + 2);
-      
+      doc.text(
+        `Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`,
+        350,
+        footerY + 2,
+      );
+
       // Paginación en el lado derecho de la misma línea
       doc.fontSize(9).font('Poppins').fillColor(this.colors.secondary);
-      doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, { width: 100, align: 'right' });
-      
+      doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, {
+        width: 100,
+        align: 'right',
+      });
+
       // Zonas en la línea de abajo (si existen)
       if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
-        const zonesNames = routeSheet.zones_covered.map(z => z.name).join(', ');
+        const zonesNames = routeSheet.zones_covered
+          .map((z) => z.name)
+          .join(', ');
         doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
         doc.text(`Zonas: ${zonesNames}`, 25, footerY + 15);
       }
-      
+
       return footerY;
     };
 
     // Header inicial de la tabla
     doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
     doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
-    
+
     let colX = startX + 10;
     headers.forEach((header, index) => {
-      doc.text(header, colX, currentY + 3, { 
+      doc.text(header, colX, currentY + 3, {
         width: colWidths[index] - 20,
-        align: index === 0 ? 'center' : 'left'
+        align: index === 0 ? 'center' : 'left',
       });
       colX += colWidths[index];
     });
-    
+
     currentY += rowHeight;
 
     // Calcular altura del footer para usar en paginación
@@ -563,41 +636,56 @@ export class PdfGeneratorService {
 
       // Estimar altura aproximada que ocupará esta orden
       const estimatedRowHeight = 60; // Altura mínima estimada para fila + detalles
-      
+
       // Verificar si necesitamos nueva página ANTES de procesar
       if (currentY + estimatedRowHeight > pageBottomLimit) {
-        
         // Agregar footer a la página actual (solo si no es la primera página)
         if (pageCount > 1) {
           addFooter(pageCount);
         }
-        
+
         // Nueva página
         doc.addPage();
         pageCount++;
         currentY = 25;
-        
+
         // Recrear header de tabla en nueva página
-        doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
+        doc
+          .rect(startX, currentY, tableWidth, rowHeight)
+          .fill(this.colors.primary);
         doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
-        
+
         colX = startX + 10;
         headers.forEach((header, index) => {
-          doc.text(header, colX, currentY + 3, { 
+          doc.text(header, colX, currentY + 3, {
             width: colWidths[index] - 20,
-            align: index === 0 ? 'center' : 'left'
+            align: index === 0 ? 'center' : 'left',
           });
           colX += colWidths[index];
         });
-        
+
         currentY += rowHeight;
       }
 
       // Generar la orden (altura dinámica real de PDFKit)
-      currentY = this.generateOrderRow(doc, detail, i, currentY, startX, colWidths, rowHeight);
+      currentY = this.generateOrderRow(
+        doc,
+        detail,
+        i,
+        currentY,
+        startX,
+        colWidths,
+        rowHeight,
+      );
 
       if (includeProductDetails && detail.order.items.length > 0) {
-        currentY = this.generateProductDetails(doc, detail, currentY, startX, tableWidth);
+        currentY = this.generateProductDetails(
+          doc,
+          detail,
+          currentY,
+          startX,
+          tableWidth,
+        );
       }
 
       doc.rect(startX, currentY, tableWidth, 1).fill(this.colors.borderColor);
@@ -608,11 +696,9 @@ export class PdfGeneratorService {
     if (pageCount > 1) {
       addFooter(pageCount, true);
     }
-    
+
     return currentY;
   }
-
-
 
   /**
    * Genera una fila de pedido con altura dinámica según el contenido
@@ -624,15 +710,16 @@ export class PdfGeneratorService {
     currentY: number,
     startX: number,
     colWidths: number[],
-    rowHeight: number
+    rowHeight: number,
   ): number {
     const isEven = index % 2 === 0;
     const rowBgColor = isEven ? this.colors.bgWhite : this.colors.bgPrimary;
-    
+
     // Preparar los datos de cada columna
-    const addressText = detail.order.customer.address && detail.order.customer.locality?.name 
-      ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
-      : detail.order.customer.address || 'Sin dirección';
+    const addressText =
+      detail.order.customer.address && detail.order.customer.locality?.name
+        ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
+        : detail.order.customer.address || 'Sin dirección';
 
     // Extraer solo el día del mes de las fechas de vencimiento
     let dueDay = '-';
@@ -648,9 +735,9 @@ export class PdfGeneratorService {
     if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
       // Manejar múltiples fechas
       const days = detail.order.all_due_dates
-        .map(d => extractDay(d))
-        .filter(d => d !== null);
-      
+        .map((d) => extractDay(d))
+        .filter((d) => d !== null);
+
       if (days.length > 0) {
         // Eliminar duplicados y ordenar
         const uniqueDays = [...new Set(days)].sort();
@@ -662,18 +749,48 @@ export class PdfGeneratorService {
       const day = extractDay(detail.order.subscription_due_date);
       if (day) {
         dueDay = day;
-        isDueToday = (dueDay === currentDay);
+        isDueToday = dueDay === currentDay;
       }
     }
 
-    const cellData: Array<{ text: string; fontSize: number; font: string; align: 'center' | 'left' | 'right' }> = [
-      { text: detail.order.order_id.toString(), fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+    const cellData: Array<{
+      text: string;
+      fontSize: number;
+      font: string;
+      align: 'center' | 'left' | 'right';
+    }> = [
+      {
+        text: detail.order.order_id.toString(),
+        fontSize: 9,
+        font: 'Poppins-Bold',
+        align: 'left',
+      },
       { text: dueDay, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
-      { text: detail.order.customer.name, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      {
+        text: detail.order.customer.name,
+        fontSize: 9,
+        font: 'Poppins-Bold',
+        align: 'left',
+      },
       { text: addressText, fontSize: 9, font: 'Poppins', align: 'left' },
-      { text: detail.order.customer.phone, fontSize: 9, font: 'Poppins', align: 'left' },
-      { text: detail.delivery_time || 'N/D', fontSize: 9, font: 'Poppins', align: 'left' },
-      { text: `$${detail.order.total_amount}`, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      {
+        text: detail.order.customer.phone,
+        fontSize: 9,
+        font: 'Poppins',
+        align: 'left',
+      },
+      {
+        text: detail.delivery_time || 'N/D',
+        fontSize: 9,
+        font: 'Poppins',
+        align: 'left',
+      },
+      {
+        text: `$${detail.order.total_amount}`,
+        fontSize: 9,
+        font: 'Poppins-Bold',
+        align: 'left',
+      },
     ];
 
     // Calcular la altura necesaria para cada celd
@@ -685,38 +802,45 @@ export class PdfGeneratorService {
       doc.fontSize(cell.fontSize).font(cell.font);
       const textHeight = doc.heightOfString(cell.text, {
         width: colWidths[colIndex] - padding,
-        align: cell.align
+        align: cell.align,
       });
       maxHeight = Math.max(maxHeight, textHeight + padding);
     });
 
     // Dibujar el fondo de la fila con la altura calculada
     doc.rect(startX, currentY, 545, maxHeight).fill(rowBgColor);
-    doc.rect(startX, currentY, 4, maxHeight).fill(isEven ? this.colors.primary : this.colors.secondary);
+    doc
+      .rect(startX, currentY, 4, maxHeight)
+      .fill(isEven ? this.colors.primary : this.colors.secondary);
 
     // Si el vencimiento es hoy, dibujar fondo negro en la columna V
     if (isDueToday) {
       const vColX = startX + 5 + colWidths[0]; // Posición X de la columna V (después de N°)
-      doc.rect(vColX, currentY, colWidths[1], maxHeight).fill(this.colors.primary); // Negro
+      doc
+        .rect(vColX, currentY, colWidths[1], maxHeight)
+        .fill(this.colors.primary); // Negro
     }
 
     // Renderizar cada celda con texto multilínea
     let colX = startX + 10;
-    console.log('celldata', cellData)
+    console.log('celldata', cellData);
     cellData.forEach((cell, colIndex) => {
       // Si es la columna V (índice 1) y el vencimiento es hoy, usar texto blanco
-      const textColor = (colIndex === 1 && isDueToday) 
-        ? this.colors.textWhite 
-        : (colIndex === 0 || colIndex === 1 || colIndex === 6 ? this.colors.textAccent : this.colors.textPrimary);
-      
+      const textColor =
+        colIndex === 1 && isDueToday
+          ? this.colors.textWhite
+          : colIndex === 0 || colIndex === 1 || colIndex === 6
+            ? this.colors.textAccent
+            : this.colors.textPrimary;
+
       doc.fontSize(cell.fontSize).font(cell.font).fillColor(textColor);
-      
+
       doc.text(cell.text, colX, currentY + 3, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
-        lineGap: 2
+        lineGap: 2,
       });
-      
+
       colX += colWidths[colIndex];
     });
 
@@ -731,39 +855,51 @@ export class PdfGeneratorService {
     detail: any,
     currentY: number,
     startX: number,
-    tableWidth: number
+    tableWidth: number,
   ): number {
     // Preparar textos
-    const aliasText = detail.order.customer.alias ? `${detail.order.customer.alias}` : '';
+    const aliasText = detail.order.customer.alias
+      ? `${detail.order.customer.alias}`
+      : '';
     const productText = detail.order.items
       .map((item: any) => `${item.quantity}x ${item.product.description}`)
       .join(' | ');
     // Comentarios: usar notes del pedido (nuevo formato)
-    const commentsText = detail.order && detail.order.notes ? `${detail.order.notes}` : '';
-    
+    const commentsText =
+      detail.order && detail.order.notes ? `${detail.order.notes}` : '';
+
     // Créditos: mostrar como "remaining_balance x product_description" por cada crédito con balance > 0
-    const creditsArray: any[] = Array.isArray(detail.credits) ? detail.credits : [];
-    const creditsText = creditsArray.length > 0
-      ? creditsArray
-          .filter((c) => c.remaining_balance > 0)
-          .map((c) => `${c.remaining_balance}x ${c.product_description}`)
-          .join(' | ')
-      : '';
+    const creditsArray: any[] = Array.isArray(detail.credits)
+      ? detail.credits
+      : [];
+    const creditsText =
+      creditsArray.length > 0
+        ? creditsArray
+            .filter((c) => c.remaining_balance > 0)
+            .map((c) => `${c.remaining_balance}x ${c.product_description}`)
+            .join(' | ')
+        : '';
 
     // Notas del cliente: extraer special_instructions del customer
     let specialInstructionsText = '';
-    const rawSpecial = detail.order && detail.order.customer && detail.order.customer.special_instructions;
+    const rawSpecial =
+      detail.order &&
+      detail.order.customer &&
+      detail.order.customer.special_instructions;
     if (rawSpecial) {
       if (typeof rawSpecial === 'string') {
         try {
           const parsed = JSON.parse(rawSpecial);
           // Extraer instrucciones específicas si existen
-          specialInstructionsText = parsed?.delivery_preferences?.special_instructions || rawSpecial;
+          specialInstructionsText =
+            parsed?.delivery_preferences?.special_instructions || rawSpecial;
         } catch (e) {
           specialInstructionsText = rawSpecial;
         }
       } else if (typeof rawSpecial === 'object') {
-        specialInstructionsText = rawSpecial?.delivery_preferences?.special_instructions || JSON.stringify(rawSpecial);
+        specialInstructionsText =
+          rawSpecial?.delivery_preferences?.special_instructions ||
+          JSON.stringify(rawSpecial);
       } else {
         specialInstructionsText = String(rawSpecial);
       }
@@ -778,10 +914,11 @@ export class PdfGeneratorService {
     doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
     doc.text('PEDIDOS:', startX, textY);
     doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-    const productTextHeight = doc.heightOfString(productText, { width: tableWidth - 62 });
+    const productTextHeight = doc.heightOfString(productText, {
+      width: tableWidth - 62,
+    });
     doc.text(productText, startX + 52, textY, { width: tableWidth - 62 });
     textY += Math.max(productTextHeight, labelGap);
-
 
     // Renderizar los tres elementos en una sola línea horizontal, con separación mínima
     if (aliasText || specialInstructionsText || commentsText) {
@@ -791,21 +928,32 @@ export class PdfGeneratorService {
       const colWidth = 160;
 
       // Calcular altura real de cada elemento solo si existe
-      let aliasHeight = 0, notesHeight = 0, commentsHeight = 0;
+      let aliasHeight = 0,
+        notesHeight = 0,
+        commentsHeight = 0;
       if (aliasText) {
         doc.fontSize(9).font('Poppins');
         aliasHeight = doc.heightOfString(aliasText, { width: colWidth - 65 });
       }
       if (specialInstructionsText) {
         doc.fontSize(9).font('Poppins');
-        notesHeight = doc.heightOfString(specialInstructionsText, { width: colWidth - 45 });
+        notesHeight = doc.heightOfString(specialInstructionsText, {
+          width: colWidth - 45,
+        });
       }
       if (commentsText) {
         doc.fontSize(9).font('Poppins');
-        commentsHeight = doc.heightOfString(commentsText, { width: colWidth - 47 });
+        commentsHeight = doc.heightOfString(commentsText, {
+          width: colWidth - 47,
+        });
       }
       // Altura máxima de los elementos presentes, o labelGap si todos son 0
-      const maxRowHeight = Math.max(aliasText ? aliasHeight : 0, specialInstructionsText ? notesHeight : 0, commentsText ? commentsHeight : 0, labelGap);
+      const maxRowHeight = Math.max(
+        aliasText ? aliasHeight : 0,
+        specialInstructionsText ? notesHeight : 0,
+        commentsText ? commentsHeight : 0,
+        labelGap,
+      );
 
       // Renderizar los elementos en la misma línea
       if (aliasText) {
@@ -818,7 +966,9 @@ export class PdfGeneratorService {
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
         doc.text('NOTAS CLIENTE:', col2X, textY);
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-        doc.text(specialInstructionsText, col2X + 78, textY, { width: colWidth - 45 });
+        doc.text(specialInstructionsText, col2X + 78, textY, {
+          width: colWidth - 45,
+        });
       }
       if (commentsText) {
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
@@ -835,7 +985,9 @@ export class PdfGeneratorService {
       doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
       doc.text('EXTRAS DISPONIBLES:', startX, textY);
       doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-      const creditsTextHeight = doc.heightOfString(creditsText, { width: tableWidth - 117 });
+      const creditsTextHeight = doc.heightOfString(creditsText, {
+        width: tableWidth - 117,
+      });
       doc.text(creditsText, startX + 107, textY, { width: tableWidth - 117 });
       textY += Math.max(creditsTextHeight, labelGap);
     }
@@ -846,7 +998,10 @@ export class PdfGeneratorService {
   /**
    * Genera la sección de firmas
    */
-  private generateSignatureSection(doc: PDFKit.PDFDocument, currentY: number): void {
+  private generateSignatureSection(
+    doc: PDFKit.PDFDocument,
+    currentY: number,
+  ): void {
     if (currentY > doc.page.height - 200) {
       doc.addPage();
       currentY = 25;
@@ -865,12 +1020,15 @@ export class PdfGeneratorService {
     const signatureWidth = 260;
 
     // Firma del conductor
-    doc.rect(25, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
+    doc
+      .rect(25, currentY, signatureWidth, signatureHeight)
+      .fill(this.colors.bgWhite)
+      .stroke(this.colors.borderColor);
     doc.rect(25, currentY, 4, signatureHeight).fill(this.colors.primary);
-    
+
     doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
     doc.text('CONDUCTOR', 45, currentY + 10);
-    
+
     doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
     doc.text('Nombre: _________________________', 45, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', 45, currentY + 50);
@@ -878,40 +1036,23 @@ export class PdfGeneratorService {
 
     // Firma del supervisor
     const supervisorX = 315;
-    doc.rect(supervisorX, currentY, signatureWidth, signatureHeight).fill(this.colors.bgWhite).stroke(this.colors.borderColor);
-    doc.rect(supervisorX, currentY, 4, signatureHeight).fill(this.colors.secondary);
-    
+    doc
+      .rect(supervisorX, currentY, signatureWidth, signatureHeight)
+      .fill(this.colors.bgWhite)
+      .stroke(this.colors.borderColor);
+    doc
+      .rect(supervisorX, currentY, 4, signatureHeight)
+      .fill(this.colors.secondary);
+
     doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
     doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
-    
+
     doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
     doc.text('Nombre: _____________________', supervisorX + 20, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
     doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
   }
 
-
-
-  /**
-   * Traduce el estado de entrega al español
-   */
-  private translateStatus(status: string): string {
-    const statusMap = {
-      'pending': 'PENDIENTE',
-      'pendiente': 'PENDIENTE',
-      'delivered': 'ENTREGADO',
-      'entregado': 'ENTREGADO',
-      'retirado': 'RETIRADO',
-      'cancelled': 'CANCELADO',
-      'cancelado': 'CANCELADO',
-      'in_route': 'EN RUTA',
-      'en_ruta': 'EN RUTA',
-      'overdue': 'VENCIDO',
-      'atrasado': 'ATRASADO',
-    };
-    
-    return statusMap[status.toLowerCase()] || 'PENDIENTE';
-  }
   private translatePaymentStatus(status: string): string {
     const map = {
       none: '-',
@@ -927,12 +1068,15 @@ export class PdfGeneratorService {
 
   /**
    * Genera un PDF específico para hojas de ruta de cobranzas automáticas
-  */
+   */
   async generateCollectionRouteSheetPdf(
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    console.log('Generando hoja de ruta de cobranzas automática. Datos:', JSON.stringify(data, null, 2));
+    console.log(
+      'Generando hoja de ruta de cobranzas automática. Datos:',
+      JSON.stringify(data, null, 2),
+    );
 
     const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
@@ -950,11 +1094,16 @@ export class PdfGeneratorService {
    * Construye el nombre de archivo para hoja de ruta de cobranzas automáticas.
    * Formato unificado: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_m<móvil-slug|mNA>_z<zonas-slugs|zall>_d<chofer-slug|dNA>.pdf
    */
-  private buildCollectionRouteSheetFilename(data: CollectionRouteSheetPdfData): string {
+  private buildCollectionRouteSheetFilename(
+    data: CollectionRouteSheetPdfData,
+  ): string {
     const base = 'cobranza-automatica-hoja-de-ruta';
-    const ymd = typeof data.delivery_date === 'string' ? data.delivery_date : formatBAYMD(new Date(data.delivery_date));
+    const ymd =
+      typeof data.delivery_date === 'string'
+        ? data.delivery_date
+        : formatBAYMD(new Date(data.delivery_date));
     const timeRaw = formatBAHMS(new Date());
-    const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
+    const timePart = `${timeRaw.slice(0, 2)}-${timeRaw.slice(2, 4)}-${timeRaw.slice(4, 6)}`;
 
     // Movil/vehículo
     const rawVehicle = data.vehicle?.name || data.vehicle?.code || '';
@@ -963,10 +1112,14 @@ export class PdfGeneratorService {
       : 'mNA';
 
     // Zonas
-    const zones = Array.isArray(data.zone_identifiers) ? data.zone_identifiers : [];
+    const zones = Array.isArray(data.zone_identifiers)
+      ? data.zone_identifiers
+      : [];
     let zonesPart = 'zall';
     if (zones.length > 0) {
-      const uniqueZones = Array.from(new Set(zones)).map((z) => this.slugifyForFilename(z));
+      const uniqueZones = Array.from(new Set(zones)).map((z) =>
+        this.slugifyForFilename(z),
+      );
       zonesPart = `z${uniqueZones.join('-')}`;
     }
 
@@ -995,8 +1148,14 @@ export class PdfGeneratorService {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).formatToParts(typeof dateInput === 'string' ? new Date(dateInput) : (dateInput as Date));
-    const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+    }).formatToParts(
+      typeof dateInput === 'string' ? new Date(dateInput) : dateInput,
+    );
+    const get = (t: string) =>
+      String(parts.find((p) => p.type === t)?.value || '').padStart(
+        t === 'day' || t === 'month' ? 2 : 0,
+        '0',
+      );
     const dd = get('day');
     const mm = get('month');
     const yyyy = get('year');
@@ -1008,7 +1167,7 @@ export class PdfGeneratorService {
    */
   private formatDateYMD(dateInput: string | Date): string {
     if (typeof dateInput === 'string') return dateInput;
-    return formatBAYMD(dateInput as Date);
+    return formatBAYMD(dateInput);
   }
 
   /**
@@ -1038,8 +1197,14 @@ export class PdfGeneratorService {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    }).formatToParts(typeof dateInput === 'string' ? new Date(dateInput) : (dateInput as Date));
-    const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+    }).formatToParts(
+      typeof dateInput === 'string' ? new Date(dateInput) : dateInput,
+    );
+    const get = (t: string) =>
+      String(parts.find((p) => p.type === t)?.value || '').padStart(
+        t === 'day' || t === 'month' ? 2 : 0,
+        '0',
+      );
     const dd = get('day');
     const mm = get('month');
     const yyyy = get('year');
@@ -1092,27 +1257,30 @@ export class PdfGeneratorService {
   /**
    * Genera el header específico para hojas de ruta de cobranzas
    */
-  private generateCollectionHeader(doc: PDFKit.PDFDocument, routeSheet: CollectionRouteSheetPdfData, currentY: number): number {
+  private generateCollectionHeader(
+    doc: PDFKit.PDFDocument,
+    routeSheet: CollectionRouteSheetPdfData,
+    currentY: number,
+  ): number {
     // Línea superior decorativa
     doc.rect(25, currentY, 545, 3).fill(this.colors.primary);
     currentY += 15;
 
     // Título principal
-    doc.fontSize(12)
-       .font('Poppins-Bold')
-       .fillColor(this.colors.primary)
-       .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
+    doc
+      .fontSize(12)
+      .font('Poppins-Bold')
+      .fillColor(this.colors.primary)
+      .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
 
     // Información básica - solo fecha
-    doc.fontSize(12)
-       .font('Poppins')
-       .fillColor(this.colors.textPrimary);
-    
+    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
+
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY);
-    
+
     currentY += 5;
-    
+
     return currentY;
   }
 
@@ -1120,52 +1288,61 @@ export class PdfGeneratorService {
    * Genera la tabla de cobranzas
    */
   private generateCollectionsTable(
-    doc: PDFKit.PDFDocument, 
-    routeSheet: CollectionRouteSheetPdfData, 
-    currentY: number
+    doc: PDFKit.PDFDocument,
+    routeSheet: CollectionRouteSheetPdfData,
+    currentY: number,
   ): number {
     const startX = 25;
     const tableWidth = 545; // 595 - 25 - 25 = 545px disponibles
     const rowHeight = 17;
     const headerHeight = 17;
-    
+
     // Headers de la tabla
-    const headers = ['#', 'Cliente', 'Dirección', 'Teléfono', 'Monto', 'Venc.', 'Estado'];
+    const headers = [
+      '#',
+      'Cliente',
+      'Dirección',
+      'Teléfono',
+      'Monto',
+      'Venc.',
+      'Estado',
+    ];
     // Ajustado para que sumen exactamente 545px: 30+100+175+65+60+50+65 = 545
     const colWidths = [30, 95, 145, 80, 65, 60, 70];
-    
+
     // Calcular límite inferior de página (842 es altura A4, dejamos 70px de margen para seguridad)
     const pageBottomLimit = 772; // 842 - 70 (balanceado)
-    
+
     // Helper para dibujar header de tabla
     const drawTableHeader = (y: number): number => {
       let headerX = startX;
-      doc.rect(startX, y, tableWidth, headerHeight)
-         .fill(this.colors.primary);
-      
-      doc.fontSize(9)
-         .font('Poppins-Bold')
-         .fillColor(this.colors.textWhite);
-      
+      doc.rect(startX, y, tableWidth, headerHeight).fill(this.colors.primary);
+
+      doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textWhite);
+
       headers.forEach((header, index) => {
-        doc.text(header, headerX + 5, y + 4, { 
-          width: colWidths[index] - 10, 
-          align: 'center' 
+        doc.text(header, headerX + 5, y + 4, {
+          width: colWidths[index] - 10,
+          align: 'center',
         });
         headerX += colWidths[index];
       });
-      
+
       return y + headerHeight;
     };
-    
+
     // Header de la tabla inicial
     currentY = drawTableHeader(currentY);
-    
+
     // Filas de datos
     routeSheet.collections.forEach((collection, index) => {
       // Calcular altura real que ocupará esta fila (incluyendo notas)
-      const calculatedRowHeight = this.calculateCollectionRowHeight(doc, collection, colWidths);
-      
+      const calculatedRowHeight = this.calculateCollectionRowHeight(
+        doc,
+        collection,
+        colWidths,
+      );
+
       // Verificar si necesitamos nueva página ANTES de renderizar (con margen extra de seguridad)
       if (currentY + calculatedRowHeight + 30 > pageBottomLimit) {
         doc.addPage();
@@ -1173,18 +1350,18 @@ export class PdfGeneratorService {
         // Redibujar header en la nueva página
         currentY = drawTableHeader(currentY);
       }
-      
+
       currentY = this.generateCollectionRow(
-        doc, 
-        collection, 
-        index + 1, 
-        currentY, 
-        startX, 
+        doc,
+        collection,
+        index + 1,
+        currentY,
+        startX,
         colWidths,
-        routeSheet.delivery_date
+        routeSheet.delivery_date,
       );
     });
-    
+
     return currentY;
   }
 
@@ -1193,7 +1370,11 @@ export class PdfGeneratorService {
    */
   private buildCollectionNotesText(collection: any): string {
     const parts: string[] = [];
-    const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
+    const raw =
+      collection.subscription_notes ||
+      collection.payment_notes ||
+      collection.comments ||
+      '';
     if (raw) {
       if (typeof raw === 'string') {
         try {
@@ -1203,7 +1384,10 @@ export class PdfGeneratorService {
           const tr = dp?.preferred_time_range;
           const segs: string[] = [];
           if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (tr)
+            segs.push(
+              `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+            );
           if (segs.length > 0) parts.push(segs.join(' - '));
         } catch {
           const getMatch = (re: RegExp) => {
@@ -1214,7 +1398,10 @@ export class PdfGeneratorService {
           const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
           const segs: string[] = [];
           if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (tr)
+            segs.push(
+              `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+            );
           if (segs.length > 0) {
             parts.push(segs.join(' - '));
           } else {
@@ -1229,12 +1416,15 @@ export class PdfGeneratorService {
         }
       } else if (typeof raw === 'object') {
         try {
-          const dp = (raw as any)?.delivery_preferences || {};
+          const dp = raw?.delivery_preferences || {};
           const si = dp?.special_instructions;
           const tr = dp?.preferred_time_range;
           const segs: string[] = [];
           if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-          if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+          if (tr)
+            segs.push(
+              `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+            );
           if (segs.length > 0) parts.push(segs.join(' - '));
         } catch {
           const simplified = String(raw);
@@ -1242,12 +1432,19 @@ export class PdfGeneratorService {
         }
       }
     }
-    const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
+    const firstCredit =
+      Array.isArray(collection.credits) && collection.credits.length > 0
+        ? collection.credits[0]
+        : undefined;
     if (firstCredit) {
       const plan = Number(firstCredit.planned_quantity ?? 0);
       const delivered = Number(firstCredit.delivered_quantity ?? 0);
-      const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
-      parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
+      const remaining = Number(
+        firstCredit.remaining_balance ?? Math.max(plan - delivered, 0),
+      );
+      parts.push(
+        `Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`,
+      );
     }
     if (collection.subscription_plan) {
       parts.unshift(`Abono: ${collection.subscription_plan}`);
@@ -1261,26 +1458,33 @@ export class PdfGeneratorService {
   private calculateCollectionRowHeight(
     doc: PDFKit.PDFDocument,
     collection: any,
-    colWidths: number[]
+    colWidths: number[],
   ): number {
     // Calcular altura de las celdas
     const minRowHeight = 17;
     const padding = 7;
     let maxHeight = minRowHeight;
 
-    const addressText = [collection.customer.address, collection.customer.locality?.name]
-      .map(v => (v || '').trim())
-      .filter(Boolean)
-      .join(' - ') || '-';
-    
+    const addressText =
+      [collection.customer.address, collection.customer.locality?.name]
+        .map((v) => (v || '').trim())
+        .filter(Boolean)
+        .join(' - ') || '-';
+
     const cellData: Array<{ text: string; width: number }> = [
       { text: collection.customer.customer_id.toString(), width: colWidths[0] },
       { text: collection.customer.name, width: colWidths[1] },
       { text: addressText, width: colWidths[2] },
       { text: collection.customer.phone || '-', width: colWidths[3] },
       { text: `$${collection.amount.toFixed(2)}`, width: colWidths[4] },
-      { text: this.safeFormatDateYMDDisplay(collection.payment_due_date), width: colWidths[5] },
-      { text: this.translatePaymentStatus(collection.payment_status), width: colWidths[6] }
+      {
+        text: this.safeFormatDateYMDDisplay(collection.payment_due_date),
+        width: colWidths[5],
+      },
+      {
+        text: this.translatePaymentStatus(collection.payment_status),
+        width: colWidths[6],
+      },
     ];
 
     doc.fontSize(9).font('Poppins');
@@ -1294,7 +1498,7 @@ export class PdfGeneratorService {
     // Calcular altura de las notas si existen (usando la misma lógica que el renderizado)
     let notesHeight = 0;
     const finalNotes = this.buildCollectionNotesText(collection);
-    
+
     if (finalNotes) {
       doc.fontSize(9).font('Poppins');
       const notesTextHeight = doc.heightOfString(finalNotes, {
@@ -1316,54 +1520,37 @@ export class PdfGeneratorService {
     currentY: number,
     startX: number,
     colWidths: number[],
-    deliveryYmd: string
+    deliveryYmd: string,
   ): number {
-    const fillColor = index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
-    
+    const fillColor =
+      index % 2 === 0 ? this.colors.bgWhite : this.colors.bgPrimary;
+
     // Preparar los datos de dirección con localidad
-    const addressText = [collection.customer.address, collection.customer.locality?.name]
-      .map(v => (v || '').trim())
-      .filter(Boolean)
-      .join(' - ') || '-';
-    
-    // Lógica para fechas de vencimiento similar a generateOrderRow
-    const extractDay = (dateStr: string) => {
-      if (!dateStr) return null;
-      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
-      return match ? match[1] : null;
-    };
+    const addressText =
+      [collection.customer.address, collection.customer.locality?.name]
+        .map((v) => (v || '').trim())
+        .filter(Boolean)
+        .join(' - ') || '-';
 
-    const deliveryDay = extractDay(deliveryYmd);
-    let vencText = this.safeFormatDateYMDDisplay(collection.payment_due_date);
-    let isDueToday = false;
+    const vencText = this.safeFormatDateYMDDisplay(collection.payment_due_date);
+    const isDueToday =
+      typeof collection.payment_due_date === 'string' &&
+      collection.payment_due_date === deliveryYmd;
 
-    if (collection.all_due_dates && Array.isArray(collection.all_due_dates) && collection.all_due_dates.length > 0) {
-      const days = collection.all_due_dates
-        .map((d: string) => extractDay(d))
-        .filter((d: string | null) => d !== null) as string[];
-
-      if (days.length > 0) {
-        const uniqueDays = [...new Set(days)].sort();
-        vencText = uniqueDays.join(', ');
-        if (deliveryDay) {
-          isDueToday = days.includes(deliveryDay);
-        }
-      }
-    } else {
-      const day = extractDay(collection.payment_due_date);
-      if (day && deliveryDay && day === deliveryDay) {
-        isDueToday = true;
-      }
-    }
-
-    const cellData: Array<{ text: string; align: 'center' | 'left' | 'right' }> = [
+    const cellData: Array<{
+      text: string;
+      align: 'center' | 'left' | 'right';
+    }> = [
       { text: collection.customer.customer_id.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
       { text: addressText, align: 'left' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
       { text: vencText, align: 'center' },
-      { text: this.translatePaymentStatus(collection.payment_status), align: 'center' }
+      {
+        text: this.translatePaymentStatus(collection.payment_status),
+        align: 'center',
+      },
     ];
 
     // Calcular altura necesaria para cada celda
@@ -1375,7 +1562,7 @@ export class PdfGeneratorService {
     cellData.forEach((cell, colIndex) => {
       const textHeight = doc.heightOfString(cell.text, {
         width: colWidths[colIndex] - padding,
-        align: cell.align
+        align: cell.align,
       });
       maxHeight = Math.max(maxHeight, textHeight + padding);
     });
@@ -1388,29 +1575,38 @@ export class PdfGeneratorService {
     // Si el vencimiento es hoy, dibujar fondo negro en la columna Venc. (índice 5)
     if (isDueToday) {
       const vColX = startX + colWidths.slice(0, 5).reduce((a, b) => a + b, 0);
-      doc.rect(vColX, currentY, colWidths[5], maxHeight).fill(this.colors.primary);
+      doc
+        .rect(vColX, currentY, colWidths[5], maxHeight)
+        .fill(this.colors.primary);
     }
-    
+
     // Renderizar cada celda con texto multilínea
     let cellX = startX;
-    
+
     cellData.forEach((cell, colIndex) => {
       // Usar texto blanco para la columna de Vencimiento (índice 5) si es hoy
-      const textColor = (isDueToday && colIndex === 5) ? this.colors.textWhite : this.colors.textPrimary;
-      
+      const textColor =
+        isDueToday && colIndex === 5
+          ? this.colors.textWhite
+          : this.colors.textPrimary;
+
       doc.fontSize(9).font('Poppins').fillColor(textColor);
       doc.text(cell.text, cellX + 5, currentY + 5, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
-        lineGap: 2
+        lineGap: 2,
       });
       cellX += colWidths[colIndex];
     });
-    
+
     let notesHeight = 0;
     const buildNotesText = (): string => {
       const parts: string[] = [];
-      const raw = collection.subscription_notes || collection.payment_notes || collection.comments || '';
+      const raw =
+        collection.subscription_notes ||
+        collection.payment_notes ||
+        collection.comments ||
+        '';
       if (raw) {
         if (typeof raw === 'string') {
           try {
@@ -1420,7 +1616,10 @@ export class PdfGeneratorService {
             const tr = dp?.preferred_time_range;
             const segs: string[] = [];
             if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (tr)
+              segs.push(
+                `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+              );
             if (segs.length > 0) parts.push(segs.join(' - '));
           } catch {
             const getMatch = (re: RegExp) => {
@@ -1431,7 +1630,10 @@ export class PdfGeneratorService {
             const tr = getMatch(/"preferred_time_range"\s*:\s*"([^"]*)"/);
             const segs: string[] = [];
             if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (tr)
+              segs.push(
+                `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+              );
             if (segs.length > 0) {
               parts.push(segs.join(' - '));
             } else {
@@ -1446,12 +1648,15 @@ export class PdfGeneratorService {
           }
         } else if (typeof raw === 'object') {
           try {
-            const dp = (raw as any)?.delivery_preferences || {};
+            const dp = raw?.delivery_preferences || {};
             const si = dp?.special_instructions;
             const tr = dp?.preferred_time_range;
             const segs: string[] = [];
             if (si) segs.push(si.charAt(0).toUpperCase() + si.slice(1));
-            if (tr) segs.push(`Horario: ${String(tr).replace(/\s*/g,'').replace('-', ' - ')}`);
+            if (tr)
+              segs.push(
+                `Horario: ${String(tr).replace(/\s*/g, '').replace('-', ' - ')}`,
+              );
             if (segs.length > 0) parts.push(segs.join(' - '));
           } catch {
             const simplified = String(raw);
@@ -1459,32 +1664,24 @@ export class PdfGeneratorService {
           }
         }
       }
-      const firstCredit = Array.isArray(collection.credits) && collection.credits.length > 0 ? collection.credits[0] : undefined;
+      const firstCredit =
+        Array.isArray(collection.credits) && collection.credits.length > 0
+          ? collection.credits[0]
+          : undefined;
       if (firstCredit) {
         const plan = Number(firstCredit.planned_quantity ?? 0);
         const delivered = Number(firstCredit.delivered_quantity ?? 0);
-        const remaining = Number(firstCredit.remaining_balance ?? Math.max(plan - delivered, 0));
-        parts.push(`Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`);
+        const remaining = Number(
+          firstCredit.remaining_balance ?? Math.max(plan - delivered, 0),
+        );
+        parts.push(
+          `Abono: ${firstCredit.product_description} - Plan: ${plan} - Entregado: ${delivered} - Saldo: ${remaining}`,
+        );
       }
       if (collection.subscription_plan) {
         parts.unshift(`Abono: ${collection.subscription_plan}`);
       }
-      const allDueDates = Array.isArray(collection.all_due_dates) ? collection.all_due_dates : [];
-      // Agregar información de cuotas vencidas (de abonos) si existen
-      const overdueDates = allDueDates.filter((d: any) => typeof d === 'string' && d < deliveryYmd);
-      if (overdueDates.length > 0) {
-        const displayList = overdueDates
-          .slice()
-          .sort()
-          .map((d: any) => this.safeFormatDateYMDDisplay(d))
-          .join(', ');
-        parts.push(`Cuotas vencidas: ${displayList}`);
-      }
-      // Agregar marca si hay múltiples abonos con vencimiento hoy
-      const sameDayCount = allDueDates.filter((d: any) => d === deliveryYmd).length;
-      if (sameDayCount > 1) {
-        parts.push(`Vencimientos hoy: ${sameDayCount}`);
-      }
+      // Información de cuotas vencidas y múltiples vencimientos por día se elimina para cobranzas
       return parts.join(' | ').trim();
     };
     const finalNotes = buildNotesText();
@@ -1494,38 +1691,45 @@ export class PdfGeneratorService {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
       });
       notesHeight = notesTextHeight + 5;
-      doc.rect(startX, currentY + maxHeight, colWidths.reduce((a, b) => a + b, 0), notesHeight)
-         .fill(this.colors.warningColor)
-         .stroke(this.colors.borderColor);
+      doc
+        .rect(
+          startX,
+          currentY + maxHeight,
+          colWidths.reduce((a, b) => a + b, 0),
+          notesHeight,
+        )
+        .fill(this.colors.warningColor)
+        .stroke(this.colors.borderColor);
       doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textPrimary);
       doc.text('Notas: ', startX + 5, notesY);
       doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
       doc.text(finalNotes, startX + 50, notesY, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
         align: 'left',
-        lineGap: 1
+        lineGap: 1,
       });
     }
-    
+
     // Bordes verticales - dibujados al final para no cortar las notas
     doc.strokeColor(this.colors.borderColor).lineWidth(0.5);
-    
+
     let borderX = startX;
-    colWidths.forEach(width => {
-      doc.moveTo(borderX, currentY)
-         .lineTo(borderX, currentY + maxHeight)
-         .stroke();
+    colWidths.forEach((width) => {
+      doc
+        .moveTo(borderX, currentY)
+        .lineTo(borderX, currentY + maxHeight)
+        .stroke();
       borderX += width;
     });
-    
+
     // Borde inferior
-    doc.moveTo(startX, currentY + maxHeight + notesHeight)
-       .lineTo(startX + tableWidth, currentY + maxHeight + notesHeight)
-       .stroke();
-    
+    doc
+      .moveTo(startX, currentY + maxHeight + notesHeight)
+      .lineTo(startX + tableWidth, currentY + maxHeight + notesHeight)
+      .stroke();
+
     return currentY + maxHeight + notesHeight;
   }
-
 
   /**
    * Finaliza la generación del PDF y retorna la URL

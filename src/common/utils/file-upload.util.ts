@@ -156,7 +156,9 @@ export const buildImageUrl = (
 
   // Determinar base URL desde variables de entorno
   const baseUrl =
-    process.env.PUBLIC_BASE_URL || process.env.APP_URL || 'http://localhost:3000';
+    process.env.PUBLIC_BASE_URL ||
+    process.env.APP_URL ||
+    'http://localhost:3000';
 
   // Asegurar que no tenga slash final duplicado
   const normalizedBase = baseUrl.replace(/\/$/, '');

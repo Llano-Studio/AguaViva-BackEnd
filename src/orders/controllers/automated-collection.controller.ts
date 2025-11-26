@@ -28,11 +28,20 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 import { RouteSheetGeneratorService } from '../../common/services/route-sheet-generator.service';
-import { formatBAYMD, formatBATimestampISO } from '../../common/utils/date.utils';
+import {
+  formatBAYMD,
+  formatBATimestampISO,
+} from '../../common/utils/date.utils';
 import { FilterAutomatedCollectionsDto } from '../dto/filter-automated-collections.dto';
 import { AutomatedCollectionListResponseDto } from '../dto/automated-collection-response.dto';
-import { GeneratePdfCollectionsDto, PdfGenerationResponseDto } from '../dto/generate-pdf-collections.dto';
-import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../dto/generate-route-sheet.dto';
+import {
+  GeneratePdfCollectionsDto,
+  PdfGenerationResponseDto,
+} from '../dto/generate-pdf-collections.dto';
+import {
+  GenerateRouteSheetDto,
+  RouteSheetResponseDto,
+} from '../dto/generate-route-sheet.dto';
 import { GenerateDailyRouteSheetsDto } from '../dto/generate-daily-route-sheets.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
 import * as fs from 'fs';
@@ -63,7 +72,7 @@ export class AutomatedCollectionController {
   constructor(
     private readonly automatedCollectionService: AutomatedCollectionService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
-  ) { }
+  ) {}
 
   /**
    * Ejecuta manualmente la generación de pedidos de cobranza para una fecha específica
@@ -144,10 +153,14 @@ export class AutomatedCollectionController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'array', items: { type: 'string' }, example: ['La fecha debe estar en formato YYYY-MM-DD válido'] },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        message: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['La fecha debe estar en formato YYYY-MM-DD válido'],
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -157,9 +170,9 @@ export class AutomatedCollectionController {
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -168,10 +181,13 @@ export class AutomatedCollectionController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'No tienes permisos para acceder a este recurso',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
     try {
@@ -549,7 +565,12 @@ export class AutomatedCollectionController {
    * Lista las órdenes de cobranza automática con filtros y paginación
    */
   @Get('orders')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Listar órdenes de cobranza automática',
     description: `Obtiene una lista paginada de órdenes de cobranza automática con capacidades avanzadas de filtrado.
@@ -594,9 +615,12 @@ export class AutomatedCollectionController {
     type: AutomatedCollectionListResponseDto,
   })
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
-  async listAutomatedCollections(@Query() filters: FilterAutomatedCollectionsDto) {
+  async listAutomatedCollections(
+    @Query() filters: FilterAutomatedCollectionsDto,
+  ) {
     try {
-      const result = await this.automatedCollectionService.listAutomatedCollections(filters);
+      const result =
+        await this.automatedCollectionService.listAutomatedCollections(filters);
       return {
         success: true,
         message: `${result.data.length} órdenes de cobranza encontradas`,
@@ -614,7 +638,12 @@ export class AutomatedCollectionController {
    * Obtiene los detalles de una orden de cobranza automática específica
    */
   @Get('orders/:id')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener detalles de orden de cobranza',
     description: `Obtiene información detallada de una orden de cobranza automática específica.
@@ -666,7 +695,8 @@ export class AutomatedCollectionController {
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async getAutomatedCollectionById(@Param('id', ParseIntPipe) id: number) {
     try {
-      const collection = await this.automatedCollectionService.getAutomatedCollectionById(id);
+      const collection =
+        await this.automatedCollectionService.getAutomatedCollectionById(id);
       return {
         success: true,
         message: 'Orden de cobranza encontrada',
@@ -732,11 +762,15 @@ export class AutomatedCollectionController {
     type: DeleteAutomatedCollectionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Orden de cobranza no encontrada' })
-  @ApiResponse({ status: 400, description: 'No se puede eliminar: existen pagos registrados' })
+  @ApiResponse({
+    status: 400,
+    description: 'No se puede eliminar: existen pagos registrados',
+  })
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async deleteAutomatedCollection(@Param('id', ParseIntPipe) id: number) {
     try {
-      const result = await this.automatedCollectionService.deleteAutomatedCollection(id);
+      const result =
+        await this.automatedCollectionService.deleteAutomatedCollection(id);
       return {
         success: true,
         message: 'Orden de cobranza eliminada exitosamente',
@@ -811,7 +845,8 @@ export class AutomatedCollectionController {
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async generatePdfReport(@Body() filters: GeneratePdfCollectionsDto) {
     try {
-      const result = await this.automatedCollectionService.generatePdfReport(filters);
+      const result =
+        await this.automatedCollectionService.generatePdfReport(filters);
       return {
         success: true,
         message: 'Reporte PDF generado exitosamente',
@@ -829,7 +864,12 @@ export class AutomatedCollectionController {
    * Genera una hoja de ruta para cobranzas automáticas
    */
   @Post('orders/route-sheet')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Generar hoja de ruta de cobranzas',
     description: `Genera una hoja de ruta optimizada para la recolección de cobranzas automáticas.
@@ -968,7 +1008,8 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
   async generateRouteSheet(@Body() filters: GenerateRouteSheetDto) {
     try {
-      const result = await this.automatedCollectionService.generateRouteSheet(filters);
+      const result =
+        await this.automatedCollectionService.generateRouteSheet(filters);
       return {
         success: true,
         message: 'Hoja de ruta generada exitosamente',
@@ -987,13 +1028,18 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
    * Considera fecha, vehículo y zonas (si se especifican)
    */
   @Post('orders/route-sheet/generate/daily')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Generar hojas de ruta diarias (persistidas)',
     description:
-      'Dispara manualmente la generación de hojas de ruta diarias para cobranzas automáticas, '
-      + 'considerando el vehículo, las zonas asignadas y la fecha. '
-      + 'Ajusta automáticamente la fecha si cae en domingo para alinearse con la generación de órdenes.',
+      'Dispara manualmente la generación de hojas de ruta diarias para cobranzas automáticas, ' +
+      'considerando el vehículo, las zonas asignadas y la fecha. ' +
+      'Ajusta automáticamente la fecha si cae en domingo para alinearse con la generación de órdenes.',
   })
   @ApiBody({ type: GenerateDailyRouteSheetsDto })
   @ApiResponse({
@@ -1041,7 +1087,9 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
   @ApiResponse({ status: 400, description: 'Parámetros inválidos' })
   async generateDailyRouteSheets(@Body() dto: GenerateDailyRouteSheetsDto) {
     try {
-      return await this.automatedCollectionService.triggerDailyCollectionRouteSheets(dto);
+      return await this.automatedCollectionService.triggerDailyCollectionRouteSheets(
+        dto,
+      );
     } catch (error) {
       throw new HttpException(
         `Error generando hojas de ruta diarias: ${error.message}`,
@@ -1054,10 +1102,15 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
    * Lista hojas de ruta de cobranzas generadas automáticamente y persistidas para descarga
    */
   @Get('orders/route-sheet/generated')
-  @Roles(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Listar hojas de ruta automáticas de cobranza',
-      description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
+    description: `Devuelve un listado de hojas de ruta de cobranzas generadas automáticamente y persistidas en el servidor, ordenadas descendentemente por fecha.
 
     Formatos de nombre de archivo:
     - Nuevo: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD-HH-mm-ss_<movil-nombre-slug|NA>_<zonas-nombres-slug|all>_<chofer-nombre-slug|NA>.pdf
@@ -1076,12 +1129,27 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
     - zoneId: que contenga la zona en el archivo
     `,
   })
-  @ApiQuery({ name: 'dateFrom', required: false, type: String, example: '2025-10-01' })
-  @ApiQuery({ name: 'dateTo', required: false, type: String, example: '2025-10-31' })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    type: String,
+    example: '2025-10-01',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    required: false,
+    type: String,
+    example: '2025-10-31',
+  })
   @ApiQuery({ name: 'vehicleId', required: false, type: Number, example: 4 })
   @ApiQuery({ name: 'driverId', required: false, type: Number, example: 12 })
   @ApiQuery({ name: 'zoneId', required: false, type: Number, example: 7 })
-  @ApiQuery({ name: 'assignedDriverId', required: false, type: Number, example: 12 })
+  @ApiQuery({
+    name: 'assignedDriverId',
+    required: false,
+    type: Number,
+    example: 12,
+  })
   @ApiResponse({
     status: 200,
     description: 'Listado de hojas de ruta automáticas para cobranza',
@@ -1133,16 +1201,24 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
     try {
       const dir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
       if (!fs.existsSync(dir)) {
-        return { success: true, message: 'No hay hojas de ruta generadas', data: [], total: 0 };
+        return {
+          success: true,
+          message: 'No hay hojas de ruta generadas',
+          data: [],
+          total: 0,
+        };
       }
 
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
-      const legacyRegex = /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
+      const legacyRegex =
+        /^collection-route-sheet_(\d{4}-\d{2}-\d{2})_(vNA|v\d+)_(zall|z[\d-]+)_(dNA|d\d+)\.pdf$/;
       // Nuevo formato sin prefijos m/z/d: incluye nombres (slug) para móvil, zonas y chofer
       // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<vehiculo-slug|NA>_<zonas-slugs|all>_<driver-slug|NA>.pdf
-      const newRegexFull = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_([^_]+)_(all|[^_]+)_([^_]+)\.pdf$/;
+      const newRegexFull =
+        /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_([^_]+)_(all|[^_]+)_([^_]+)\.pdf$/;
       // Soporte de transición: formato nuevo anterior sólo con versión (sin zonas/driver)
-      const newRegexVersionOnly = /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_v(\d+)\.pdf$/;
+      const newRegexVersionOnly =
+        /^cobranza-automatica-hoja-de-ruta_(\d{4}-\d{2}-\d{2})(?:-\d{2}-\d{2}(?:-\d{2})?)?_v(\d+)\.pdf$/;
 
       const parseZonesLegacy = (zonesStr: string): number[] => {
         if (zonesStr === 'zall') return [];
@@ -1190,10 +1266,11 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
       const userSlugToUser = new Map<string, { id: number; name: string }>();
 
       try {
-        const allVehicles = await this.routeSheetGeneratorService.vehicle?.findMany({
-          where: { is_active: true },
-          select: { vehicle_id: true, name: true, code: true },
-        });
+        const allVehicles =
+          await this.routeSheetGeneratorService.vehicle?.findMany({
+            where: { is_active: true },
+            select: { vehicle_id: true, name: true, code: true },
+          });
         for (const v of allVehicles || []) {
           if (v.name) vehicleSlugToId.set(slugify(v.name), v.vehicle_id);
           if (v.code) vehicleSlugToId.set(slugify(v.code), v.vehicle_id);
@@ -1210,7 +1287,8 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
           select: { id: true, name: true },
         });
         for (const u of allUsers || []) {
-          if (u.name) userSlugToUser.set(slugify(u.name), { id: u.id, name: u.name });
+          if (u.name)
+            userSlugToUser.set(slugify(u.name), { id: u.id, name: u.name });
         }
       } catch (_) {
         // Si fallan los prefeteos (por tests o entorno), seguimos con mapas vacíos
@@ -1220,13 +1298,13 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
         await Promise.all(
           files.map(async (filename) => {
             // Intentar nuevo formato con detalles primero, luego nuevo (sólo versión), luego legado
-          const matchNewFull = filename.match(newRegexFull);
-          let date: string;
-          let vId: number | undefined;
-          let dId: number | undefined;
-          let zIds: number[] = [];
-          let driverName: string | null = null;
-          let zones: string[] = [];
+            const matchNewFull = filename.match(newRegexFull);
+            let date: string;
+            let vId: number | undefined;
+            let dId: number | undefined;
+            let zIds: number[] = [];
+            let driverName: string | null = null;
+            let zones: string[] = [];
 
             if (matchNewFull) {
               date = matchNewFull[1];
@@ -1258,11 +1336,14 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
                 // Intentar obtener nombres de zonas del vehículo
                 if (typeof vId === 'number' && vId > 0) {
                   try {
-                    const vZones = await this.routeSheetGeneratorService.vehicle_zone.findMany({
-                      where: { vehicle_id: vId, is_active: true },
-                      include: { zone: true },
-                      orderBy: { zone_id: 'asc' },
-                    });
+                    const vZones =
+                      await this.routeSheetGeneratorService.vehicle_zone.findMany(
+                        {
+                          where: { vehicle_id: vId, is_active: true },
+                          include: { zone: true },
+                          orderBy: { zone_id: 'asc' },
+                        },
+                      );
                     zones = vZones.map((vz) => vz.zone.name).filter(Boolean);
                   } catch (_) {
                     zones = [];
@@ -1273,11 +1354,14 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
                 zIds = [];
                 if (typeof vId === 'number' && vId > 0) {
                   try {
-                    const vZones = await this.routeSheetGeneratorService.vehicle_zone.findMany({
-                      where: { vehicle_id: vId, is_active: true },
-                      include: { zone: true },
-                      orderBy: { zone_id: 'asc' },
-                    });
+                    const vZones =
+                      await this.routeSheetGeneratorService.vehicle_zone.findMany(
+                        {
+                          where: { vehicle_id: vId, is_active: true },
+                          include: { zone: true },
+                          orderBy: { zone_id: 'asc' },
+                        },
+                      );
                     zones = vZones.map((vz) => vz.zone.name).filter(Boolean);
                   } catch (_) {
                     zones = [];
@@ -1309,10 +1393,11 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
                 // Obtener nombres de zonas por IDs
                 try {
                   if (zIds.length > 0) {
-                    const zList = await this.routeSheetGeneratorService.zone.findMany({
-                      where: { zone_id: { in: zIds } },
-                      select: { name: true },
-                    });
+                    const zList =
+                      await this.routeSheetGeneratorService.zone.findMany({
+                        where: { zone_id: { in: zIds } },
+                        select: { name: true },
+                      });
                     zones = zList.map((z) => z.name).filter(Boolean);
                   } else {
                     zones = [];
@@ -1329,16 +1414,18 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
             if (!driverName && typeof dId === 'number' && dId > 0) {
               try {
                 // Fuente de verdad: User (chofer del sistema). Fallback a Person para archivos legados.
-                const user = await this.routeSheetGeneratorService.user.findUnique({
-                  where: { id: dId },
-                  select: { name: true },
-                });
-                driverName = user?.name ?? null;
-                if (!driverName) {
-                  const person = await this.routeSheetGeneratorService.person.findUnique({
-                    where: { person_id: dId },
+                const user =
+                  await this.routeSheetGeneratorService.user.findUnique({
+                    where: { id: dId },
                     select: { name: true },
                   });
+                driverName = user?.name ?? null;
+                if (!driverName) {
+                  const person =
+                    await this.routeSheetGeneratorService.person.findUnique({
+                      where: { person_id: dId },
+                      select: { name: true },
+                    });
                   driverName = person?.name ?? null;
                 }
               } catch (_) {
@@ -1350,11 +1437,12 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
             let drivers: { id: number; name: string }[] = [];
             if (typeof vId === 'number' && vId > 0) {
               try {
-                const userVehicles = await this.routeSheetGeneratorService.user_vehicle.findMany({
-                  where: { vehicle_id: vId, is_active: true },
-                  include: { user: true },
-                  orderBy: { assigned_at: 'desc' },
-                });
+                const userVehicles =
+                  await this.routeSheetGeneratorService.user_vehicle.findMany({
+                    where: { vehicle_id: vId, is_active: true },
+                    include: { user: true },
+                    orderBy: { assigned_at: 'desc' },
+                  });
                 drivers = userVehicles
                   .filter((uv) => uv.user && uv.user.id && uv.user.name)
                   .map((uv) => ({ id: uv.user.id, name: uv.user.name }));
@@ -1364,7 +1452,9 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
             }
             // Si hay múltiples choferes, combinar nombres en driverName
             if (drivers.length > 1) {
-              const names = Array.from(new Set(drivers.map((d) => d.name).filter(Boolean)));
+              const names = Array.from(
+                new Set(drivers.map((d) => d.name).filter(Boolean)),
+              );
               if (names.length > 1) driverName = names.join(', ');
             }
 
@@ -1381,20 +1471,30 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
               sizeBytes: stat.size,
               createdAt: formatBATimestampISO(stat.mtime as any),
             };
-          })
+          }),
         )
       )
         .filter((item) => !!item)
-        .filter((item) => withinDateRange(item!.date))
-        .filter((item) => (vehicleId !== undefined ? item!.vehicleId === Number(vehicleId) : true))
-        .filter((item) => (driverId !== undefined ? item!.driverId === Number(driverId) : true))
-        .filter((item) => (zoneId ? item!.zoneIds.includes(Number(zoneId)) : true))
-        .filter((item) => (assignedDriverId ? item!.drivers?.some((d) => d.id === Number(assignedDriverId)) : true))
+        .filter((item) => withinDateRange(item.date))
+        .filter((item) =>
+          vehicleId !== undefined ? item.vehicleId === Number(vehicleId) : true,
+        )
+        .filter((item) =>
+          driverId !== undefined ? item.driverId === Number(driverId) : true,
+        )
+        .filter((item) =>
+          zoneId ? item.zoneIds.includes(Number(zoneId)) : true,
+        )
+        .filter((item) =>
+          assignedDriverId
+            ? item.drivers?.some((d) => d.id === Number(assignedDriverId))
+            : true,
+        )
         .sort((a, b) => {
           // Desc by date, then desc by createdAt
-          const byDate = compareYmdDesc(a!.date, b!.date);
+          const byDate = compareYmdDesc(a.date, b.date);
           if (byDate !== 0) return byDate;
-          return a!.createdAt < b!.createdAt ? 1 : -1;
+          return a.createdAt < b.createdAt ? 1 : -1;
         });
 
       return {

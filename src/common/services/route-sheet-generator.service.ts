@@ -6,9 +6,23 @@ import * as fsExtra from 'fs-extra';
 import * as path from 'path';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { PdfGeneratorService, CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
-import { GenerateRouteSheetDto, RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
-import { isValidYMD, parseYMD, formatLocalYMD, formatBAYMD, formatBATimestampISO, formatUTCYMD, formatBAHMS } from '../utils/date.utils';
+import {
+  PdfGeneratorService,
+  CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData,
+} from './pdf-generator.service';
+import {
+  GenerateRouteSheetDto,
+  RouteSheetResponseDto,
+} from '../../orders/dto/generate-route-sheet.dto';
+import {
+  isValidYMD,
+  parseYMD,
+  formatLocalYMD,
+  formatBAYMD,
+  formatBATimestampISO,
+  formatUTCYMD,
+  formatBAHMS,
+} from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -38,7 +52,13 @@ export interface RouteSheetCollection {
   priority: number;
   notes: string;
   status: string;
-  payment_status?: 'NONE' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CREDITED';
+  payment_status?:
+    | 'NONE'
+    | 'PENDING'
+    | 'PARTIAL'
+    | 'PAID'
+    | 'OVERDUE'
+    | 'CREDITED';
   is_backlog: boolean;
   backlog_type?: 'PENDING' | 'OVERDUE' | null;
   subscription_plan_name?: string;
@@ -115,21 +135,21 @@ export interface CollectionRouteSheetPdfData {
 @Injectable()
 export class RouteSheetGeneratorService extends PrismaClient {
   private readonly logger = new Logger(RouteSheetGeneratorService.name);
-  
+
   // Configuración de colores para impresión en blanco y negro
   private readonly colors = {
-    primary: '#000000ff',        // Rojo para encabezados
-    secondary: '#333333',      // Gris oscuro
-    bgPrimary: '#F5F5F5',      // Gris muy claro para fondos alternados
-    bgSecondary: '#E0E0E0',    // Gris claro
-    bgWhite: '#FFFFFF',        // Blanco
-    textPrimary: '#000000',    // Negro para texto principal
-    textWhite: '#FFFFFF',      // Blanco para texto sobre fondos oscuros
-    textAccent: '#000000',     // Negro para acentos
-    borderColor: '#CCCCCC',    // Gris medio para bordes
-    successColor: '#DDDDDD',   // Gris claro (reemplaza verde)
-    errorColor: '#999999',     // Gris medio (reemplaza rojo)
-    warningColor: '#BBBBBB',   // Gris claro (reemplaza amarillo)
+    primary: '#000000ff', // Rojo para encabezados
+    secondary: '#333333', // Gris oscuro
+    bgPrimary: '#F5F5F5', // Gris muy claro para fondos alternados
+    bgSecondary: '#E0E0E0', // Gris claro
+    bgWhite: '#FFFFFF', // Blanco
+    textPrimary: '#000000', // Negro para texto principal
+    textWhite: '#FFFFFF', // Blanco para texto sobre fondos oscuros
+    textAccent: '#000000', // Negro para acentos
+    borderColor: '#CCCCCC', // Gris medio para bordes
+    successColor: '#DDDDDD', // Gris claro (reemplaza verde)
+    errorColor: '#999999', // Gris medio (reemplaza rojo)
+    warningColor: '#BBBBBB', // Gris claro (reemplaza amarillo)
   };
 
   constructor(
@@ -142,12 +162,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Genera una hoja de ruta para cobranzas automáticas
    */
-  async generateRouteSheet(filters: GenerateRouteSheetDto): Promise<RouteSheetResponseDto> {
+  async generateRouteSheet(
+    filters: GenerateRouteSheetDto,
+  ): Promise<RouteSheetResponseDto> {
     try {
       let targetDate: Date;
       if (filters.date) {
         if (!isValidYMD(filters.date)) {
-          throw new BadRequestException('La fecha debe estar en formato YYYY-MM-DD válido');
+          throw new BadRequestException(
+            'La fecha debe estar en formato YYYY-MM-DD válido',
+          );
         }
         targetDate = parseYMD(filters.date);
       } else {
@@ -160,12 +184,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
         await this.validateVehicleZones(filters.vehicleId, filters.zoneIds);
       }
 
-      const collections = await this.getCollectionsForRouteSheet(filters, targetDate);
+      const collections = await this.getCollectionsForRouteSheet(
+        filters,
+        targetDate,
+      );
       const zones = this.groupCollectionsByZone(collections, targetDate);
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
-      const fileName = this.tempFileManager.generateUniqueFileName('route-sheet');
+      const fileName =
+        this.tempFileManager.generateUniqueFileName('route-sheet');
       const filePath = this.tempFileManager.getTempFilePath(fileName);
 
       await this.generateRouteSheetPdf(filePath, {
@@ -183,7 +211,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           throw new Error('El PDF generado está vacío');
         }
       } catch (e) {
-        this.logger.error(`PDF inválido o no generado en ${filePath}`, e as any);
+        this.logger.error(`PDF inválido o no generado en ${filePath}`, e);
         throw new Error(`Fallo al escribir el PDF: ${(e as Error).message}`);
       }
 
@@ -222,7 +250,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       let targetDate: Date;
       if (filters.date) {
         if (!isValidYMD(filters.date)) {
-          throw new BadRequestException('La fecha debe estar en formato YYYY-MM-DD válido');
+          throw new BadRequestException(
+            'La fecha debe estar en formato YYYY-MM-DD válido',
+          );
         }
         targetDate = parseYMD(filters.date);
       } else {
@@ -234,13 +264,21 @@ export class RouteSheetGeneratorService extends PrismaClient {
         await this.validateVehicleZones(filters.vehicleId, filters.zoneIds);
       }
 
-      const collections = await this.getCollectionsForRouteSheet(filters, targetDate);
+      const collections = await this.getCollectionsForRouteSheet(
+        filters,
+        targetDate,
+      );
       const zones = this.groupCollectionsByZone(collections, targetDate);
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
       // Asegurar directorio de persistencia
-      const persistDir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
+      const persistDir = path.join(
+        process.cwd(),
+        'public',
+        'pdfs',
+        'collections',
+      );
       if (!fs.existsSync(persistDir)) {
         fs.mkdirSync(persistDir, { recursive: true });
       }
@@ -248,9 +286,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
       // Construir nombre de archivo estable con formato solicitado (sin prefijos)
       // Formato: cobranza-automatica-hoja-de-ruta_YYYY-MM-DD_<movil-nombre|NA>_<zonas-nombres|all>_<driver-nombre|NA>.pdf
       const datePart = formatLocalYMD(targetDate);
-      const zoneIds = Array.isArray(filters.zoneIds) && filters.zoneIds.length > 0
-        ? [...filters.zoneIds].sort((a, b) => a - b)
-        : [];
+      const zoneIds =
+        Array.isArray(filters.zoneIds) && filters.zoneIds.length > 0
+          ? [...filters.zoneIds].sort((a, b) => a - b)
+          : [];
 
       // Resolver nombres de zonas según los zoneIds, manteniendo orden estable
       let zonesPart = 'all';
@@ -260,7 +299,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           select: { zone_id: true, name: true },
         });
         const zoneNameById = new Map<number, string>(
-          zoneList.map((z) => [z.zone_id, z.name])
+          zoneList.map((z) => [z.zone_id, z.name]),
         );
         const zoneNameSlugs = zoneIds.map((id) => {
           const name = zoneNameById.get(id) ?? String(id);
@@ -279,7 +318,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         ? `${this.slugifyForFilename(driver.name)}`
         : 'NA';
       const timeRaw = formatBAHMS(new Date());
-      const timePart = `${timeRaw.slice(0,2)}-${timeRaw.slice(2,4)}-${timeRaw.slice(4,6)}`;
+      const timePart = `${timeRaw.slice(0, 2)}-${timeRaw.slice(2, 4)}-${timeRaw.slice(4, 6)}`;
       const baseName = `cobranza-automatica-hoja-de-ruta_${datePart}-${timePart}_${vehiclePart}_${zonesPart}_${driverPart}.pdf`;
       const filePath = path.join(persistDir, baseName);
 
@@ -311,7 +350,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       };
     } catch (error) {
       this.logger.error('Error generando y persistiendo hoja de ruta:', error);
-      throw new Error(`Error generando y persistiendo hoja de ruta: ${error.message}`);
+      throw new Error(
+        `Error generando y persistiendo hoja de ruta: ${error.message}`,
+      );
     }
   }
 
@@ -335,10 +376,22 @@ export class RouteSheetGeneratorService extends PrismaClient {
    * Calcula el resumen de la hoja de ruta
    */
   private calculateSummary(zones: RouteSheetZone[]) {
-    const totalCollections = zones.reduce((sum, zone) => sum + zone.summary.total_collections, 0);
-    const totalAmount = zones.reduce((sum, zone) => sum + parseFloat(zone.summary.total_amount), 0);
-    const overdueCollections = zones.reduce((sum, zone) => sum + zone.summary.overdue_collections, 0);
-    const overdueAmount = zones.reduce((sum, zone) => sum + parseFloat(zone.summary.overdue_amount), 0);
+    const totalCollections = zones.reduce(
+      (sum, zone) => sum + zone.summary.total_collections,
+      0,
+    );
+    const totalAmount = zones.reduce(
+      (sum, zone) => sum + parseFloat(zone.summary.total_amount),
+      0,
+    );
+    const overdueCollections = zones.reduce(
+      (sum, zone) => sum + zone.summary.overdue_collections,
+      0,
+    );
+    const overdueAmount = zones.reduce(
+      (sum, zone) => sum + parseFloat(zone.summary.overdue_amount),
+      0,
+    );
 
     return {
       total_zones: zones.length,
@@ -355,7 +408,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
    */
   private async getCollectionsForRouteSheet(
     filters: GenerateRouteSheetDto,
-    targetDate: Date
+    targetDate: Date,
   ): Promise<any[]> {
     // Rango de día robusto (00:00:00 a 23:59:59)
     const dayStart = new Date(targetDate);
@@ -468,11 +521,14 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Agrupa las cobranzas por zona
    */
-  private groupCollectionsByZone(collections: any[], targetDate: Date): RouteSheetZone[] {
+  private groupCollectionsByZone(
+    collections: any[],
+    targetDate: Date,
+  ): RouteSheetZone[] {
     const zoneGroups = new Map<number, RouteSheetZone>();
 
     collections.forEach((collection) => {
-      const zone = (collection as any).customer.zone;
+      const zone = collection.customer.zone;
       const zoneKey = zone ? zone.zone_id : 0;
       const zoneName = zone ? zone.name : 'Sin zona';
 
@@ -490,11 +546,19 @@ export class RouteSheetGeneratorService extends PrismaClient {
         });
       }
 
-      const collectionData = this.createCollectionData(collection, zoneName, targetDate);
-      const zoneData = zoneGroups.get(zoneKey)!;
-      
+      const collectionData = this.createCollectionData(
+        collection,
+        zoneName,
+        targetDate,
+      );
+      const zoneData = zoneGroups.get(zoneKey);
+
       zoneData.collections.push(collectionData);
-      this.updateZoneSummary(zoneData, collection, collectionData.days_overdue > 0);
+      this.updateZoneSummary(
+        zoneData,
+        collection,
+        collectionData.days_overdue > 0,
+      );
     });
 
     return Array.from(zoneGroups.values());
@@ -503,24 +567,47 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Crea los datos de una cobranza
    */
-  private createCollectionData(collection: any, zoneName: string, targetDate: Date): RouteSheetCollection {
+  private createCollectionData(
+    collection: any,
+    zoneName: string,
+    targetDate: Date,
+  ): RouteSheetCollection {
     const dayStart = new Date(targetDate);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dueDate = collection.customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
+    const dueDate =
+      collection.customer_subscription?.subscription_cycle?.[0]
+        ?.payment_due_date;
     const isOverdue = dueDate ? dueDate < dayStart : false;
-    const daysOverdue = isOverdue && dueDate
-      ? Math.floor((dayStart.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
+    const daysOverdue =
+      isOverdue && dueDate
+        ? Math.floor(
+            (dayStart.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          )
+        : 0;
 
-    const orderDate: Date | null = collection.order_date ? new Date(collection.order_date) : null;
-    const scheduledDate: Date | null = collection.scheduled_delivery_date ? new Date(collection.scheduled_delivery_date) : null;
-    const inRange = (d: Date | null) => d ? d >= dayStart && d < dayEnd : false;
+    const orderDate: Date | null = collection.order_date
+      ? new Date(collection.order_date)
+      : null;
+    const scheduledDate: Date | null = collection.scheduled_delivery_date
+      ? new Date(collection.scheduled_delivery_date)
+      : null;
+    const inRange = (d: Date | null) =>
+      d ? d >= dayStart && d < dayEnd : false;
     const isForTargetDay = inRange(orderDate) || inRange(scheduledDate);
-    const isBacklog = !isForTargetDay && ['PENDING', 'OVERDUE'].includes((collection.payment_status || '').toUpperCase());
-    const backlogType: 'PENDING' | 'OVERDUE' | null = isBacklog ? ((collection.payment_status || '').toUpperCase() as 'PENDING' | 'OVERDUE') : null;
+    const isBacklog =
+      !isForTargetDay &&
+      ['PENDING', 'OVERDUE'].includes(
+        (collection.payment_status || '').toUpperCase(),
+      );
+    const backlogType: 'PENDING' | 'OVERDUE' | null = isBacklog
+      ? ((collection.payment_status || '').toUpperCase() as
+          | 'PENDING'
+          | 'OVERDUE')
+      : null;
 
     const planName = collection.customer_subscription?.subscription_plan?.name;
-    const subscriptionNotes = collection.customer_subscription?.notes ?? undefined;
+    const subscriptionNotes =
+      collection.customer_subscription?.notes ?? undefined;
     const amountNumber = Number(collection.total_amount);
     const formattedNotes = formatCollectionNotesForRouteSheet(
       subscriptionNotes,
@@ -530,7 +617,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     );
 
     return {
-      order_id: (collection as any).collection_order_id ?? collection.order_id,
+      order_id: collection.collection_order_id ?? collection.order_id,
       customer: {
         customer_id: collection.customer_id,
         name: collection.customer.name,
@@ -541,7 +628,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       },
       amount: collection.total_amount.toString(),
       due_dates: (collection.customer?.customer_subscription || [])
-        .flatMap((cs: any) => (cs.subscription_cycle || []).map((c: any) => c?.payment_due_date))
+        .flatMap((cs: any) =>
+          (cs.subscription_cycle || []).map((c: any) => c?.payment_due_date),
+        )
         .filter((d: Date | undefined) => !!d)
         .map((d: Date) => formatUTCYMD(d)),
       days_overdue: daysOverdue,
@@ -553,20 +642,22 @@ export class RouteSheetGeneratorService extends PrismaClient {
       backlog_type: backlogType,
       subscription_plan_name: planName,
     };
-
-
   }
   /**
    * Actualiza el resumen de la zona
    */
-  private updateZoneSummary(zoneData: RouteSheetZone, collection: any, isOverdue: boolean): void {
+  private updateZoneSummary(
+    zoneData: RouteSheetZone,
+    collection: any,
+    isOverdue: boolean,
+  ): void {
     const amount = parseFloat(collection.total_amount.toString());
-    
+
     zoneData.summary.total_collections++;
     zoneData.summary.total_amount = (
       parseFloat(zoneData.summary.total_amount) + amount
     ).toFixed(2);
-    
+
     if (isOverdue) {
       zoneData.summary.overdue_collections++;
       zoneData.summary.overdue_amount = (
@@ -578,7 +669,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Obtiene información del conductor
    */
-  private async getDriverInfo(driverId?: number): Promise<RouteSheetDriver | undefined> {
+  private async getDriverInfo(
+    driverId?: number,
+  ): Promise<RouteSheetDriver | undefined> {
     if (!driverId) return undefined;
 
     // Fuente de verdad para choferes: User (usuarios del sistema)
@@ -600,7 +693,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Obtiene información del vehículo
    */
-  private async getVehicleInfo(vehicleId?: number): Promise<RouteSheetVehicle | undefined> {
+  private async getVehicleInfo(
+    vehicleId?: number,
+  ): Promise<RouteSheetVehicle | undefined> {
     if (!vehicleId) return undefined;
 
     const vehicle = await this.vehicle.findUnique({
@@ -620,7 +715,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
   /**
    * Valida que el vehículo tenga las zonas asignadas
    */
-  private async validateVehicleZones(vehicleId: number, zoneIds: number[]): Promise<void> {
+  private async validateVehicleZones(
+    vehicleId: number,
+    zoneIds: number[],
+  ): Promise<void> {
     // Obtener las zonas activas asignadas al vehículo
     const vehicleZones = await this.vehicle_zone.findMany({
       where: {
@@ -632,8 +730,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
       },
     });
 
-    const assignedZoneIds = vehicleZones.map(vz => vz.zone_id);
-    const missingZones = zoneIds.filter(zoneId => !assignedZoneIds.includes(zoneId));
+    const assignedZoneIds = vehicleZones.map((vz) => vz.zone_id);
+    const missingZones = zoneIds.filter(
+      (zoneId) => !assignedZoneIds.includes(zoneId),
+    );
 
     if (missingZones.length > 0) {
       // Obtener los nombres de las zonas faltantes para un mensaje más descriptivo
@@ -647,11 +747,13 @@ export class RouteSheetGeneratorService extends PrismaClient {
         },
       });
 
-      const missingZoneNames = missingZoneDetails.map(z => `${z.name} (ID: ${z.zone_id})`).join(', ');
-      
+      const missingZoneNames = missingZoneDetails
+        .map((z) => `${z.name} (ID: ${z.zone_id})`)
+        .join(', ');
+
       throw new BadRequestException(
         `El vehículo con ID ${vehicleId} no tiene asignadas las siguientes zonas: ${missingZoneNames}. ` +
-        `Por favor, asigne estas zonas al vehículo antes de generar la hoja de ruta.`
+          `Por favor, asigne estas zonas al vehículo antes de generar la hoja de ruta.`,
       );
     }
   }
@@ -667,24 +769,28 @@ export class RouteSheetGeneratorService extends PrismaClient {
       driver?: RouteSheetDriver;
       vehicle?: RouteSheetVehicle;
       notes?: string;
-    }
+    },
   ): Promise<void> {
     const { targetDate, zones, driver, vehicle, notes } = data;
 
     // Convertir los datos al formato que espera PdfGeneratorService
-    const collections = zones.flatMap(zone => 
-      zone.collections.map(collection => ({
+    const collections = zones.flatMap((zone) =>
+      zone.collections.map((collection) => ({
         cycle_payment_id: collection.order_id,
         customer: {
           customer_id: collection.customer.customer_id || collection.order_id,
           name: collection.customer.name,
           address: collection.customer.address,
           phone: collection.customer.phone,
-          locality: collection.customer.locality_name ? { name: collection.customer.locality_name } : undefined,
+          locality: collection.customer.locality_name
+            ? { name: collection.customer.locality_name }
+            : undefined,
         },
         amount: parseFloat(collection.amount),
-        payment_due_date: (collection.due_dates && collection.due_dates[0]) ? collection.due_dates[0] : formatBAYMD(targetDate),
-        all_due_dates: collection.due_dates || [],
+        payment_due_date:
+          collection.due_dates && collection.due_dates[0]
+            ? collection.due_dates[0]
+            : formatBAYMD(targetDate),
         delivery_status: collection.status || 'pending',
         payment_status: collection.payment_status || 'PENDING',
         delivery_time: '',
@@ -697,7 +803,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         comments: collection.notes,
         subscription_id: 1,
         credits: [],
-      }))
+      })),
     );
 
     const collectionData: PdfCollectionRouteSheetPdfData = {
@@ -716,9 +822,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
     };
 
     // Usar PdfGeneratorService para generar el PDF
-    const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
-      collectionData
-    );
+    const result =
+      await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+        collectionData,
+      );
 
     // Crear el stream y finalizar el documento
     const writeStream = fs.createWriteStream(filePath);
@@ -737,10 +844,20 @@ export class RouteSheetGeneratorService extends PrismaClient {
    * Genera un PDF de previsualización usando datos de prueba directos
    * Solo para desarrollo y testing
    */
-  async generatePreviewPdf(testData: CollectionRouteSheetPdfData): Promise<string> {
+  async generatePreviewPdf(
+    testData: CollectionRouteSheetPdfData,
+  ): Promise<string> {
     try {
-      const result = await this.pdfGeneratorService.generateCollectionRouteSheetPdf(testData);
+      // Generar el PDF usando PdfGeneratorService con los datos de prueba
+      const result =
+        await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
+          testData,
+        );
+
+      // Crear archivo temporal para previsualización
       const tempPath = `./temp/preview-collection-${Date.now()}.pdf`;
+
+      // Crear el write stream
       const writeStream = fs.createWriteStream(tempPath);
       result.doc.pipe(writeStream);
       result.doc.end();
@@ -751,7 +868,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       return tempPath;
     } catch (error) {
       this.logger.error('Error generando PDF de previsualización:', error);
-      throw new Error(`Error generando PDF de previsualización: ${error.message}`);
+      throw new Error(
+        `Error generando PDF de previsualización: ${error.message}`,
+      );
     }
   }
 
@@ -761,10 +880,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
    */
   async generatePreviewRouteSheetPdf(testData: any): Promise<string> {
     try {
-      const result = await this.pdfGeneratorService.generateRouteSheetPdf(testData, {
-        includeSignatureField: true,
-        includeProductDetails: true,
-      });
+      // Generar el PDF usando PdfGeneratorService con los datos de prueba
+      const result = await this.pdfGeneratorService.generateRouteSheetPdf(
+        testData,
+        {
+          includeSignatureField: true,
+          includeProductDetails: true,
+        },
+      );
+
+      // Crear el write stream y finalizar el documento
       const writeStream = fs.createWriteStream(result.pdfPath);
       result.doc.pipe(writeStream);
       result.doc.end();
@@ -774,8 +899,13 @@ export class RouteSheetGeneratorService extends PrismaClient {
       });
       return result.pdfPath;
     } catch (error) {
-      this.logger.error('Error generando PDF de previsualización de hoja de ruta:', error);
-      throw new Error(`Error generando PDF de previsualización de hoja de ruta: ${error.message}`);
+      this.logger.error(
+        'Error generando PDF de previsualización de hoja de ruta:',
+        error,
+      );
+      throw new Error(
+        `Error generando PDF de previsualización de hoja de ruta: ${error.message}`,
+      );
     }
   }
 }

@@ -77,19 +77,19 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { 
+        message: {
           type: 'array',
           items: { type: 'string' },
           example: [
             'El email debe ser válido',
             'La contraseña debe tener al menos 8 caracteres',
             'El nombre es requerido',
-            'El usuario con este email ya existe'
-          ]
+            'El usuario con este email ya existe',
+          ],
         },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: 409,
@@ -98,10 +98,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 409 },
-        message: { type: 'string', example: 'Ya existe un usuario con este email' },
-        error: { type: 'string', example: 'Conflict' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Ya existe un usuario con este email',
+        },
+        error: { type: 'string', example: 'Conflict' },
+      },
+    },
   })
   @ApiResponse({
     status: 500,
@@ -110,10 +113,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 500 },
-        message: { type: 'string', example: 'Error interno del servidor durante el registro' },
-        error: { type: 'string', example: 'Internal Server Error' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Error interno del servidor durante el registro',
+        },
+        error: { type: 'string', example: 'Internal Server Error' },
+      },
+    },
   })
   @UseInterceptors(
     FileInterceptor('profileImage', fileUploadConfigs.profileImages),
@@ -149,17 +155,14 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { 
+        message: {
           type: 'array',
           items: { type: 'string' },
-          example: [
-            'El email debe ser válido',
-            'La contraseña es requerida'
-          ]
+          example: ['El email debe ser válido', 'La contraseña es requerida'],
         },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -169,9 +172,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Credenciales inválidas' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -180,10 +183,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'Usuario inactivo o email no confirmado' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Usuario inactivo o email no confirmado',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   @ApiBody({
     description: 'Credenciales de inicio de sesión',
@@ -213,10 +219,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 401 },
-        message: { type: 'string', example: 'Refresh token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Refresh token inválido o expirado',
+        },
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -226,9 +235,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 403 },
         message: { type: 'string', example: 'Token de refresco requerido' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   async refreshToken(@Req() req: any) {
     const userRefreshToken = req.user.refreshToken;
@@ -256,9 +265,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -267,10 +276,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'No tienes permisos para acceder a este recurso',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   async getProfile(@GetUser() user: User): Promise<UserResponseDto> {
     return await this.authService.getUserById(user.id);
@@ -357,18 +369,18 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { 
+        message: {
           type: 'array',
           items: { type: 'string' },
           example: [
             'page debe ser un número positivo',
             `limit debe estar entre 1 y ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`,
-            'role debe ser un valor válido del enum Role'
-          ]
+            'role debe ser un valor válido del enum Role',
+          ],
         },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -378,9 +390,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -389,10 +401,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'Acceso denegado. Se requiere rol de SUPERADMIN' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Acceso denegado. Se requiere rol de SUPERADMIN',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   getAllUsers(
     @Query(
@@ -432,9 +447,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 400 },
         message: { type: 'string', example: 'El ID debe ser un número válido' },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
   @ApiResponse({
     status: 401,
@@ -444,9 +459,9 @@ export class AuthController {
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -455,10 +470,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'Acceso denegado. Se requiere rol de SUPERADMIN' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Acceso denegado. Se requiere rol de SUPERADMIN',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
@@ -467,10 +485,13 @@ export class AuthController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 404 },
-        message: { type: 'string', example: 'Usuario con ID 123 no encontrado' },
-        error: { type: 'string', example: 'Not Found' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Usuario con ID 123 no encontrado',
+        },
+        error: { type: 'string', example: 'Not Found' },
+      },
+    },
   })
   getUserById(@Param('id', ParseIntPipe) id: number) {
     return this.authService.getUserById(id);
@@ -605,7 +626,12 @@ export class AuthController {
   }
 
   @Post('update-password')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Actualizar contraseña del usuario logueado',
@@ -783,7 +809,12 @@ export class AuthController {
   // Endpoints de gestión de vehículos
 
   @Post('users/:id/vehicles')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Asignar vehículos a un usuario',
@@ -834,7 +865,12 @@ export class AuthController {
   }
 
   @Get('users/:id/vehicles')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Obtener vehículos asignados a un usuario',
@@ -864,7 +900,12 @@ export class AuthController {
   }
 
   @Delete('users/:userId/vehicles/:vehicleId')
-  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Remover vehículo de un usuario',

@@ -51,7 +51,12 @@ export class OrdersController {
   ) {}
 
   @Post()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: '🆕 Crear una nueva orden (híbrida por defecto)',
     description: `Crea una nueva orden que AHORA ES HÍBRIDA POR DEFECTO con soporte completo para listas de precios individuales por producto.
@@ -192,7 +197,8 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Pedido creado exitosamente con cálculo automático de precios.',
+    description:
+      'Pedido creado exitosamente con cálculo automático de precios.',
     type: OrderResponseDto,
   })
   @ApiResponse({
@@ -223,31 +229,31 @@ export class OrdersController {
       properties: {
         message: { type: 'string', example: 'Validation failed' },
         error: { type: 'string', example: 'Bad Request' },
-        statusCode: { type: 'number', example: 400 }
-      }
-    }
+        statusCode: { type: 'number', example: 400 },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: '🔐 No autorizado - Token JWT requerido',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Unauthorized' },
-        statusCode: { type: 'number', example: 401 }
-      }
-    }
+        statusCode: { type: 'number', example: 401 },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 403, 
+  @ApiResponse({
+    status: 403,
     description: '🚫 Prohibido - Rol insuficiente para crear pedidos',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Forbidden resource' },
-        statusCode: { type: 'number', example: 403 }
-      }
-    }
+        statusCode: { type: 'number', example: 403 },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
@@ -264,9 +270,9 @@ export class OrdersController {
       properties: {
         message: { type: 'string', example: 'Customer with ID 123 not found' },
         error: { type: 'string', example: 'Not Found' },
-        statusCode: { type: 'number', example: 404 }
-      }
-    }
+        statusCode: { type: 'number', example: 404 },
+      },
+    },
   })
   @ApiResponse({
     status: 409,
@@ -290,11 +296,14 @@ export class OrdersController {
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Insufficient stock for product ID 5' },
+        message: {
+          type: 'string',
+          example: 'Insufficient stock for product ID 5',
+        },
         error: { type: 'string', example: 'Conflict' },
-        statusCode: { type: 'number', example: 409 }
-      }
-    }
+        statusCode: { type: 'number', example: 409 },
+      },
+    },
   })
   async createOrder(
     @Body(ValidationPipe) createOrderDto: CreateOrderDto,
@@ -304,7 +313,12 @@ export class OrdersController {
   }
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener todos los pedidos regulares',
     description: `Obtiene una lista paginada de pedidos regulares con filtros avanzados y búsqueda inteligente.
@@ -351,7 +365,8 @@ export class OrdersController {
   @ApiQuery({
     name: 'search',
     required: false,
-    description: 'Búsqueda general por cliente, número de pedido, teléfono, etc.',
+    description:
+      'Búsqueda general por cliente, número de pedido, teléfono, etc.',
   })
   @ApiQuery({
     name: 'customerName',
@@ -382,7 +397,14 @@ export class OrdersController {
     name: 'status',
     required: false,
     description: 'Filtrar por estado del pedido',
-    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'RETIRADO', 'CANCELLED'],
+    enum: [
+      'PENDING',
+      'CONFIRMED',
+      'IN_DELIVERY',
+      'DELIVERED',
+      'RETIRADO',
+      'CANCELLED',
+    ],
   })
   @ApiQuery({
     name: 'orderType',
@@ -430,7 +452,8 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de pedidos obtenida exitosamente con filtros aplicados.',
+    description:
+      'Lista de pedidos obtenida exitosamente con filtros aplicados.',
     schema: {
       type: 'object',
       properties: {
@@ -450,8 +473,8 @@ export class OrdersController {
       },
     },
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: `❌ Parámetros de consulta inválidos:
     
     🔸 **Filtros de Fecha:**
@@ -474,31 +497,31 @@ export class OrdersController {
       properties: {
         message: { type: 'string', example: 'Invalid query parameters' },
         error: { type: 'string', example: 'Bad Request' },
-        statusCode: { type: 'number', example: 400 }
-      }
-    }
+        statusCode: { type: 'number', example: 400 },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: '🔐 No autorizado - Token JWT requerido',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Unauthorized' },
-        statusCode: { type: 'number', example: 401 }
-      }
-    }
+        statusCode: { type: 'number', example: 401 },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 403, 
+  @ApiResponse({
+    status: 403,
     description: '🚫 Prohibido - Rol insuficiente para consultar pedidos',
     schema: {
       type: 'object',
       properties: {
         message: { type: 'string', example: 'Forbidden resource' },
-        statusCode: { type: 'number', example: 403 }
-      }
-    }
+        statusCode: { type: 'number', example: 403 },
+      },
+    },
   })
   async findAllOrders(
     @Query(ValidationPipe) filterOrdersDto: FilterOrdersDto,
@@ -510,7 +533,12 @@ export class OrdersController {
   }
 
   @Get(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener un pedido regular por ID',
     description: `Obtiene los detalles completos de un pedido específico incluyendo toda su información comercial y operativa.
@@ -580,7 +608,12 @@ export class OrdersController {
   }
 
   @Patch(':id')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Actualizar un pedido regular',
     description:
@@ -652,7 +685,12 @@ export class OrdersController {
   }
 
   @Get('customer/:customerId/history')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Obtener historial completo de pedidos de un cliente',
     description:
@@ -682,7 +720,14 @@ export class OrdersController {
     name: 'status',
     required: false,
     description: 'Filtrar por estado del pedido',
-    enum: ['PENDING', 'CONFIRMED', 'IN_DELIVERY', 'DELIVERED', 'RETIRADO', 'CANCELLED'],
+    enum: [
+      'PENDING',
+      'CONFIRMED',
+      'IN_DELIVERY',
+      'DELIVERED',
+      'RETIRADO',
+      'CANCELLED',
+    ],
   })
   @ApiQuery({
     name: 'orderType',
@@ -728,8 +773,10 @@ export class OrdersController {
   })
   async getCustomerOrderHistory(
     @Param('customerId', ParseIntPipe) customerId: number,
-    @Query('page') page: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE),
-    @Query('limit') limit: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT),
+    @Query('page')
+    page: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE),
+    @Query('limit')
+    limit: string = String(BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT),
     @Query('status') status?: string,
     @Query('orderType') orderType?: string,
     @Query('orderDateFrom') orderDateFrom?: string,
@@ -759,7 +806,12 @@ export class OrdersController {
    * Obtener horarios disponibles para entrega
    */
   @Get('available-time-slots')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({ summary: 'Obtener horarios disponibles para entrega' })
   @ApiResponse({
     status: 200,
@@ -797,7 +849,12 @@ export class OrdersController {
    * Validar horario de entrega
    */
   @Post('validate-schedule')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({ summary: 'Validar horario de entrega' })
   @ApiBody({
     schema: {
@@ -852,7 +909,12 @@ export class OrdersController {
   }
 
   @Get('subscription/:subscriptionId/available-credits')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({ summary: 'Obtener créditos disponibles de suscripción' })
   @ApiParam({ name: 'subscriptionId', description: 'ID de la suscripción' })
   @ApiResponse({
@@ -875,7 +937,12 @@ export class OrdersController {
   }
 
   @Post(':id/payments')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Procesar pago de orden híbrida',
     description:
@@ -949,7 +1016,12 @@ export class OrdersController {
   }
 
   @Post('one-off/:id/payments')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Procesar pago de orden ONE_OFF',
     description:
@@ -1027,7 +1099,12 @@ export class OrdersController {
   }
 
   @Post('generate-collection/:cycleId')
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @ApiOperation({
     summary: 'Generar orden de cobranza automática por cycle_id',
     description:
@@ -1182,7 +1259,8 @@ export class OrdersController {
   })
   async updatePaymentTransaction(
     @Param('transactionId', ParseIntPipe) transactionId: number,
-    @Body(ValidationPipe) updatePaymentTransactionDto: UpdatePaymentTransactionDto,
+    @Body(ValidationPipe)
+    updatePaymentTransactionDto: UpdatePaymentTransactionDto,
     @Req() req: any,
   ): Promise<PaymentOperationResponseDto> {
     const userId = req.user?.userId;
@@ -1270,7 +1348,8 @@ export class OrdersController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Confirmación faltante, transacción muy antigua (>7 días) o es la única transacción',
+    description:
+      'Confirmación faltante, transacción muy antigua (>7 días) o es la única transacción',
   })
   @ApiResponse({
     status: 403,
@@ -1292,9 +1371,11 @@ export class OrdersController {
     const userId = req.user?.userId;
     const userRole = req.user?.role;
     if (!body.confirm_deletion) {
-      throw new BadRequestException('Se requiere confirmación explícita para eliminar la transacción');
+      throw new BadRequestException(
+        'Se requiere confirmación explícita para eliminar la transacción',
+      );
     }
-    
+
     return this.ordersService.deletePaymentTransaction(
       transactionId,
       body.deletion_reason,

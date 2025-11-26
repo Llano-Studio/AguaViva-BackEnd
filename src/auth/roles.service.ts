@@ -29,7 +29,7 @@ export class RolesService {
         'priceLists',
         'products',
         'suscriptionPlans',
-        'users'
+        'users',
       ],
       [Role.BOSSADMINISTRATIVE]: [
         'inventory',
@@ -47,7 +47,7 @@ export class RolesService {
         'comodatos',
         'priceLists',
         'products',
-        'suscriptionPlans'
+        'suscriptionPlans',
       ],
       [Role.ADMINISTRATIVE]: [
         'inventory',
@@ -65,17 +65,15 @@ export class RolesService {
         'comodatos',
         'priceLists',
         'products',
-        'suscriptionPlans'
+        'suscriptionPlans',
       ],
-      [Role.DRIVERS]: []
+      [Role.DRIVERS]: [],
     };
 
     const modules = modulesByRole[role] || [];
-    
-    this.logger.log(
-      `Módulos para rol ${role}: [${modules.join(', ')}]`,
-    );
-    
+
+    this.logger.log(`Módulos para rol ${role}: [${modules.join(', ')}]`);
+
     return modules;
   }
 }

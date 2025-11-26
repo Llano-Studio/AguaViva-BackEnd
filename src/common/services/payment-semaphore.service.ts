@@ -59,18 +59,20 @@ export class PaymentSemaphoreService
           customer_subscription: {
             customer_id: personId,
             // Incluir suscripciones ACTIVAS y CANCELADAS que todavía tengan ciclos con deuda
-            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED] },
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
+            },
           },
           // Incluir ciclos que:
           // 1. No han terminado (cycle_end >= today), O
           // 2. Han terminado pero tienen pagos pendientes (pending_balance > 0)
           OR: [
             { cycle_end: { gte: today } }, // Ciclos activos
-            { 
+            {
               cycle_end: { lt: today },
-              pending_balance: { gt: 0 }
-            } // Ciclos terminados con deuda
-          ]
+              pending_balance: { gt: 0 },
+            }, // Ciclos terminados con deuda
+          ],
         },
         include: {
           customer_subscription: {
@@ -96,10 +98,14 @@ export class PaymentSemaphoreService
       let maxOverdueDays = 0;
 
       for (const cycle of activeCycles) {
-        const pendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
+        const pendingBalance = parseFloat(
+          cycle.pending_balance?.toString() || '0',
+        );
         const totalAmount = parseFloat(cycle.total_amount?.toString() || '0');
         const paidAmount = parseFloat(cycle.paid_amount?.toString() || '0');
-        const paymentDueDate = cycle.payment_due_date ? new Date(cycle.payment_due_date) : new Date(cycle.cycle_end);
+        const paymentDueDate = cycle.payment_due_date
+          ? new Date(cycle.payment_due_date)
+          : new Date(cycle.cycle_end);
 
         // Si hay monto total, marcar que tiene actividad
         if (totalAmount > 0) {
@@ -107,7 +113,10 @@ export class PaymentSemaphoreService
         }
 
         // 🔧 VERIFICACIÓN CRÍTICA: Si algún ciclo tiene estado PENDING o PARTIAL, no puede ser GREEN
-        if (cycle.payment_status === 'PENDING' || cycle.payment_status === 'PARTIAL') {
+        if (
+          cycle.payment_status === 'PENDING' ||
+          cycle.payment_status === 'PARTIAL'
+        ) {
           hasAnyPendingOrPartial = true;
 
           // Verificar si está vencido
@@ -139,8 +148,10 @@ export class PaymentSemaphoreService
       // 🔧 LÓGICA CORREGIDA: Solo GREEN si TODOS los ciclos están completamente pagados
       if (!hasAnyPendingOrPartial && hasAnyWithAmount) {
         // Verificar que TODOS los ciclos tengan payment_status === 'PAID'
-        const allCyclesPaid = activeCycles.every(cycle => {
-          const pendingBalance = parseFloat(cycle.pending_balance?.toString() || '0');
+        const allCyclesPaid = activeCycles.every((cycle) => {
+          const pendingBalance = parseFloat(
+            cycle.pending_balance?.toString() || '0',
+          );
           return cycle.payment_status === 'PAID' && pendingBalance === 0;
         });
         if (allCyclesPaid) {
@@ -166,15 +177,18 @@ export class PaymentSemaphoreService
         const latestSubscription = activeCycles[0]?.customer_subscription;
         if (latestSubscription) {
           const subscriptionStartDate = new Date(latestSubscription.start_date);
-          const daysSinceStart = Math.ceil((today.getTime() - subscriptionStartDate.getTime()) / (1000 * 60 * 60 * 24));
-          
+          const daysSinceStart = Math.ceil(
+            (today.getTime() - subscriptionStartDate.getTime()) /
+              (1000 * 60 * 60 * 24),
+          );
+
           // Si la suscripción fue creada hace menos de 30 días y no tiene montos calculados,
           // es probable que sea nueva y esté esperando confirmación de pago
           if (daysSinceStart <= 30) {
             return 'YELLOW';
           }
         }
-        
+
         // Si es muy antigua sin montos, entonces es NONE
         return 'NONE';
       }

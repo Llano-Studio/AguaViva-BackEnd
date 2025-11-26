@@ -138,7 +138,7 @@ export class CancellationOrderReassignmentService
 
       this.logger.log(
         `✅ Orden de cancelación reasignada: ${failedOrder.cancellation_order_id} ` +
-          `de ${formatBAYMD(failedOrder.scheduled_collection_date as any)} ` +
+          `de ${formatBAYMD(failedOrder.scheduled_collection_date)} ` +
           `a ${formatBAYMD(newCollectionDate as any)}`,
       );
     } catch (error) {
