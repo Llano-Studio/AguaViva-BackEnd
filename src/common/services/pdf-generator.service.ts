@@ -137,8 +137,6 @@ export interface CollectionRouteSheetPdfData {
     name: string;
   };
   route_notes?: string;
-  // Identificadores de zona para usar en nombre de archivo (e.g., ["zona1", "zona2"])
-  // Identificadores de zona para usar en nombre de archivo (e.g., ["zona1", "zona2"])
   zone_identifiers?: string[];
   collections: Array<{
     cycle_payment_id: number;
@@ -147,7 +145,7 @@ export interface CollectionRouteSheetPdfData {
       name: string;
       address: string;
       phone: string;
-      zone?: {
+      zone: {
         zone_id: number;
         code: string;
         name: string;
@@ -159,19 +157,15 @@ export interface CollectionRouteSheetPdfData {
       };
     };
     amount: number;
-    payment_reference?: string;
-    payment_notes?: string;
-    payment_method?: string;
-    subscription_notes?: string;
     payment_due_date: string;
     cycle_period: string;
     subscription_plan: string;
     payment_status: string;
     delivery_status: string;
-    delivery_time?: string;
-    comments?: string;
-    subscription_id?: number;
-    credits?: Array<{
+    delivery_time: string;
+    comments: string;
+    subscription_id: number;
+    credits: Array<{
       product_description: string;
       planned_quantity: number;
       delivered_quantity: number;
