@@ -201,7 +201,7 @@ export class RouteSheetCollectionDto {
   amount: string;
 
   @ApiPropertyOptional({
-    description: 'Fechas de vencimiento de todos los abonos del cliente',
+    description: 'Fechas de vencimiento con saldo pendiente del cliente. Ordenadas por relevancia; el primer elemento es el principal del día, los restantes incluyen adicionales y vencidos.',
     example: ['2024-01-20', '2024-02-15'],
     type: [String],
   })
@@ -231,6 +231,14 @@ export class RouteSheetCollectionDto {
     example: 'PENDING',
   })
   status: string;
+
+  @ApiProperty({
+    description: 'Estado de pago',
+    example: 'OVERDUE',
+    enum: ['NONE', 'PENDING', 'PARTIAL', 'PAID', 'OVERDUE', 'CREDITED'],
+    required: false,
+  })
+  payment_status?: 'NONE' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CREDITED';
 
   @ApiProperty({
     description: 'Indica si la orden pertenece a backlog (pendiente/atrasada)',

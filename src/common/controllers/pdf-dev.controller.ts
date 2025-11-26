@@ -1,4 +1,5 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PdfGeneratorService, CollectionRouteSheetPdfData } from '../services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../services/route-sheet-generator.service';
@@ -9,6 +10,7 @@ import * as fs from 'fs-extra';
  * Controlador de desarrollo para visualizar cambios en PDFs en tiempo real
  * Solo para desarrollo - NO USAR EN PRODUCCIÓN
  */
+@ApiTags('🧪 Dev PDF')
 @Controller('dev/pdf')
 export class PdfDevController {
   constructor(
@@ -21,6 +23,55 @@ export class PdfDevController {
    * URL: http://localhost:3000/dev/pdf/preview-collection-route
    */
   @Get('preview-collection-route')
+  @ApiOperation({
+    summary: 'Preview hoja de ruta de cobranzas (DEV)',
+    description: `Genera un PDF de hoja de ruta de cobranzas usando datos de ejemplo.
+
+## Estructura esperada (CollectionRouteSheetPdfData)
+{
+  route_sheet_id: number,
+  delivery_date: 'YYYY-MM-DD',
+  driver: { name: string, email: string },
+  vehicle: { code: string, name: string },
+  route_notes?: string,
+  zone_identifiers?: string[],
+  collections: [
+    {
+      cycle_payment_id: number,
+      customer: {
+        customer_id: number,
+        name: string,
+        address: string,
+        phone: string,
+        zone?: { zone_id: number, code: string, name: string },
+        locality?: { locality_id?: number, code?: string, name: string }
+      },
+      amount: number,
+      payment_reference?: string,
+      payment_notes?: string,
+      payment_method?: string,
+      subscription_notes?: string,
+      payment_due_date: 'YYYY-MM-DD',
+      cycle_period: string,
+      subscription_plan: string,
+      delivery_status: string,
+      delivery_time?: string,
+      comments?: string,
+      subscription_id?: number,
+      credits?: [{ product_description: string, planned_quantity: number, delivered_quantity: number, remaining_balance: number }]
+    }
+] 
+}
+
+## Reglas de cálculo y filas
+
+- "Monto":
+  - Si el cliente tiene un único abono activo y posee cuotas impagas, se muestra la suma total del saldo pendiente de ese abono.
+  - Si el cliente tiene múltiples abonos, se muestran filas separadas por cada abono, cada una con su propio monto y vencimiento.
+- "Venc.": si hay múltiples abonos con vencimiento hoy, se añade "(+N)" y en "Notas" se listan las fechas vencidas.
+`,
+  })
+  @ApiResponse({ status: 200, description: 'Devuelve un PDF en el cuerpo de la respuesta' })
   async previewCollectionRoute(@Res() res: Response) {
     // Usar la nueva estructura CollectionRouteSheetPdfData
     const testData: CollectionRouteSheetPdfData = {
@@ -59,6 +110,7 @@ export class PdfDevController {
           payment_due_date: "2025-11-15",
           cycle_period: "MONTHLY",
           subscription_plan: "Plan Premium",
+          payment_status: "PENDING",
           delivery_status: "PENDING",
           delivery_time: "08:00-12:00",
           comments: "timbre 6W - avisar antes de ir",
@@ -100,6 +152,7 @@ export class PdfDevController {
           payment_due_date: "2025-11-10",
           cycle_period: "MONTHLY",
           subscription_plan: "Plan Básico",
+          payment_status: "OVERDUE",
           delivery_status: "PENDING",
           delivery_time: "14:00-18:00",
           comments: "portón verde - casa con rejas",
@@ -135,6 +188,7 @@ export class PdfDevController {
           payment_due_date: "2025-11-12",
           cycle_period: "MONTHLY", 
           subscription_plan: "Plan Familiar",
+          payment_status: "PAID",
           delivery_status: "OVERDUE",
           delivery_time: "09:00-13:00",
           comments: "departamento 2B - interfono roto",
@@ -205,6 +259,74 @@ export class PdfDevController {
    * URL: http://localhost:3000/dev/pdf/preview-route
    */
   @Get('preview-route')
+  @ApiOperation({
+    summary: 'Preview hoja de ruta de pedidos (DEV)',
+    description: `Genera un PDF de hoja de ruta de pedidos usando datos de ejemplo.
+
+## Estructura esperada (RouteSheetPdfData)
+{
+  route_sheet_id: number,
+  delivery_date: 'YYYY-MM-DD',
+  driver: { id: number, name: string, email: string },
+  vehicle: {
+    vehicle_id: number,
+    code: string,
+    name: string,
+    zones: [{
+      zone_id: number,
+      code: string,
+      name: string,
+      locality?: {
+        locality_id: number,
+        code: string,
+        name: string,
+        province: {
+          province_id: number,
+          code: string,
+          name: string,
+          country: { country_id: number, code: string, name: string }
+        }
+      }
+    }]
+  },
+  route_notes?: string,
+  zone_identifiers?: string[],
+  details: [{
+    route_sheet_detail_id: number,
+    route_sheet_id: number,
+    order: {
+      order_id: number,
+      order_date: string,
+      total_amount: string,
+      status: string,
+      subscription_id?: number,
+      customer: {
+        person_id: number,
+        name: string,
+        alias?: string,
+        address: string,
+        phone: string,
+        locality?: { name: string }
+      },
+      items: [{
+        order_item_id: number,
+        quantity: number,
+        delivered_quantity: number,
+        returned_quantity: number,
+        product: { product_id: number, description: string }
+      }],
+      notes?: string
+    },
+    delivery_status: string,
+    delivery_time: string,
+    is_current_delivery: boolean,
+    comments?: string,
+    credits?: [{ product_description: string, planned_quantity: number, delivered_quantity: number, remaining_balance: number }]
+  }],
+  zones_covered: [{ zone_id: number, code: string, name: string, locality?: { locality_id: number, code: string, name: string, province: { province_id: number, code: string, name: string, country: { country_id: number, code: string, name: string } } } }]
+}`,
+  })
+  @ApiResponse({ status: 200, description: 'Devuelve un PDF en el cuerpo de la respuesta' })
   async previewRoute(@Res() res: Response) {
     const testData = {
       route_sheet_id: 23,

@@ -38,6 +38,7 @@ export interface RouteSheetCollection {
   priority: number;
   notes: string;
   status: string;
+  payment_status?: 'NONE' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CREDITED';
   is_backlog: boolean;
   backlog_type?: 'PENDING' | 'OVERDUE' | null;
   subscription_plan_name?: string;
@@ -97,6 +98,7 @@ export interface CollectionRouteSheetPdfData {
     payment_due_date: string;
     cycle_period: string;
     subscription_plan: string;
+    payment_status: string;
     delivery_status: string;
     delivery_time?: string;
     comments?: string;
@@ -546,6 +548,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
       notes: formattedNotes,
       status: collection.status,
+      payment_status: collection.payment_status,
       is_backlog: isBacklog,
       backlog_type: backlogType,
       subscription_plan_name: planName,
@@ -683,6 +686,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         payment_due_date: (collection.due_dates && collection.due_dates[0]) ? collection.due_dates[0] : formatBAYMD(targetDate),
         all_due_dates: collection.due_dates || [],
         delivery_status: collection.status || 'pending',
+        payment_status: collection.payment_status || 'PENDING',
         delivery_time: '',
         cycle_period: 'monthly',
         subscription_plan: collection.subscription_plan_name || 'Standard',
