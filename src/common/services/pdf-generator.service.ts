@@ -169,6 +169,7 @@ export interface CollectionRouteSheetPdfData {
     all_due_dates?: string[];
     cycle_period: string;
     subscription_plan: string;
+    payment_status: string;
     delivery_status: string;
     delivery_time?: string;
     comments?: string;
@@ -890,6 +891,18 @@ export class PdfGeneratorService {
     
     return statusMap[status.toLowerCase()] || 'PENDIENTE';
   }
+  private translatePaymentStatus(status: string): string {
+    const map = {
+      none: '-',
+      pending: 'PENDIENTE',
+      partial: 'PARCIAL',
+      paid: 'PAGADO',
+      overdue: 'VENCIDO',
+      credited: 'ACREDITADO',
+    } as Record<string, string>;
+    const key = String(status || '').toLowerCase();
+    return map[key] || 'PENDIENTE';
+  }
 
   /**
    * Genera un PDF específico para hojas de ruta de cobranzas automáticas
@@ -1244,7 +1257,7 @@ export class PdfGeneratorService {
       { text: collection.customer.phone || '-', width: colWidths[3] },
       { text: `$${collection.amount.toFixed(2)}`, width: colWidths[4] },
       { text: this.safeFormatDateYMDDisplay(collection.payment_due_date), width: colWidths[5] },
-      { text: this.translateStatus(collection.delivery_status), width: colWidths[6] }
+      { text: this.translatePaymentStatus(collection.payment_status), width: colWidths[6] }
     ];
 
     doc.fontSize(9).font('Poppins');
@@ -1304,7 +1317,7 @@ export class PdfGeneratorService {
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
       { text: vencText, align: 'center' },
-      { text: this.translateStatus(collection.delivery_status), align: 'center' }
+      { text: this.translatePaymentStatus(collection.payment_status), align: 'center' }
     ];
 
     // Calcular altura necesaria para cada celda
