@@ -1801,7 +1801,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   ): Promise<{ url: string; filename: string }> {
     try {
       const routeSheet = await this.findOne(route_sheet_id);
-      console.log('[RouteSheet/print] Loaded RouteSheetResponseDto:', JSON.stringify(routeSheet, null, 2));
+      console.log(
+        '[RouteSheet/print] Loaded RouteSheetResponseDto:',
+        JSON.stringify(routeSheet, null, 2),
+      );
 
       // Convertir RouteSheetResponseDto a RouteSheetPdfData
       const pdfData: RouteSheetPdfData = {
@@ -1836,7 +1839,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   total_amount: detail.order.total_amount?.toString() || '0',
                   status: detail.order.status || 'PENDING',
                   subscription_id: (detail.order as any).subscription_id,
-                  subscription_due_date: (detail.order as any).subscription_due_date,
+                  subscription_due_date: (detail.order as any)
+                    .subscription_due_date,
                   all_due_dates: (detail.order as any).all_due_dates,
                   customer: {
                     person_id: detail.order.customer.person_id || 0,
@@ -1879,7 +1883,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           .filter((detail) => detail !== null),
         zones_covered: routeSheet.zones_covered || [],
       };
-      console.log('[RouteSheet/print] Built RouteSheetPdfData:', JSON.stringify(pdfData, null, 2));
+      console.log(
+        '[RouteSheet/print] Built RouteSheetPdfData:',
+        JSON.stringify(pdfData, null, 2),
+      );
       // Generar PDF usando el servicio común
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateRouteSheetPdf(pdfData, options);
@@ -2100,24 +2107,24 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               cycle.payment_due_date,
             );
           }
-          // Agregar todas las fechas de vencimiento pendientes para la suscripción
-          if (detail.order_header.subscription_id) {
-            try {
-              const unpaidCycles = await this.subscription_cycle.findMany({
-                where: {
-                  subscription_id: detail.order_header.subscription_id,
-                  payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+          // Agregar todas las fechas de vencimiento pendientes para TODOS los abonos del cliente
+          try {
+            const unpaidCycles = await this.subscription_cycle.findMany({
+              where: {
+                customer_subscription: {
+                  customer_id: customerDto.person_id,
                 },
-                select: { payment_due_date: true },
-                orderBy: { payment_due_date: 'asc' },
-              });
-              orderDto.all_due_dates = unpaidCycles
-                .map((c) => formatUTCYMD(c.payment_due_date))
-                .filter((d) => !!d);
-              orderDto.subscription_id = detail.order_header.subscription_id;
-            } catch {
-              // Ignorar errores de consulta y continuar
-            }
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
+              select: { payment_due_date: true },
+              orderBy: { payment_due_date: 'asc' },
+            });
+            orderDto.all_due_dates = unpaidCycles
+              .map((c) => formatUTCYMD(c.payment_due_date))
+              .filter((d) => !!d);
+            orderDto.subscription_id = detail.order_header.subscription_id;
+          } catch {
+            // Ignorar errores de consulta y continuar
           }
         } else if (detail.one_off_purchase) {
           // Compra one-off individual
@@ -2370,6 +2377,24 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           if (due) {
             orderDto.subscription_due_date = formatUTCYMD(due as any);
           }
+          // Agregar todas las fechas de vencimiento pendientes para TODOS los abonos del cliente
+          try {
+            const unpaidCycles = await this.subscription_cycle.findMany({
+              where: {
+                customer_subscription: {
+                  customer_id: customerDto.person_id,
+                },
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
+              select: { payment_due_date: true },
+              orderBy: { payment_due_date: 'asc' },
+            });
+            orderDto.all_due_dates = unpaidCycles
+              .map((c) => formatUTCYMD(c.payment_due_date))
+              .filter((d) => !!d);
+          } catch {
+            // Ignorar errores de consulta y continuar
+          }
         } else {
           throw new Error('Detalle de hoja de ruta sin orden válida');
         }
@@ -2396,9 +2421,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
         if (detail.order_header?.subscription_id) {
           try {
-            const credits = await this.subscriptionQuotaService.getAvailableCredits(
-              detail.order_header.subscription_id,
-            );
+            const credits =
+              await this.subscriptionQuotaService.getAvailableCredits(
+                detail.order_header.subscription_id,
+              );
             return {
               ...baseDetail,
               credits: credits.map((c) => ({
@@ -3185,7 +3211,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             }
           }
 
-          return {
+          const mapped = {
             cycle_payment_id: detail.cycle_payment_id,
             customer: {
               customer_id: person.person_id,
@@ -3230,6 +3256,19 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 remaining_balance: cycleDetail.remaining_balance,
               })) || [],
           };
+          console.log(
+            '[Collections/map] payment_id=',
+            detail.cycle_payment.payment_id,
+            'payment_date=',
+            detail.cycle_payment.payment_date,
+            'cycle_number=',
+            cycle.cycle_number,
+            'cycle_due=',
+            cycle.payment_due_date,
+            'mapped_due=',
+            mapped.payment_due_date,
+          );
+          return mapped;
         }),
       );
 
@@ -3248,6 +3287,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         zone_identifiers: zoneIdentifiers,
         collections,
       };
+      console.log(
+        '[Collections/print] Built CollectionRouteSheetPdfData:',
+        JSON.stringify(collectionData, null, 2),
+      );
 
       // Generar el PDF usando el servicio de generación mejorado
       const { doc, filename, pdfPath } =
