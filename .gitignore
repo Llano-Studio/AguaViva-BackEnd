@@ -67,3 +67,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .trae
 
 }
+run_and_log.sh
