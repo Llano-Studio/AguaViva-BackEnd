@@ -854,6 +854,15 @@ export class AutomatedCollectionController {
 - Estados de pago actuales
 - Información de contacto
 
+**Tabla (PDF) — Columnas:**
+- **#**: ID de cliente
+- **Cliente**: Nombre del cliente
+- **Dirección**: Dirección y localidad
+- **Teléfono**: Teléfono del cliente
+- **Monto**: Importe a cobrar
+- **Venc.**: Fecha de vencimiento del ciclo (payment_due_date)
+- **Estado**: Estado de pago (payment_status)
+
 ## 📋 FORMATOS DISPONIBLES
 
 **Tipos de Hoja de Ruta:**
@@ -916,6 +925,7 @@ export class AutomatedCollectionController {
             priority: number,
             notes?: string,
             status: string,
+            payment_status?: 'NONE' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CREDITED',
             is_backlog: boolean,
             backlog_type?: 'PENDING' | 'OVERDUE' | null,
             subscription_plan_name?: string
@@ -940,6 +950,19 @@ export class AutomatedCollectionController {
     notes?: string
   }
 }`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: `Interpretación de Vencimientos (Front)
+
+- Usar \`routeSheet.date\` (YYYY-MM-DD) para comparar.
+- Campo: \`collections[].due_dates\` (string[]).
+- Reglas:
+  - Principal: \`due_dates[0]\`.
+  - Múltiples del día: contar \`due_dates\`.filter(d => d === routeSheet.date) para mostrar "(+N)".
+  - Vencidos: \`due_dates\`.filter(d => d < routeSheet.date) para notas/tooltip.
+-
+Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de detalles lista "Cuotas vencidas" con dd/MM/yyyy.`,
   })
   @ApiResponse({ status: 400, description: 'Parámetros de filtro inválidos' })
   @ApiResponse({ status: 403, description: 'Permisos insuficientes' })
@@ -1044,6 +1067,7 @@ export class AutomatedCollectionController {
     Notas:
     - Los campos vehicleId/driverId/zoneIds se intentan derivar del nombre (slug) cuando es posible.
     - En el formato de transición (solo versión), estos campos pueden estar vacíos.
+    - En los PDFs, la columna **Estado** refleja el estado de pago (payment_status) y la columna **Venc.** muestra la fecha de vencimiento (payment_due_date).
 
     Filtros opcionales:
     - dateFrom/dateTo: rango de fechas (YYYY-MM-DD)

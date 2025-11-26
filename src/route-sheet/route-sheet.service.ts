@@ -743,13 +743,28 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           const existingDetailId = personId ? personToDetailId.get(personId) : undefined;
 
           if (existingDetailId) {
-            await tx.route_sheet_detail.update({
+            const existing = await tx.route_sheet_detail.findUnique({
               where: { route_sheet_detail_id: existingDetailId },
-              data: {
-                cycle_payment_id: detail.cycle_payment_id!,
-                // Mantener delivery_time/comentarios del detalle existente
-              },
+              select: { cycle_payment_id: true },
             });
+            if (!existing?.cycle_payment_id) {
+              await tx.route_sheet_detail.update({
+                where: { route_sheet_detail_id: existingDetailId },
+                data: {
+                  cycle_payment_id: detail.cycle_payment_id!,
+                },
+              });
+            } else {
+              await tx.route_sheet_detail.create({
+                data: {
+                  route_sheet_id: routeSheet.route_sheet_id,
+                  cycle_payment_id: detail.cycle_payment_id!,
+                  delivery_status: detail.delivery_status,
+                  delivery_time: detail.delivery_time || undefined,
+                  comments: detail.comments,
+                },
+              });
+            }
           } else {
             await tx.route_sheet_detail.create({
               data: {
@@ -2960,6 +2975,88 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         .sort((a, b) => a - b)
         .map((z) => `zona${z}`);
 
+      const collections = await Promise.all(
+        collectionDetails.map(async (detail) => {
+          const person = detail.cycle_payment.subscription_cycle.customer_subscription.person;
+          const subscription = detail.cycle_payment.subscription_cycle.customer_subscription;
+          const cycle = detail.cycle_payment.subscription_cycle;
+
+          let finalAmount = detail.cycle_payment.amount.toNumber();
+          let allDueDates: string[] | undefined = undefined;
+
+          const activeSubscriptionsCount = await this.customer_subscription.count({
+            where: { customer_id: person.person_id, is_active: true },
+          });
+
+          if (activeSubscriptionsCount === 1) {
+            const unpaidCycles = await this.subscription_cycle.findMany({
+              where: {
+                subscription_id: subscription.subscription_id,
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
+              select: { pending_balance: true, payment_due_date: true },
+            });
+            const sumDebts = unpaidCycles.reduce(
+              (acc, c) => acc + Number(c.pending_balance ?? 0),
+              0,
+            );
+            if (sumDebts > 0) {
+              finalAmount = sumDebts;
+              allDueDates = unpaidCycles
+                .map((c) => (c.payment_due_date ? formatBAYMD(c.payment_due_date) : ''))
+                .filter((d) => d !== '');
+            }
+          }
+
+          return {
+            cycle_payment_id: detail.cycle_payment_id,
+            customer: {
+              customer_id: person.person_id,
+              name: person.name,
+              address: person.address,
+              phone: person.phone,
+              zone: person.zone
+                ? {
+                    zone_id: person.zone.zone_id,
+                    code: person.zone.code,
+                    name: person.zone.name,
+                  }
+                : undefined,
+              locality: person.locality
+                ? {
+                    locality_id: person.locality.locality_id,
+                    code: person.locality.code,
+                    name: person.locality.name,
+                  }
+                : undefined,
+            },
+            amount: finalAmount,
+            payment_reference: detail.cycle_payment.reference || undefined,
+            payment_notes: detail.cycle_payment.notes || undefined,
+            payment_method: detail.cycle_payment.payment_method || undefined,
+            subscription_notes: subscription.notes || undefined,
+            payment_due_date: detail.cycle_payment.payment_date
+              ? formatBAYMD(detail.cycle_payment.payment_date)
+              : '',
+            all_due_dates: allDueDates,
+            cycle_period: cycle.cycle_number.toString(),
+            subscription_plan: subscription.subscription_plan.name,
+            payment_status: cycle.payment_status,
+            delivery_status: detail.delivery_status,
+            delivery_time: detail.delivery_time,
+            comments: detail.comments,
+            subscription_id: subscription.subscription_id,
+            credits:
+              cycle.subscription_cycle_detail?.map((cycleDetail) => ({
+                product_description: cycleDetail.product.description,
+                planned_quantity: cycleDetail.planned_quantity,
+                delivered_quantity: cycleDetail.delivered_quantity,
+                remaining_balance: cycleDetail.remaining_balance,
+              })) || [],
+          };
+        }),
+      );
+
       const collectionData = {
         route_sheet_id: routeSheet.route_sheet_id,
         delivery_date: formatUTCYMD(routeSheet.delivery_date),
@@ -2973,49 +3070,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           name: routeSheet.vehicle.name,
         },
         zone_identifiers: zoneIdentifiers,
-        collections: collectionDetails.map((detail) => {
-          const person = detail.cycle_payment.subscription_cycle.customer_subscription.person;
-          const subscription = detail.cycle_payment.subscription_cycle.customer_subscription;
-          const cycle = detail.cycle_payment.subscription_cycle;
-
-          return {
-            cycle_payment_id: detail.cycle_payment_id,
-            customer: {
-              customer_id: person.person_id,
-              name: person.name,
-              address: person.address,
-              phone: person.phone,
-              zone: person.zone ? {
-                zone_id: person.zone.zone_id,
-                code: person.zone.code,
-                name: person.zone.name,
-              } : undefined,
-              locality: person.locality ? {
-                locality_id: person.locality.locality_id,
-                code: person.locality.code,
-                name: person.locality.name,
-              } : undefined,
-            },
-            amount: detail.cycle_payment.amount.toNumber(),
-            payment_reference: detail.cycle_payment.reference || undefined,
-            payment_notes: detail.cycle_payment.notes || undefined,
-            payment_method: detail.cycle_payment.payment_method || undefined,
-            subscription_notes: subscription.notes || undefined,
-            payment_due_date: detail.cycle_payment.payment_date ? formatBAYMD(detail.cycle_payment.payment_date) : '',
-            cycle_period: cycle.cycle_number.toString(),
-            subscription_plan: subscription.subscription_plan.name,
-            delivery_status: detail.delivery_status,
-            delivery_time: detail.delivery_time,
-            comments: detail.comments,
-            subscription_id: subscription.subscription_id,
-            credits: cycle.subscription_cycle_detail?.map((cycleDetail) => ({
-              product_description: cycleDetail.product.description,
-              planned_quantity: cycleDetail.planned_quantity,
-              delivered_quantity: cycleDetail.delivered_quantity,
-              remaining_balance: cycleDetail.remaining_balance,
-            })) || [],
-          };
-        }),
+        collections,
       };
 
       // Generar el PDF usando el servicio de generación mejorado
