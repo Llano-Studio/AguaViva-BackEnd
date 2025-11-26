@@ -139,10 +139,12 @@ export class MultipleSubscriptionsService
         status: subscription.status,
         notes: subscription.notes,
         cancellation_reason: subscription.cancellation_reason,
-        cancellation_date:
-          subscription.cancellation_date ? formatBAYMD(subscription.cancellation_date as any) : null,
-        collection_scheduled_date:
-          subscription.collection_scheduled_date ? formatBAYMD(subscription.collection_scheduled_date as any) : null,
+        cancellation_date: subscription.cancellation_date
+          ? formatBAYMD(subscription.cancellation_date as any)
+          : null,
+        collection_scheduled_date: subscription.collection_scheduled_date
+          ? formatBAYMD(subscription.collection_scheduled_date as any)
+          : null,
         collection_completed: subscription.collection_completed,
         is_active: subscription.is_active,
         subscription_plan: {
@@ -157,8 +159,8 @@ export class MultipleSubscriptionsService
         subscription_cycle: subscription.subscription_cycle?.map(
           (cycle: any) => ({
             cycle_id: cycle.cycle_id,
-            cycle_start: formatBAYMD(cycle.cycle_start as any),
-            cycle_end: formatBAYMD(cycle.cycle_end as any),
+            cycle_start: formatBAYMD(cycle.cycle_start),
+            cycle_end: formatBAYMD(cycle.cycle_end),
             notes: cycle.notes,
           }),
         ),
@@ -220,7 +222,9 @@ export class MultipleSubscriptionsService
           cycle.customer_subscription.subscription_plan.name,
         cycle_start: formatBAYMD(cycle.cycle_start as any),
         cycle_end: formatBAYMD(cycle.cycle_end as any),
-        payment_due_date: cycle.payment_due_date ? formatBAYMD(cycle.payment_due_date as any) : '',
+        payment_due_date: cycle.payment_due_date
+          ? formatBAYMD(cycle.payment_due_date as any)
+          : '',
         total_amount: Number(cycle.total_amount || 0),
         paid_amount: Number(cycle.paid_amount),
         pending_balance: Number(cycle.pending_balance),

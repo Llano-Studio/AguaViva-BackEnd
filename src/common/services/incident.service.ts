@@ -288,7 +288,9 @@ export class IncidentService extends PrismaClient {
         created_at: formatBATimestampISO(updatedIncident.created_at as any),
         created_by: updatedIncident.created_by,
         resolution: updatedIncident.resolution || undefined,
-        resolved_at: updatedIncident.resolved_at ? formatBATimestampISO(updatedIncident.resolved_at as any) : undefined,
+        resolved_at: updatedIncident.resolved_at
+          ? formatBATimestampISO(updatedIncident.resolved_at as any)
+          : undefined,
         resolved_by: updatedIncident.resolved_by || undefined,
         creator_name: updatedIncident.creator.name,
         resolver_name: updatedIncident.resolver?.name,
@@ -559,7 +561,9 @@ export class IncidentService extends PrismaClient {
           created_at: formatBATimestampISO(incident.created_at as any),
           created_by: incident.created_by,
           resolution: incident.resolution || undefined,
-          resolved_at: incident.resolved_at ? formatBATimestampISO(incident.resolved_at as any) : undefined,
+          resolved_at: incident.resolved_at
+            ? formatBATimestampISO(incident.resolved_at as any)
+            : undefined,
           resolved_by: incident.resolved_by || undefined,
           creator_name: incident.creator.name,
           resolver_name: incident.resolver?.name,

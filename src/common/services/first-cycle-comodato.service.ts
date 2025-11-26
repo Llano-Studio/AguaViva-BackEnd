@@ -186,14 +186,17 @@ export class FirstCycleComodatoService extends PrismaClient {
             subscription_id: subscriptionId, // ← Agregar subscription_id
             quantity: comodatoDto.quantity, // Inicializado con 0
             max_quantity: planProduct.product_quantity, // 🆕 Cantidad máxima según el plan de suscripción
-            delivery_date:
-              /^\d{4}-\d{2}-\d{2}$/.test(String(comodatoDto.delivery_date).trim())
-                ? parseYMD(String(comodatoDto.delivery_date).trim())
-                : new Date(comodatoDto.delivery_date),
+            delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(
+              String(comodatoDto.delivery_date).trim(),
+            )
+              ? parseYMD(String(comodatoDto.delivery_date).trim())
+              : new Date(comodatoDto.delivery_date),
             expected_return_date: comodatoDto.expected_return_date
-              ? (/^\d{4}-\d{2}-\d{2}$/.test(String(comodatoDto.expected_return_date).trim())
-                  ? parseYMD(String(comodatoDto.expected_return_date).trim())
-                  : new Date(comodatoDto.expected_return_date))
+              ? /^\d{4}-\d{2}-\d{2}$/.test(
+                  String(comodatoDto.expected_return_date).trim(),
+                )
+                ? parseYMD(String(comodatoDto.expected_return_date).trim())
+                : new Date(comodatoDto.expected_return_date)
               : null,
             status: comodatoDto.status,
             notes: `${comodatoDto.notes} - Suscripción ID: ${subscriptionId}`,
@@ -477,8 +480,9 @@ export class FirstCycleComodatoService extends PrismaClient {
         product_description: comodato.product.description,
         quantity: comodato.quantity,
         delivery_date: formatBAYMD(comodato.delivery_date as any),
-        expected_return_date:
-          comodato.expected_return_date ? formatBAYMD(comodato.expected_return_date as any) : null,
+        expected_return_date: comodato.expected_return_date
+          ? formatBAYMD(comodato.expected_return_date as any)
+          : null,
         notes: comodato.notes,
       })),
       total_active_comodatos: activeComodatos.length,

@@ -3,7 +3,7 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { PrismaClient} from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import {
   CreateRouteOptimizationDto,
   RouteOptimizationResponseDto,

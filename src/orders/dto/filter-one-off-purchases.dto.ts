@@ -117,13 +117,13 @@ export class FilterOneOffPurchasesDto extends PaginationQueryDto {
   @Type(() => String)
   @Transform(({ value }) => {
     if (value === undefined || value === null || value === '') return undefined;
-    
+
     // Convertir string a boolean correctamente
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
       return lowerValue === 'true' || lowerValue === '1';
     }
-    
+
     // Si ya es boolean, devolverlo
     return Boolean(value);
   })

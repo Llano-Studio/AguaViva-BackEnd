@@ -491,7 +491,7 @@ export class SubscriptionPlansController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos inválidos o el producto ya existe en el plan.', 
+    description: 'Datos inválidos o el producto ya existe en el plan.',
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({

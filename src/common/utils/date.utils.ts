@@ -53,7 +53,11 @@ export function formatBAYMD(date: Date): string {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(date);
-  const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+  const get = (t: string) =>
+    String(parts.find((p) => p.type === t)?.value || '').padStart(
+      t === 'day' || t === 'month' ? 2 : 0,
+      '0',
+    );
   const y = get('year');
   const m = get('month');
   const d = get('day');
@@ -87,7 +91,11 @@ export function formatBATimestampISO(date: Date): string {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(t === 'day' || t === 'month' ? 2 : 0, '0');
+  const get = (t: string) =>
+    String(parts.find((p) => p.type === t)?.value || '').padStart(
+      t === 'day' || t === 'month' ? 2 : 0,
+      '0',
+    );
   const y = get('year');
   const m = get('month');
   const d = get('day');
@@ -112,7 +120,8 @@ export function formatBAHMS(date: Date): string {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const get = (t: string) => String(parts.find(p => p.type === t)?.value || '').padStart(2, '0');
+  const get = (t: string) =>
+    String(parts.find((p) => p.type === t)?.value || '').padStart(2, '0');
   const hh = get('hour');
   const mm = get('minute');
   const ss = get('second');

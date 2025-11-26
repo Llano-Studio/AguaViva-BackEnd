@@ -11,7 +11,10 @@ export class ComodatoResponseDto {
   @ApiProperty({ example: 1, description: 'ID del producto' })
   product_id: number;
 
-  @ApiProperty({ example: 2, description: 'Cantidad actual de productos en comodato' })
+  @ApiProperty({
+    example: 2,
+    description: 'Cantidad actual de productos en comodato',
+  })
   quantity: number;
 
   @ApiPropertyOptional({

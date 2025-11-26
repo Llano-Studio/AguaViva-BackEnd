@@ -762,7 +762,7 @@ export class CustomerSubscriptionService
       subscription_id: subscription.subscription_id,
       customer_id: subscription.customer_id,
       subscription_plan_id: subscription.subscription_plan_id,
-      start_date: formatBAYMD(subscription.start_date as any),
+      start_date: formatBAYMD(subscription.start_date),
       // end_date removed - field not present in schema
       collection_day: subscription.collection_day,
       payment_mode: subscription.payment_mode,
@@ -795,8 +795,8 @@ export class CustomerSubscriptionService
       subscription_cycle: subscription.subscription_cycle?.map(
         (cycle: any) => ({
           cycle_id: cycle.cycle_id,
-          cycle_start: formatBAYMD(cycle.cycle_start as any),
-          cycle_end: formatBAYMD(cycle.cycle_end as any),
+          cycle_start: formatBAYMD(cycle.cycle_start),
+          cycle_end: formatBAYMD(cycle.cycle_end),
           notes: cycle.notes,
           subscription_cycle_detail:
             cycle.subscription_cycle_detail?.map((detail: any) => ({

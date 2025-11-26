@@ -202,7 +202,8 @@ export class PdfGenerationResponseDto {
 
   @ApiProperty({
     description: 'URL temporal para descargar el PDF',
-    example: 'https://api.example.com/temp/collections-report-20240115-103045.pdf',
+    example:
+      'https://api.example.com/temp/collections-report-20240115-103045.pdf',
   })
   downloadUrl: string;
 

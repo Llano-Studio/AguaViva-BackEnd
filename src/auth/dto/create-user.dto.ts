@@ -13,22 +13,23 @@ import { Role } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'Correo electrónico del usuario (debe ser único en el sistema)',
+    description:
+      'Correo electrónico del usuario (debe ser único en el sistema)',
     example: 'nuevo.empleado@aguaviva.com',
     examples: {
       admin: {
         value: 'admin.sucursal@aguaviva.com',
-        description: 'Usuario administrativo de sucursal'
+        description: 'Usuario administrativo de sucursal',
       },
       driver: {
         value: 'conductor.zona2@aguaviva.com',
-        description: 'Conductor de entregas zona 2'
+        description: 'Conductor de entregas zona 2',
       },
       sales: {
         value: 'ventas.norte@aguaviva.com',
-        description: 'Vendedor zona norte'
-      }
-    }
+        description: 'Vendedor zona norte',
+      },
+    },
   })
   @IsEmail()
   @IsNotEmpty()
@@ -40,35 +41,36 @@ export class CreateUserDto {
     examples: {
       admin: {
         value: 'Carlos Roberto Administrador',
-        description: 'Nombre de usuario administrativo'
+        description: 'Nombre de usuario administrativo',
       },
       driver: {
         value: 'José Luis Conductor',
-        description: 'Nombre de conductor'
+        description: 'Nombre de conductor',
       },
       sales: {
         value: 'Ana Patricia Vendedora',
-        description: 'Nombre de vendedora'
-      }
-    }
+        description: 'Nombre de vendedora',
+      },
+    },
   })
   @IsString()
   @IsNotEmpty()
   name: string;
 
   @ApiProperty({
-    description: 'Contraseña del usuario (mínimo 6 caracteres, debe contener mayúscula, minúscula y número)',
+    description:
+      'Contraseña del usuario (mínimo 6 caracteres, debe contener mayúscula, minúscula y número)',
     example: 'AguaViva2024!',
     examples: {
       secure: {
         value: 'AguaViva2024!',
-        description: 'Contraseña segura recomendada'
+        description: 'Contraseña segura recomendada',
       },
       basic: {
         value: 'Password123',
-        description: 'Contraseña básica válida'
-      }
-    }
+        description: 'Contraseña básica válida',
+      },
+    },
   })
   @IsString()
   @MinLength(6)
@@ -82,20 +84,22 @@ export class CreateUserDto {
     examples: {
       superadmin: {
         value: Role.SUPERADMIN,
-        description: 'Acceso completo al sistema - solo para administradores principales'
+        description:
+          'Acceso completo al sistema - solo para administradores principales',
       },
       admin: {
         value: Role.ADMINISTRATIVE,
-        description: 'Administrador con permisos de gestión'
+        description: 'Administrador con permisos de gestión',
       },
       bossadmin: {
         value: Role.BOSSADMINISTRATIVE,
-        description: 'Jefe administrativo con permisos extendidos'
+        description: 'Jefe administrativo con permisos extendidos',
       },
       driver: {
         value: Role.DRIVERS,
-        description: 'Conductor de entregas'}
-    }
+        description: 'Conductor de entregas',
+      },
+    },
   })
   @IsEnum(Role)
   @IsNotEmpty()
@@ -148,16 +152,16 @@ export class CreateUserDto {
     examples: {
       driver: {
         value: 'Conductor con licencia profesional - Zona norte y centro',
-        description: 'Notas para conductor'
+        description: 'Notas para conductor',
       },
       admin: {
         value: 'Administrador de sucursal - Responsable de inventario',
-        description: 'Notas para administrador'
+        description: 'Notas para administrador',
       },
       sales: {
         value: 'Vendedor especializado en clientes corporativos',
-        description: 'Notas para vendedor'
-      }
+        description: 'Notas para vendedor',
+      },
     },
     required: false,
   })

@@ -120,7 +120,10 @@ export class PriceListItemController {
           properties: {
             total: { type: 'number', example: 100 },
             page: { type: 'number', example: 1 },
-            limit: { type: 'number', example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT },
+            limit: {
+              type: 'number',
+              example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+            },
             totalPages: { type: 'number', example: 10 },
           },
         },
@@ -195,7 +198,10 @@ export class PriceListItemController {
           properties: {
             total: { type: 'number', example: 100 },
             page: { type: 'number', example: 1 },
-            limit: { type: 'number', example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT },
+            limit: {
+              type: 'number',
+              example: BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
+            },
             totalPages: { type: 'number', example: 10 },
           },
         },

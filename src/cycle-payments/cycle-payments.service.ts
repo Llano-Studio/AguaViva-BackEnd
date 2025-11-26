@@ -12,7 +12,11 @@ import {
   CyclePaymentResponseDto,
   CyclePaymentSummaryDto,
 } from './dto/cycle-payment-response.dto';
-import { UpdateCyclePaymentDto, DeletePaymentDto, PaymentOperationResponseDto } from './dto';
+import {
+  UpdateCyclePaymentDto,
+  DeletePaymentDto,
+  PaymentOperationResponseDto,
+} from './dto';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentMethod } from '../common/constants/enums';
@@ -173,7 +177,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_status: newPaymentStatus,
           total_amount: newTotalAmount,
           late_fee_applied: surchargeAmount > 0 ? true : cycle.late_fee_applied,
-          late_fee_percentage: surchargeAmount > 0 ? 0.2 : cycle.late_fee_percentage,
+          late_fee_percentage:
+            surchargeAmount > 0 ? 0.2 : cycle.late_fee_percentage,
         },
       });
 
@@ -200,18 +205,20 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     );
 
     // 🆕 CORRECCIÓN: Invalidar cache del semáforo de pago para que se recalcule inmediatamente
-    this.paymentSemaphoreService.invalidateCache(cycle.customer_subscription.customer_id);
+    this.paymentSemaphoreService.invalidateCache(
+      cycle.customer_subscription.customer_id,
+    );
 
-      return {
-        payment_id: result.payment_id,
-        cycle_id: result.cycle_id,
-        payment_date: formatBATimestampISO(result.payment_date as any),
-        amount: parseFloat(result.amount?.toString() || '0'),
-        payment_method: result.payment_method as PaymentMethod,
-        reference: result.reference,
-        notes: result.notes,
-        created_by: result.created_by,
-      };
+    return {
+      payment_id: result.payment_id,
+      cycle_id: result.cycle_id,
+      payment_date: formatBATimestampISO(result.payment_date as any),
+      amount: parseFloat(result.amount?.toString() || '0'),
+      payment_method: result.payment_method as PaymentMethod,
+      reference: result.reference,
+      notes: result.notes,
+      created_by: result.created_by,
+    };
   }
 
   /**
@@ -288,7 +295,6 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       },
       orderBy: { cycle_start: 'desc' },
     });
-
 
     const paymentSummaries: CyclePaymentSummaryDto[] = [];
 
@@ -548,7 +554,6 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       orderBy: { payment_due_date: 'asc' },
     });
 
-
     return cycles.map((cycle) => {
       const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
         (payment) => ({
@@ -606,7 +611,6 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       },
       orderBy: { payment_due_date: 'asc' },
     });
-
 
     return cycles.map((cycle) => {
       const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
@@ -683,7 +687,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_date: updateCyclePaymentDto.payment_date
             ? new Date(updateCyclePaymentDto.payment_date)
             : existingPayment.payment_date,
-          reference: updateCyclePaymentDto.reference ?? existingPayment.reference,
+          reference:
+            updateCyclePaymentDto.reference ?? existingPayment.reference,
           notes: updateCyclePaymentDto.notes ?? existingPayment.notes,
           updated_at: new Date(),
           updated_by: userId,
@@ -774,7 +779,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     }
 
     // Validar código de confirmación si se proporciona
-    if (deletePaymentDto.confirmation_code && !this.auditService.validateConfirmationCode(deletePaymentDto.confirmation_code)) {
+    if (
+      deletePaymentDto.confirmation_code &&
+      !this.auditService.validateConfirmationCode(
+        deletePaymentDto.confirmation_code,
+      )
+    ) {
       throw new BadRequestException('Código de confirmación inválido');
     }
 
@@ -841,7 +851,10 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
    */
   async validatePaymentUpdate(payment: any, userId: number): Promise<void> {
     // Verificar permisos del usuario
-    const hasPermission = await this.auditService.validateAuditPermissions(userId, 'UPDATE_PAYMENT');
+    const hasPermission = await this.auditService.validateAuditPermissions(
+      userId,
+      'UPDATE_PAYMENT',
+    );
     if (!hasPermission) {
       throw new ForbiddenException('No tiene permisos para actualizar pagos');
     }
@@ -853,12 +866,16 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     );
 
     if (daysDifference > 30) {
-      throw new BadRequestException('No se pueden actualizar pagos con más de 30 días de antigüedad');
+      throw new BadRequestException(
+        'No se pueden actualizar pagos con más de 30 días de antigüedad',
+      );
     }
 
     // Verificar que el ciclo no esté cerrado o procesado
     if (payment.subscription_cycle.payment_status === 'PROCESSED') {
-      throw new BadRequestException('No se pueden actualizar pagos de ciclos ya procesados');
+      throw new BadRequestException(
+        'No se pueden actualizar pagos de ciclos ya procesados',
+      );
     }
   }
 
@@ -872,7 +889,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       select: { role: true },
     });
 
-    if (!user || !['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'].includes(user.role as any)) {
+    if (
+      !user ||
+      !['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'].includes(
+        user.role as any,
+      )
+    ) {
       throw new ForbiddenException('No tiene permisos para eliminar pagos');
     }
 
@@ -881,15 +903,23 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       where: { cycle_id: payment.cycle_id },
     });
 
-    if (cyclePayments === 1 && payment.subscription_cycle.payment_status === 'PAID') {
-      throw new BadRequestException('No se puede eliminar el único pago de un ciclo marcado como pagado');
+    if (
+      cyclePayments === 1 &&
+      payment.subscription_cycle.payment_status === 'PAID'
+    ) {
+      throw new BadRequestException(
+        'No se puede eliminar el único pago de un ciclo marcado como pagado',
+      );
     }
   }
 
   /**
    * Recalcula los balances de un ciclo después de modificar pagos
    */
-  private async recalculateCycleBalances(cycleId: number, tx: any): Promise<void> {
+  private async recalculateCycleBalances(
+    cycleId: number,
+    tx: any,
+  ): Promise<void> {
     // Obtener el ciclo y todos sus pagos
     const cycle = await tx.subscription_cycle.findUnique({
       where: { cycle_id: cycleId },
@@ -903,9 +933,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     }
 
     // Calcular totales de pagos
-    const totalPayments = cycle.cycle_payments.reduce((sum: number, payment: any) => {
-      return sum + parseFloat(payment.amount?.toString() || '0');
-    }, 0);
+    const totalPayments = cycle.cycle_payments.reduce(
+      (sum: number, payment: any) => {
+        return sum + parseFloat(payment.amount?.toString() || '0');
+      },
+      0,
+    );
 
     const totalAmount = parseFloat(cycle.total_amount?.toString() || '0');
     const pendingBalance = Math.max(0, totalAmount - totalPayments);

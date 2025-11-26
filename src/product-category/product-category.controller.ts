@@ -146,29 +146,36 @@ export class ProductCategoryController {
       },
     },
   })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 400,
     description: 'Parámetros de consulta inválidos',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 400 },
-        message: { type: 'array', items: { type: 'string' }, example: ['page debe ser un número positivo', `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`] },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        message: {
+          type: 'array',
+          items: { type: 'string' },
+          example: [
+            'page debe ser un número positivo',
+            `limit no puede ser mayor a ${BUSINESS_CONFIG.PAGINATION.MAX_LIMIT}`,
+          ],
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'No autorizado - Token JWT inválido o expirado',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -177,10 +184,13 @@ export class ProductCategoryController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'No tienes permisos para acceder a este recurso',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   findAll(
     @Query(
@@ -255,7 +265,7 @@ export class ProductCategoryController {
       },
     },
   })
-  @ApiResponse({ 
+  @ApiResponse({
     status: 400,
     description: 'ID de categoría inválido',
     schema: {
@@ -263,21 +273,21 @@ export class ProductCategoryController {
       properties: {
         statusCode: { type: 'number', example: 400 },
         message: { type: 'string', example: 'El ID debe ser un número válido' },
-        error: { type: 'string', example: 'Bad Request' }
-      }
-    }
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'No autorizado - Token JWT inválido o expirado',
     schema: {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 401 },
         message: { type: 'string', example: 'Token inválido o expirado' },
-        error: { type: 'string', example: 'Unauthorized' }
-      }
-    }
+        error: { type: 'string', example: 'Unauthorized' },
+      },
+    },
   })
   @ApiResponse({
     status: 403,
@@ -286,10 +296,13 @@ export class ProductCategoryController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 403 },
-        message: { type: 'string', example: 'No tienes permisos para acceder a este recurso' },
-        error: { type: 'string', example: 'Forbidden' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'No tienes permisos para acceder a este recurso',
+        },
+        error: { type: 'string', example: 'Forbidden' },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
@@ -298,10 +311,13 @@ export class ProductCategoryController {
       type: 'object',
       properties: {
         statusCode: { type: 'number', example: 404 },
-        message: { type: 'string', example: 'Categoría con ID 123 no encontrada' },
-        error: { type: 'string', example: 'Not Found' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'Categoría con ID 123 no encontrada',
+        },
+        error: { type: 'string', example: 'Not Found' },
+      },
+    },
   })
   getProductCategoryById(@Param('id', ParseIntPipe) id: number) {
     return this.service.getProductCategoryById(id);
@@ -309,7 +325,7 @@ export class ProductCategoryController {
 
   @Post()
   @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Crear una nueva categoría de productos',
     description:
       'Crea una nueva categoría para clasificar productos. Solo disponible para administradores.',

@@ -27,15 +27,7 @@ import { AuditModule } from '../audit/audit.module';
     FirstCycleComodatoController,
     OverdueOrderController,
   ],
-  providers: [
-    OrdersService,
-    OneOffPurchaseService,
-    CancellationOrderService,
-  ],
-  exports: [
-    OrdersService,
-    OneOffPurchaseService,
-    CancellationOrderService,
-  ],
+  providers: [OrdersService, OneOffPurchaseService, CancellationOrderService],
+  exports: [OrdersService, OneOffPurchaseService, CancellationOrderService],
 })
 export class OrdersModule {}

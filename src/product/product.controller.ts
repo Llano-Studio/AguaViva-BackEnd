@@ -44,7 +44,12 @@ export class ProductController {
   constructor(private readonly service: ProductService) {}
 
   @Get()
-  @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.DRIVERS)
+  @Auth(
+    Role.ADMINISTRATIVE,
+    Role.SUPERADMIN,
+    Role.BOSSADMINISTRATIVE,
+    Role.DRIVERS,
+  )
   @UseInterceptors(CacheInterceptor)
   @ApiOperation({
     summary: 'Listar productos con filtros y paginación',

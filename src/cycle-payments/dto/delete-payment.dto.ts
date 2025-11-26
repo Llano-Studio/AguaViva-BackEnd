@@ -10,7 +10,9 @@ export class DeletePaymentDto {
   })
   @IsOptional()
   @IsString()
-  @MinLength(6, { message: 'El código de confirmación debe tener al menos 6 caracteres' })
+  @MinLength(6, {
+    message: 'El código de confirmación debe tener al menos 6 caracteres',
+  })
   confirmation_code?: string;
 
   @ApiProperty({

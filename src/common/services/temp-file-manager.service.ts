@@ -32,7 +32,9 @@ export class TempFileManagerService {
       }
     } catch (error) {
       this.logger.error(`Error creando directorio temporal: ${error.message}`);
-      throw new Error(`No se pudo crear el directorio temporal: ${error.message}`);
+      throw new Error(
+        `No se pudo crear el directorio temporal: ${error.message}`,
+      );
     }
   }
 
@@ -44,7 +46,7 @@ export class TempFileManagerService {
     const ymd = formatBAYMD(d);
     const hms = formatBAHMS(d);
     const timestamp = `${ymd}-${hms}`;
-    
+
     return `${prefix}-${timestamp}.${extension}`;
   }
 
@@ -67,11 +69,11 @@ export class TempFileManagerService {
    * Crea información completa del archivo temporal
    */
   createTempFileInfo(
-    fileName: string, 
-    expirationMinutes: number = 60
+    fileName: string,
+    expirationMinutes: number = 60,
   ): TempFileInfo {
     const filePath = this.getTempFilePath(fileName);
-    
+
     if (!fs.existsSync(filePath)) {
       throw new Error(`Archivo temporal no encontrado: ${fileName}`);
     }
@@ -100,14 +102,16 @@ export class TempFileManagerService {
       for (const file of files) {
         const filePath = path.join(this.tempDir, file);
         const stats = fs.statSync(filePath);
-        
+
         if (now - stats.mtime.getTime() > maxAge) {
           fs.unlinkSync(filePath);
           this.logger.log(`Archivo temporal eliminado: ${file}`);
         }
       }
     } catch (error) {
-      this.logger.error(`Error limpiando archivos temporales: ${error.message}`);
+      this.logger.error(
+        `Error limpiando archivos temporales: ${error.message}`,
+      );
     }
   }
 
@@ -117,16 +121,18 @@ export class TempFileManagerService {
   async deleteFile(fileName: string): Promise<boolean> {
     try {
       const filePath = this.getTempFilePath(fileName);
-      
+
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         this.logger.log(`Archivo temporal eliminado: ${fileName}`);
         return true;
       }
-      
+
       return false;
     } catch (error) {
-      this.logger.error(`Error eliminando archivo temporal ${fileName}: ${error.message}`);
+      this.logger.error(
+        `Error eliminando archivo temporal ${fileName}: ${error.message}`,
+      );
       return false;
     }
   }
@@ -144,11 +150,11 @@ export class TempFileManagerService {
    */
   getFileSize(fileName: string): number {
     const filePath = this.getTempFilePath(fileName);
-    
+
     if (!fs.existsSync(filePath)) {
       throw new Error(`Archivo temporal no encontrado: ${fileName}`);
     }
-    
+
     return fs.statSync(filePath).size;
   }
 
@@ -184,14 +190,14 @@ export class TempFileManagerService {
       for (const file of files) {
         const filePath = path.join(this.tempDir, file);
         const stats = fs.statSync(filePath);
-        
+
         totalSize += stats.size;
-        
+
         if (stats.mtime.getTime() < oldestTime) {
           oldestTime = stats.mtime.getTime();
           oldestFile = file;
         }
-        
+
         if (stats.mtime.getTime() > newestTime) {
           newestTime = stats.mtime.getTime();
           newestFile = file;

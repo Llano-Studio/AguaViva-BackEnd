@@ -70,17 +70,17 @@ export class CreateRouteSheetDetailDto {
     examples: {
       subscription: {
         value: 15,
-        description: 'Orden de suscripción mensual de agua'
+        description: 'Orden de suscripción mensual de agua',
       },
       hybrid: {
         value: 21,
-        description: 'Orden híbrida con productos de suscripción + adicionales'
+        description: 'Orden híbrida con productos de suscripción + adicionales',
       },
       contract: {
         value: 8,
-        description: 'Entrega por contrato empresarial'
-      }
-    }
+        description: 'Entrega por contrato empresarial',
+      },
+    },
   })
   @IsInt()
   @IsOptional()
@@ -100,17 +100,17 @@ export class CreateRouteSheetDetailDto {
     examples: {
       hybrid: {
         value: OrderType.HYBRID,
-        description: 'Para órdenes de cobranza manual'
+        description: 'Para órdenes de cobranza manual',
       },
       subscription: {
         value: OrderType.SUBSCRIPTION,
-        description: 'Para órdenes de suscripción regulares'
+        description: 'Para órdenes de suscripción regulares',
       },
       contractDelivery: {
         value: OrderType.CONTRACT_DELIVERY,
-        description: 'Para entregas por contrato'
-      }
-    }
+        description: 'Para entregas por contrato',
+      },
+    },
   })
   @IsEnum(OrderType)
   @IsOptional()
@@ -182,25 +182,25 @@ export class CreateRouteSheetDetailDto {
     examples: {
       pending: {
         value: DeliveryStatus.PENDING,
-        description: 'Nueva entrega programada (estado por defecto)'
+        description: 'Nueva entrega programada (estado por defecto)',
       },
       assigned: {
         value: DeliveryStatus.ASSIGNED,
-        description: 'Asignado al conductor'
+        description: 'Asignado al conductor',
       },
       inTransit: {
         value: DeliveryStatus.IN_TRANSIT,
-        description: 'Conductor en camino hacia el destino'
+        description: 'Conductor en camino hacia el destino',
       },
       delivered: {
         value: DeliveryStatus.DELIVERED,
-        description: 'Entrega completada exitosamente'
+        description: 'Entrega completada exitosamente',
       },
       failed: {
         value: DeliveryStatus.FAILED,
-        description: 'Entrega fallida por algún motivo'
-      }
-    }
+        description: 'Entrega fallida por algún motivo',
+      },
+    },
   })
   @IsEnum(DeliveryStatus)
   @IsOptional()
@@ -223,21 +223,21 @@ export class CreateRouteSheetDetailDto {
     examples: {
       morning: {
         value: '08:00-12:00',
-        description: 'Entrega en horario de mañana'
+        description: 'Entrega en horario de mañana',
       },
       afternoon: {
         value: '12:00-18:00',
-        description: 'Entrega en horario de tarde'
+        description: 'Entrega en horario de tarde',
       },
       specific: {
         value: '14:30',
-        description: 'Entrega a hora específica'
+        description: 'Entrega a hora específica',
       },
       allDay: {
         value: '08:00-18:00',
-        description: 'Entrega durante todo el día laboral'
-      }
-    }
+        description: 'Entrega durante todo el día laboral',
+      },
+    },
   })
   @IsString()
   @IsOptional()

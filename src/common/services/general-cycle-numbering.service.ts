@@ -116,7 +116,6 @@ export class GeneralCycleNumberingService {
         },
       });
 
-
       return newCycle;
     } catch (error) {
       console.error('Error creando ciclo con numeración automática:', error);

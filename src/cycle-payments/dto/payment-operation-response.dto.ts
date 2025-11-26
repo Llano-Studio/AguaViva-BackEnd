@@ -20,7 +20,8 @@ export class PaymentOperationResponseDto {
   audit_id: number;
 
   @ApiPropertyOptional({
-    description: 'Datos del pago actualizado (solo para operaciones de edición)',
+    description:
+      'Datos del pago actualizado (solo para operaciones de edición)',
   })
   data?: any;
 
