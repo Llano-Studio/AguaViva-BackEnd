@@ -1816,7 +1816,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           .filter((detail) => detail !== null),
         zones_covered: routeSheet.zones_covered || [],
       };
-      console.log('pdf data:', pdfData)
       // Generar PDF usando el servicio común
       const { doc, filename, pdfPath } = await this.pdfGeneratorService.generateRouteSheetPdf(pdfData, options);
       const writeStream = fs.createWriteStream(pdfPath);
