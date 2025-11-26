@@ -2035,7 +2035,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
     let currentDeliveryFound = false;
     const detailsDto: RouteSheetDetailResponseDto[] = await Promise.all(
-      groupedDetails.map((detail) => {
+      groupedDetails.map(async (detail) => {
         let customerDto: CustomerDto;
         let orderDto: OrderDto;
 
@@ -2099,6 +2099,25 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             orderDto.subscription_due_date = formatUTCYMD(
               cycle.payment_due_date,
             );
+          }
+          // Agregar todas las fechas de vencimiento pendientes para la suscripción
+          if (detail.order_header.subscription_id) {
+            try {
+              const unpaidCycles = await this.subscription_cycle.findMany({
+                where: {
+                  subscription_id: detail.order_header.subscription_id,
+                  payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+                },
+                select: { payment_due_date: true },
+                orderBy: { payment_due_date: 'asc' },
+              });
+              orderDto.all_due_dates = unpaidCycles
+                .map((c) => formatUTCYMD(c.payment_due_date))
+                .filter((d) => !!d);
+              orderDto.subscription_id = detail.order_header.subscription_id;
+            } catch {
+              // Ignorar errores de consulta y continuar
+            }
           }
         } else if (detail.one_off_purchase) {
           // Compra one-off individual
@@ -2376,9 +2395,11 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         };
 
         if (detail.order_header?.subscription_id) {
-          return this.subscriptionQuotaService
-            .getAvailableCredits(detail.order_header.subscription_id)
-            .then((credits) => ({
+          try {
+            const credits = await this.subscriptionQuotaService.getAvailableCredits(
+              detail.order_header.subscription_id,
+            );
+            return {
               ...baseDetail,
               credits: credits.map((c) => ({
                 product_description: c.product_description,
@@ -2386,8 +2407,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 delivered_quantity: c.delivered_quantity,
                 remaining_balance: c.remaining_balance,
               })),
-            }))
-            .catch(() => baseDetail);
+            };
+          } catch {
+            return baseDetail;
+          }
         }
 
         return baseDetail;
@@ -3189,8 +3212,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             payment_notes: detail.cycle_payment.notes || undefined,
             payment_method: detail.cycle_payment.payment_method || undefined,
             subscription_notes: subscription.notes || undefined,
-            payment_due_date: detail.cycle_payment.payment_date
-              ? formatBAYMD(detail.cycle_payment.payment_date)
+            payment_due_date: cycle?.payment_due_date
+              ? formatUTCYMD(cycle.payment_due_date as any)
               : '',
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
