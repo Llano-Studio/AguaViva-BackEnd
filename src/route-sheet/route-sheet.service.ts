@@ -1000,7 +1000,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                           take: 1,
                         },
                       },
-                      select: { notes: true },
                     },
                     order_item: {
                       include: {
@@ -1123,7 +1122,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                       take: 1,
                     },
                   },
-                  select: { notes: true },
                 },
                 order_item: {
                   include: {
