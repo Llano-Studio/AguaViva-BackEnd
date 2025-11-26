@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PdfGeneratorService, CollectionRouteSheetPdfData } from '../services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../services/route-sheet-generator.service';
+import { GenerateRouteSheetDto } from '../../orders/dto/generate-route-sheet.dto';
 import * as fs from 'fs-extra';
 
 /**
@@ -26,78 +27,48 @@ export class PdfDevController {
     summary: 'Preview hoja de ruta de cobranzas (DEV)',
     description: `Genera un PDF de hoja de ruta de cobranzas usando datos de ejemplo.
 
-## Estructura Completa (CollectionRouteSheetPdfData)
-
-\`\`\`json
+## Estructura esperada (CollectionRouteSheetPdfData)
 {
-  "route_sheet_id": 1,
-  "delivery_date": "YYYY-MM-DD",
-  "driver": {
-    "name": "Nombre Conductor",
-    "email": "email@conductor.com"
-  },
-  "vehicle": {
-    "code": "COD-VEH",
-    "name": "Nombre Vehículo"
-  },
-  "route_notes": "Notas generales de la ruta",
-  "zone_identifiers": ["zona1", "zona2"],
-  "collections": [
+  route_sheet_id: number,
+  delivery_date: 'YYYY-MM-DD',
+  driver: { name: string, email: string },
+  vehicle: { code: string, name: string },
+  route_notes?: string,
+  zone_identifiers?: string[],
+  collections: [
     {
-      "cycle_payment_id": 1,
-      "customer": {
-        "customer_id": 1,
-        "name": "Nombre Cliente",
-        "address": "Dirección Cliente",
-        "phone": "123456789",
-        "zone": {
-          "zone_id": 1,
-          "code": "Z1",
-          "name": "Zona 1"
-        },
-        "locality": {
-          "locality_id": 1,
-          "code": "LOC",
-          "name": "Localidad"
-        }
+      cycle_payment_id: number,
+      customer: {
+        customer_id: number,
+        name: string,
+        address: string,
+        phone: string,
+        zone?: { zone_id: number, code: string, name: string },
+        locality?: { locality_id?: number, code?: string, name: string }
       },
-      "amount": 1000.00,
-      "payment_reference": "REF123",
-      "payment_notes": "Notas de pago",
-      "payment_method": "CASH",
-      "subscription_notes": "Notas de suscripción",
-      "payment_due_date": "YYYY-MM-DD",
-      "all_due_dates": ["YYYY-MM-DD", "YYYY-MM-DD"],
-      "cycle_period": "MONTHLY",
-      "subscription_plan": "Plan Premium",
-      "payment_status": "PENDING",
-      "delivery_status": "PENDING",
-      "delivery_time": "08:00-12:00",
-      "comments": "Comentarios",
-      "subscription_id": 1,
-      "credits": [
-        {
-          "product_description": "Producto Crédito",
-          "planned_quantity": 2,
-          "delivered_quantity": 1,
-          "remaining_balance": 1
-        }
-      ]
+      amount: number,
+      payment_reference?: string,
+      payment_notes?: string,
+      payment_method?: string,
+      subscription_notes?: string,
+      payment_due_date: 'YYYY-MM-DD',
+      cycle_period: string,
+      subscription_plan: string,
+      delivery_status: string,
+      delivery_time?: string,
+      comments?: string,
+      subscription_id?: number,
+      credits?: [{ product_description: string, planned_quantity: number, delivered_quantity: number, remaining_balance: number }]
     }
-  ]
+] 
 }
-\`\`\`
 
-## Reglas de cálculo y visualización
+## Reglas de cálculo y filas
 
-- **Monto**:
-  - Si el cliente tiene un único abono activo y posee cuotas impagas, se muestra la suma total del saldo pendiente.
-  - Si tiene múltiples abonos, se muestran filas separadas.
-- **Vencimientos**:
-  - Se muestra la fecha de vencimiento principal.
-  - Si hay múltiples vencimientos, se listan en \`all_due_dates\` y se pueden mostrar en notas.
-- **Créditos**:
-  - Se visualizan los créditos disponibles y entregados.
+- "Monto":
+  - Si el cliente tiene un único abono activo y posee cuotas impagas, se muestra la suma total del saldo pendiente de ese abono.
+  - Si el cliente tiene múltiples abonos, se muestran filas separadas por cada abono, cada una con su propio monto y vencimiento.
+- "Venc.": si hay múltiples abonos con vencimiento hoy, se añade "(+N)" y en "Notas" se listan las fechas vencidas.
 `,
   })
   @ApiResponse({ status: 200, description: 'Devuelve un PDF en el cuerpo de la respuesta' })
@@ -292,128 +263,68 @@ export class PdfDevController {
     summary: 'Preview hoja de ruta de pedidos (DEV)',
     description: `Genera un PDF de hoja de ruta de pedidos usando datos de ejemplo.
 
-## Estructura Completa (RouteSheetPdfData)
-
-\`\`\`json
+## Estructura esperada (RouteSheetPdfData)
 {
-  "route_sheet_id": 1,
-  "delivery_date": "YYYY-MM-DD",
-  "driver": {
-    "id": 1,
-    "name": "Nombre Conductor",
-    "email": "email@conductor.com"
-  },
-  "vehicle": {
-    "vehicle_id": 1,
-    "code": "COD-VEH",
-    "name": "Nombre Vehículo",
-    "zones": [
-      {
-        "zone_id": 1,
-        "code": "Z1",
-        "name": "Zona 1",
-        "locality": {
-          "locality_id": 1,
-          "code": "LOC",
-          "name": "Localidad",
-          "province": {
-            "province_id": 1,
-            "code": "PROV",
-            "name": "Provincia",
-            "country": {
-              "country_id": 1,
-              "code": "AR",
-              "name": "Argentina"
-            }
-          }
+  route_sheet_id: number,
+  delivery_date: 'YYYY-MM-DD',
+  driver: { id: number, name: string, email: string },
+  vehicle: {
+    vehicle_id: number,
+    code: string,
+    name: string,
+    zones: [{
+      zone_id: number,
+      code: string,
+      name: string,
+      locality?: {
+        locality_id: number,
+        code: string,
+        name: string,
+        province: {
+          province_id: number,
+          code: string,
+          name: string,
+          country: { country_id: number, code: string, name: string }
         }
       }
-    ]
+    }]
   },
-  "route_notes": "Notas de ruta",
-  "zone_identifiers": ["Z1"],
-  "details": [
-    {
-      "route_sheet_detail_id": 1,
-      "route_sheet_id": 1,
-      "order": {
-        "order_id": 100,
-        "order_date": "YYYY-MM-DD",
-        "total_amount": "5000.00",
-        "status": "CONFIRMED",
-        "subscription_id": 1,
-        "subscription_due_date": "YYYY-MM-DD",
-        "customer": {
-          "person_id": 1,
-          "name": "Nombre Cliente",
-          "alias": "Alias",
-          "address": "Dirección Cliente",
-          "phone": "123456789",
-          "zone": {
-            "zone_id": 1,
-            "code": "Z1",
-            "name": "Zona 1"
-          },
-          "locality": {
-            "locality_id": 1,
-            "code": "LOC",
-            "name": "Localidad"
-          },
-          "special_instructions": "Instrucciones especiales"
-        },
-        "items": [
-          {
-            "order_item_id": 1,
-            "quantity": 2,
-            "delivered_quantity": 0,
-            "returned_quantity": 0,
-            "product": {
-              "product_id": 1,
-              "description": "Producto"
-            }
-          }
-        ],
-        "notes": "Notas del pedido"
+  route_notes?: string,
+  zone_identifiers?: string[],
+  details: [{
+    route_sheet_detail_id: number,
+    route_sheet_id: number,
+    order: {
+      order_id: number,
+      order_date: string,
+      total_amount: string,
+      status: string,
+      subscription_id?: number,
+      customer: {
+        person_id: number,
+        name: string,
+        alias?: string,
+        address: string,
+        phone: string,
+        locality?: { name: string }
       },
-      "delivery_status": "PENDING",
-      "delivery_time": "08:00-12:00",
-      "is_current_delivery": true,
-      "comments": "Comentarios detalle",
-      "credits": [
-        {
-          "product_description": "Producto Crédito",
-          "planned_quantity": 1,
-          "delivered_quantity": 0,
-          "remaining_balance": 1
-        }
-      ]
-    }
-  ],
-  "zones_covered": [
-    {
-      "zone_id": 1,
-      "code": "Z1",
-      "name": "Zona 1",
-      "locality": {
-        "locality_id": 1,
-        "code": "LOC",
-        "name": "Localidad",
-        "province": {
-          "province_id": 1,
-          "code": "PROV",
-          "name": "Provincia",
-          "country": {
-            "country_id": 1,
-            "code": "AR",
-            "name": "Argentina"
-          }
-        }
-      }
-    }
-  ]
-}
-\`\`\`
-`,
+      items: [{
+        order_item_id: number,
+        quantity: number,
+        delivered_quantity: number,
+        returned_quantity: number,
+        product: { product_id: number, description: string }
+      }],
+      notes?: string
+    },
+    delivery_status: string,
+    delivery_time: string,
+    is_current_delivery: boolean,
+    comments?: string,
+    credits?: [{ product_description: string, planned_quantity: number, delivered_quantity: number, remaining_balance: number }]
+  }],
+  zones_covered: [{ zone_id: number, code: string, name: string, locality?: { locality_id: number, code: string, name: string, province: { province_id: number, code: string, name: string, country: { country_id: number, code: string, name: string } } } }]
+}`,
   })
   @ApiResponse({ status: 200, description: 'Devuelve un PDF en el cuerpo de la respuesta' })
   async previewRoute(@Res() res: Response) {
