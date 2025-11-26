@@ -64,6 +64,7 @@ export interface RouteSheetPdfData {
       status: string;
       subscription_id?: number;
       subscription_due_date?: string;
+      all_due_dates?: string[];
       customer: {
         person_id: number;
         name: string;
@@ -631,16 +632,34 @@ export class PdfGeneratorService {
       ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
       : detail.order.customer.address || 'Sin dirección';
 
-    // Extraer solo el día del mes de subscription_due_date
+    // Extraer solo el día del mes de las fechas de vencimiento
     let dueDay = '-';
     let isDueToday = false;
-    if (detail.order.subscription_due_date) {
-      const match = detail.order.subscription_due_date.match(/\d{4}-\d{2}-(\d{2})/);
-      if (match) {
-        dueDay = match[1]; // Extrae solo el día (ej: "30")
-        // Verificar si el día coincide con hoy
-        const today = new Date();
-        const currentDay = today.getDate().toString().padStart(2, '0');
+    const today = new Date();
+    const currentDay = today.getDate().toString().padStart(2, '0');
+
+    const extractDay = (dateStr: string) => {
+      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
+      return match ? match[1] : null;
+    };
+
+    if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
+      // Manejar múltiples fechas
+      const days = detail.order.all_due_dates
+        .map(d => extractDay(d))
+        .filter(d => d !== null);
+      
+      if (days.length > 0) {
+        // Eliminar duplicados y ordenar
+        const uniqueDays = [...new Set(days)].sort();
+        dueDay = uniqueDays.join(', '); // ej: "10, 25"
+        isDueToday = days.includes(currentDay);
+      }
+    } else if (detail.order.subscription_due_date) {
+      // Fallback a fecha única
+      const day = extractDay(detail.order.subscription_due_date);
+      if (day) {
+        dueDay = day;
         isDueToday = (dueDay === currentDay);
       }
     }
@@ -911,6 +930,8 @@ export class PdfGeneratorService {
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
+    console.log('Generando hoja de ruta de cobranzas automática. Datos:', JSON.stringify(data, null, 2));
+
     const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
 
