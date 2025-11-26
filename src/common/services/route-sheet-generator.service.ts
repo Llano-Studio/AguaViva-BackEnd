@@ -574,9 +574,34 @@ export class RouteSheetGeneratorService extends PrismaClient {
   ): RouteSheetCollection {
     const dayStart = new Date(targetDate);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dueDate =
-      collection.customer_subscription?.subscription_cycle?.[0]
-        ?.payment_due_date;
+    // Determinar la fecha de vencimiento específica del ciclo asociado a esta orden
+    const extractCycleId = (text?: string): number | null => {
+      if (!text || typeof text !== 'string') return null;
+      const m = text.match(/Ciclo:\s*(\d+)/i);
+      return m ? parseInt(m[1], 10) : null;
+    };
+
+    const cycleId = extractCycleId(collection.notes);
+    let dueDate: Date | undefined = undefined;
+    if (typeof cycleId === 'number') {
+      const fromOrderSub = (collection.customer_subscription?.subscription_cycle || []).find(
+        (c: any) => c?.cycle_id === cycleId,
+      );
+      if (fromOrderSub?.payment_due_date) {
+        dueDate = fromOrderSub.payment_due_date;
+      } else {
+        const allCustomerCycles = (collection.customer?.customer_subscription || [])
+          .flatMap((cs: any) => cs.subscription_cycle || []);
+        const match = allCustomerCycles.find((c: any) => c?.cycle_id === cycleId);
+        if (match?.payment_due_date) dueDate = match.payment_due_date;
+      }
+    }
+    // Fallback: usar el primer ciclo con saldo pendiente vinculado a la orden
+    if (!dueDate) {
+      dueDate =
+        collection.customer_subscription?.subscription_cycle?.[0]
+          ?.payment_due_date;
+    }
     const isOverdue = dueDate ? dueDate < dayStart : false;
     const daysOverdue =
       isOverdue && dueDate

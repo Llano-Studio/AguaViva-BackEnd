@@ -54,6 +54,7 @@ export class PaginationQueryDto {
   @ValidateIf(
     (o, value) => value !== undefined && value !== null && value !== '',
   )
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsString()
   sortBy?: string;
 }

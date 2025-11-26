@@ -3,10 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import {
-  formatBAYMD,
-  formatBAHMS,
-} from '../utils/date.utils';
+import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
 import {
   GeneratePdfCollectionsDto,
   PdfGenerationResponseDto,
@@ -534,6 +531,7 @@ export class PdfGeneratorService {
       });
       return currentY + 33;
     }
+    return currentY;
   }
 
   /**

@@ -93,7 +93,6 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
               },
             },
           },
-          person: true,
         },
         orderBy: orderByClause,
         skip,
@@ -136,7 +135,6 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
             },
           },
         },
-        person: true,
       },
     });
     if (!record)
