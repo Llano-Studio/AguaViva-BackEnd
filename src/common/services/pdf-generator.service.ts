@@ -53,7 +53,6 @@ export interface RouteSheetPdfData {
     }>;
   };
   route_notes?: string;
-  // Identificadores de zona para usar en nombre de archivo (nombres legibles)
   zone_identifiers?: string[];
   details: Array<{
     route_sheet_detail_id: number;
@@ -63,15 +62,25 @@ export interface RouteSheetPdfData {
       order_date: string;
       total_amount: string;
       status: string;
+      subscription_id?: number;
+      subscription_due_date?: string;
       customer: {
         person_id: number;
         name: string;
         alias?: string;
         address: string;
         phone: string;
-        locality?: {
+        zone?: {
+          zone_id: number;
+          code: string;
           name: string;
         };
+        locality?: {
+          locality_id: number;
+          code: string;
+          name: string;
+        };
+        special_instructions?: string;
       };
       items: Array<{
         order_item_id: number;
@@ -83,9 +92,10 @@ export interface RouteSheetPdfData {
           description: string;
         };
       }>;
+      notes?: string;
     };
     delivery_status: string;
-    delivery_time: string;
+    delivery_time?: string;
     is_current_delivery: boolean;
     comments?: string;
     credits?: Array<{
@@ -302,8 +312,10 @@ export class PdfGeneratorService {
       : (data.vehicle?.code ? this.slugify(data.vehicle.code) : 'NA');
     const zoneSegRaw = (data.zone_identifiers && data.zone_identifiers.length > 0)
       ? data.zone_identifiers.join('-')
-      : 'all';
-    const zoneSeg = zoneSegRaw.length > 80 ? `multi-${data.zone_identifiers?.length || 0}` : this.slugify(zoneSegRaw);
+      : (data.zones_covered && data.zones_covered.length > 0)
+        ? data.zones_covered.map(z => z.code).join('-')
+        : 'all';
+    const zoneSeg = zoneSegRaw.length > 80 ? `multi-${data.zone_identifiers?.length || data.zones_covered?.length || 0}` : this.slugify(zoneSegRaw);
     const driverSeg = data.driver?.name ? this.slugify(data.driver.name) : 'NA';
     const filename = `hoja-de-ruta_${datePart}-${timePart}_${vehicleSeg}_${zoneSeg}_${driverSeg}.pdf`;
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
@@ -481,8 +493,8 @@ export class PdfGeneratorService {
     const rowHeight = 17;
     
     // Headers de la tabla
-    const headers = ['N°', 'Cliente', 'Dirección', 'Teléfono', 'Horario', 'Total'];
-    const colWidths = [30, 110, 195, 70, 70, 70];    let pageCount = 1;
+    const headers = ['N°', 'V', 'Cliente', 'Dirección', 'Teléfono', 'Horario', 'Total'];
+    const colWidths = [30, 20, 105, 170, 70, 70, 80];    let pageCount = 1;
     
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -617,8 +629,23 @@ export class PdfGeneratorService {
       ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
       : detail.order.customer.address || 'Sin dirección';
 
+    // Extraer solo el día del mes de subscription_due_date
+    let dueDay = '-';
+    let isDueToday = false;
+    if (detail.order.subscription_due_date) {
+      const match = detail.order.subscription_due_date.match(/\d{4}-\d{2}-(\d{2})/);
+      if (match) {
+        dueDay = match[1]; // Extrae solo el día (ej: "30")
+        // Verificar si el día coincide con hoy
+        const today = new Date();
+        const currentDay = today.getDate().toString().padStart(2, '0');
+        isDueToday = (dueDay === currentDay);
+      }
+    }
+
     const cellData: Array<{ text: string; fontSize: number; font: string; align: 'center' | 'left' | 'right' }> = [
       { text: detail.order.order_id.toString(), fontSize: 9, font: 'Poppins-Bold', align: 'left' },
+      { text: dueDay, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
       { text: detail.order.customer.name, fontSize: 9, font: 'Poppins-Bold', align: 'left' },
       { text: addressText, fontSize: 9, font: 'Poppins', align: 'left' },
       { text: detail.order.customer.phone, fontSize: 9, font: 'Poppins', align: 'left' },
@@ -644,13 +671,22 @@ export class PdfGeneratorService {
     doc.rect(startX, currentY, 545, maxHeight).fill(rowBgColor);
     doc.rect(startX, currentY, 4, maxHeight).fill(isEven ? this.colors.primary : this.colors.secondary);
 
+    // Si el vencimiento es hoy, dibujar fondo negro en la columna V
+    if (isDueToday) {
+      const vColX = startX + 5 + colWidths[0]; // Posición X de la columna V (después de N°)
+      doc.rect(vColX, currentY, colWidths[1], maxHeight).fill(this.colors.primary); // Negro
+    }
+
     // Renderizar cada celda con texto multilínea
     let colX = startX + 10;
     
     cellData.forEach((cell, colIndex) => {
-      doc.fontSize(cell.fontSize).font(cell.font).fillColor(
-        colIndex === 0 || colIndex === 5 ? this.colors.textAccent : this.colors.textPrimary
-      );
+      // Si es la columna V (índice 1) y el vencimiento es hoy, usar texto blanco
+      const textColor = (colIndex === 1 && isDueToday) 
+        ? this.colors.textWhite 
+        : (colIndex === 0 || colIndex === 1 || colIndex === 6 ? this.colors.textAccent : this.colors.textPrimary);
+      
+      doc.fontSize(cell.fontSize).font(cell.font).fillColor(textColor);
       
       doc.text(cell.text, colX, currentY + 3, {
         width: colWidths[colIndex] - padding,
@@ -713,75 +749,71 @@ export class PdfGeneratorService {
     // Configuración básica
     const labelGap = 10;
     let textY = currentY + 2;
+    startX = startX + 5;
 
     // Renderizar PEDIDOS y calcular altura dinámica
     doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-    doc.text('PEDIDOS:', startX + 25, textY);
+    doc.text('PEDIDOS:', startX, textY);
     doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-    const productTextHeight = doc.heightOfString(productText, { width: tableWidth - 180 });
-    doc.text(productText, startX + 72, textY, { width: tableWidth - 180 });
+    const productTextHeight = doc.heightOfString(productText, { width: tableWidth - 62 });
+    doc.text(productText, startX + 52, textY, { width: tableWidth - 62 });
     textY += Math.max(productTextHeight, labelGap);
 
-    // Renderizar los tres elementos en una sola línea horizontal
+
+    // Renderizar los tres elementos en una sola línea horizontal, con separación mínima
     if (aliasText || specialInstructionsText || commentsText) {
-      const col1X = startX + 25;
-      const col2X = startX + 165;
-      const col3X = startX + 365;
+      const col1X = startX;
+      const col2X = startX + 149;
+      const col3X = startX + 352;
       const colWidth = 160;
 
-      // Calcular altura máxima necesaria entre los tres elementos
-      let maxRowHeight = 0;
-
+      // Calcular altura real de cada elemento solo si existe
+      let aliasHeight = 0, notesHeight = 0, commentsHeight = 0;
       if (aliasText) {
         doc.fontSize(9).font('Poppins');
-        const aliasHeight = doc.heightOfString(aliasText, { width: colWidth - 105 });
-        maxRowHeight = Math.max(maxRowHeight, aliasHeight);
+        aliasHeight = doc.heightOfString(aliasText, { width: colWidth - 65 });
       }
-
       if (specialInstructionsText) {
         doc.fontSize(9).font('Poppins');
-        const notesHeight = doc.heightOfString(specialInstructionsText, { width: colWidth - 75 });
-        maxRowHeight = Math.max(maxRowHeight, notesHeight);
+        notesHeight = doc.heightOfString(specialInstructionsText, { width: colWidth - 45 });
       }
-
       if (commentsText) {
         doc.fontSize(9).font('Poppins');
-        const commentsHeight = doc.heightOfString(commentsText, { width: colWidth - 72 });
-        maxRowHeight = Math.max(maxRowHeight, commentsHeight);
+        commentsHeight = doc.heightOfString(commentsText, { width: colWidth - 47 });
       }
+      // Altura máxima de los elementos presentes, o labelGap si todos son 0
+      const maxRowHeight = Math.max(aliasText ? aliasHeight : 0, specialInstructionsText ? notesHeight : 0, commentsText ? commentsHeight : 0, labelGap);
 
       // Renderizar los elementos en la misma línea
       if (aliasText) {
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
         doc.text('EMPRESA:', col1X, textY);
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-        doc.text(aliasText, col1X + 50, textY, { width: colWidth - 105 });
+        doc.text(aliasText, col1X + 50, textY, { width: colWidth - 65 });
       }
-
       if (specialInstructionsText) {
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
         doc.text('NOTAS CLIENTE:', col2X, textY);
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-        doc.text(specialInstructionsText, col2X + 78, textY, { width: colWidth - 75 });
+        doc.text(specialInstructionsText, col2X + 78, textY, { width: colWidth - 45 });
       }
-
       if (commentsText) {
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
         doc.text('COMENTARIOS:', col3X, textY);
         doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-        doc.text(commentsText, col3X + 73, textY, { width: colWidth - 72 });
+        doc.text(commentsText, col3X + 73, textY, { width: colWidth - 47 });
       }
 
-      // Avanzar según la altura máxima calculada
-      textY += Math.max(maxRowHeight, labelGap);
+      // Avanzar solo el alto real de los elementos presentes (o labelGap si todos son vacíos)
+      textY += maxRowHeight;
     }
 
     if (creditsText) {
       doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
-      doc.text('EXTRAS DISPONIBLES:', startX + 25, textY);
+      doc.text('EXTRAS DISPONIBLES:', startX, textY);
       doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
-      const creditsTextHeight = doc.heightOfString(creditsText, { width: tableWidth - 180 });
-      doc.text(creditsText, startX + 127, textY, { width: tableWidth - 180 });
+      const creditsTextHeight = doc.heightOfString(creditsText, { width: tableWidth - 117 });
+      doc.text(creditsText, startX + 107, textY, { width: tableWidth - 117 });
       textY += Math.max(creditsTextHeight, labelGap);
     }
 
