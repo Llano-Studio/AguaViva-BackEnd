@@ -704,19 +704,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           });
         }
 
-        // 🆕 NUEVO: Aplicar recargo por mora del 20% si corresponde
-        let lateFeeAmount = new Decimal(0);
-        if (
-          subscriptionQuotaValidation?.late_fee_info?.is_overdue &&
-          subscriptionQuotaValidation?.late_fee_info?.late_fee_applied &&
-          subscriptionQuotaValidation?.late_fee_info?.late_fee_percentage > 0
-        ) {
-          const lateFeePercentage = new Decimal(
-            subscriptionQuotaValidation.late_fee_info.late_fee_percentage,
-          );
-          lateFeeAmount = calculatedTotalFromDB.mul(lateFeePercentage).div(100);
-          calculatedTotalFromDB = calculatedTotalFromDB.plus(lateFeeAmount);
-        }
+        
 
         let finalPaidAmount: Decimal;
         if (
