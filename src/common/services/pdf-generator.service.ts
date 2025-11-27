@@ -136,8 +136,8 @@ export interface CollectionRouteSheetPdfData {
     code: string;
     name: string;
   };
-  route_notes: string;
-  zone_identifiers: string[];
+  route_notes?: string;
+  zone_identifiers?: string[];
   collections: Array<{
     cycle_payment_id: number;
     customer: {
@@ -145,15 +145,15 @@ export interface CollectionRouteSheetPdfData {
       name: string;
       address: string;
       phone: string;
-      zone: {
+      zone?: {
         zone_id: number;
         code: string;
         name: string;
       };
-      locality: {
-        locality_id: number;
-        code: string;
-        name: string;
+      locality?: {
+        locality_id?: number;
+        code?: string;
+        name?: string;
       };
     };
     amount: number;
@@ -162,10 +162,10 @@ export interface CollectionRouteSheetPdfData {
     subscription_plan: string;
     payment_status: string;
     delivery_status: string;
-    delivery_time: string;
-    comments: string;
-    subscription_id: number;
-    credits: Array<{
+    delivery_time?: string;
+    comments?: string;
+    subscription_id?: number;
+    credits?: Array<{
       product_description: string;
       planned_quantity: number;
       delivered_quantity: number;
