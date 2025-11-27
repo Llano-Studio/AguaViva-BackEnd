@@ -1,10 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
-import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
-import * as fsExtra from 'fs-extra';
 import * as path from 'path';
-import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
 import {
   PdfGeneratorService,
@@ -79,58 +76,8 @@ export interface RouteSheetVehicle {
 }
 
 // Interfaces para hojas de ruta de cobranzas automáticas (PDFs modernos)
-export interface CollectionRouteSheetPdfData {
-  route_sheet_id: number;
-  delivery_date: string;
-  driver: {
-    name: string;
-    email: string;
-  };
-  vehicle: {
-    code: string;
-    name: string;
-  };
-  route_notes?: string;
-  zone_identifiers?: string[];
-  collections: Array<{
-    cycle_payment_id: number;
-    customer: {
-      customer_id: number;
-      name: string;
-      address: string;
-      phone: string;
-      zone?: {
-        zone_id: number;
-        code: string;
-        name: string;
-      };
-      locality?: {
-        locality_id: number;
-        code: string;
-        name: string;
-      };
-    };
-    amount: number;
-    payment_reference?: string;
-    payment_notes?: string;
-    payment_method?: string;
-    subscription_notes?: string;
-    payment_due_date: string;
-    cycle_period: string;
-    subscription_plan: string;
-    payment_status: string;
-    delivery_status: string;
-    delivery_time?: string;
-    comments?: string;
-    subscription_id?: number;
-    credits?: Array<{
-      product_description: string;
-      planned_quantity: number;
-      delivered_quantity: number;
-      remaining_balance: number;
-    }>;
-  }>;
-}
+export interface CollectionRouteSheetPdfData
+  extends PdfCollectionRouteSheetPdfData {}
 
 @Injectable()
 export class RouteSheetGeneratorService extends PrismaClient {
@@ -478,7 +425,6 @@ export class RouteSheetGeneratorService extends PrismaClient {
             customer_subscription: {
               include: {
                 subscription_cycle: {
-                  where: { pending_balance: { gt: 0 } },
                   orderBy: { payment_due_date: 'desc' },
                 },
               },
@@ -491,9 +437,6 @@ export class RouteSheetGeneratorService extends PrismaClient {
               select: { name: true },
             },
             subscription_cycle: {
-              where: {
-                pending_balance: { gt: 0 },
-              },
               orderBy: { payment_due_date: 'desc' },
               take: 1,
             },
@@ -551,6 +494,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
         zoneName,
         targetDate,
       );
+      if (collectionData.payment_status === 'PAID') {
+        return;
+      }
       const zoneData = zoneGroups.get(zoneKey);
 
       zoneData.collections.push(collectionData);
@@ -641,6 +587,47 @@ export class RouteSheetGeneratorService extends PrismaClient {
       isNaN(amountNumber) ? String(collection.total_amount) : amountNumber,
     );
 
+    const cycleForStatus = (() => {
+      if (typeof cycleId === 'number') {
+        const fromOrderSub = (collection.customer_subscription?.subscription_cycle || []).find(
+          (c: any) => c?.cycle_id === cycleId,
+        );
+        if (fromOrderSub) return fromOrderSub;
+        const allCustomerCycles = (collection.customer?.customer_subscription || [])
+          .flatMap((cs: any) => cs.subscription_cycle || []);
+        const match = allCustomerCycles.find((c: any) => c?.cycle_id === cycleId);
+        if (match) return match;
+      }
+      return (collection.customer_subscription?.subscription_cycle || [])[0];
+    })();
+
+    const resolvedPaymentStatus = (() => {
+      const dbStatus = (cycleForStatus as any)?.payment_status as string | undefined;
+      if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
+      const pbRaw = (cycleForStatus as any)?.pending_balance;
+      const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
+      if (!Number.isNaN(pb)) {
+        if (pb <= 0) return 'PAID';
+        const over = Boolean((cycleForStatus as any)?.is_overdue) || (dueDate && dueDate < dayStart);
+        if (over) return 'OVERDUE';
+        const paidRaw = (cycleForStatus as any)?.paid_amount;
+        const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
+        if (paid > 0) return 'PARTIAL';
+        return 'PENDING';
+      }
+      return dbStatus || (collection.payment_status || 'PENDING');
+    })();
+
+    const pendingFromCycle = (() => {
+      const pbRaw = (cycleForStatus as any)?.pending_balance;
+      const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
+      if (!Number.isNaN(pb)) return Math.max(0, pb);
+      const total = Number(collection.total_amount);
+      const paid = Number(collection.paid_amount);
+      if (!Number.isNaN(total) && !Number.isNaN(paid)) return Math.max(0, total - paid);
+      return Number(collection.total_amount) || 0;
+    })();
+
     return {
       order_id: collection.collection_order_id ?? collection.order_id,
       customer: {
@@ -651,7 +638,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         zone_name: zoneName,
         locality_name: collection.customer?.locality?.name,
       },
-      amount: collection.total_amount.toString(),
+      amount: pendingFromCycle.toString(),
       due_dates: (collection.customer?.customer_subscription || [])
         .flatMap((cs: any) =>
           (cs.subscription_cycle || []).map((c: any) => c?.payment_due_date),
@@ -662,7 +649,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
       notes: formattedNotes,
       status: collection.status,
-      payment_status: collection.payment_status,
+      payment_status: resolvedPaymentStatus,
       is_backlog: isBacklog,
       backlog_type: backlogType,
       subscription_plan_name: planName,
@@ -807,9 +794,16 @@ export class RouteSheetGeneratorService extends PrismaClient {
           name: collection.customer.name,
           address: collection.customer.address,
           phone: collection.customer.phone,
-          locality: collection.customer.locality_name
-            ? { name: collection.customer.locality_name }
-            : undefined,
+          zone: {
+            zone_id: zone.zone_id,
+            code: String(zone.zone_id),
+            name: zone.name,
+          },
+          locality: {
+            locality_id: 0,
+            code: collection.customer.locality_name || 'N/A',
+            name: collection.customer.locality_name || 'N/A',
+          },
         },
         amount: parseFloat(collection.amount),
         payment_due_date:
@@ -817,7 +811,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
             ? collection.due_dates[0]
             : formatBAYMD(targetDate),
         delivery_status: collection.status || 'pending',
-        payment_status: collection.payment_status || 'PENDING',
+        payment_status: collection.payment_status,
         delivery_time: '',
         cycle_period: 'monthly',
         subscription_plan: collection.subscription_plan_name || 'Standard',
@@ -827,7 +821,12 @@ export class RouteSheetGeneratorService extends PrismaClient {
         subscription_notes: '',
         comments: collection.notes,
         subscription_id: 1,
-        credits: [],
+        credits: [] as {
+          product_description: string;
+          planned_quantity: number;
+          delivered_quantity: number;
+          remaining_balance: number;
+        }[],
       })),
     );
 
@@ -842,7 +841,8 @@ export class RouteSheetGeneratorService extends PrismaClient {
         code: vehicle?.license_plate || 'N/A',
         name: vehicle?.model || 'No asignado',
       },
-      route_notes: notes,
+      route_notes: notes || '',
+      zone_identifiers: zones.map((z) => z.name),
       collections,
     };
 
