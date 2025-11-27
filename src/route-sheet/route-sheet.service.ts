@@ -3244,6 +3244,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
             payment_status: (() => {
+              const dbStatus = (cycle as any)?.payment_status as string | undefined;
+              if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
               const pbRaw = (cycle as any)?.pending_balance;
               const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
               if (!Number.isNaN(pb)) {
@@ -3256,7 +3258,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 if (paid > 0) return 'PARTIAL';
                 return 'PENDING';
               }
-              return cycle.payment_status;
+              return dbStatus || 'PENDING';
             })(),
             delivery_status: detail.delivery_status,
             delivery_time: detail.delivery_time,
