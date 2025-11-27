@@ -127,6 +127,13 @@ export class OrderDto {
   total_amount: string;
 
   @ApiProperty({
+    description: 'Deuda pendiente del pedido',
+    example: '2000.00',
+    required: false,
+  })
+  debt_amount?: string;
+
+  @ApiProperty({
     description: 'Estado del pedido',
     example: 'PENDING',
   })
