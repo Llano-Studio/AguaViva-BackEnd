@@ -47,6 +47,14 @@ export function nowLocalYMD(): string {
 
 // Format a Date into YYYY-MM-DD using Buenos Aires timezone (UTC-3)
 export function formatBAYMD(date: Date): string {
+  const iso = date.toISOString();
+  const isUtcMidnight = /T00:00:00\.000Z$/.test(iso);
+  if (isUtcMidnight) {
+    const y = date.getUTCFullYear();
+    const m = pad2(date.getUTCMonth() + 1);
+    const d = pad2(date.getUTCDate());
+    return `${y}-${m}-${d}`;
+  }
   const parts = new Intl.DateTimeFormat('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
     year: 'numeric',
