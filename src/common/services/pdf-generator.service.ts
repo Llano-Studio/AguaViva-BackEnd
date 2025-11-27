@@ -64,6 +64,7 @@ export interface RouteSheetPdfData {
       order_id: number;
       order_date: string;
       total_amount: string;
+      debt_amount?: string;
       status: string;
       subscription_id: number;
       subscription_due_date: string;
@@ -795,6 +796,13 @@ export class PdfGeneratorService {
   localColWidths[2] = clienteWidth;
 
     // Preparar los datos de cada columna
+    const effectiveTotal = (() => {
+      const t = Number(detail.order.total_amount || 0);
+      const d = Number(detail.order.debt_amount || 0);
+      const v = t - d;
+      return v < 0 ? 0 : v;
+    })();
+
     const cellData: Array<{
       text: string;
       fontSize: number;
@@ -865,7 +873,7 @@ export class PdfGeneratorService {
         align: 'left',
       },
       {
-        text: `$${detail.order.total_amount}`,
+        text: `$${effectiveTotal.toFixed(2)}`,
         fontSize: 9,
         font: 'Poppins-Bold',
         align: 'left',

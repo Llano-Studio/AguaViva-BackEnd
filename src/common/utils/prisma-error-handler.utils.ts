@@ -115,9 +115,12 @@ export function handlePrismaError(error: any, entityName: string = 'registro') {
 
         throw new ConflictException(foreignKeyMessage);
       case 'P2022':
-        // Error de columna que no puede ser nula o valor que no cumple restricciones
-        const columnInfo = error.meta?.column_name as string | undefined;
-        const tableInfo = error.meta?.table as string | undefined;
+        const columnInfo =
+          (error.meta?.column_name as string | undefined) ||
+          (error.meta?.column as string | undefined);
+        const tableInfo =
+          (error.meta?.table as string | undefined) ||
+          (error.meta?.modelName as string | undefined);
         let constraintMessage = `Error de restricción de base de datos en ${entityName}`;
         if (columnInfo && tableInfo) {
           constraintMessage = `El campo '${columnInfo}' en la tabla '${tableInfo}' no cumple con las restricciones de la base de datos`;

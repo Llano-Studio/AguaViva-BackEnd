@@ -1370,15 +1370,19 @@ export class OrdersController {
   ): Promise<PaymentOperationResponseDto> {
     const userId = req.user?.userId;
     const userRole = req.user?.role;
-    if (!body.confirm_deletion) {
-      throw new BadRequestException(
-        'Se requiere confirmación explícita para eliminar la transacción',
-      );
+    const confirmDeletion = body?.confirm_deletion === true;
+    if (!confirmDeletion) {
+      throw new BadRequestException('Se requiere confirmación explícita para eliminar la transacción');
+    }
+
+    const deletionReason = body?.deletion_reason;
+    if (!deletionReason || typeof deletionReason !== 'string' || deletionReason.trim().length === 0) {
+      throw new BadRequestException('Razón de eliminación requerida');
     }
 
     return this.ordersService.deletePaymentTransaction(
       transactionId,
-      body.deletion_reason,
+      deletionReason,
       userId,
       userRole,
     );
