@@ -1801,11 +1801,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   ): Promise<{ url: string; filename: string }> {
     try {
       const routeSheet = await this.findOne(route_sheet_id);
-      console.log(
-        '[RouteSheet/print] Loaded RouteSheetResponseDto:',
-        JSON.stringify(routeSheet, null, 2),
-      );
-
       // Convertir RouteSheetResponseDto a RouteSheetPdfData
       const pdfData: RouteSheetPdfData = {
         route_sheet_id: routeSheet.route_sheet_id,
@@ -1884,10 +1879,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           .filter((detail) => detail !== null),
         zones_covered: routeSheet.zones_covered || [],
       };
-      console.log(
-        '[RouteSheet/print] Built RouteSheetPdfData:',
-        JSON.stringify(pdfData, null, 2),
-      );
       // Generar PDF usando el servicio común
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateRouteSheetPdf(pdfData, options);
@@ -3292,18 +3283,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 remaining_balance: cycleDetail.remaining_balance,
               })) || [],
           };
-          console.log(
-            '[Collections/map] payment_id=',
-            detail.cycle_payment.payment_id,
-            'payment_date=',
-            detail.cycle_payment.payment_date,
-            'cycle_number=',
-            cycle.cycle_number,
-            'cycle_due=',
-            cycle.payment_due_date,
-            'mapped_due=',
-            mapped.payment_due_date,
-          );
           return mapped;
         }),
       );
@@ -3323,11 +3302,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         zone_identifiers: zoneIdentifiers,
         collections,
       };
-      console.log(
-        '[Collections/print] Built CollectionRouteSheetPdfData:',
-        JSON.stringify(collectionData, null, 2),
-      );
-
       // Generar el PDF usando el servicio de generación mejorado
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
