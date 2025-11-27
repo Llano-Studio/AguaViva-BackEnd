@@ -493,6 +493,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         collection,
         zoneName,
         targetDate,
+        formatUTCYMD(targetDate),
       );
       if (collectionData.payment_status === 'PAID') {
         return;
@@ -517,6 +518,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     collection: any,
     zoneName: string,
     targetDate: Date,
+    targetDateStrUTC: string,
   ): RouteSheetCollection {
     const dayStart = new Date(targetDate);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -608,7 +610,8 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
       if (!Number.isNaN(pb)) {
         if (pb <= 0) return 'PAID';
-        const over = Boolean((cycleForStatus as any)?.is_overdue) || (dueDate && dueDate < dayStart);
+        const over = Boolean((cycleForStatus as any)?.is_overdue) ||
+          (dueDate && formatUTCYMD(dueDate) < formatUTCYMD(dayStart));
         if (over) return 'OVERDUE';
         const paidRaw = (cycleForStatus as any)?.paid_amount;
         const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
