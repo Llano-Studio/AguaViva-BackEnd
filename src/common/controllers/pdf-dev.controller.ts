@@ -91,7 +91,6 @@ export class PdfDevController {
         code: 'aks-123',
         name: 'mobil 1',
       },
-<<<<<<< HEAD
       route_notes: 'cargar combustible en YPF sarmiento',
       zone_identifiers: ['z-1-res', 'z-2-res', 'z-3-res'],
       collections: [
