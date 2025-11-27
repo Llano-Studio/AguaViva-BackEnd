@@ -795,14 +795,6 @@ export class PdfGeneratorService {
   localColWidths[1] = vColWidth;
   localColWidths[2] = clienteWidth;
 
-    // Preparar los datos de cada columna
-    const effectiveTotal = (() => {
-      const t = Number(detail.order.total_amount || 0);
-      const d = Number(detail.order.debt_amount || 0);
-      const v = t - d;
-      return v < 0 ? 0 : v;
-    })();
-
     const cellData: Array<{
       text: string;
       fontSize: number;
@@ -873,7 +865,7 @@ export class PdfGeneratorService {
         align: 'left',
       },
       {
-        text: `$${effectiveTotal.toFixed(2)}`,
+        text: `$${detail.order.debt_amount ?? 0}`,
         fontSize: 9,
         font: 'Poppins-Bold',
         align: 'left',
