@@ -1837,6 +1837,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   order_date:
                     detail.order.order_date || formatBATimestampISO(new Date()),
                   total_amount: detail.order.total_amount?.toString() || '0',
+                  debt_amount: (detail.order as any).debt_amount?.toString() || undefined,
                   status: detail.order.status || 'PENDING',
                   subscription_id: (detail.order as any).subscription_id,
                   subscription_due_date: (detail.order as any)
@@ -2094,6 +2095,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             order_id: detail.order_header.order_id,
             order_date: formatBATimestampISO(detail.order_header.order_date),
             total_amount: detail.order_header.total_amount.toString(),
+            debt_amount: (() => {
+              const d = new Decimal(detail.order_header.total_amount).minus(
+                new Decimal(detail.order_header.paid_amount),
+              );
+              return d.isNegative() ? '0.00' : d.toFixed(2);
+            })(),
             status: detail.order_header.status,
             customer: customerDto,
             items: orderItemsDto,
@@ -2172,6 +2179,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               detail.one_off_purchase.purchase_date,
             ),
             total_amount: detail.one_off_purchase.total_amount.toString(),
+            debt_amount: (() => {
+              const d = new Decimal(
+                detail.one_off_purchase.total_amount,
+              ).minus(new Decimal(detail.one_off_purchase.paid_amount));
+              return d.isNegative() ? '0.00' : d.toFixed(2);
+            })(),
             status: detail.one_off_purchase.status,
             customer: customerDto,
             items: orderItemsDto,
@@ -2230,6 +2243,12 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             ),
             total_amount:
               detail.one_off_purchase_header.total_amount.toString(),
+            debt_amount: (() => {
+              const d = new Decimal(
+                detail.one_off_purchase_header.total_amount,
+              ).minus(new Decimal(detail.one_off_purchase_header.paid_amount));
+              return d.isNegative() ? '0.00' : d.toFixed(2);
+            })(),
             status: detail.one_off_purchase_header.status,
             customer: customerDto,
             items: orderItemsDto,
@@ -3244,6 +3263,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
             payment_status: (() => {
+              const dbStatus = (cycle as any)?.payment_status as string | undefined;
+              if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
               const pbRaw = (cycle as any)?.pending_balance;
               const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
               if (!Number.isNaN(pb)) {
@@ -3256,7 +3277,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 if (paid > 0) return 'PARTIAL';
                 return 'PENDING';
               }
-              return cycle.payment_status;
+              return dbStatus || 'PENDING';
             })(),
             delivery_status: detail.delivery_status,
             delivery_time: detail.delivery_time,
