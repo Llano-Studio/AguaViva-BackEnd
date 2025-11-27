@@ -311,7 +311,6 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    console.log('generateROuteSheetPdf:', data);
     const datePart = data.delivery_date || formatBAYMD(new Date());
     const timeRaw = formatBAHMS(new Date());
     const timePart = `${timeRaw.slice(0, 2)}-${timeRaw.slice(2, 4)}-${timeRaw.slice(4, 6)}`;
@@ -360,7 +359,6 @@ export class PdfGeneratorService {
   ): Promise<void> {
     const { includeSignatureField = true, includeProductDetails = true } =
       options;
-    console.log('routeSheet data:', routeSheet);
 
     // Registrar fuentes Poppins
     const fontsPath = join(process.cwd(), 'public', 'fonts');
@@ -1147,10 +1145,6 @@ export class PdfGeneratorService {
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-    console.log(
-      'Generando hoja de ruta de cobranzas automática. Datos:',
-      JSON.stringify(data, null, 2),
-    );
 
     const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
