@@ -94,12 +94,14 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     if (
       currentDate > paymentDueDate &&
       cycle.payment_status !== PaymentStatus.PAID &&
-      !cycle.late_fee_applied // 🔧 CORRECCIÓN: Solo aplicar si no se ha aplicado antes
+      !cycle.late_fee_applied
     ) {
       surchargeAmount = await this.calculateLateFee(cycle);
-      this.logger.log(
-        `Aplicando recargo por mora de ${surchargeAmount} al ciclo ${cycle_id} (primera vez)`,
-      );
+      if (surchargeAmount > 0) {
+        this.logger.log(
+          `Aplicando recargo por mora de ${surchargeAmount} al ciclo ${cycle_id} (primera vez)`,
+        );
+      }
     } else if (cycle.late_fee_applied) {
       this.logger.log(
         `Recargo por mora ya aplicado previamente al ciclo ${cycle_id}, no se aplicará nuevamente`,
@@ -345,8 +347,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
 
     // 🔧 CORRECCIÓN: Usar configuración consistente con el sistema automático
     const lateFeeConfig = {
-      feeRate: 0.2, // 20% fijo (igual que el sistema automático)
-      gracePeriod: 0, // Sin período de gracia para consistencia
+      feeRate: 0.2,
+      gracePeriod: 10,
     };
 
     if (daysLate <= lateFeeConfig.gracePeriod) {

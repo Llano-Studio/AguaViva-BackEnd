@@ -3270,7 +3270,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               if (!Number.isNaN(pb)) {
                 if (pb <= 0) return 'PAID';
                 const isOver = Boolean((cycle as any)?.is_overdue) ||
-                  (cycle?.payment_due_date && new Date(cycle.payment_due_date) < new Date());
+                  (cycle?.payment_due_date &&
+                    formatUTCYMD(new Date(cycle.payment_due_date)) < formatUTCYMD(new Date()));
                 if (isOver) return 'OVERDUE';
                 const paidRaw = (cycle as any)?.paid_amount;
                 const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
