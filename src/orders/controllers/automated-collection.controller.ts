@@ -25,7 +25,7 @@ import { IsDateString, IsNotEmpty } from 'class-validator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role, User } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 import { RouteSheetGeneratorService } from '../../common/services/route-sheet-generator.service';
 import {
@@ -47,6 +47,7 @@ import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-co
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseYMD, compareYmdDesc } from '../../common/utils/date.utils';
+import { GetUser } from '../../auth/decorators/get-user.decorator';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
@@ -1506,6 +1507,50 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
     } catch (error) {
       throw new HttpException(
         `Error listando hojas de ruta: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('orders/backfill-missing')
+  @Roles(
+    Role.SUPERADMIN,
+    Role.ADMINISTRATIVE,
+    Role.BOSSADMINISTRATIVE,
+  )
+  async backfillMissingCollections(@Body() body: { date?: string; zoneIds?: number[]; vehicleId?: number; driverId?: number; notes?: string }, @GetUser() user: User) {
+    try {
+      let baseDate: Date;
+      if (body?.date) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date))) {
+          throw new HttpException('La fecha debe estar en formato YYYY-MM-DD', HttpStatus.BAD_REQUEST);
+        }
+        baseDate = parseYMD(String(body.date));
+      } else {
+        baseDate = new Date();
+        baseDate.setHours(0,0,0,0);
+      }
+
+      const backfill = await this.automatedCollectionService.backfillMissingCollectionOrdersUpToDate(baseDate, user.id);
+      const routeSheet = await this.automatedCollectionService.prepareConsolidatedRouteSheetForCollections(baseDate, {
+        zoneIds: body?.zoneIds,
+        vehicleId: body?.vehicleId,
+        driverId: body?.driverId,
+        notes: body?.notes,
+      });
+
+      return {
+        success: true,
+        message: `Backfill completado: ${backfill.generated}/${backfill.checked} órdenes creadas`,
+        date: backfill.date,
+        generated: backfill.generated,
+        checked: backfill.checked,
+        details: backfill.details,
+        routeSheet,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Error en backfill de cobranzas: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

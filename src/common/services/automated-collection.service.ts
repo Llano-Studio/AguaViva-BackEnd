@@ -22,6 +22,7 @@ import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-rou
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
+import { AuditService } from '../../audit/audit.service';
 import {
   isValidYMD,
   parseYMD,
@@ -59,6 +60,7 @@ export class AutomatedCollectionService
     private readonly orderCollectionEditService: OrderCollectionEditService,
     private readonly pdfGeneratorService: PdfGeneratorService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
+    private readonly auditService: AuditService,
   ) {
     super();
   }
@@ -768,6 +770,130 @@ export class AutomatedCollectionService
     }
 
     return results;
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  async runDailyBackfillForCollections() {
+    const today = startOfDayBA(new Date());
+    try {
+      const backfill = await this.backfillMissingCollectionOrdersUpToDate(today);
+      this.logger.log(`Backfill de cobranzas: ${backfill.generated}/${backfill.checked} creadas para ${backfill.date}`);
+    } catch (error) {
+      this.logger.error('Error en backfill diario de cobranzas:', error);
+    }
+    try {
+      const route = await this.prepareConsolidatedRouteSheetForCollections(today);
+      this.logger.log(`Hoja de ruta consolidada preparada para ${route.routeSheet.date}`);
+    } catch (error) {
+      this.logger.error('Error preparando hoja de ruta consolidada diaria:', error);
+    }
+  }
+
+  async backfillMissingCollectionOrdersUpToDate(
+    targetDate: Date,
+    userId?: number,
+  ): Promise<{
+    date: string;
+    generated: number;
+    checked: number;
+    details: CollectionOrderSummaryDto[];
+  }> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
+    await this.applyLateFeesToOverdueCycles();
+
+    const cycles = await this.subscription_cycle.findMany({
+      where: {
+        payment_due_date: { lte: startOfDayBA(adjustedDate) },
+        pending_balance: { gt: 0 },
+        customer_subscription: { status: SubscriptionStatus.ACTIVE },
+      },
+      include: {
+        customer_subscription: {
+          include: { person: true, subscription_plan: true },
+        },
+      },
+      orderBy: { payment_due_date: 'asc' },
+    });
+
+    const results: CollectionOrderSummaryDto[] = [];
+    let createdCount = 0;
+
+    for (const cycle of cycles) {
+      const exists = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+      if (exists) {
+        results.push({
+          cycle_id: cycle.cycle_id,
+          subscription_id: cycle.subscription_id,
+          customer_id: cycle.customer_subscription.customer_id,
+          customer_name: cycle.customer_subscription.person.name,
+          subscription_plan_name:
+            cycle.customer_subscription.subscription_plan.name,
+          payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
+          pending_balance: Number(cycle.pending_balance),
+          order_created: false,
+          notes: 'Orden existente, no se duplica',
+        });
+        continue;
+      }
+
+      const orderDate = this.adjustDateForSunday(
+        cycle.payment_due_date || adjustedDate,
+      );
+      const result = await this.createOrUpdateCollectionOrder(
+        cycle,
+        orderDate,
+        true,
+      );
+      results.push(result);
+      if (result.order_created && result.order_id) {
+        createdCount++;
+        if (typeof userId === 'number') {
+          try {
+            await this.auditService.createAuditRecord({
+              tableName: 'collection_orders',
+              recordId: result.order_id,
+              operationType: 'CREATE',
+              oldValues: null,
+              newValues: {
+                customer_id: result.customer_id,
+                subscription_id: result.subscription_id,
+                cycle_id: result.cycle_id,
+                order_date: formatBATimestampISO(orderDate as any),
+                total_amount: result.pending_balance,
+                es_automatica: true,
+              },
+              userId,
+              reason: 'Generación automática de backfill de cobranzas',
+            } as any);
+          } catch (_) {}
+        }
+      }
+    }
+
+    return {
+      date: formatBAYMD(adjustedDate),
+      generated: createdCount,
+      checked: cycles.length,
+      details: results,
+    };
+  }
+
+  async prepareConsolidatedRouteSheetForCollections(
+    targetDate: Date,
+    opts?: { zoneIds?: number[]; vehicleId?: number; driverId?: number; notes?: string },
+  ): Promise<RouteSheetResponseDto> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
+    const dto: GenerateRouteSheetDto = {
+      date: formatBAYMD(adjustedDate),
+      overdueOnly: 'false',
+      sortBy: 'zone',
+      format: 'compact',
+      zoneIds: opts?.zoneIds,
+      vehicleId: opts?.vehicleId,
+      driverId: opts?.driverId,
+      notes: opts?.notes,
+    } as any;
+    return await this.routeSheetGeneratorService.generateRouteSheet(dto);
   }
 
   /**
