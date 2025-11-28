@@ -7,7 +7,7 @@ import { AuditRecordDto } from '../cycle-payments/dto';
 export interface CreateAuditRecordParams {
   tableName: string;
   recordId: number;
-  operationType: 'CREATE' | 'UPDATE' | 'DELETE';
+  operationType: 'UPDATE' | 'DELETE';
   oldValues?: any;
   newValues?: any;
   userId: number;
@@ -97,7 +97,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         audit_id: record.audit_id,
         table_name: record.table_name,
         record_id: record.record_id,
-        operation_type: record.operation_type as 'CREATE' | 'UPDATE' | 'DELETE',
+        operation_type: record.operation_type as 'UPDATE' | 'DELETE',
         old_values: record.old_values
           ? JSON.parse(record.old_values as string)
           : null,
@@ -189,7 +189,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         audit_id: record.audit_id,
         table_name: record.table_name,
         record_id: record.record_id,
-        operation_type: record.operation_type as 'CREATE' | 'UPDATE' | 'DELETE',
+        operation_type: record.operation_type as 'UPDATE' | 'DELETE',
         old_values: record.old_values
           ? JSON.parse(record.old_values as string)
           : null,

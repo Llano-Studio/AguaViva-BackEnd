@@ -22,10 +22,10 @@ export class AuditRecordDto {
 
   @ApiProperty({
     description: 'Tipo de operación realizada',
-    example: 'CREATE',
-    enum: ['CREATE', 'UPDATE', 'DELETE'],
+    example: 'UPDATE',
+    enum: ['UPDATE', 'DELETE'],
   })
-  operation_type: 'CREATE' | 'UPDATE' | 'DELETE';
+  operation_type: 'UPDATE' | 'DELETE';
 
   @ApiPropertyOptional({
     description: 'Valores anteriores del registro (JSON)',
