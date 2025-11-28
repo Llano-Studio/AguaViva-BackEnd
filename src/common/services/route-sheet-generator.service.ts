@@ -139,9 +139,19 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
+      const persistDir = path.join(
+        process.cwd(),
+        'public',
+        'pdfs',
+        'collections',
+      );
+      if (!fs.existsSync(persistDir)) {
+        fs.mkdirSync(persistDir, { recursive: true });
+      }
+
       const fileName =
         this.tempFileManager.generateUniqueFileName('route-sheet');
-      const filePath = this.tempFileManager.getTempFilePath(fileName);
+      const filePath = path.join(persistDir, fileName);
 
       await this.generateRouteSheetPdf(filePath, {
         targetDate,
@@ -162,14 +172,15 @@ export class RouteSheetGeneratorService extends PrismaClient {
         throw new Error(`Fallo al escribir el PDF: ${(e as Error).message}`);
       }
 
-      const fileInfo = this.tempFileManager.createTempFileInfo(fileName, 60);
+      const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+      const downloadUrl = `${baseUrl}/public/pdfs/collections/${fileName}`;
 
       const summary = this.calculateSummary(zones);
 
       return {
         success: true,
         message: 'Hoja de ruta generada exitosamente',
-        downloadUrl: fileInfo.downloadUrl,
+        downloadUrl: downloadUrl,
         routeSheet: {
           date: formatLocalYMD(targetDate),
           generated_at: formatBATimestampISO(new Date()),

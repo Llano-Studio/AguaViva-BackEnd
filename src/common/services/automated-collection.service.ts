@@ -371,6 +371,16 @@ export class AutomatedCollectionService
       // Continuar con hojas de ruta aunque haya fallos parciales
     }
 
+    // Segundo: backfill de órdenes faltantes hasta la fecha
+    try {
+      const backfill = await this.backfillMissingCollectionOrdersUpToDate(adjustedDate);
+      this.logger.log(
+        `🧾 Backfill de cobranzas para ${dateIso}: ${backfill.generated}/${backfill.checked} creadas`,
+      );
+    } catch (error) {
+      this.logger.error('❌ Error ejecutando backfill de cobranzas:', error);
+    }
+
     // Selección de vehículos
     const vehicles = await this.vehicle.findMany({
       where: dto.vehicleId
@@ -893,7 +903,7 @@ export class AutomatedCollectionService
       driverId: opts?.driverId,
       notes: opts?.notes,
     } as any;
-    return await this.routeSheetGeneratorService.generateRouteSheet(dto);
+    return await this.routeSheetGeneratorService.generateRouteSheetAndPersist(dto);
   }
 
   /**

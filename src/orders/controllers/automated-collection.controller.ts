@@ -19,6 +19,7 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiProperty,
+  ApiPropertyOptional,
   ApiParam,
 } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty } from 'class-validator';
@@ -63,6 +64,18 @@ export class GenerateCollectionOrdersDto {
     { message: 'La fecha debe estar en formato YYYY-MM-DD válido' },
   )
   target_date: string;
+
+  @ApiPropertyOptional({ type: [Number], description: 'IDs de zonas para la hoja de ruta' })
+  zoneIds?: number[];
+
+  @ApiPropertyOptional({ type: Number, description: 'ID de vehículo para hoja de ruta' })
+  vehicleId?: number;
+
+  @ApiPropertyOptional({ type: Number, description: 'ID de chofer para hoja de ruta' })
+  driverId?: number;
+
+  @ApiPropertyOptional({ type: String, description: 'Notas para hoja de ruta' })
+  notes?: string;
 }
 
 @ApiTags('🛒 Pedidos & Compras de una sola vez')
@@ -190,7 +203,7 @@ export class AutomatedCollectionController {
       },
     },
   })
-  async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
+  async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto, @GetUser() user: User) {
     try {
       let targetDate: Date;
       try {
@@ -202,30 +215,45 @@ export class AutomatedCollectionController {
         );
       }
 
-      const results =
-        await this.automatedCollectionService.generateCollectionOrdersForDate(
-          targetDate,
-        );
+      const orderResults = await this.automatedCollectionService.generateCollectionOrdersForDate(targetDate);
 
-      const totalCycles = results.length;
-      const ordersCreated = results.filter(
+      const backfill = await this.automatedCollectionService.backfillMissingCollectionOrdersUpToDate(targetDate, user.id);
+
+      const routeSheet = await this.automatedCollectionService.prepareConsolidatedRouteSheetForCollections(targetDate, {
+        zoneIds: dto.zoneIds,
+        vehicleId: dto.vehicleId,
+        driverId: dto.driverId,
+        notes: dto.notes,
+      });
+
+      const totalCycles = orderResults.length;
+      const ordersCreatedToday = orderResults.filter(
         (r) => r.order_created && r.notes?.includes('Nuevo pedido'),
       ).length;
-      const ordersUpdated = results.filter(
+      const ordersUpdatedToday = orderResults.filter(
         (r) => r.order_created && r.notes?.includes('actualizado'),
       ).length;
-      const errors = results.filter((r) => !r.order_created).length;
+      const ordersCreatedBackfill = backfill.generated;
+      const errors = orderResults.filter((r) => !r.order_created).length;
 
       return {
         success: true,
-        message: `Generación completada: ${ordersCreated + ordersUpdated}/${totalCycles} pedidos procesados`,
+        message: `Generación completada: hoy ${ordersCreatedToday + ordersUpdatedToday}/${orderResults.length}, backfill ${ordersCreatedBackfill}/${backfill.checked}`,
         data: {
           target_date: dto.target_date,
           total_cycles: totalCycles,
-          orders_created: ordersCreated,
-          orders_updated: ordersUpdated,
+          orders_created: ordersCreatedToday,
+          orders_updated: ordersUpdatedToday,
           errors: errors,
-          results: results,
+          results: [...orderResults, ...backfill.details],
+          orders_created_backfill: ordersCreatedBackfill,
+          backfill_checked: backfill.checked,
+          backfill: {
+            date: backfill.date,
+            generated: backfill.generated,
+            checked: backfill.checked,
+          },
+          routeSheet,
         },
       };
     } catch (error) {
@@ -1512,47 +1540,5 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
     }
   }
 
-  @Post('orders/backfill-missing')
-  @Roles(
-    Role.SUPERADMIN,
-    Role.ADMINISTRATIVE,
-    Role.BOSSADMINISTRATIVE,
-  )
-  async backfillMissingCollections(@Body() body: { date?: string; zoneIds?: number[]; vehicleId?: number; driverId?: number; notes?: string }, @GetUser() user: User) {
-    try {
-      let baseDate: Date;
-      if (body?.date) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date))) {
-          throw new HttpException('La fecha debe estar en formato YYYY-MM-DD', HttpStatus.BAD_REQUEST);
-        }
-        baseDate = parseYMD(String(body.date));
-      } else {
-        baseDate = new Date();
-        baseDate.setHours(0,0,0,0);
-      }
-
-      const backfill = await this.automatedCollectionService.backfillMissingCollectionOrdersUpToDate(baseDate, user.id);
-      const routeSheet = await this.automatedCollectionService.prepareConsolidatedRouteSheetForCollections(baseDate, {
-        zoneIds: body?.zoneIds,
-        vehicleId: body?.vehicleId,
-        driverId: body?.driverId,
-        notes: body?.notes,
-      });
-
-      return {
-        success: true,
-        message: `Backfill completado: ${backfill.generated}/${backfill.checked} órdenes creadas`,
-        date: backfill.date,
-        generated: backfill.generated,
-        checked: backfill.checked,
-        details: backfill.details,
-        routeSheet,
-      };
-    } catch (error) {
-      throw new HttpException(
-        `Error en backfill de cobranzas: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-  }
+  
 }
