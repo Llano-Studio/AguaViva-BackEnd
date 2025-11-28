@@ -29,11 +29,8 @@ import {
   formatBAYMD,
   startOfDayBA,
   formatBATimestampISO,
-  formatUTCYMD,
   formatLocalYMD,
 } from '../utils/date.utils';
-
-//
 
 export interface CollectionOrderSummaryDto {
   cycle_id: number;
@@ -57,7 +54,6 @@ export class AutomatedCollectionService
 
   constructor(
     private readonly ordersService: OrdersService,
-    private readonly orderCollectionEditService: OrderCollectionEditService,
     private readonly pdfGeneratorService: PdfGeneratorService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly auditService: AuditService,
@@ -729,13 +725,14 @@ export class AutomatedCollectionService
     targetDate: Date,
   ): Promise<CollectionOrderSummaryDto[]> {
     this.logger.log(
-      `🔧 Generación manual de pedidos de cobranza para ${formatBAYMD(targetDate)}`,
+      `🔧 Generación de pedidos de cobranza (incluyendo recupero) para ${formatBAYMD(targetDate)}`,
     );
 
     const adjustedDate = this.adjustDateForSunday(targetDate);
     await this.applyLateFeesToOverdueCycles();
-    const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
 
+    // 1. Obtener ciclos que vencen específicamente en la fecha objetivo
+    const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
     const results: CollectionOrderSummaryDto[] = [];
 
     for (const cycle of cyclesDue) {
@@ -791,14 +788,39 @@ export class AutomatedCollectionService
       }
     }
 
+    // 2. Ejecutar Backfill para capturar cualquier orden perdida de días anteriores
+    // Esto cubre ciclos con fecha de vencimiento <= targetDate (startOfDay)
+    // que podrían no haber sido capturados por getCyclesDueForCollection (que busca un rango específico del día)
+    try {
+      const backfill = await this.backfillMissingCollectionOrdersUpToDate(
+        targetDate,
+      );
+      
+      // Fusionar resultados evitando duplicados
+      const processedCycleIds = new Set(results.map((r) => r.cycle_id));
+      
+      if (backfill.details) {
+        for (const item of backfill.details) {
+          if (!processedCycleIds.has(item.cycle_id)) {
+            results.push(item);
+            processedCycleIds.add(item.cycle_id);
+          }
+        }
+      }
+      
+      this.logger.log(
+        `🔄 Proceso completado: ${results.length} ciclos procesados (Día: ${cyclesDue.length}, Backfill: ${backfill.generated})`
+      );
+    } catch (error) {
+      this.logger.error('❌ Error ejecutando backfill automático:', error);
+      // No interrumpimos el proceso principal si falla el backfill, pero lo registramos
+    }
+
     return results;
   }
 
-  
-
   async backfillMissingCollectionOrdersUpToDate(
     targetDate: Date,
-    userId?: number,
   ): Promise<{
     date: string;
     generated: number;
@@ -852,29 +874,6 @@ export class AutomatedCollectionService
         true,
       );
       results.push(result);
-      if (result.order_created && result.order_id) {
-        createdCount++;
-        if (typeof userId === 'number') {
-          try {
-            await this.auditService.createAuditRecord({
-              tableName: 'collection_orders',
-              recordId: result.order_id,
-              operationType: 'CREATE',
-              oldValues: null,
-              newValues: {
-                customer_id: result.customer_id,
-                subscription_id: result.subscription_id,
-                cycle_id: result.cycle_id,
-                order_date: formatBATimestampISO(orderDate as any),
-                total_amount: result.pending_balance,
-                es_automatica: true,
-              },
-              userId,
-              reason: 'Generación automática de backfill de cobranzas',
-            } as any);
-          } catch (_) {}
-        }
-      }
     }
 
     return {
@@ -900,7 +899,7 @@ export class AutomatedCollectionService
       driverId: opts?.driverId,
       notes: opts?.notes,
     } as any;
-    return await this.routeSheetGeneratorService.generateRouteSheetAndPersist(dto);
+    return await this.routeSheetGeneratorService.generateRouteSheet(dto);
   }
 
   /**

@@ -203,7 +203,7 @@ export class AutomatedCollectionController {
       },
     },
   })
-  async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto, @GetUser() user: User) {
+ async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
     try {
       let targetDate: Date;
       try {
@@ -215,45 +215,30 @@ export class AutomatedCollectionController {
         );
       }
 
-      const orderResults = await this.automatedCollectionService.generateCollectionOrdersForDate(targetDate);
+      const results = await this.automatedCollectionService.generateCollectionOrdersForDate(targetDate);
 
-      const backfill = await this.automatedCollectionService.backfillMissingCollectionOrdersUpToDate(targetDate, user.id);
-
-      const routeSheet = await this.automatedCollectionService.prepareConsolidatedRouteSheetForCollections(targetDate, {
-        zoneIds: dto.zoneIds,
-        vehicleId: dto.vehicleId,
-        driverId: dto.driverId,
-        notes: dto.notes,
-      });
-
-      const totalCycles = orderResults.length;
-      const ordersCreatedToday = orderResults.filter(
-        (r) => r.order_created && r.notes?.includes('Nuevo pedido'),
+      const totalCycles = results.length;
+      const ordersCreated = results.filter(
+        (r) =>
+          r.order_created &&
+          (r.notes?.includes('Nuevo pedido') ||
+            r.notes?.includes('Nueva orden')),
       ).length;
-      const ordersUpdatedToday = orderResults.filter(
+      const ordersUpdated = results.filter(
         (r) => r.order_created && r.notes?.includes('actualizado'),
       ).length;
-      const ordersCreatedBackfill = backfill.generated;
-      const errors = orderResults.filter((r) => !r.order_created).length;
+      const errors = results.filter((r) => !r.order_created).length;
 
       return {
         success: true,
-        message: `Generación completada: hoy ${ordersCreatedToday + ordersUpdatedToday}/${orderResults.length}, backfill ${ordersCreatedBackfill}/${backfill.checked}`,
+        message: `Generación completada: ${ordersCreated + ordersUpdated}/${totalCycles} pedidos procesados`,
         data: {
           target_date: dto.target_date,
           total_cycles: totalCycles,
-          orders_created: ordersCreatedToday,
-          orders_updated: ordersUpdatedToday,
+          orders_created: ordersCreated,
+          orders_updated: ordersUpdated,
           errors: errors,
-          results: [...orderResults, ...backfill.details],
-          orders_created_backfill: ordersCreatedBackfill,
-          backfill_checked: backfill.checked,
-          backfill: {
-            date: backfill.date,
-            generated: backfill.generated,
-            checked: backfill.checked,
-          },
-          routeSheet,
+          results: results,
         },
       };
     } catch (error) {
