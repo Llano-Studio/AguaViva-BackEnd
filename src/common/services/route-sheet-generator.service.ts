@@ -269,7 +269,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
       }
 
       // Usar nombre del móvil/vehículo y del chofer en formato slug
-      const vehiclePart = vehicle?.model
+      const vehiclePart = vehicle?.license_plate
+        ? `${this.slugifyForFilename(vehicle.license_plate)}`
+        : vehicle?.model
         ? `${this.slugifyForFilename(vehicle.model)}`
         : 'NA';
       const driverPart = driver?.name

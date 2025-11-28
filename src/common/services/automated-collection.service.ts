@@ -294,10 +294,22 @@ export class AutomatedCollectionService
         }
 
         try {
+          let assignedDriverId: number | undefined = undefined;
+          try {
+            const userVehicles = await this.user_vehicle.findMany({
+              where: { vehicle_id: vehicle.vehicle_id, is_active: true },
+              include: { user: true },
+              orderBy: { assigned_at: 'desc' },
+              take: 1,
+            });
+            assignedDriverId = userVehicles?.[0]?.user?.id || undefined;
+          } catch (_) {}
+
           const filters: GenerateRouteSheetDto = {
             date: dateIso,
             zoneIds,
             vehicleId: vehicle.vehicle_id,
+            driverId: assignedDriverId,
             overdueOnly: 'false',
             sortBy: 'zone',
             format: 'compact',
@@ -782,22 +794,7 @@ export class AutomatedCollectionService
     return results;
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
-  async runDailyBackfillForCollections() {
-    const today = startOfDayBA(new Date());
-    try {
-      const backfill = await this.backfillMissingCollectionOrdersUpToDate(today);
-      this.logger.log(`Backfill de cobranzas: ${backfill.generated}/${backfill.checked} creadas para ${backfill.date}`);
-    } catch (error) {
-      this.logger.error('Error en backfill diario de cobranzas:', error);
-    }
-    try {
-      const route = await this.prepareConsolidatedRouteSheetForCollections(today);
-      this.logger.log(`Hoja de ruta consolidada preparada para ${route.routeSheet.date}`);
-    } catch (error) {
-      this.logger.error('Error preparando hoja de ruta consolidada diaria:', error);
-    }
-  }
+  
 
   async backfillMissingCollectionOrdersUpToDate(
     targetDate: Date,
