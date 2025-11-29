@@ -401,6 +401,8 @@ export class RouteSheetGeneratorService extends PrismaClient {
       OR: [
         { es_automatica: true },
         { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' } },
+        { notes: { contains: 'ORDEN DE COBRANZA', mode: 'insensitive' } },
+        { notes: { contains: 'Ciclo:', mode: 'insensitive' } },
       ],
     };
 
