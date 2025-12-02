@@ -619,18 +619,28 @@ export class RouteSheetGeneratorService extends PrismaClient {
     })();
 
     const resolvedPaymentStatus = (() => {
+      // Prioridad absoluta al estado que viene de la base de datos (API)
       const dbStatus = (cycleForStatus as any)?.payment_status as string | undefined;
-      if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
+      if (dbStatus && ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE'].includes(dbStatus)) {
+        // Si la base de datos dice PENDING, respetamos PENDING aunque haya pasado la fecha
+        // Solo marcamos OVERDUE si la base de datos explícitamente dice OVERDUE
+        return dbStatus;
+      }
+
+      // Fallback solo si no hay estado en la DB o es inválido
       const pbRaw = (cycleForStatus as any)?.pending_balance;
       const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
       if (!Number.isNaN(pb)) {
         if (pb <= 0) return 'PAID';
-        const over = Boolean((cycleForStatus as any)?.is_overdue) ||
-          (dueDate && formatUTCYMD(dueDate) < formatUTCYMD(dayStart));
-        if (over) return 'OVERDUE';
+        
+        // Solo calculamos OVERDUE si no tenemos estado de la DB
+        const isDbOverdue = Boolean((cycleForStatus as any)?.is_overdue);
+        if (isDbOverdue) return 'OVERDUE';
+
         const paidRaw = (cycleForStatus as any)?.paid_amount;
         const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
         if (paid > 0) return 'PARTIAL';
+        
         return 'PENDING';
       }
       return dbStatus || (collection.payment_status || 'PENDING');

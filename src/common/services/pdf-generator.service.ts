@@ -1135,7 +1135,7 @@ export class PdfGeneratorService {
       credited: 'ACREDITADO',
     } as Record<string, string>;
     const key = String(status || '').toLowerCase();
-    return map[key] || 'PENDIENTE';
+    return map[key] || status || 'PENDIENTE';
   }
 
   /**

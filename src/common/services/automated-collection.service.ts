@@ -156,7 +156,9 @@ export class AutomatedCollectionService
   /**
    * Ejecuta la generación automática de pedidos de cobranza todos los días a las 6 AM
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  @Cron(CronExpression.EVERY_DAY_AT_6AM, {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
   async generateCollectionOrders() {
     this.logger.log(
       '🔄 Iniciando generación automática de pedidos de cobranza...',
@@ -257,7 +259,9 @@ export class AutomatedCollectionService
    * Genera automáticamente hojas de ruta de cobranzas por vehículo y zonas cada día
    * Se ejecuta después de crear las órdenes de cobranza automáticas
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  @Cron(CronExpression.EVERY_DAY_AT_6AM, {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
   async generateDailyCollectionRouteSheets() {
     this.logger.log(
       '🗺️ Iniciando generación automática de hojas de ruta de cobranzas...',

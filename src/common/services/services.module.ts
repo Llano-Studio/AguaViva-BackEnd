@@ -18,6 +18,7 @@ import { RouteOptimizationService } from './route-optimization.service';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 import { SubscriptionCycleNumberingService } from './subscription-cycle-numbering.service';
 import { SubscriptionQuotaService } from './subscription-quota.service';
+import { DebugCronService } from './debug-cron.service';
 
 import { OrdersService } from '../../orders/orders.service';
 import { CommonModule } from '../common.module';
@@ -48,6 +49,7 @@ import { PrismaClient } from '@prisma/client';
     SubscriptionCycleCalculatorService,
     SubscriptionCycleNumberingService,
     SubscriptionQuotaService,
+    DebugCronService,
     OrdersService,
     PrismaClient,
   ],

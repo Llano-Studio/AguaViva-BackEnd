@@ -30,7 +30,9 @@ export class SubscriptionCycleRenewalService
   /**
    * Ejecuta la renovación de ciclos expirados y verificación de recargos cada día a la 1 AM
    */
-  @Cron(CronExpression.EVERY_DAY_AT_1AM)
+  @Cron(CronExpression.EVERY_DAY_AT_1AM, {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
   async renewExpiredCycles() {
     // Primero aplicar recargos por mora antes de renovar ciclos
     this.logger.log(

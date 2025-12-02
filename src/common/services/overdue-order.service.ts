@@ -17,7 +17,9 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
   /**
    * Ejecuta la verificación de pedidos atrasados todos los días a las 7 AM
    */
-  @Cron(CronExpression.EVERY_DAY_AT_7AM)
+  @Cron(CronExpression.EVERY_DAY_AT_7AM, {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
   async markOverdueOrders() {
     this.logger.log('🔄 Iniciando verificación de pedidos atrasados...');
 

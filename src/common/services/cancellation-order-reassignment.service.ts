@@ -24,7 +24,9 @@ export class CancellationOrderReassignmentService
   /**
    * Ejecuta la reasignación automática de órdenes de cancelación fallidas cada día a las 3 AM
    */
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  @Cron(CronExpression.EVERY_DAY_AT_3AM, {
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
   async reassignFailedCancellationOrders() {
     this.logger.log(
       '🔄 Iniciando reasignación automática de órdenes de cancelación fallidas...',
