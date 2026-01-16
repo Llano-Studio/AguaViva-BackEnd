@@ -248,10 +248,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       total_amount: order.total_amount.toString(),
       paid_amount: order.paid_amount.toString(),
       order_type: order.order_type as unknown as AppOrderType,
-      status:
-        (order.status === 'OVERDUE'
-          ? 'ATRASADO'
-          : order.status) as unknown as AppOrderStatus,
+      status: (order.status === 'OVERDUE'
+        ? 'ATRASADO'
+        : order.status) as unknown as AppOrderStatus,
       notes: order.notes ?? undefined,
       delivery_address: customerPayload?.address ?? undefined,
       order_item: items,

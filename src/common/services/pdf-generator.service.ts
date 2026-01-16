@@ -1161,7 +1161,6 @@ export class PdfGeneratorService {
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
-
     const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
 

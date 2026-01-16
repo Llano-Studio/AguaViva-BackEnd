@@ -539,7 +539,7 @@ export class PdfDevController {
               special_instructions:
                 '{"delivery_preferences":{"special_instructions":"timbre 406","preferred_days":["MONDAY","WEDNESDAY","FRIDAY"],"preferred_time_range":"08:00-12:00","avoid_times":["15:00-18:00"]}}',
             },
-            "items": [
+            items: [
               {
                 order_item_id: 21,
                 quantity: 2,
@@ -572,7 +572,7 @@ export class PdfDevController {
           ],
         },
       ],
-      "zones_covered": [
+      zones_covered: [
         {
           zone_id: 2,
           code: 'zn-1-res',

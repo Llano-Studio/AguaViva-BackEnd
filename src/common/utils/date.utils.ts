@@ -22,6 +22,13 @@ export function parseYMD(dateStr: string): Date {
   return dt;
 }
 
+export function dayBefore(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - 1);
+  return d;
+}
+
 // Validate string is strict YYYY-MM-DD and corresponds to a real calendar date
 export function isValidYMD(dateStr: string): boolean {
   try {
