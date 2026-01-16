@@ -31,6 +31,8 @@ import {
   formatBATimestampISO,
   formatLocalYMD,
 } from '../utils/date.utils';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface CollectionOrderSummaryDto {
   cycle_id: number;
@@ -150,15 +152,15 @@ export class AutomatedCollectionService
   }
 
   async onModuleInit() {
+    this.logger.log('🚀 AutomatedCollectionService inicializado correctamente');
     await this.$connect();
   }
 
   /**
    * Ejecuta la generación automática de pedidos de cobranza todos los días a las 6 AM
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando el script de generación
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM, {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  })
+  // Cron decorator removed in favor of system cron
   async generateCollectionOrders() {
     this.logger.log(
       '🔄 Iniciando generación automática de pedidos de cobranza...',
@@ -257,11 +259,10 @@ export class AutomatedCollectionService
 
   /**
    * Genera automáticamente hojas de ruta de cobranzas por vehículo y zonas cada día
-   * Se ejecuta después de crear las órdenes de cobranza automáticas
+   * Se ejecuta a las 6:30 AM para dar tiempo a que termine la generación de órdenes (6:00 AM)
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando el script de generación
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM, {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  })
+  // Cron decorator removed in favor of system cron
   async generateDailyCollectionRouteSheets() {
     this.logger.log(
       '🗺️ Iniciando generación automática de hojas de ruta de cobranzas...',
@@ -270,6 +271,29 @@ export class AutomatedCollectionService
     try {
       const today = startOfDayBA(new Date());
       const dateIso = formatBAYMD(today);
+
+      try {
+        const orderResults = await this.generateCollectionOrdersForDate(today);
+        const createdCount = orderResults.filter((r) => r.order_created).length;
+        this.logger.log(
+          `🧾 Órdenes de cobranzas previas para ${dateIso}: ${createdCount}/${orderResults.length} creadas/actualizadas`,
+        );
+      } catch (error) {
+        this.logger.error(
+          '❌ Error generando órdenes automáticas previas:',
+          error,
+        );
+      }
+
+      try {
+        const backfill =
+          await this.backfillMissingCollectionOrdersUpToDate(today);
+        this.logger.log(
+          `🔄 Backfill de cobranzas para ${dateIso}: ${backfill.generated}/${backfill.checked} creadas`,
+        );
+      } catch (error) {
+        this.logger.error('❌ Error ejecutando backfill de cobranzas:', error);
+      }
 
       // Obtener vehículos activos con sus zonas asignadas
       const vehicles = await this.vehicle.findMany({
@@ -346,6 +370,45 @@ export class AutomatedCollectionService
   }
 
   /**
+   * @deprecated Fallback ya no es necesario con la ejecución vía cron del sistema
+   */
+  // Cron decorator removed in favor of system cron
+  async generateDailyCollectionRouteSheetsFallback() {
+    try {
+      const today = startOfDayBA(new Date());
+      const dateIso = formatBAYMD(today);
+      const dir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
+      let existsForDate = false;
+      try {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
+          existsForDate = files.some(
+            (f) =>
+              f.includes(`_${dateIso}`) &&
+              (f.startsWith('cobranza-automatica-hoja-de-ruta') ||
+                f.startsWith('collection-route-sheet')),
+          );
+        }
+      } catch (_) {}
+      if (existsForDate) {
+        this.logger.log(
+          `⏭️ Fallback omitido, ya existen hojas de ruta para ${dateIso}`,
+        );
+        return;
+      }
+      this.logger.warn(
+        `🛠️ Fallback: no hay hojas de ruta para ${dateIso}, generando...`,
+      );
+      await this.generateDailyCollectionRouteSheets();
+    } catch (error) {
+      this.logger.error(
+        '❌ Error en fallback de hojas de ruta de cobranzas:',
+        error,
+      );
+    }
+  }
+
+  /**
    * Endpoint helper: genera hojas de ruta diarias persistidas considerando fecha, vehículo y zonas.
    * Si se especifica vehicleId, procesa solo ese vehículo; de lo contrario, procesa todos los activos.
    * Ajusta la fecha si cae en domingo para alinearse con la generación de órdenes.
@@ -385,7 +448,8 @@ export class AutomatedCollectionService
 
     // Segundo: backfill de órdenes faltantes hasta la fecha
     try {
-      const backfill = await this.backfillMissingCollectionOrdersUpToDate(adjustedDate);
+      const backfill =
+        await this.backfillMissingCollectionOrdersUpToDate(adjustedDate);
       this.logger.log(
         `🧾 Backfill de cobranzas para ${dateIso}: ${backfill.generated}/${backfill.checked} creadas`,
       );
@@ -796,13 +860,12 @@ export class AutomatedCollectionService
     // Esto cubre ciclos con fecha de vencimiento <= targetDate (startOfDay)
     // que podrían no haber sido capturados por getCyclesDueForCollection (que busca un rango específico del día)
     try {
-      const backfill = await this.backfillMissingCollectionOrdersUpToDate(
-        targetDate,
-      );
-      
+      const backfill =
+        await this.backfillMissingCollectionOrdersUpToDate(targetDate);
+
       // Fusionar resultados evitando duplicados
       const processedCycleIds = new Set(results.map((r) => r.cycle_id));
-      
+
       if (backfill.details) {
         for (const item of backfill.details) {
           if (!processedCycleIds.has(item.cycle_id)) {
@@ -811,9 +874,9 @@ export class AutomatedCollectionService
           }
         }
       }
-      
+
       this.logger.log(
-        `🔄 Proceso completado: ${results.length} ciclos procesados (Día: ${cyclesDue.length}, Backfill: ${backfill.generated})`
+        `🔄 Proceso completado: ${results.length} ciclos procesados (Día: ${cyclesDue.length}, Backfill: ${backfill.generated})`,
       );
     } catch (error) {
       this.logger.error('❌ Error ejecutando backfill automático:', error);
@@ -823,9 +886,7 @@ export class AutomatedCollectionService
     return results;
   }
 
-  async backfillMissingCollectionOrdersUpToDate(
-    targetDate: Date,
-  ): Promise<{
+  async backfillMissingCollectionOrdersUpToDate(targetDate: Date): Promise<{
     date: string;
     generated: number;
     checked: number;
@@ -849,7 +910,7 @@ export class AutomatedCollectionService
     });
 
     const results: CollectionOrderSummaryDto[] = [];
-    let createdCount = 0;
+    const createdCount = 0;
 
     for (const cycle of cycles) {
       const exists = await this.hasCollectionOrderForCycle(cycle.cycle_id);
@@ -890,7 +951,12 @@ export class AutomatedCollectionService
 
   async prepareConsolidatedRouteSheetForCollections(
     targetDate: Date,
-    opts?: { zoneIds?: number[]; vehicleId?: number; driverId?: number; notes?: string },
+    opts?: {
+      zoneIds?: number[];
+      vehicleId?: number;
+      driverId?: number;
+      notes?: string;
+    },
   ): Promise<RouteSheetResponseDto> {
     const adjustedDate = this.adjustDateForSunday(targetDate);
     const dto: GenerateRouteSheetDto = {

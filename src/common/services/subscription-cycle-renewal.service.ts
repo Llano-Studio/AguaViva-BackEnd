@@ -29,10 +29,9 @@ export class SubscriptionCycleRenewalService
 
   /**
    * Ejecuta la renovación de ciclos expirados y verificación de recargos cada día a la 1 AM
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando forceRenewalCheck
    */
-  @Cron(CronExpression.EVERY_DAY_AT_1AM, {
-    timeZone: 'America/Argentina/Buenos_Aires',
-  })
+  // Cron decorator removed in favor of system cron
   async renewExpiredCycles() {
     // Primero aplicar recargos por mora antes de renovar ciclos
     this.logger.log(
@@ -92,8 +91,9 @@ export class SubscriptionCycleRenewalService
 
   /**
    * Verifica y aplica recargos por mora cada 6 horas para asegurar aplicación oportuna
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando forceLateFeeCheck
    */
-  @Cron(CronExpression.EVERY_6_HOURS)
+  // Cron decorator removed in favor of system cron
   async checkLateFeesPeriodic() {
     this.logger.log(
       '⏰ Ejecutando verificación periódica de recargos por mora...',

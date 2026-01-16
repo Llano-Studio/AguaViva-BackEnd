@@ -17,8 +17,9 @@ export class FailedOrderReassignmentService
 
   /**
    * Ejecuta la reasignación automática de pedidos fallidos cada día a las 2 AM
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando forceReassignmentCheck
    */
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  // Cron decorator removed in favor of system cron
   async reassignFailedOrders() {
     this.logger.log(
       '🔄 Iniciando reasignación automática de pedidos fallidos...',

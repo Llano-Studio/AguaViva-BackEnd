@@ -65,13 +65,22 @@ export class GenerateCollectionOrdersDto {
   )
   target_date: string;
 
-  @ApiPropertyOptional({ type: [Number], description: 'IDs de zonas para la hoja de ruta' })
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'IDs de zonas para la hoja de ruta',
+  })
   zoneIds?: number[];
 
-  @ApiPropertyOptional({ type: Number, description: 'ID de vehículo para hoja de ruta' })
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'ID de vehículo para hoja de ruta',
+  })
   vehicleId?: number;
 
-  @ApiPropertyOptional({ type: Number, description: 'ID de chofer para hoja de ruta' })
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'ID de chofer para hoja de ruta',
+  })
   driverId?: number;
 
   @ApiPropertyOptional({ type: String, description: 'Notas para hoja de ruta' })
@@ -203,7 +212,7 @@ export class AutomatedCollectionController {
       },
     },
   })
- async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
+  async generateCollectionOrders(@Body() dto: GenerateCollectionOrdersDto) {
     try {
       let targetDate: Date;
       try {
@@ -215,7 +224,10 @@ export class AutomatedCollectionController {
         );
       }
 
-      const results = await this.automatedCollectionService.generateCollectionOrdersForDate(targetDate);
+      const results =
+        await this.automatedCollectionService.generateCollectionOrdersForDate(
+          targetDate,
+        );
 
       const totalCycles = results.length;
       const ordersCreated = results.filter(
@@ -1524,6 +1536,4 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
       );
     }
   }
-
-  
 }

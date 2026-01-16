@@ -45,10 +45,10 @@ export const contractFileFilter = (
   file: any,
   callback: (error: Error | null, acceptFile: boolean) => void,
 ) => {
-  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/i)) {
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf|opt)$/i)) {
     return callback(
       new Error(
-        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o documentos PDF!',
+        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o documentos (pdf, opt)!',
       ),
       false,
     );

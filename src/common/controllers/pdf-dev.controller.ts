@@ -344,284 +344,276 @@ export class PdfDevController {
   })
   async previewRoute(@Res() res: Response) {
     const testData = {
-      "route_sheet_id": 12,
-      "delivery_date": "2025-11-26",
-      "driver": {
-        "id": 3,
-        "name": "chofer 1",
-        "email": "chofer1@gmail.com"
+      route_sheet_id: 12,
+      delivery_date: '2025-11-26',
+      driver: {
+        id: 3,
+        name: 'chofer 1',
+        email: 'chofer1@gmail.com',
       },
-      "vehicle": {
-        "vehicle_id": 1,
-        "code": "mb-1",
-        "name": "movil 1",
-        "zones": [
+      vehicle: {
+        vehicle_id: 1,
+        code: 'mb-1',
+        name: 'movil 1',
+        zones: [
           {
-            "zone_id": 2,
-            "code": "zn-1-res",
-            "name": "zona 1",
-            "locality": {
-              "locality_id": 1,
-              "code": "RES",
-              "name": "Resistencia",
-              "province": {
-                "province_id": 1,
-                "code": "CH",
-                "name": "Chaco",
-                "country": {
-                  "country_id": 1,
-                  "code": "AR",
-                  "name": "Argentina"
-                }
-              }
-            }
+            zone_id: 2,
+            code: 'zn-1-res',
+            name: 'zona 1',
+            locality: {
+              locality_id: 1,
+              code: 'RES',
+              name: 'Resistencia',
+              province: {
+                province_id: 1,
+                code: 'CH',
+                name: 'Chaco',
+                country: {
+                  country_id: 1,
+                  code: 'AR',
+                  name: 'Argentina',
+                },
+              },
+            },
           },
           {
-            "zone_id": 7,
-            "code": "zn-5-res",
-            "name": "zona 5",
-            "locality": {
-              "locality_id": 1,
-              "code": "RES",
-              "name": "Resistencia",
-              "province": {
-                "province_id": 1,
-                "code": "CH",
-                "name": "Chaco",
-                "country": {
-                  "country_id": 1,
-                  "code": "AR",
-                  "name": "Argentina"
-                }
-              }
-            }
-          }
-        ]
+            zone_id: 7,
+            code: 'zn-5-res',
+            name: 'zona 5',
+            locality: {
+              locality_id: 1,
+              code: 'RES',
+              name: 'Resistencia',
+              province: {
+                province_id: 1,
+                code: 'CH',
+                name: 'Chaco',
+                country: {
+                  country_id: 1,
+                  code: 'AR',
+                  name: 'Argentina',
+                },
+              },
+            },
+          },
+        ],
       },
-      "zone_identifiers": [
-        "zona 1",
-        "zona 5"
+      zone_identifiers: ['zona 1', 'zona 5'],
+      route_notes: 'salir por alverdi',
+      details: [
+        {
+          route_sheet_detail_id: 32,
+          route_sheet_id: 12,
+          order: {
+            order_id: 10,
+            order_date: '2025-11-26T00:00:00-03:00',
+            total_amount: '0',
+            status: 'READY_FOR_DELIVERY',
+            subscription_id: 14,
+            subscription_due_date: '2025-11-12',
+            all_due_dates: ['2025-11-12', '2025-11-26'],
+            customer: {
+              person_id: 10,
+              name: 'claudia 2',
+              alias: 'llano studio',
+              address: 'goitia 1214',
+              phone: '3624938473',
+              locality: {
+                locality_id: 1,
+                code: 'RES',
+                name: 'Resistencia',
+              },
+              special_instructions:
+                '{"delivery_preferences":{"special_instructions":"timbre 1","preferred_days":["MONDAY","WEDNESDAY"],"preferred_time_range":"08:00-12:00","avoid_times":["15:00-18:00"]}}',
+            },
+            items: [
+              {
+                order_item_id: 18,
+                quantity: 3,
+                delivered_quantity: 0,
+                returned_quantity: 0,
+                product: {
+                  product_id: 1,
+                  description: 'bidon 20 lts',
+                },
+              },
+            ],
+            notes: 'avisar antes',
+          },
+          delivery_status: 'PENDING',
+          delivery_time: '08:00-12:00',
+          is_current_delivery: true,
+          credits: [
+            {
+              product_description: 'dispenser frio calor',
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1,
+            },
+            {
+              product_description: 'bidon 20 lts',
+              planned_quantity: 6,
+              delivered_quantity: 5,
+              remaining_balance: 1,
+            },
+          ],
+        },
+        {
+          route_sheet_detail_id: 33,
+          route_sheet_id: 12,
+          order: {
+            order_id: 12,
+            order_date: '2025-11-26T00:00:00-03:00',
+            total_amount: '4008',
+            status: 'READY_FOR_DELIVERY',
+            subscription_id: 14,
+            subscription_due_date: '2025-11-12',
+            all_due_dates: ['2025-11-12', '2025-11-26'],
+            customer: {
+              person_id: 10,
+              name: 'claudia 2',
+              alias: 'llano studio',
+              address: 'goitia 1214',
+              phone: '3624938473',
+              locality: {
+                locality_id: 1,
+                code: 'RES',
+                name: 'Resistencia',
+              },
+              special_instructions:
+                '{"delivery_preferences":{"special_instructions":"timbre 1","preferred_days":["MONDAY","WEDNESDAY"],"preferred_time_range":"08:00-12:00","avoid_times":["15:00-18:00"]}}',
+            },
+            items: [
+              {
+                order_item_id: 20,
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0,
+                product: {
+                  product_id: 1,
+                  description: 'bidon 20 lts',
+                },
+              },
+            ],
+            notes: 'avisar antes de ir',
+          },
+          delivery_status: 'PENDING',
+          delivery_time: '08:00-12:00',
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: 'dispenser frio calor',
+              planned_quantity: 1,
+              delivered_quantity: 0,
+              remaining_balance: 1,
+            },
+            {
+              product_description: 'bidon 20 lts',
+              planned_quantity: 6,
+              delivered_quantity: 5,
+              remaining_balance: 1,
+            },
+          ],
+        },
+        {
+          route_sheet_detail_id: 34,
+          route_sheet_id: 12,
+          order: {
+            order_id: 13,
+            order_date: '2025-11-26T00:00:00-03:00',
+            total_amount: '4008',
+            status: 'READY_FOR_DELIVERY',
+            subscription_id: 3,
+            subscription_due_date: '2025-11-15',
+            all_due_dates: ['2025-11-15'],
+            customer: {
+              person_id: 3,
+              name: 'diego alvarez',
+              address: 'vedia 1595',
+              phone: '3624837482',
+              locality: {
+                locality_id: 1,
+                code: 'RES',
+                name: 'Resistencia',
+              },
+              special_instructions:
+                '{"delivery_preferences":{"special_instructions":"timbre 406","preferred_days":["MONDAY","WEDNESDAY","FRIDAY"],"preferred_time_range":"08:00-12:00","avoid_times":["15:00-18:00"]}}',
+            },
+            items: [
+              {
+                order_item_id: 21,
+                quantity: 2,
+                delivered_quantity: 0,
+                returned_quantity: 0,
+                product: {
+                  product_id: 1,
+                  description: 'bidon 20 lts',
+                },
+              },
+            ],
+            notes: 'avisar antes',
+          },
+          delivery_status: 'PENDING',
+          delivery_time: '08:00-12:00',
+          is_current_delivery: false,
+          credits: [
+            {
+              product_description: 'dispenser frio calor',
+              planned_quantity: 1,
+              delivered_quantity: 1,
+              remaining_balance: 0,
+            },
+            {
+              product_description: 'bidon 20 lts',
+              planned_quantity: 6,
+              delivered_quantity: 6,
+              remaining_balance: 0,
+            },
+          ],
+        },
       ],
-      "route_notes": "salir por alverdi",
-      "details": [
+      zones_covered: [
         {
-          "route_sheet_detail_id": 32,
-          "route_sheet_id": 12,
-          "order": {
-            "order_id": 10,
-            "order_date": "2025-11-26T00:00:00-03:00",
-            "total_amount": "0",
-            "status": "READY_FOR_DELIVERY",
-            "subscription_id": 14,
-            "subscription_due_date": "2025-11-12",
-            "all_due_dates": [
-              "2025-11-12",
-              "2025-11-26"
-            ],
-            "customer": {
-              "person_id": 10,
-              "name": "claudia 2",
-              "alias": "llano studio",
-              "address": "goitia 1214",
-              "phone": "3624938473",
-              "locality": {
-                "locality_id": 1,
-                "code": "RES",
-                "name": "Resistencia"
+          zone_id: 2,
+          code: 'zn-1-res',
+          name: 'zona 1',
+          locality: {
+            locality_id: 1,
+            code: 'RES',
+            name: 'Resistencia',
+            province: {
+              province_id: 1,
+              code: 'CH',
+              name: 'Chaco',
+              country: {
+                country_id: 1,
+                code: 'AR',
+                name: 'Argentina',
               },
-              "special_instructions": "{\"delivery_preferences\":{\"special_instructions\":\"timbre 1\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
             },
-            "items": [
-              {
-                "order_item_id": 18,
-                "quantity": 3,
-                "delivered_quantity": 0,
-                "returned_quantity": 0,
-                "product": {
-                  "product_id": 1,
-                  "description": "bidon 20 lts"
-                }
-              }
-            ],
-            "notes": "avisar antes"
           },
-          "delivery_status": "PENDING",
-          "delivery_time": "08:00-12:00",
-          "is_current_delivery": true,
-          "credits": [
-            {
-              "product_description": "dispenser frio calor",
-              "planned_quantity": 1,
-              "delivered_quantity": 0,
-              "remaining_balance": 1
-            },
-            {
-              "product_description": "bidon 20 lts",
-              "planned_quantity": 6,
-              "delivered_quantity": 5,
-              "remaining_balance": 1
-            }
-          ]
         },
         {
-          "route_sheet_detail_id": 33,
-          "route_sheet_id": 12,
-          "order": {
-            "order_id": 12,
-            "order_date": "2025-11-26T00:00:00-03:00",
-            "total_amount": "4008",
-            "status": "READY_FOR_DELIVERY",
-            "subscription_id": 14,
-            "subscription_due_date": "2025-11-12",
-            "all_due_dates": [
-              "2025-11-12",
-              "2025-11-26"
-            ],
-            "customer": {
-              "person_id": 10,
-              "name": "claudia 2",
-              "alias": "llano studio",
-              "address": "goitia 1214",
-              "phone": "3624938473",
-              "locality": {
-                "locality_id": 1,
-                "code": "RES",
-                "name": "Resistencia"
+          zone_id: 7,
+          code: 'zn-5-res',
+          name: 'zona 5',
+          locality: {
+            locality_id: 1,
+            code: 'RES',
+            name: 'Resistencia',
+            province: {
+              province_id: 1,
+              code: 'CH',
+              name: 'Chaco',
+              country: {
+                country_id: 1,
+                code: 'AR',
+                name: 'Argentina',
               },
-              "special_instructions": "{\"delivery_preferences\":{\"special_instructions\":\"timbre 1\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
             },
-            "items": [
-              {
-                "order_item_id": 20,
-                "quantity": 2,
-                "delivered_quantity": 0,
-                "returned_quantity": 0,
-                "product": {
-                  "product_id": 1,
-                  "description": "bidon 20 lts"
-                }
-              }
-            ],
-            "notes": "avisar antes de ir"
           },
-          "delivery_status": "PENDING",
-          "delivery_time": "08:00-12:00",
-          "is_current_delivery": false,
-          "credits": [
-            {
-              "product_description": "dispenser frio calor",
-              "planned_quantity": 1,
-              "delivered_quantity": 0,
-              "remaining_balance": 1
-            },
-            {
-              "product_description": "bidon 20 lts",
-              "planned_quantity": 6,
-              "delivered_quantity": 5,
-              "remaining_balance": 1
-            }
-          ]
         },
-        {
-          "route_sheet_detail_id": 34,
-          "route_sheet_id": 12,
-          "order": {
-            "order_id": 13,
-            "order_date": "2025-11-26T00:00:00-03:00",
-            "total_amount": "4008",
-            "status": "READY_FOR_DELIVERY",
-            "subscription_id": 3,
-            "subscription_due_date": "2025-11-15",
-            "all_due_dates": [
-              "2025-11-15"
-            ],
-            "customer": {
-              "person_id": 3,
-              "name": "diego alvarez",
-              "address": "vedia 1595",
-              "phone": "3624837482",
-              "locality": {
-                "locality_id": 1,
-                "code": "RES",
-                "name": "Resistencia"
-              },
-              "special_instructions": "{\"delivery_preferences\":{\"special_instructions\":\"timbre 406\",\"preferred_days\":[\"MONDAY\",\"WEDNESDAY\",\"FRIDAY\"],\"preferred_time_range\":\"08:00-12:00\",\"avoid_times\":[\"15:00-18:00\"]}}"
-            },
-            "items": [
-              {
-                "order_item_id": 21,
-                "quantity": 2,
-                "delivered_quantity": 0,
-                "returned_quantity": 0,
-                "product": {
-                  "product_id": 1,
-                  "description": "bidon 20 lts"
-                }
-              }
-            ],
-            "notes": "avisar antes"
-          },
-          "delivery_status": "PENDING",
-          "delivery_time": "08:00-12:00",
-          "is_current_delivery": false,
-          "credits": [
-            {
-              "product_description": "dispenser frio calor",
-              "planned_quantity": 1,
-              "delivered_quantity": 1,
-              "remaining_balance": 0
-            },
-            {
-              "product_description": "bidon 20 lts",
-              "planned_quantity": 6,
-              "delivered_quantity": 6,
-              "remaining_balance": 0
-            }
-          ]
-        }
       ],
-      "zones_covered": [
-        {
-          "zone_id": 2,
-          "code": "zn-1-res",
-          "name": "zona 1",
-          "locality": {
-            "locality_id": 1,
-            "code": "RES",
-            "name": "Resistencia",
-            "province": {
-              "province_id": 1,
-              "code": "CH",
-              "name": "Chaco",
-              "country": {
-                "country_id": 1,
-                "code": "AR",
-                "name": "Argentina"
-              }
-            }
-          }
-        },
-        {
-          "zone_id": 7,
-          "code": "zn-5-res",
-          "name": "zona 5",
-          "locality": {
-            "locality_id": 1,
-            "code": "RES",
-            "name": "Resistencia",
-            "province": {
-              "province_id": 1,
-              "code": "CH",
-              "name": "Chaco",
-              "country": {
-                "country_id": 1,
-                "code": "AR",
-                "name": "Argentina"
-              }
-            }
-          }
-        }
-      ]
     };
 
     try {

@@ -5,9 +5,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 export class DebugCronService {
   private readonly logger = new Logger(DebugCronService.name);
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  // Cron decorator removed to clean up logs
   handleCron() {
-    console.log('Debug Cron executed at: ' + new Date().toString());
-    this.logger.log('Debug Cron executed at: ' + new Date().toString());
+    this.logger.debug(
+      `Debug Cron executed at: ${new Date().toString()} (Local time check)`,
+    );
   }
 }

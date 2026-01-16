@@ -11,6 +11,53 @@ import {
 import { Transform } from 'class-transformer';
 import { PaymentMethod } from '../../common/constants/enums';
 
+const stripDiacritics = (input: string) =>
+  input.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const normalizePaymentMethod = (value: unknown): unknown => {
+  if (value === null || value === undefined) return value;
+  if (typeof value === 'object') {
+    const v = (value as any)?.key ?? (value as any)?.value;
+    if (typeof v === 'string') return normalizePaymentMethod(v);
+    return value;
+  }
+  if (typeof value !== 'string') return value;
+
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  const allValues = Object.values(PaymentMethod) as string[];
+  if (allValues.includes(trimmed)) return trimmed;
+
+  const normalized = stripDiacritics(trimmed)
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+
+  const map: Record<string, PaymentMethod> = {
+    EFECTIVO: PaymentMethod.EFECTIVO,
+    CASH: PaymentMethod.EFECTIVO,
+    EFECTIVO_AR: PaymentMethod.EFECTIVO,
+    TRANSFERENCIA: PaymentMethod.TRANSFERENCIA,
+    TRANSFERENCIA_BANCARIA: PaymentMethod.TRANSFERENCIA,
+    BANK_TRANSFER: PaymentMethod.TRANSFERENCIA,
+    TRANSFER: PaymentMethod.TRANSFERENCIA,
+    TARJETA_DEBITO: PaymentMethod.TARJETA_DEBITO,
+    DEBIT_CARD: PaymentMethod.TARJETA_DEBITO,
+    DEBITO: PaymentMethod.TARJETA_DEBITO,
+    TARJETA_CREDITO: PaymentMethod.TARJETA_CREDITO,
+    CREDIT_CARD: PaymentMethod.TARJETA_CREDITO,
+    CREDITO: PaymentMethod.TARJETA_CREDITO,
+    CHEQUE: PaymentMethod.CHEQUE,
+    MOBILE_PAYMENT: PaymentMethod.MOBILE_PAYMENT,
+    QR: PaymentMethod.MOBILE_PAYMENT,
+    MERCADO_PAGO: PaymentMethod.MOBILE_PAYMENT,
+    MERCADOPAGO: PaymentMethod.MOBILE_PAYMENT,
+    TARJETA: PaymentMethod.TARJETA_CREDITO,
+  };
+
+  return map[normalized] ?? trimmed;
+};
+
 export class CreateCyclePaymentDto {
   @ApiProperty({
     description: 'ID del ciclo de suscripción al que se aplica el pago',
@@ -42,6 +89,7 @@ export class CreateCyclePaymentDto {
   })
   @IsNotEmpty()
   @IsEnum(PaymentMethod)
+  @Transform(({ value }) => normalizePaymentMethod(value))
   payment_method: PaymentMethod;
 
   @ApiPropertyOptional({
