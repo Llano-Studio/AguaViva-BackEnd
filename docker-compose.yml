@@ -1,24 +1,73 @@
 services:
-  db:
-    container_name: postgres_database
+  postgres:
+    container_name: sgarav-postgres
     image: postgres:16.3
-    volumes:
-      - ./postgres:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=123456
+      - POSTGRES_DB=${POSTGRES_DB:-sgarav_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-123456}
     restart: always
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sgarav-network
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-  pgAdmin:
+  pgadmin:
+    container_name: sgarav-pgadmin
     depends_on:
-      - db
+      postgres:
+        condition: service_healthy
     image: dpage/pgadmin4:8.6
-    volumes:
-      - ./pgadmin:/var/lib/pgadmin
     ports:
-      - "8080:80"
+      - "${PGADMIN_PORT:-8081}:80"
     environment:
-      - PGADMIN_DEFAULT_PASSWORD=123456
-      - PGADMIN_DEFAULT_EMAIL=superman@google.com
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-123456}
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@sgarav.com}
     restart: always
+    networks:
+      - sgarav-network
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  backend:
+    container_name: sgarav-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - ./.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-sgarav_db}
+      - NODE_ENV=${NODE_ENV:-development}
+      - TZ=${TZ:-America/Argentina/Buenos_Aires}
+      - PORT=${PORT:-3000}
+      - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
+      - JWT_ACCESS_TOKEN_EXPIRATION_TIME=${JWT_ACCESS_TOKEN_EXPIRATION_TIME:-4h}
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE:-5242880}
+    restart: always
+    networks:
+      - sgarav-network
+    volumes:
+      - ./public:/app/public
+      - uploads_data:/app/uploads
+
+networks:
+  sgarav-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  uploads_data:

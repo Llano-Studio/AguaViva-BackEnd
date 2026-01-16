@@ -44,12 +44,6 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           new_values: params.newValues
             ? JSON.stringify(params.newValues)
             : null,
-          old_values: params.oldValues
-            ? JSON.stringify(params.oldValues)
-            : null,
-          new_values: params.newValues
-            ? JSON.stringify(params.newValues)
-            : null,
           created_by: params.userId,
           reason: params.reason,
           ip_address: params.ipAddress,
