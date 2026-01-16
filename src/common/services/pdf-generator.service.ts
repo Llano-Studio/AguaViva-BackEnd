@@ -545,44 +545,32 @@ export class PdfGeneratorService {
       'Horario',
       'Total',
     ];
-  const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
+    const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
     let pageCount = 1;
 
-    // Helper para obtener los días de vencimiento de una fila (igual que en generateOrderRow)
-    const getDueDays = (detail: any): string[] => {
+    // Helper: obtener el día (DD) del vencimiento más reciente (all_due_dates)
+    const getLatestDueDay = (detail: any): string => {
       const extractDay = (dateStr: string) => {
         const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
         return match ? match[1] : null;
       };
       if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-        const days = detail.order.all_due_dates
-          .map((d: string) => extractDay(d))
-          .filter((d: string | null): d is string => d !== null);
-        if (days.length > 0) {
-          return (Array.from(new Set(days)) as string[]).sort();
+        const validDates = (detail.order.all_due_dates as string[])
+          .map((d) => (typeof d === 'string' ? d.trim() : ''))
+          .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+        if (validDates.length > 0) {
+          const latest = validDates.reduce((max, d) => (d > max ? d : max));
+          const day = extractDay(latest);
+          if (day) return day;
         }
       } else if (detail.order.subscription_due_date) {
         const day = extractDay(detail.order.subscription_due_date);
-        if (day) {
-          return [day];
-        }
+        if (day) return day;
       }
-      return ['-'];
+      return '-';
     };
 
-    // Para headers, usar la primera fila para calcular los anchos dinámicos
-    let headerDueDaysCount = 1;
-    if (routeSheet.details && routeSheet.details.length > 0) {
-      headerDueDaysCount = getDueDays(routeSheet.details[0]).length;
-    }
-  const vColBaseWidth = 15;
-    const vColWidth = vColBaseWidth * headerDueDaysCount;
-    const clienteBaseWidth = 105;
-    const clienteWidth = clienteBaseWidth - vColBaseWidth * (headerDueDaysCount - 1);
-    // Usar estos anchos para los headers
     const headerColWidths = [...baseColWidths];
-    headerColWidths[1] = vColWidth;
-    headerColWidths[2] = clienteWidth;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -677,16 +665,7 @@ export class PdfGeneratorService {
           .fill(this.colors.primary);
         doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
 
-        // Para cada nueva página, usar la fila actual para calcular los anchos
-        let pageDueDaysCount = 1;
-        if (routeSheet.details && routeSheet.details.length > i) {
-          pageDueDaysCount = getDueDays(routeSheet.details[i]).length;
-        }
-        const pageVColWidth = vColBaseWidth * pageDueDaysCount;
-        const pageClienteWidth = clienteBaseWidth - vColBaseWidth * (pageDueDaysCount - 1);
         const pageColWidths = [...baseColWidths];
-        pageColWidths[1] = pageVColWidth;
-        pageColWidths[2] = pageClienteWidth;
 
         colX = startX + 10;
         headers.forEach((header, index) => {
@@ -764,12 +743,15 @@ export class PdfGeneratorService {
       return match ? match[1] : null;
     };
     if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-      const days = detail.order.all_due_dates
-        .map((d) => extractDay(d))
-        .filter((d): d is string => d !== null);
-      if (days.length > 0) {
-        // Eliminar duplicados y ordenar
-        dueDays = (Array.from(new Set(days)) as string[]).sort();
+      const validDates = (detail.order.all_due_dates as string[])
+        .map((d) => (typeof d === 'string' ? d.trim() : ''))
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+      if (validDates.length > 0) {
+        const latest = validDates.reduce((max, d) => (d > max ? d : max));
+        const day = extractDay(latest);
+        if (day) {
+          dueDays = [day];
+        }
       }
     } else if (detail.order.subscription_due_date) {
       const day = extractDay(detail.order.subscription_due_date);
@@ -780,25 +762,26 @@ export class PdfGeneratorService {
     if (dueDays.length === 0) {
       dueDays = ['-'];
     }
+    const vColBaseWidth = 15;
+    const vColWidth = vColBaseWidth;
+    const clienteWidth = colWidths[2];
 
-  // Calcular el ancho de la columna V dinámicamente
-  const vColBaseWidth = 15;
-  const vColWidth = vColBaseWidth * dueDays.length;
-  // Ajustar el ancho de la columna Cliente para compensar
-  const clienteBaseWidth = 105;
-  const clienteWidth = clienteBaseWidth - vColBaseWidth * (dueDays.length - 1);
-
-  // Actualizar colWidths para esta fila
-  const localColWidths = [...colWidths];
-  localColWidths[1] = vColWidth;
-  localColWidths[2] = clienteWidth;
+    // Actualizar colWidths para esta fila
+    const localColWidths = [...colWidths];
+    localColWidths[1] = vColWidth;
+    localColWidths[2] = clienteWidth;
 
     const cellData: Array<{
       text: string;
       fontSize: number;
       font: string;
       align: 'center' | 'left' | 'right';
-      customRender?: (x: number, y: number, width: number, height: number) => void;
+      customRender?: (
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+      ) => void;
     }> = [
       {
         text: detail.order.order_id.toString(),
@@ -818,12 +801,17 @@ export class PdfGeneratorService {
             const isToday = day === currentDay;
             // Fondo
             if (isToday) {
-              doc.rect(boxX, y, vColBaseWidth, height).fill(this.colors.primary);
+              doc
+                .rect(boxX, y, vColBaseWidth, height)
+                .fill(this.colors.primary);
             }
             // Texto
-            doc.fontSize(9)
+            doc
+              .fontSize(9)
               .font('Poppins-Bold')
-              .fillColor(isToday ? this.colors.textWhite : this.colors.textAccent)
+              .fillColor(
+                isToday ? this.colors.textWhite : this.colors.textAccent,
+              )
               .text(day, boxX + 2, y + 3, {
                 width: vColBaseWidth - 4,
                 align: 'center',
@@ -839,7 +827,8 @@ export class PdfGeneratorService {
         align: 'left',
         customRender: (x, y, width, height) => {
           // Agregar margen izquierdo de 3px
-          doc.fontSize(9)
+          doc
+            .fontSize(9)
             .font('Poppins-Bold')
             .fillColor(this.colors.textAccent)
             .text(detail.order.customer.name, x + 3, y + 3, {
@@ -962,20 +951,47 @@ export class PdfGeneratorService {
       if (typeof rawSpecial === 'string') {
         try {
           const parsed = JSON.parse(rawSpecial);
-          // Extraer instrucciones específicas si existen
+          const fromPrefs =
+            parsed?.delivery_preferences &&
+            typeof parsed.delivery_preferences.special_instructions === 'string'
+              ? parsed.delivery_preferences.special_instructions
+              : '';
+          const fromClientNotes =
+            typeof parsed?.client_notes === 'string' ? parsed.client_notes : '';
+          const fromOriginalNotes =
+            typeof parsed?.original_notes === 'string'
+              ? parsed.original_notes
+              : '';
           specialInstructionsText =
-            parsed?.delivery_preferences?.special_instructions || rawSpecial;
+            fromPrefs || fromClientNotes || fromOriginalNotes || '';
         } catch (e) {
           specialInstructionsText = rawSpecial;
         }
       } else if (typeof rawSpecial === 'object') {
+        const fromPrefs =
+          rawSpecial?.delivery_preferences &&
+          typeof rawSpecial.delivery_preferences.special_instructions ===
+            'string'
+            ? rawSpecial.delivery_preferences.special_instructions
+            : '';
+        const fromClientNotes =
+          typeof rawSpecial?.client_notes === 'string'
+            ? rawSpecial.client_notes
+            : '';
+        const fromOriginalNotes =
+          typeof rawSpecial?.original_notes === 'string'
+            ? rawSpecial.original_notes
+            : '';
         specialInstructionsText =
-          rawSpecial?.delivery_preferences?.special_instructions ||
-          JSON.stringify(rawSpecial);
+          fromPrefs || fromClientNotes || fromOriginalNotes || '';
       } else {
         specialInstructionsText = String(rawSpecial);
       }
     }
+    specialInstructionsText =
+      typeof specialInstructionsText === 'string'
+        ? specialInstructionsText.trim()
+        : '';
 
     // Configuración básica
     const labelGap = 10;
@@ -1135,7 +1151,7 @@ export class PdfGeneratorService {
       credited: 'ACREDITADO',
     } as Record<string, string>;
     const key = String(status || '').toLowerCase();
-    return map[key] || 'PENDIENTE';
+    return map[key] || status || 'PENDIENTE';
   }
 
   /**

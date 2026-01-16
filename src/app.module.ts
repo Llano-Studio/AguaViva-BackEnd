@@ -28,6 +28,7 @@ import { ServicesModule } from './common/services/services.module';
 import { DatabaseConnectionService } from './common/services/database-connection.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DebugCronService } from './common/services/debug-cron.service';
 import environmentConfig from './common/config/environment.config';
 
 @Module({
@@ -66,6 +67,6 @@ import environmentConfig from './common/config/environment.config';
     }),
   ],
   controllers: [AppController],
-  providers: [AppService, DatabaseConnectionService],
+  providers: [AppService, DatabaseConnectionService, DebugCronService],
 })
 export class AppModule {}

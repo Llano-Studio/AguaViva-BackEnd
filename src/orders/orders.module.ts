@@ -10,6 +10,9 @@ import { OrderCollectionEditController } from './controllers/order-collection-ed
 import { ManualCollectionController } from './controllers/manual-collection.controller';
 import { FirstCycleComodatoController } from './controllers/first-cycle-comodato.controller';
 import { OverdueOrderController } from './controllers/overdue-order.controller';
+import { SubscriptionCycleRenewalController } from './controllers/subscription-cycle-renewal.controller';
+import { FailedOrderReassignmentController } from './controllers/failed-order-reassignment.controller';
+import { CancellationOrderReassignmentController } from './controllers/cancellation-order-reassignment.controller';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CommonModule } from '../common/common.module';
 import { ServicesModule } from '../common/services/services.module';
@@ -26,6 +29,9 @@ import { AuditModule } from '../audit/audit.module';
     ManualCollectionController,
     FirstCycleComodatoController,
     OverdueOrderController,
+    SubscriptionCycleRenewalController,
+    FailedOrderReassignmentController,
+    CancellationOrderReassignmentController,
   ],
   providers: [OrdersService, OneOffPurchaseService, CancellationOrderService],
   exports: [OrdersService, OneOffPurchaseService, CancellationOrderService],

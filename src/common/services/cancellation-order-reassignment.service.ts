@@ -23,8 +23,9 @@ export class CancellationOrderReassignmentService
 
   /**
    * Ejecuta la reasignación automática de órdenes de cancelación fallidas cada día a las 3 AM
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando forceReassignmentCheck
    */
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  // Cron decorator removed in favor of system cron
   async reassignFailedCancellationOrders() {
     this.logger.log(
       '🔄 Iniciando reasignación automática de órdenes de cancelación fallidas...',

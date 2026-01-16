@@ -22,17 +22,17 @@ import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-rou
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
 import { RouteSheetGeneratorService } from './route-sheet-generator.service';
+import { AuditService } from '../../audit/audit.service';
 import {
   isValidYMD,
   parseYMD,
   formatBAYMD,
   startOfDayBA,
   formatBATimestampISO,
-  formatUTCYMD,
   formatLocalYMD,
 } from '../utils/date.utils';
-
-//
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface CollectionOrderSummaryDto {
   cycle_id: number;
@@ -56,9 +56,9 @@ export class AutomatedCollectionService
 
   constructor(
     private readonly ordersService: OrdersService,
-    private readonly orderCollectionEditService: OrderCollectionEditService,
     private readonly pdfGeneratorService: PdfGeneratorService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
+    private readonly auditService: AuditService,
   ) {
     super();
   }
@@ -152,13 +152,15 @@ export class AutomatedCollectionService
   }
 
   async onModuleInit() {
+    this.logger.log('🚀 AutomatedCollectionService inicializado correctamente');
     await this.$connect();
   }
 
   /**
    * Ejecuta la generación automática de pedidos de cobranza todos los días a las 6 AM
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando el script de generación
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  // Cron decorator removed in favor of system cron
   async generateCollectionOrders() {
     this.logger.log(
       '🔄 Iniciando generación automática de pedidos de cobranza...',
@@ -257,9 +259,10 @@ export class AutomatedCollectionService
 
   /**
    * Genera automáticamente hojas de ruta de cobranzas por vehículo y zonas cada día
-   * Se ejecuta después de crear las órdenes de cobranza automáticas
+   * Se ejecuta a las 6:30 AM para dar tiempo a que termine la generación de órdenes (6:00 AM)
+   * @deprecated Esta función se ejecuta ahora mediante cron del sistema invocando el script de generación
    */
-  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  // Cron decorator removed in favor of system cron
   async generateDailyCollectionRouteSheets() {
     this.logger.log(
       '🗺️ Iniciando generación automática de hojas de ruta de cobranzas...',
@@ -268,6 +271,29 @@ export class AutomatedCollectionService
     try {
       const today = startOfDayBA(new Date());
       const dateIso = formatBAYMD(today);
+
+      try {
+        const orderResults = await this.generateCollectionOrdersForDate(today);
+        const createdCount = orderResults.filter((r) => r.order_created).length;
+        this.logger.log(
+          `🧾 Órdenes de cobranzas previas para ${dateIso}: ${createdCount}/${orderResults.length} creadas/actualizadas`,
+        );
+      } catch (error) {
+        this.logger.error(
+          '❌ Error generando órdenes automáticas previas:',
+          error,
+        );
+      }
+
+      try {
+        const backfill =
+          await this.backfillMissingCollectionOrdersUpToDate(today);
+        this.logger.log(
+          `🔄 Backfill de cobranzas para ${dateIso}: ${backfill.generated}/${backfill.checked} creadas`,
+        );
+      } catch (error) {
+        this.logger.error('❌ Error ejecutando backfill de cobranzas:', error);
+      }
 
       // Obtener vehículos activos con sus zonas asignadas
       const vehicles = await this.vehicle.findMany({
@@ -292,10 +318,22 @@ export class AutomatedCollectionService
         }
 
         try {
+          let assignedDriverId: number | undefined = undefined;
+          try {
+            const userVehicles = await this.user_vehicle.findMany({
+              where: { vehicle_id: vehicle.vehicle_id, is_active: true },
+              include: { user: true },
+              orderBy: { assigned_at: 'desc' },
+              take: 1,
+            });
+            assignedDriverId = userVehicles?.[0]?.user?.id || undefined;
+          } catch (_) {}
+
           const filters: GenerateRouteSheetDto = {
             date: dateIso,
             zoneIds,
             vehicleId: vehicle.vehicle_id,
+            driverId: assignedDriverId,
             overdueOnly: 'false',
             sortBy: 'zone',
             format: 'compact',
@@ -326,6 +364,45 @@ export class AutomatedCollectionService
     } catch (error) {
       this.logger.error(
         '❌ Error durante la generación automática de hojas de ruta de cobranzas:',
+        error,
+      );
+    }
+  }
+
+  /**
+   * @deprecated Fallback ya no es necesario con la ejecución vía cron del sistema
+   */
+  // Cron decorator removed in favor of system cron
+  async generateDailyCollectionRouteSheetsFallback() {
+    try {
+      const today = startOfDayBA(new Date());
+      const dateIso = formatBAYMD(today);
+      const dir = path.join(process.cwd(), 'public', 'pdfs', 'collections');
+      let existsForDate = false;
+      try {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pdf'));
+          existsForDate = files.some(
+            (f) =>
+              f.includes(`_${dateIso}`) &&
+              (f.startsWith('cobranza-automatica-hoja-de-ruta') ||
+                f.startsWith('collection-route-sheet')),
+          );
+        }
+      } catch (_) {}
+      if (existsForDate) {
+        this.logger.log(
+          `⏭️ Fallback omitido, ya existen hojas de ruta para ${dateIso}`,
+        );
+        return;
+      }
+      this.logger.warn(
+        `🛠️ Fallback: no hay hojas de ruta para ${dateIso}, generando...`,
+      );
+      await this.generateDailyCollectionRouteSheets();
+    } catch (error) {
+      this.logger.error(
+        '❌ Error en fallback de hojas de ruta de cobranzas:',
         error,
       );
     }
@@ -367,6 +444,17 @@ export class AutomatedCollectionService
         error,
       );
       // Continuar con hojas de ruta aunque haya fallos parciales
+    }
+
+    // Segundo: backfill de órdenes faltantes hasta la fecha
+    try {
+      const backfill =
+        await this.backfillMissingCollectionOrdersUpToDate(adjustedDate);
+      this.logger.log(
+        `🧾 Backfill de cobranzas para ${dateIso}: ${backfill.generated}/${backfill.checked} creadas`,
+      );
+    } catch (error) {
+      this.logger.error('❌ Error ejecutando backfill de cobranzas:', error);
     }
 
     // Selección de vehículos
@@ -705,13 +793,14 @@ export class AutomatedCollectionService
     targetDate: Date,
   ): Promise<CollectionOrderSummaryDto[]> {
     this.logger.log(
-      `🔧 Generación manual de pedidos de cobranza para ${formatBAYMD(targetDate)}`,
+      `🔧 Generación de pedidos de cobranza (incluyendo recupero) para ${formatBAYMD(targetDate)}`,
     );
 
     const adjustedDate = this.adjustDateForSunday(targetDate);
     await this.applyLateFeesToOverdueCycles();
-    const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
 
+    // 1. Obtener ciclos que vencen específicamente en la fecha objetivo
+    const cyclesDue = await this.getCyclesDueForCollection(adjustedDate);
     const results: CollectionOrderSummaryDto[] = [];
 
     for (const cycle of cyclesDue) {
@@ -767,7 +856,120 @@ export class AutomatedCollectionService
       }
     }
 
+    // 2. Ejecutar Backfill para capturar cualquier orden perdida de días anteriores
+    // Esto cubre ciclos con fecha de vencimiento <= targetDate (startOfDay)
+    // que podrían no haber sido capturados por getCyclesDueForCollection (que busca un rango específico del día)
+    try {
+      const backfill =
+        await this.backfillMissingCollectionOrdersUpToDate(targetDate);
+
+      // Fusionar resultados evitando duplicados
+      const processedCycleIds = new Set(results.map((r) => r.cycle_id));
+
+      if (backfill.details) {
+        for (const item of backfill.details) {
+          if (!processedCycleIds.has(item.cycle_id)) {
+            results.push(item);
+            processedCycleIds.add(item.cycle_id);
+          }
+        }
+      }
+
+      this.logger.log(
+        `🔄 Proceso completado: ${results.length} ciclos procesados (Día: ${cyclesDue.length}, Backfill: ${backfill.generated})`,
+      );
+    } catch (error) {
+      this.logger.error('❌ Error ejecutando backfill automático:', error);
+      // No interrumpimos el proceso principal si falla el backfill, pero lo registramos
+    }
+
     return results;
+  }
+
+  async backfillMissingCollectionOrdersUpToDate(targetDate: Date): Promise<{
+    date: string;
+    generated: number;
+    checked: number;
+    details: CollectionOrderSummaryDto[];
+  }> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
+    await this.applyLateFeesToOverdueCycles();
+
+    const cycles = await this.subscription_cycle.findMany({
+      where: {
+        payment_due_date: { lte: startOfDayBA(adjustedDate) },
+        pending_balance: { gt: 0 },
+        customer_subscription: { status: SubscriptionStatus.ACTIVE },
+      },
+      include: {
+        customer_subscription: {
+          include: { person: true, subscription_plan: true },
+        },
+      },
+      orderBy: { payment_due_date: 'asc' },
+    });
+
+    const results: CollectionOrderSummaryDto[] = [];
+    const createdCount = 0;
+
+    for (const cycle of cycles) {
+      const exists = await this.hasCollectionOrderForCycle(cycle.cycle_id);
+      if (exists) {
+        results.push({
+          cycle_id: cycle.cycle_id,
+          subscription_id: cycle.subscription_id,
+          customer_id: cycle.customer_subscription.customer_id,
+          customer_name: cycle.customer_subscription.person.name,
+          subscription_plan_name:
+            cycle.customer_subscription.subscription_plan.name,
+          payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
+          pending_balance: Number(cycle.pending_balance),
+          order_created: false,
+          notes: 'Orden existente, no se duplica',
+        });
+        continue;
+      }
+
+      const orderDate = this.adjustDateForSunday(
+        cycle.payment_due_date || adjustedDate,
+      );
+      const result = await this.createOrUpdateCollectionOrder(
+        cycle,
+        orderDate,
+        true,
+      );
+      results.push(result);
+    }
+
+    return {
+      date: formatBAYMD(adjustedDate),
+      generated: createdCount,
+      checked: cycles.length,
+      details: results,
+    };
+  }
+
+  async prepareConsolidatedRouteSheetForCollections(
+    targetDate: Date,
+    opts?: {
+      zoneIds?: number[];
+      vehicleId?: number;
+      driverId?: number;
+      notes?: string;
+    },
+  ): Promise<RouteSheetResponseDto> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
+    const dto: GenerateRouteSheetDto = {
+      date: formatBAYMD(adjustedDate),
+      overdueOnly: 'false',
+      sortBy: 'zone',
+      format: 'compact',
+      zoneIds: opts?.zoneIds,
+      vehicleId: opts?.vehicleId,
+      driverId: opts?.driverId,
+      notes: opts?.notes,
+    } as any;
+    return await this.routeSheetGeneratorService.generateRouteSheet(dto);
   }
 
   /**

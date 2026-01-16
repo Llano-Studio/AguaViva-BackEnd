@@ -19,13 +19,14 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiProperty,
+  ApiPropertyOptional,
   ApiParam,
 } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty } from 'class-validator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { UserRolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role, User } from '@prisma/client';
 import { AutomatedCollectionService } from '../../common/services/automated-collection.service';
 import { RouteSheetGeneratorService } from '../../common/services/route-sheet-generator.service';
 import {
@@ -47,6 +48,7 @@ import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-co
 import * as fs from 'fs';
 import * as path from 'path';
 import { parseYMD, compareYmdDesc } from '../../common/utils/date.utils';
+import { GetUser } from '../../auth/decorators/get-user.decorator';
 
 export class GenerateCollectionOrdersDto {
   @ApiProperty({
@@ -62,6 +64,27 @@ export class GenerateCollectionOrdersDto {
     { message: 'La fecha debe estar en formato YYYY-MM-DD válido' },
   )
   target_date: string;
+
+  @ApiPropertyOptional({
+    type: [Number],
+    description: 'IDs de zonas para la hoja de ruta',
+  })
+  zoneIds?: number[];
+
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'ID de vehículo para hoja de ruta',
+  })
+  vehicleId?: number;
+
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'ID de chofer para hoja de ruta',
+  })
+  driverId?: number;
+
+  @ApiPropertyOptional({ type: String, description: 'Notas para hoja de ruta' })
+  notes?: string;
 }
 
 @ApiTags('🛒 Pedidos & Compras de una sola vez')
@@ -208,7 +231,10 @@ export class AutomatedCollectionController {
 
       const totalCycles = results.length;
       const ordersCreated = results.filter(
-        (r) => r.order_created && r.notes?.includes('Nuevo pedido'),
+        (r) =>
+          r.order_created &&
+          (r.notes?.includes('Nuevo pedido') ||
+            r.notes?.includes('Nueva orden')),
       ).length;
       const ordersUpdated = results.filter(
         (r) => r.order_created && r.notes?.includes('actualizado'),

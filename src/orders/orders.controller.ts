@@ -1372,11 +1372,17 @@ export class OrdersController {
     const userRole = req.user?.role;
     const confirmDeletion = body?.confirm_deletion === true;
     if (!confirmDeletion) {
-      throw new BadRequestException('Se requiere confirmación explícita para eliminar la transacción');
+      throw new BadRequestException(
+        'Se requiere confirmación explícita para eliminar la transacción',
+      );
     }
 
     const deletionReason = body?.deletion_reason;
-    if (!deletionReason || typeof deletionReason !== 'string' || deletionReason.trim().length === 0) {
+    if (
+      !deletionReason ||
+      typeof deletionReason !== 'string' ||
+      deletionReason.trim().length === 0
+    ) {
       throw new BadRequestException('Razón de eliminación requerida');
     }
 

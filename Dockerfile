@@ -12,8 +12,8 @@ RUN npm run build
 
 EXPOSE 3000
 
-# curl + bash (bash para start.sh)
-RUN apk add --no-cache curl bash
+# curl + bash + tzdata (para timezone correcto)
+RUN apk add --no-cache curl bash tzdata
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1

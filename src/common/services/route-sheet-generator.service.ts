@@ -139,9 +139,19 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const driver = await this.getDriverInfo(filters.driverId);
       const vehicle = await this.getVehicleInfo(filters.vehicleId);
 
+      const persistDir = path.join(
+        process.cwd(),
+        'public',
+        'pdfs',
+        'collections',
+      );
+      if (!fs.existsSync(persistDir)) {
+        fs.mkdirSync(persistDir, { recursive: true });
+      }
+
       const fileName =
         this.tempFileManager.generateUniqueFileName('route-sheet');
-      const filePath = this.tempFileManager.getTempFilePath(fileName);
+      const filePath = path.join(persistDir, fileName);
 
       await this.generateRouteSheetPdf(filePath, {
         targetDate,
@@ -162,14 +172,15 @@ export class RouteSheetGeneratorService extends PrismaClient {
         throw new Error(`Fallo al escribir el PDF: ${(e as Error).message}`);
       }
 
-      const fileInfo = this.tempFileManager.createTempFileInfo(fileName, 60);
+      const baseUrl = process.env.API_BASE_URL || 'http://localhost:3000';
+      const downloadUrl = `${baseUrl}/public/pdfs/collections/${fileName}`;
 
       const summary = this.calculateSummary(zones);
 
       return {
         success: true,
         message: 'Hoja de ruta generada exitosamente',
-        downloadUrl: fileInfo.downloadUrl,
+        downloadUrl: downloadUrl,
         routeSheet: {
           date: formatLocalYMD(targetDate),
           generated_at: formatBATimestampISO(new Date()),
@@ -258,9 +269,11 @@ export class RouteSheetGeneratorService extends PrismaClient {
       }
 
       // Usar nombre del móvil/vehículo y del chofer en formato slug
-      const vehiclePart = vehicle?.model
-        ? `${this.slugifyForFilename(vehicle.model)}`
-        : 'NA';
+      const vehiclePart = vehicle?.license_plate
+        ? `${this.slugifyForFilename(vehicle.license_plate)}`
+        : vehicle?.model
+          ? `${this.slugifyForFilename(vehicle.model)}`
+          : 'NA';
       const driverPart = driver?.name
         ? `${this.slugifyForFilename(driver.name)}`
         : 'NA';
@@ -388,6 +401,8 @@ export class RouteSheetGeneratorService extends PrismaClient {
       OR: [
         { es_automatica: true },
         { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' } },
+        { notes: { contains: 'ORDEN DE COBRANZA', mode: 'insensitive' } },
+        { notes: { contains: 'Ciclo:', mode: 'insensitive' } },
       ],
     };
 
@@ -532,15 +547,18 @@ export class RouteSheetGeneratorService extends PrismaClient {
     const cycleId = extractCycleId(collection.notes);
     let dueDate: Date | undefined = undefined;
     if (typeof cycleId === 'number') {
-      const fromOrderSub = (collection.customer_subscription?.subscription_cycle || []).find(
-        (c: any) => c?.cycle_id === cycleId,
-      );
+      const fromOrderSub = (
+        collection.customer_subscription?.subscription_cycle || []
+      ).find((c: any) => c?.cycle_id === cycleId);
       if (fromOrderSub?.payment_due_date) {
         dueDate = fromOrderSub.payment_due_date;
       } else {
-        const allCustomerCycles = (collection.customer?.customer_subscription || [])
-          .flatMap((cs: any) => cs.subscription_cycle || []);
-        const match = allCustomerCycles.find((c: any) => c?.cycle_id === cycleId);
+        const allCustomerCycles = (
+          collection.customer?.customer_subscription || []
+        ).flatMap((cs: any) => cs.subscription_cycle || []);
+        const match = allCustomerCycles.find(
+          (c: any) => c?.cycle_id === cycleId,
+        );
         if (match?.payment_due_date) dueDate = match.payment_due_date;
       }
     }
@@ -591,43 +609,61 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     const cycleForStatus = (() => {
       if (typeof cycleId === 'number') {
-        const fromOrderSub = (collection.customer_subscription?.subscription_cycle || []).find(
+        const fromOrderSub = (
+          collection.customer_subscription?.subscription_cycle || []
+        ).find((c: any) => c?.cycle_id === cycleId);
+        if (fromOrderSub) return fromOrderSub;
+        const allCustomerCycles = (
+          collection.customer?.customer_subscription || []
+        ).flatMap((cs: any) => cs.subscription_cycle || []);
+        const match = allCustomerCycles.find(
           (c: any) => c?.cycle_id === cycleId,
         );
-        if (fromOrderSub) return fromOrderSub;
-        const allCustomerCycles = (collection.customer?.customer_subscription || [])
-          .flatMap((cs: any) => cs.subscription_cycle || []);
-        const match = allCustomerCycles.find((c: any) => c?.cycle_id === cycleId);
         if (match) return match;
       }
       return (collection.customer_subscription?.subscription_cycle || [])[0];
     })();
 
     const resolvedPaymentStatus = (() => {
-      const dbStatus = (cycleForStatus as any)?.payment_status as string | undefined;
-      if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
-      const pbRaw = (cycleForStatus as any)?.pending_balance;
+      // Prioridad absoluta al estado que viene de la base de datos (API)
+      const dbStatus = cycleForStatus?.payment_status as string | undefined;
+      if (
+        dbStatus &&
+        ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE'].includes(dbStatus)
+      ) {
+        // Si la base de datos dice PENDING, respetamos PENDING aunque haya pasado la fecha
+        // Solo marcamos OVERDUE si la base de datos explícitamente dice OVERDUE
+        return dbStatus;
+      }
+
+      // Fallback solo si no hay estado en la DB o es inválido
+      const pbRaw = cycleForStatus?.pending_balance;
       const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
       if (!Number.isNaN(pb)) {
         if (pb <= 0) return 'PAID';
-        const over = Boolean((cycleForStatus as any)?.is_overdue) ||
-          (dueDate && formatUTCYMD(dueDate) < formatUTCYMD(dayStart));
-        if (over) return 'OVERDUE';
-        const paidRaw = (cycleForStatus as any)?.paid_amount;
-        const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
+
+        // Solo calculamos OVERDUE si no tenemos estado de la DB
+        const isDbOverdue = Boolean(cycleForStatus?.is_overdue);
+        if (isDbOverdue) return 'OVERDUE';
+
+        const paidRaw = cycleForStatus?.paid_amount;
+        const paid =
+          paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
         if (paid > 0) return 'PARTIAL';
+
         return 'PENDING';
       }
-      return dbStatus || (collection.payment_status || 'PENDING');
+      return dbStatus || collection.payment_status || 'PENDING';
     })();
 
     const pendingFromCycle = (() => {
-      const pbRaw = (cycleForStatus as any)?.pending_balance;
+      const pbRaw = cycleForStatus?.pending_balance;
       const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
       if (!Number.isNaN(pb)) return Math.max(0, pb);
       const total = Number(collection.total_amount);
       const paid = Number(collection.paid_amount);
-      if (!Number.isNaN(total) && !Number.isNaN(paid)) return Math.max(0, total - paid);
+      if (!Number.isNaN(total) && !Number.isNaN(paid))
+        return Math.max(0, total - paid);
       return Number(collection.total_amount) || 0;
     })();
 

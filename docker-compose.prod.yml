@@ -53,6 +53,7 @@ services:
       - ./.env
     environment:
       - NODE_ENV=production
+      - TZ=America/Argentina/Buenos_Aires
       - PORT=${PORT:-3000}
       - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
       - JWT_ACCESS_TOKEN_EXPIRATION_TIME=${JWT_ACCESS_TOKEN_EXPIRATION_TIME:-4h}

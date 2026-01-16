@@ -1832,7 +1832,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   order_date:
                     detail.order.order_date || formatBATimestampISO(new Date()),
                   total_amount: detail.order.total_amount?.toString() || '0',
-                  debt_amount: (detail.order as any).debt_amount?.toString() || undefined,
+                  debt_amount:
+                    (detail.order as any).debt_amount?.toString() || undefined,
                   status: detail.order.status || 'PENDING',
                   subscription_id: (detail.order as any).subscription_id,
                   subscription_due_date: (detail.order as any)
@@ -2092,7 +2093,10 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               );
               return d.isNegative() ? '0.00' : d.toFixed(2);
             })(),
-            status: detail.order_header.status,
+            status:
+              detail.order_header.status === 'OVERDUE'
+                ? 'ATRASADO'
+                : detail.order_header.status,
             customer: customerDto,
             items: orderItemsDto,
             notes: detail.order_header.notes || undefined,
@@ -2171,9 +2175,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             ),
             total_amount: detail.one_off_purchase.total_amount.toString(),
             debt_amount: (() => {
-              const d = new Decimal(
-                detail.one_off_purchase.total_amount,
-              ).minus(new Decimal(detail.one_off_purchase.paid_amount));
+              const d = new Decimal(detail.one_off_purchase.total_amount).minus(
+                new Decimal(detail.one_off_purchase.paid_amount),
+              );
               return d.isNegative() ? '0.00' : d.toFixed(2);
             })(),
             status: detail.one_off_purchase.status,
@@ -2458,7 +2462,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       driver: driverDto,
       vehicle: vehicleDto,
       delivery_date: formatUTCYMD(routeSheet.delivery_date),
-      route_notes: routeSheet.route_notes || undefined,
+      route_notes: routeSheet.route_notes?.trim() ? routeSheet.route_notes : '-',
       details: detailsDto,
       zones_covered: zonesCoveredDto,
     });
@@ -3254,18 +3258,26 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
             payment_status: (() => {
-              const dbStatus = (cycle as any)?.payment_status as string | undefined;
+              const dbStatus = (cycle as any)?.payment_status as
+                | string
+                | undefined;
               if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
               const pbRaw = (cycle as any)?.pending_balance;
-              const pb = pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
+              const pb =
+                pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
               if (!Number.isNaN(pb)) {
                 if (pb <= 0) return 'PAID';
-                const isOver = Boolean((cycle as any)?.is_overdue) ||
+                const isOver =
+                  Boolean((cycle as any)?.is_overdue) ||
                   (cycle?.payment_due_date &&
-                    formatUTCYMD(new Date(cycle.payment_due_date)) < formatUTCYMD(new Date()));
+                    formatUTCYMD(new Date(cycle.payment_due_date)) <
+                      formatUTCYMD(new Date()));
                 if (isOver) return 'OVERDUE';
                 const paidRaw = (cycle as any)?.paid_amount;
-                const paid = paidRaw !== undefined && paidRaw !== null ? Number(paidRaw) : 0;
+                const paid =
+                  paidRaw !== undefined && paidRaw !== null
+                    ? Number(paidRaw)
+                    : 0;
                 if (paid > 0) return 'PARTIAL';
                 return 'PENDING';
               }
@@ -3302,12 +3314,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         zone_identifiers: zoneIdentifiers,
         collections,
       };
-      // Generar el PDF usando el servicio de generación mejorado
-      const { doc, filename, pdfPath } =
-        await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
-          collectionData,
-        );
-
       // Generar el PDF usando el servicio de generación mejorado
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateCollectionRouteSheetPdf(

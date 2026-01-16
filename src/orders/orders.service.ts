@@ -248,7 +248,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       total_amount: order.total_amount.toString(),
       paid_amount: order.paid_amount.toString(),
       order_type: order.order_type as unknown as AppOrderType,
-      status: order.status as unknown as AppOrderStatus,
+      status:
+        (order.status === 'OVERDUE'
+          ? 'ATRASADO'
+          : order.status) as unknown as AppOrderStatus,
       notes: order.notes ?? undefined,
       delivery_address: customerPayload?.address ?? undefined,
       order_item: items,
@@ -703,8 +706,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             notes: itemDto.notes,
           });
         }
-
-        
 
         let finalPaidAmount: Decimal;
         if (
@@ -1251,11 +1252,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             (dataToUpdate as any)[key] = null;
           } else if (typeof rawValue === 'string') {
             const trimmed = rawValue.trim();
-            // Si viene solo YYYY-MM-DD, completar a DateTime válido
-            const normalized = /^(\d{4}-\d{2}-\d{2})$/.test(trimmed)
-              ? `${trimmed}T00:00:00.000Z`
-              : trimmed;
-            const parsed = new Date(normalized);
+            const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+              ? parseYMD(trimmed)
+              : new Date(trimmed);
             if (isNaN(parsed.getTime())) {
               throw new BadRequestException(
                 `Fecha inválida para ${key}: '${rawValue}'. Debe ser ISO-8601 (YYYY-MM-DD o DateTime).`,

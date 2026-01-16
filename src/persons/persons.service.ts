@@ -187,24 +187,40 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   }
 
   async createPerson(dto: CreatePersonDto): Promise<PersonResponseDto> {
-    if (dto.localityId) {
-      const localityExists = await this.locality.findUnique({
-        where: { locality_id: dto.localityId },
+    const normalizeOptionalId = (value: any): number | null | undefined => {
+      if (value === undefined) return undefined;
+      if (value === null) return null;
+      const n = typeof value === 'number' ? value : Number(value);
+      if (!Number.isFinite(n) || n === 0) return null;
+      return n;
+    };
+    const localityId = normalizeOptionalId((dto as any).localityId);
+    const zoneId = normalizeOptionalId((dto as any).zoneId);
+
+    if (typeof localityId === 'number') {
+      if (!Number.isInteger(localityId) || localityId <= 0) {
+        throw new BadRequestException(`Localidad inválida: ${dto.localityId}`);
+      }
+      const localityExists = await this.locality.findFirst({
+        where: { locality_id: localityId, is_active: true },
       });
-      if (!localityExists)
+      if (!localityExists) {
         throw new BadRequestException(
-          `Localidad con ID ${dto.localityId} no encontrada.`,
+          `Localidad con ID ${localityId} no encontrada.`,
         );
+      }
     }
 
-    if (dto.zoneId) {
-      const zoneExists = await this.zone.findUnique({
-        where: { zone_id: dto.zoneId },
+    if (typeof zoneId === 'number') {
+      if (!Number.isInteger(zoneId) || zoneId <= 0) {
+        throw new BadRequestException(`Zona inválida: ${dto.zoneId}`);
+      }
+      const zoneExists = await this.zone.findFirst({
+        where: { zone_id: zoneId, is_active: true },
       });
-      if (!zoneExists)
-        throw new BadRequestException(
-          `Zona con ID ${dto.zoneId} no encontrada.`,
-        );
+      if (!zoneExists) {
+        throw new BadRequestException(`Zona con ID ${zoneId} no encontrada.`);
+      }
     }
 
     let registration_date_for_prisma: Date | undefined = undefined;
@@ -234,9 +250,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           ? dto.owns_returnable_containers
           : false,
     };
-    if (dto.localityId)
-      data.locality = { connect: { locality_id: dto.localityId } };
-    if (dto.zoneId) data.zone = { connect: { zone_id: dto.zoneId } };
+    if (typeof localityId === 'number') {
+      data.locality = { connect: { locality_id: localityId } };
+    }
+    if (typeof zoneId === 'number') {
+      data.zone = { connect: { zone_id: zoneId } };
+    }
 
     try {
       const newPerson = await this.person.create({
@@ -613,31 +632,53 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     const existingPerson = await this.person.findUnique({
       where: {
         person_id: id,
-        is_active: true, // Solo permitir actualizar personas activas
       },
     });
     if (!existingPerson)
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada.`,
       );
-
-    if (dto.localityId) {
-      const localityExists = await this.locality.findUnique({
-        where: { locality_id: dto.localityId },
-      });
-      if (!localityExists)
-        throw new BadRequestException(
-          `Localidad con ID ${dto.localityId} no encontrada.`,
-        );
+    if (!existingPerson.is_active && dto.is_active !== true) {
+      throw new NotFoundException(
+        `${this.entityName} con ID ${id} no encontrada.`,
+      );
     }
-    if (dto.zoneId) {
-      const zoneExists = await this.zone.findUnique({
-        where: { zone_id: dto.zoneId },
+
+    const normalizeOptionalId = (value: any): number | null | undefined => {
+      if (value === undefined) return undefined;
+      if (value === null) return null;
+      const n = typeof value === 'number' ? value : Number(value);
+      if (!Number.isFinite(n) || n === 0) return null;
+      return n;
+    };
+    const rawLocalityId = (dto as any).localityId;
+    const rawZoneId = (dto as any).zoneId;
+    const localityId = normalizeOptionalId(rawLocalityId);
+    const zoneId = normalizeOptionalId(rawZoneId);
+
+    if (rawLocalityId !== undefined && typeof localityId === 'number') {
+      if (!Number.isInteger(localityId) || localityId <= 0) {
+        throw new BadRequestException(`Localidad inválida: ${rawLocalityId}`);
+      }
+      const localityExists = await this.locality.findFirst({
+        where: { locality_id: localityId, is_active: true },
       });
-      if (!zoneExists)
+      if (!localityExists) {
         throw new BadRequestException(
-          `Zona con ID ${dto.zoneId} no encontrada.`,
+          `Localidad con ID ${localityId} no encontrada.`,
         );
+      }
+    }
+    if (rawZoneId !== undefined && typeof zoneId === 'number') {
+      if (!Number.isInteger(zoneId) || zoneId <= 0) {
+        throw new BadRequestException(`Zona inválida: ${rawZoneId}`);
+      }
+      const zoneExists = await this.zone.findFirst({
+        where: { zone_id: zoneId, is_active: true },
+      });
+      if (!zoneExists) {
+        throw new BadRequestException(`Zona con ID ${zoneId} no encontrada.`);
+      }
     }
 
     let registration_date_obj: Date | undefined = undefined;
@@ -666,16 +707,18 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 
-    if (dto.localityId !== undefined) {
-      dataToUpdate.locality = { connect: { locality_id: dto.localityId } };
-    } else if (dto.hasOwnProperty('localityId') && dto.localityId === null) {
-      dataToUpdate.locality = { disconnect: true };
+    if (rawLocalityId !== undefined) {
+      dataToUpdate.locality =
+        localityId === null
+          ? { disconnect: true }
+          : { connect: { locality_id: localityId } };
     }
 
-    if (dto.zoneId !== undefined) {
-      dataToUpdate.zone = { connect: { zone_id: dto.zoneId } };
-    } else if (dto.hasOwnProperty('zoneId') && dto.zoneId === null) {
-      dataToUpdate.zone = { disconnect: true };
+    if (rawZoneId !== undefined) {
+      dataToUpdate.zone =
+        zoneId === null
+          ? { disconnect: true }
+          : { connect: { zone_id: zoneId } };
     }
 
     try {
@@ -729,8 +772,22 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   async deletePerson(
     id: number,
   ): Promise<{ message: string; deleted: boolean }> {
-    await this.findPersonById(id);
+    const existingPerson = await this.person.findUnique({
+      where: { person_id: id },
+      select: { person_id: true, is_active: true },
+    });
+    if (!existingPerson) {
+      throw new NotFoundException(
+        `${this.entityName} con ID ${id} no encontrada.`,
+      );
+    }
     try {
+      if (!existingPerson.is_active) {
+        return {
+          message: `${this.entityName} con ID ${id} ya estaba desactivada (borrado lógico).`,
+          deleted: true,
+        };
+      }
       // Implementar borrado lógico en lugar de físico
       await this.person.update({
         where: { person_id: id },
