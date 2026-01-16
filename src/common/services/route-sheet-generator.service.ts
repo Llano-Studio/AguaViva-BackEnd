@@ -868,7 +868,6 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
     return;
   }
-
   /**
    * Genera un PDF de previsualización usando datos de prueba directos
    * Solo para desarrollo y testing
@@ -890,13 +889,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const writeStream = fs.createWriteStream(tempPath);
       result.doc.pipe(writeStream);
       result.doc.end();
-
-      // Esperar a que termine de escribirse
       await new Promise<void>((resolve, reject) => {
         writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
-
       return tempPath;
     } catch (error) {
       this.logger.error('Error generando PDF de previsualización:', error);
@@ -925,13 +921,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
       const writeStream = fs.createWriteStream(result.pdfPath);
       result.doc.pipe(writeStream);
       result.doc.end();
-
-      // Esperar a que termine de escribirse
       await new Promise<void>((resolve, reject) => {
         writeStream.on('finish', () => resolve());
         writeStream.on('error', reject);
       });
-
       return result.pdfPath;
     } catch (error) {
       this.logger.error(
