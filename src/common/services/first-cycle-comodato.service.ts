@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
 import { buildImageUrl } from '../../common/utils/file-upload.util';
-import { formatBAYMD } from '../utils/date.utils';
+import { formatBAYMD, parseYMD } from '../utils/date.utils';
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -489,4 +489,3 @@ export class FirstCycleComodatoService extends PrismaClient {
     };
   }
 }
-import { parseYMD } from '../utils/date.utils';

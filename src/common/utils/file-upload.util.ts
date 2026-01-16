@@ -45,10 +45,10 @@ export const contractFileFilter = (
   file: any,
   callback: (error: Error | null, acceptFile: boolean) => void,
 ) => {
-  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf|opt)$/i)) {
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/i)) {
     return callback(
       new Error(
-        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o documentos (pdf, opt)!',
+        '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o PDF (pdf)!',
       ),
       false,
     );
@@ -112,7 +112,7 @@ export const fileUploadConfigs = {
     }),
     fileFilter: contractFileFilter,
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB para contratos
+      fileSize: 20 * 1024 * 1024, // 20MB para contratos
     },
   },
 };

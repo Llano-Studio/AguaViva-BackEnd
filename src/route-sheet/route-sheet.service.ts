@@ -2462,7 +2462,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       driver: driverDto,
       vehicle: vehicleDto,
       delivery_date: formatUTCYMD(routeSheet.delivery_date),
-      route_notes: routeSheet.route_notes?.trim() ? routeSheet.route_notes : '-',
+      route_notes: routeSheet.route_notes?.trim()
+        ? routeSheet.route_notes
+        : '-',
       details: detailsDto,
       zones_covered: zonesCoveredDto,
     });

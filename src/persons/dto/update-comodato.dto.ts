@@ -25,7 +25,6 @@ export class UpdateComodatoDto {
     description: 'Nueva cantidad de productos en comodato',
   })
   @IsInt()
-  @Min(1)
   @IsOptional()
   quantity?: number;
 
