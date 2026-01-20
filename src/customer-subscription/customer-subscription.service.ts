@@ -17,12 +17,11 @@ import {
   SubscriptionDeliveryScheduleResponseDto,
 } from './dto';
 import { FirstCycleComodatoService } from '../common/services/first-cycle-comodato.service';
-import { SubscriptionCycleNumberingService } from '../common/services/subscription-cycle-numbering.service';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBAYMD } from '../common/utils/date.utils';
+import { dayBefore, formatBAYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -33,7 +32,6 @@ export class CustomerSubscriptionService
 
   constructor(
     private readonly firstCycleComodatoService: FirstCycleComodatoService,
-    private readonly cycleNumberingService: SubscriptionCycleNumberingService,
     private readonly subscriptionCycleCalculatorService: SubscriptionCycleCalculatorService,
     private readonly recoveryOrderService: RecoveryOrderService,
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
@@ -199,27 +197,6 @@ export class CustomerSubscriptionService
     );
 
     try {
-      const subscription = await this.customer_subscription.create({
-        data: {
-          customer_id: createDto.customer_id,
-          subscription_plan_id: createDto.subscription_plan_id,
-          start_date: new Date(createDto.start_date),
-          // end_date field removed - not present in schema
-          collection_day: createDto.collection_day || null,
-          payment_mode: createDto.payment_mode || 'ADVANCE',
-          payment_due_day: createDto.payment_due_day || null,
-          status: createDto.status || SubscriptionStatus.ACTIVE,
-          notes,
-        },
-        include: {
-          subscription_plan: {
-            include: {
-              subscription_plan_product: true,
-            },
-          },
-        },
-      });
-
       // Crear el primer ciclo de suscripción usando la nueva lógica de collection_day y modalidad de pago
       const cycleDates = this.calculateCycleDates(
         new Date(createDto.start_date),
@@ -232,42 +209,112 @@ export class CustomerSubscriptionService
       const firstCycleStartDate = cycleDates.cycle_start;
       const firstCycleEndDate = cycleDates.cycle_end;
 
-      // Usar la fecha de vencimiento calculada según la modalidad de pago
-      const firstCycle = await this.cycleNumberingService.createCycleWithNumber(
-        subscription.subscription_id,
-        {
-          cycle_start: firstCycleStartDate,
-          cycle_end: firstCycleEndDate,
-          payment_due_date: cycleDates.payment_due_date,
-          total_amount: 0, // Se calculará después
+      const { subscription, firstCycleId } = await this.$transaction(
+        async (tx) => {
+          const subscription = await tx.customer_subscription.create({
+            data: {
+              customer_id: createDto.customer_id,
+              subscription_plan_id: createDto.subscription_plan_id,
+              start_date: new Date(createDto.start_date),
+              collection_day: createDto.collection_day || null,
+              payment_mode: createDto.payment_mode || 'ADVANCE',
+              payment_due_day: createDto.payment_due_day || null,
+              status: createDto.status || SubscriptionStatus.ACTIVE,
+              notes,
+            },
+            include: {
+              subscription_plan: {
+                include: {
+                  subscription_plan_product: true,
+                },
+              },
+            },
+          });
+
+          const existingCycle = await tx.subscription_cycle.findFirst({
+            where: {
+              subscription_id: subscription.subscription_id,
+            },
+            orderBy: {
+              cycle_number: 'desc',
+            },
+            select: {
+              cycle_number: true,
+            },
+          });
+
+          const nextCycleNumber = existingCycle
+            ? existingCycle.cycle_number + 1
+            : 1;
+
+          const firstCycle = await tx.subscription_cycle.create({
+            data: {
+              subscription_id: subscription.subscription_id,
+              cycle_number: nextCycleNumber,
+              cycle_start: firstCycleStartDate,
+              cycle_end: firstCycleEndDate,
+              payment_due_date: cycleDates.payment_due_date,
+              total_amount: 0,
+            },
+          });
+
+          for (const planProduct of subscription.subscription_plan
+            .subscription_plan_product) {
+            await tx.subscription_cycle_detail.create({
+              data: {
+                cycle_id: firstCycle.cycle_id,
+                product_id: planProduct.product_id,
+                planned_quantity: planProduct.product_quantity,
+                delivered_quantity: 0,
+                remaining_balance: planProduct.product_quantity,
+              },
+            });
+          }
+
+          if (
+            createDto.delivery_preferences?.preferred_days &&
+            createDto.delivery_preferences.preferred_time_range
+          ) {
+            const dayNameToNumber: Record<string, number> = {
+              MONDAY: 1,
+              TUESDAY: 2,
+              WEDNESDAY: 3,
+              THURSDAY: 4,
+              FRIDAY: 5,
+              SATURDAY: 6,
+              SUNDAY: 7,
+            };
+            for (const dayName of createDto.delivery_preferences
+              .preferred_days) {
+              const dayOfWeek = dayNameToNumber[String(dayName).toUpperCase()];
+              if (dayOfWeek) {
+                await tx.subscription_delivery_schedule.create({
+                  data: {
+                    subscription_id: subscription.subscription_id,
+                    day_of_week: dayOfWeek,
+                    scheduled_time:
+                      createDto.delivery_preferences.preferred_time_range,
+                  },
+                });
+              }
+            }
+          }
+
+          return { subscription, firstCycleId: firstCycle.cycle_id };
         },
       );
-
-      // Crear los detalles del ciclo con las cantidades planificadas del plan
-      for (const planProduct of subscription.subscription_plan
-        .subscription_plan_product) {
-        await this.subscription_cycle_detail.create({
-          data: {
-            cycle_id: firstCycle.cycle_id,
-            product_id: planProduct.product_id,
-            planned_quantity: planProduct.product_quantity,
-            delivered_quantity: 0,
-            remaining_balance: planProduct.product_quantity,
-          },
-        });
-      }
 
       // Calcular el total_amount del ciclo basado en los productos del plan
       try {
         await this.subscriptionCycleCalculatorService.calculateAndUpdateCycleAmount(
-          firstCycle.cycle_id,
+          firstCycleId,
         );
         this.logger.log(
-          `✅ Total amount calculated for cycle ${firstCycle.cycle_id} of subscription ${subscription.subscription_id}`,
+          `✅ Total amount calculated for cycle ${firstCycleId} of subscription ${subscription.subscription_id}`,
         );
       } catch (error) {
         this.logger.error(
-          `❌ Error calculating total amount for cycle ${firstCycle.cycle_id}:`,
+          `❌ Error calculating total amount for cycle ${firstCycleId}:`,
           error,
         );
         // No fallar la creación de la suscripción por errores en el cálculo
@@ -302,35 +349,6 @@ export class CustomerSubscriptionService
           error,
         );
         // No fallar la creación de la suscripción por errores en comodatos
-      }
-
-      // Crear horarios de entrega según delivery_preferences
-      if (
-        createDto.delivery_preferences?.preferred_days &&
-        createDto.delivery_preferences.preferred_time_range
-      ) {
-        const dayNameToNumber: Record<string, number> = {
-          MONDAY: 1,
-          TUESDAY: 2,
-          WEDNESDAY: 3,
-          THURSDAY: 4,
-          FRIDAY: 5,
-          SATURDAY: 6,
-          SUNDAY: 7,
-        };
-        for (const dayName of createDto.delivery_preferences.preferred_days) {
-          const dayOfWeek = dayNameToNumber[dayName.toUpperCase()];
-          if (dayOfWeek) {
-            await this.subscription_delivery_schedule.create({
-              data: {
-                subscription_id: subscription.subscription_id,
-                day_of_week: dayOfWeek,
-                scheduled_time:
-                  createDto.delivery_preferences.preferred_time_range,
-              },
-            });
-          }
-        }
       }
 
       const response = new CustomerSubscriptionResponseDto(subscription);
@@ -911,8 +929,11 @@ export class CustomerSubscriptionService
       const cycleStart = new Date(
         Math.max(today.getTime(), subscriptionStart.getTime()),
       );
+      cycleStart.setHours(0, 0, 0, 0);
       const cycleEnd = new Date(cycleStart);
       cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+      cycleEnd.setDate(cycleEnd.getDate() - 1);
+      cycleEnd.setHours(0, 0, 0, 0);
 
       // Calcular fecha de pago según modalidad
       const paymentDueDate = this.calculatePaymentDueDate(
@@ -935,36 +956,31 @@ export class CustomerSubscriptionService
       const cycleStart = new Date(
         Math.max(today.getTime(), subscriptionStart.getTime()),
       );
+      cycleStart.setHours(0, 0, 0, 0);
 
-      // Calcular la fecha de fin basada en collection_day
-      let cycleEnd: Date;
-
-      // Si el collection_day es mayor al día actual, usar este mes
-      if (collectionDay > today.getDate()) {
-        cycleEnd = new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          collectionDay,
-        );
-      } else {
-        // Si el collection_day ya pasó este mes, usar el próximo mes
-        cycleEnd = new Date(
-          today.getFullYear(),
-          today.getMonth() + 1,
-          collectionDay,
-        );
-      }
+      const reference = cycleStart;
+      const monthOffset = collectionDay > reference.getDate() ? 0 : 1;
+      let nextCollectionDate = new Date(
+        reference.getFullYear(),
+        reference.getMonth() + monthOffset,
+        collectionDay,
+      );
+      nextCollectionDate.setHours(0, 0, 0, 0);
+      let cycleEnd = dayBefore(nextCollectionDate);
 
       // Asegurar que el ciclo tenga al menos 7 días de duración
       const minCycleEnd = new Date(cycleStart);
-      minCycleEnd.setDate(minCycleEnd.getDate() + 7);
+      minCycleEnd.setDate(minCycleEnd.getDate() + 6);
+      minCycleEnd.setHours(0, 0, 0, 0);
 
       if (cycleEnd < minCycleEnd) {
-        cycleEnd = new Date(
-          today.getFullYear(),
-          today.getMonth() + 1,
+        nextCollectionDate = new Date(
+          reference.getFullYear(),
+          reference.getMonth() + monthOffset + 1,
           collectionDay,
         );
+        nextCollectionDate.setHours(0, 0, 0, 0);
+        cycleEnd = dayBefore(nextCollectionDate);
       }
 
       // Calcular fecha de pago según modalidad
@@ -1019,6 +1035,8 @@ export class CustomerSubscriptionService
     // Calcular fecha de fin del ciclo (collection_day del siguiente mes)
     const cycleEnd = new Date(cycleStart);
     cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+    cycleEnd.setDate(cycleEnd.getDate() - 1);
+    cycleEnd.setHours(0, 0, 0, 0);
 
     // Calcular fecha de pago según modalidad
     const paymentDueDate = this.calculatePaymentDueDate(
