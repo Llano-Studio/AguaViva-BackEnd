@@ -21,7 +21,7 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { dayBefore, formatBAYMD } from '../common/utils/date.utils';
+import { dayBefore, formatBAYMD, parseYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -197,9 +197,10 @@ export class CustomerSubscriptionService
     );
 
     try {
+      const subscriptionStartDate = parseYMD(String(createDto.start_date).trim());
       // Crear el primer ciclo de suscripción usando la nueva lógica de collection_day y modalidad de pago
       const cycleDates = this.calculateCycleDates(
-        new Date(createDto.start_date),
+        subscriptionStartDate,
         createDto.collection_day || 0,
         true, // isNewSubscription = true para crear ciclo inmediato
         createDto.payment_mode || 'ADVANCE',
@@ -215,7 +216,7 @@ export class CustomerSubscriptionService
             data: {
               customer_id: createDto.customer_id,
               subscription_plan_id: createDto.subscription_plan_id,
-              start_date: new Date(createDto.start_date),
+              start_date: subscriptionStartDate,
               collection_day: createDto.collection_day || null,
               payment_mode: createDto.payment_mode || 'ADVANCE',
               payment_due_day: createDto.payment_due_day || null,
@@ -566,16 +567,14 @@ export class CustomerSubscriptionService
       throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
     }
 
-    // Verificar si hay órdenes asociadas - no permitir eliminar si existen
-    if (subscription.order_header && subscription.order_header.length > 0) {
-      throw new BadRequestException(
-        `No se puede eliminar la suscripción porque tiene ${subscription.order_header.length} orden(es) asociada(s). Debe cancelar primero las órdenes relacionadas.`,
-      );
-    }
-
     try {
       // Usar transacción para asegurar consistencia
       await this.$transaction(async (prisma) => {
+        // 0. Eliminar comodatos asociados a esta suscripción (si existen)
+        await prisma.comodato.deleteMany({
+          where: { subscription_id: id },
+        });
+
         // 1. Eliminar los horarios de entrega
         if (
           subscription.subscription_delivery_schedule &&
@@ -589,12 +588,13 @@ export class CustomerSubscriptionService
           );
         }
 
-        // 2. Eliminar los detalles de ciclos primero
-        for (const cycle of subscription.subscription_cycle || []) {
-          await prisma.subscription_cycle_detail.deleteMany({
-            where: { cycle_id: cycle.cycle_id },
-          });
-        }
+        // 2. Eliminar pagos y detalles de ciclos (en cascada o explícitamente)
+        await prisma.cycle_payment.deleteMany({
+          where: { subscription_cycle: { subscription_id: id } },
+        });
+        await prisma.subscription_cycle_detail.deleteMany({
+          where: { subscription_cycle: { subscription_id: id } },
+        });
 
         // 3. Eliminar los ciclos de suscripción
         if (
@@ -612,7 +612,11 @@ export class CustomerSubscriptionService
         // 4. Soft delete: cambiar is_active a false en lugar de eliminar físicamente
         await prisma.customer_subscription.update({
           where: { subscription_id: id },
-          data: { is_active: false },
+          data: {
+            is_active: false,
+            status: SubscriptionStatus.CANCELLED,
+            cancellation_date: new Date(),
+          },
         });
 
         this.logger.log(`Successfully deactivated subscription ${id}`);
