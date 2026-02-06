@@ -478,6 +478,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
 
   /**
    * Agrupa las cobranzas por zona
+   * Si un cliente tiene múltiples suscripciones con ciclos pendientes, genera una fila por cada una
    */
   private groupCollectionsByZone(
     collections: any[],
@@ -504,23 +505,66 @@ export class RouteSheetGeneratorService extends PrismaClient {
         });
       }
 
-      const collectionData = this.createCollectionData(
-        collection,
-        zoneName,
-        targetDate,
-        formatUTCYMD(targetDate),
-      );
-      if (collectionData.payment_status === 'PAID') {
-        return;
-      }
       const zoneData = zoneGroups.get(zoneKey);
 
-      zoneData.collections.push(collectionData);
-      this.updateZoneSummary(
-        zoneData,
-        collection,
-        collectionData.days_overdue > 0,
+      // Obtener todas las suscripciones del cliente con ciclos pendientes
+      const customerSubscriptions =
+        collection.customer?.customer_subscription || [];
+
+      // Filtrar suscripciones que tienen ciclos con saldo pendiente
+      const subscriptionsWithPendingCycles = customerSubscriptions.filter(
+        (cs: any) => {
+          const cycles = cs.subscription_cycle || [];
+          return cycles.some((cycle: any) => {
+            const pendingBalance = Number(cycle?.pending_balance ?? 0);
+            const paymentStatus = cycle?.payment_status?.toUpperCase();
+            return (
+              pendingBalance > 0 ||
+              paymentStatus === 'PENDING' ||
+              paymentStatus === 'OVERDUE'
+            );
+          });
+        },
       );
+
+      // Si hay múltiples suscripciones con ciclos pendientes, generar una fila por cada una
+      if (subscriptionsWithPendingCycles.length > 1) {
+        subscriptionsWithPendingCycles.forEach((subscription: any) => {
+          const collectionData = this.createCollectionDataForSubscription(
+            collection,
+            subscription,
+            zoneName,
+            targetDate,
+            formatUTCYMD(targetDate),
+          );
+          if (collectionData.payment_status === 'PAID') {
+            return;
+          }
+          zoneData.collections.push(collectionData);
+          this.updateZoneSummaryForSubscription(
+            zoneData,
+            subscription,
+            collectionData.days_overdue > 0,
+          );
+        });
+      } else {
+        // Comportamiento original: una sola fila por colección
+        const collectionData = this.createCollectionData(
+          collection,
+          zoneName,
+          targetDate,
+          formatUTCYMD(targetDate),
+        );
+        if (collectionData.payment_status === 'PAID') {
+          return;
+        }
+        zoneData.collections.push(collectionData);
+        this.updateZoneSummary(
+          zoneData,
+          collection,
+          collectionData.days_overdue > 0,
+        );
+      }
     });
 
     return Array.from(zoneGroups.values());
@@ -694,6 +738,169 @@ export class RouteSheetGeneratorService extends PrismaClient {
       subscription_plan_name: planName,
     };
   }
+
+  /**
+   * Crea los datos de una cobranza para una suscripción específica del cliente
+   * Usado cuando un cliente tiene múltiples suscripciones con ciclos pendientes
+   */
+  private createCollectionDataForSubscription(
+    collection: any,
+    subscription: any,
+    zoneName: string,
+    targetDate: Date,
+    targetDateStrUTC: string,
+  ): RouteSheetCollection {
+    const dayStart = new Date(targetDate);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    // Obtener el ciclo pendiente más reciente de esta suscripción específica
+    const cycles = subscription.subscription_cycle || [];
+    const pendingCycle = cycles.find((c: any) => {
+      const pendingBalance = Number(c?.pending_balance ?? 0);
+      const paymentStatus = c?.payment_status?.toUpperCase();
+      return (
+        pendingBalance > 0 ||
+        paymentStatus === 'PENDING' ||
+        paymentStatus === 'OVERDUE'
+      );
+    });
+
+    const dueDate: Date | undefined = pendingCycle?.payment_due_date;
+    const isOverdue = dueDate ? dueDate < dayStart : false;
+    const daysOverdue =
+      isOverdue && dueDate
+        ? Math.floor(
+            (dayStart.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          )
+        : 0;
+
+    const orderDate: Date | null = collection.order_date
+      ? new Date(collection.order_date)
+      : null;
+    const scheduledDate: Date | null = collection.scheduled_delivery_date
+      ? new Date(collection.scheduled_delivery_date)
+      : null;
+    const inRange = (d: Date | null) =>
+      d ? d >= dayStart && d < dayEnd : false;
+    const isForTargetDay = inRange(orderDate) || inRange(scheduledDate);
+    const isBacklog =
+      !isForTargetDay &&
+      ['PENDING', 'OVERDUE'].includes(
+        (collection.payment_status || '').toUpperCase(),
+      );
+    const backlogType: 'PENDING' | 'OVERDUE' | null = isBacklog
+      ? ((collection.payment_status || '').toUpperCase() as
+          | 'PENDING'
+          | 'OVERDUE')
+      : null;
+
+    const planName = subscription.subscription_plan?.name;
+    const subscriptionNotes = subscription.notes ?? undefined;
+
+    // Calcular el monto pendiente de esta suscripción específica
+    const pendingBalance = pendingCycle
+      ? Math.max(0, Number(pendingCycle.pending_balance ?? 0))
+      : 0;
+
+    const formattedNotes = formatCollectionNotesForRouteSheet(
+      subscriptionNotes,
+      planName,
+      dueDate || undefined,
+      pendingBalance,
+    );
+
+    // Resolver el estado de pago del ciclo
+    const resolvedPaymentStatus = (() => {
+      const dbStatus = pendingCycle?.payment_status as string | undefined;
+      if (
+        dbStatus &&
+        ['PENDING', 'PAID', 'PARTIAL', 'OVERDUE'].includes(dbStatus)
+      ) {
+        return dbStatus;
+      }
+
+      const pb = Number(pendingCycle?.pending_balance ?? NaN);
+      if (!Number.isNaN(pb)) {
+        if (pb <= 0) return 'PAID';
+
+        const isDbOverdue = Boolean(pendingCycle?.is_overdue);
+        if (isDbOverdue) return 'OVERDUE';
+
+        const paid = Number(pendingCycle?.paid_amount ?? 0);
+        if (paid > 0) return 'PARTIAL';
+
+        return 'PENDING';
+      }
+      return dbStatus || collection.payment_status || 'PENDING';
+    })();
+
+    // Usar cycle_id como identificador único si existe, sino usar subscription_id
+    const uniqueId =
+      pendingCycle?.cycle_id ||
+      subscription.subscription_id ||
+      collection.collection_order_id ||
+      collection.order_id;
+
+    return {
+      order_id: uniqueId,
+      customer: {
+        customer_id: collection.customer_id,
+        name: collection.customer.name,
+        address: collection.customer.address || 'Sin dirección',
+        phone: collection.customer.phone,
+        zone_name: zoneName,
+        locality_name: collection.customer?.locality?.name,
+      },
+      amount: pendingBalance.toString(),
+      due_dates: dueDate ? [formatUTCYMD(dueDate)] : [],
+      days_overdue: daysOverdue,
+      priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
+      notes: formattedNotes,
+      status: collection.status,
+      payment_status: resolvedPaymentStatus,
+      is_backlog: isBacklog,
+      backlog_type: backlogType,
+      subscription_plan_name: planName,
+    };
+  }
+
+  /**
+   * Actualiza el resumen de la zona para una suscripción específica
+   */
+  private updateZoneSummaryForSubscription(
+    zoneData: RouteSheetZone,
+    subscription: any,
+    isOverdue: boolean,
+  ): void {
+    // Obtener el ciclo pendiente de esta suscripción
+    const cycles = subscription.subscription_cycle || [];
+    const pendingCycle = cycles.find((c: any) => {
+      const pendingBalance = Number(c?.pending_balance ?? 0);
+      const paymentStatus = c?.payment_status?.toUpperCase();
+      return (
+        pendingBalance > 0 ||
+        paymentStatus === 'PENDING' ||
+        paymentStatus === 'OVERDUE'
+      );
+    });
+
+    const amount = pendingCycle
+      ? Math.max(0, Number(pendingCycle.pending_balance ?? 0))
+      : 0;
+
+    zoneData.summary.total_collections++;
+    zoneData.summary.total_amount = (
+      parseFloat(zoneData.summary.total_amount) + amount
+    ).toFixed(2);
+
+    if (isOverdue) {
+      zoneData.summary.overdue_collections++;
+      zoneData.summary.overdue_amount = (
+        parseFloat(zoneData.summary.overdue_amount) + amount
+      ).toFixed(2);
+    }
+  }
+
   /**
    * Actualiza el resumen de la zona
    */

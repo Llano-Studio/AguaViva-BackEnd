@@ -197,7 +197,9 @@ export class CustomerSubscriptionService
     );
 
     try {
-      const subscriptionStartDate = parseYMD(String(createDto.start_date).trim());
+      const subscriptionStartDate = parseYMD(
+        String(createDto.start_date).trim(),
+      );
       // Crear el primer ciclo de suscripción usando la nueva lógica de collection_day y modalidad de pago
       const cycleDates = this.calculateCycleDates(
         subscriptionStartDate,

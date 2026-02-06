@@ -1719,7 +1719,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         return [];
       }
 
-      return comodatos.map((comodato) => this.mapToComodatoResponseDto(comodato));
+      return comodatos.map((comodato) =>
+        this.mapToComodatoResponseDto(comodato),
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

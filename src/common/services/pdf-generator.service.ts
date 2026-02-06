@@ -1554,16 +1554,22 @@ export class PdfGeneratorService {
         .filter(Boolean)
         .join(' - ') || '-';
 
+    // Extraer día de vencimiento
+    const extractDay = (dateStr: string): string | null => {
+      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
+      return match ? match[1] : null;
+    };
+    const dueDay = collection.payment_due_date
+      ? extractDay(collection.payment_due_date) || '-'
+      : '-';
+
     const cellData: Array<{ text: string; width: number }> = [
       { text: collection.customer.customer_id.toString(), width: colWidths[0] },
       { text: collection.customer.name, width: colWidths[1] },
       { text: addressText, width: colWidths[2] },
       { text: collection.customer.phone || '-', width: colWidths[3] },
       { text: `$${collection.amount.toFixed(2)}`, width: colWidths[4] },
-      {
-        text: this.safeFormatDateYMDDisplay(collection.payment_due_date),
-        width: colWidths[5],
-      },
+      { text: dueDay, width: colWidths[5] },
       {
         text: this.translatePaymentStatus(collection.payment_status),
         width: colWidths[6],
@@ -1615,21 +1621,34 @@ export class PdfGeneratorService {
         .filter(Boolean)
         .join(' - ') || '-';
 
-    const vencText = this.safeFormatDateYMDDisplay(collection.payment_due_date);
-    const isDueToday =
-      typeof collection.payment_due_date === 'string' &&
-      collection.payment_due_date === deliveryYmd;
+    // Extraer día de vencimiento
+    const extractDay = (dateStr: string): string | null => {
+      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
+      return match ? match[1] : null;
+    };
+
+    // Obtener el día de la fecha de vencimiento
+    const dueDay = collection.payment_due_date
+      ? extractDay(collection.payment_due_date) || '-'
+      : '-';
+
+    // Obtener el día actual de la fecha de entrega
+    const currentDay = extractDay(deliveryYmd) || '';
+
+    // Verificar si el vencimiento es hoy
+    const isDueToday = dueDay === currentDay;
 
     const cellData: Array<{
       text: string;
       align: 'center' | 'left' | 'right';
+      isVencColumn?: boolean;
     }> = [
       { text: collection.customer.customer_id.toString(), align: 'center' },
       { text: collection.customer.name, align: 'left' },
       { text: addressText, align: 'left' },
       { text: collection.customer.phone || '-', align: 'center' },
       { text: `$${collection.amount.toFixed(2)}`, align: 'center' },
-      { text: vencText, align: 'center' },
+      { text: dueDay, align: 'center', isVencColumn: true },
       {
         text: this.translatePaymentStatus(collection.payment_status),
         align: 'center',
@@ -1669,7 +1688,7 @@ export class PdfGeneratorService {
     cellData.forEach((cell, colIndex) => {
       // Usar texto blanco para la columna de Vencimiento (índice 5) si es hoy
       const textColor =
-        isDueToday && colIndex === 5
+        isDueToday && cell.isVencColumn
           ? this.colors.textWhite
           : this.colors.textPrimary;
 
