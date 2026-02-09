@@ -196,6 +196,9 @@ export class PdfGeneratorService {
   constructor(private readonly tempFileManager: TempFileManagerService) {}
   private readonly baTimeZone = 'America/Argentina/Buenos_Aires';
   private readonly baLocale = 'es-AR';
+  // Nombres de fuente usados en el documento (se ajustan según disponibilidad)
+  private fontRegularName = 'Helvetica';
+  private fontBoldName = 'Helvetica-Bold';
 
   /**
    * Genera un PDF de reporte de cobranzas automáticas
@@ -360,10 +363,28 @@ export class PdfGeneratorService {
     const { includeSignatureField = true, includeProductDetails = true } =
       options;
 
-    // Registrar fuentes Poppins
+    // Registrar fuentes Poppins si están disponibles, sino usar Helvetica
     const fontsPath = join(process.cwd(), 'public', 'fonts');
-    doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
-    doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
+    const regularPath = join(fontsPath, 'Poppins-Regular.ttf');
+    const boldPath = join(fontsPath, 'Poppins-Bold.ttf');
+    try {
+      if (fs.existsSync(regularPath)) {
+        doc.registerFont('Poppins', regularPath);
+        this.fontRegularName = 'Poppins';
+      } else {
+        this.fontRegularName = 'Helvetica';
+      }
+
+      if (fs.existsSync(boldPath)) {
+        doc.registerFont('Poppins-Bold', boldPath);
+        this.fontBoldName = 'Poppins-Bold';
+      } else {
+        this.fontBoldName = 'Helvetica-Bold';
+      }
+    } catch (e) {
+      this.fontRegularName = 'Helvetica';
+      this.fontBoldName = 'Helvetica-Bold';
+    }
 
     let currentY = 25;
 
@@ -405,6 +426,33 @@ export class PdfGeneratorService {
   }
 
   /**
+   * Asegura el registro de fuentes y configura nombres a usar (fallback a Helvetica)
+   */
+  private ensureFonts(doc: PDFKit.PDFDocument): void {
+    const fontsPath = join(process.cwd(), 'public', 'fonts');
+    const regularPath = join(fontsPath, 'Poppins-Regular.ttf');
+    const boldPath = join(fontsPath, 'Poppins-Bold.ttf');
+    try {
+      if (fs.existsSync(regularPath)) {
+        try { doc.registerFont('Poppins', regularPath); } catch (e) { /* ignore */ }
+        this.fontRegularName = 'Poppins';
+      } else {
+        this.fontRegularName = 'Helvetica';
+      }
+
+      if (fs.existsSync(boldPath)) {
+        try { doc.registerFont('Poppins-Bold', boldPath); } catch (e) { /* ignore */ }
+        this.fontBoldName = 'Poppins-Bold';
+      } else {
+        this.fontBoldName = 'Helvetica-Bold';
+      }
+    } catch (e) {
+      this.fontRegularName = 'Helvetica';
+      this.fontBoldName = 'Helvetica-Bold';
+    }
+  }
+
+  /**
    * Genera el header del PDF
    */
   private generateHeader(
@@ -417,7 +465,7 @@ export class PdfGeneratorService {
     currentY += 15;
 
     // Título principal
-    doc.fontSize(12).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.fontSize(12).font(this.fontBoldName).fillColor(this.colors.textPrimary);
     doc.text(
       `HOJA DE RUTA PEDIDOS #${routeSheet.route_sheet_id}`,
       25,
@@ -425,14 +473,14 @@ export class PdfGeneratorService {
     );
 
     // Fecha de entrega (más a la derecha, misma línea)
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY + 4);
 
     // Zonas cubiertas
     if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
       const zonesNames = routeSheet.zones_covered.map((z) => z.name).join(', ');
-      doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       doc.text(`Zonas: ${zonesNames}`, 25, currentY + 15);
       return currentY + 35;
     }
@@ -461,10 +509,10 @@ export class PdfGeneratorService {
       .stroke(this.colors.borderColor);
     doc.rect(startX, currentY, 4, 49).fill(this.colors.primary);
 
-    doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
     doc.text('CONDUCTOR', startX + 20, currentY + 3);
 
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
     doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 17);
 
     // Información del vehículo
@@ -474,10 +522,10 @@ export class PdfGeneratorService {
       .stroke(this.colors.borderColor);
     doc.rect(vehicleX, currentY, 4, 49).fill(this.colors.secondary);
 
-    doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
     doc.text('VEHÍCULO', vehicleX + 20, currentY + 3);
 
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
     doc.text(
       `Nombre: ${routeSheet.vehicle.name}`,
       vehicleX + 20,
@@ -510,10 +558,10 @@ export class PdfGeneratorService {
         .fill(this.colors.warningColor)
         .stroke(this.colors.borderColor);
 
-      doc.fontSize(10).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+      doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
       doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 3);
 
-      doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       doc.text(routeSheet.route_notes, startX + 20, currentY + 15, {
         width: textWidth,
       });
@@ -548,8 +596,8 @@ export class PdfGeneratorService {
     const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
     let pageCount = 1;
 
-    // Helper: obtener el día (DD) del vencimiento más reciente (all_due_dates)
-    const getLatestDueDay = (detail: any): string => {
+    // Helper: obtener los días (DD) de vencimiento de todas las suscripciones (sin deduplicar)
+    const getAllDueDays = (detail: any): string[] => {
       const extractDay = (dateStr: string) => {
         const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
         return match ? match[1] : null;
@@ -559,15 +607,16 @@ export class PdfGeneratorService {
           .map((d) => (typeof d === 'string' ? d.trim() : ''))
           .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
         if (validDates.length > 0) {
-          const latest = validDates.reduce((max, d) => (d > max ? d : max));
-          const day = extractDay(latest);
-          if (day) return day;
+          const days = validDates
+            .map((d) => extractDay(d))
+            .filter((d): d is string => d !== null);
+          if (days.length > 0) return days;
         }
       } else if (detail.order.subscription_due_date) {
         const day = extractDay(detail.order.subscription_due_date);
-        if (day) return day;
+        if (day) return [day];
       }
-      return '-';
+      return ['-'];
     };
 
     const headerColWidths = [...baseColWidths];
@@ -586,15 +635,15 @@ export class PdfGeneratorService {
       doc.rect(25, footerY - 10, 545, 1).fill(this.colors.borderColor);
 
       // Número de hoja de ruta y fecha en la misma línea
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.textAccent);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textAccent);
       doc.text(`#${routeSheet.route_sheet_id}`, 25, footerY);
 
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
       doc.text(`Fecha: ${displayDate}`, 200, footerY + 2);
 
       // Vehículo en el centro
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       doc.text(
         `Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`,
         350,
@@ -602,7 +651,7 @@ export class PdfGeneratorService {
       );
 
       // Paginación en el lado derecho de la misma línea
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.secondary);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.secondary);
       doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, {
         width: 100,
         align: 'right',
@@ -613,7 +662,7 @@ export class PdfGeneratorService {
         const zonesNames = routeSheet.zones_covered
           .map((z) => z.name)
           .join(', ');
-        doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+        doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
         doc.text(`Zonas: ${zonesNames}`, 25, footerY + 15);
       }
 
@@ -622,7 +671,7 @@ export class PdfGeneratorService {
 
     // Header inicial de la tabla
     doc.rect(startX, currentY, tableWidth, rowHeight).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
+    doc.fillColor(this.colors.textWhite).fontSize(10).font(this.fontBoldName);
 
     let colX = startX + 10;
     headers.forEach((header, index) => {
@@ -663,7 +712,7 @@ export class PdfGeneratorService {
         doc
           .rect(startX, currentY, tableWidth, rowHeight)
           .fill(this.colors.primary);
-        doc.fillColor(this.colors.textWhite).fontSize(10).font('Poppins-Bold');
+        doc.fillColor(this.colors.textWhite).fontSize(10).font(this.fontBoldName);
 
         const pageColWidths = [...baseColWidths];
 
@@ -733,8 +782,8 @@ export class PdfGeneratorService {
         ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
         : detail.order.customer.address || 'Sin dirección';
 
-    // --- NUEVA LÓGICA PARA LA COLUMNA V (Vencimientos) ---
-    // Extraer días de vencimiento
+    // --- LÓGICA PARA LA COLUMNA V (Vencimientos) ---
+    // Extraer todos los días únicos de vencimiento de todas las suscripciones
     let dueDays: string[] = [];
     const today = new Date();
     const currentDay = today.getDate().toString().padStart(2, '0');
@@ -747,10 +796,11 @@ export class PdfGeneratorService {
         .map((d) => (typeof d === 'string' ? d.trim() : ''))
         .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
       if (validDates.length > 0) {
-        const latest = validDates.reduce((max, d) => (d > max ? d : max));
-        const day = extractDay(latest);
-        if (day) {
-          dueDays = [day];
+        const days = validDates
+          .map((d) => extractDay(d))
+          .filter((d): d is string => d !== null);
+        if (days.length > 0) {
+          dueDays = days;
         }
       }
     } else if (detail.order.subscription_due_date) {
@@ -763,8 +813,10 @@ export class PdfGeneratorService {
       dueDays = ['-'];
     }
     const vColBaseWidth = 15;
-    const vColWidth = vColBaseWidth;
-    const clienteWidth = colWidths[2];
+    const vColWidth = vColBaseWidth * dueDays.length;
+    // Compensar el ancho extra de la columna V tomándolo de la columna Cliente
+    const extraVWidth = vColWidth - colWidths[1];
+    const clienteWidth = colWidths[2] - extraVWidth;
 
     // Actualizar colWidths para esta fila
     const localColWidths = [...colWidths];
@@ -786,13 +838,13 @@ export class PdfGeneratorService {
       {
         text: detail.order.order_id.toString(),
         fontSize: 9,
-        font: 'Poppins-Bold',
+        font: this.fontBoldName,
         align: 'left',
       },
       {
         text: '', // Se renderiza manualmente abajo
         fontSize: 9,
-        font: 'Poppins-Bold',
+        font: this.fontBoldName,
         align: 'left',
         customRender: (x, y, width, height) => {
           // Renderizar cada día como una caja de 15px de ancho
@@ -808,7 +860,7 @@ export class PdfGeneratorService {
             // Texto
             doc
               .fontSize(9)
-              .font('Poppins-Bold')
+              .font(this.fontBoldName)
               .fillColor(
                 isToday ? this.colors.textWhite : this.colors.textAccent,
               )
@@ -823,13 +875,13 @@ export class PdfGeneratorService {
       {
         text: detail.order.customer.name,
         fontSize: 9,
-        font: 'Poppins-Bold',
+        font: this.fontBoldName,
         align: 'left',
         customRender: (x, y, width, height) => {
           // Agregar margen izquierdo de 3px
           doc
             .fontSize(9)
-            .font('Poppins-Bold')
+            .font(this.fontBoldName)
             .fillColor(this.colors.textAccent)
             .text(detail.order.customer.name, x + 3, y + 3, {
               width: width - 3 - 5, // padding derecho
@@ -838,23 +890,23 @@ export class PdfGeneratorService {
             });
         },
       },
-      { text: addressText, fontSize: 9, font: 'Poppins', align: 'left' },
+      { text: addressText, fontSize: 9, font: this.fontRegularName, align: 'left' },
       {
         text: detail.order.customer.phone,
         fontSize: 9,
-        font: 'Poppins',
+        font: this.fontRegularName,
         align: 'left',
       },
       {
         text: detail.delivery_time || 'N/D',
         fontSize: 9,
-        font: 'Poppins',
+        font: this.fontRegularName,
         align: 'left',
       },
       {
         text: `$${detail.order.debt_amount ?? 0}`,
         fontSize: 9,
-        font: 'Poppins-Bold',
+        font: this.fontBoldName,
         align: 'left',
       },
     ];
@@ -999,9 +1051,9 @@ export class PdfGeneratorService {
     startX = startX + 5;
 
     // Renderizar PEDIDOS y calcular altura dinámica
-    doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+    doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
     doc.text('PEDIDOS:', startX, textY);
-    doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+    doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
     const productTextHeight = doc.heightOfString(productText, {
       width: tableWidth - 62,
     });
@@ -1020,17 +1072,17 @@ export class PdfGeneratorService {
         notesHeight = 0,
         commentsHeight = 0;
       if (aliasText) {
-        doc.fontSize(9).font('Poppins');
+        doc.fontSize(9).font(this.fontRegularName);
         aliasHeight = doc.heightOfString(aliasText, { width: colWidth - 65 });
       }
       if (specialInstructionsText) {
-        doc.fontSize(9).font('Poppins');
+        doc.fontSize(9).font(this.fontRegularName);
         notesHeight = doc.heightOfString(specialInstructionsText, {
           width: colWidth - 45,
         });
       }
       if (commentsText) {
-        doc.fontSize(9).font('Poppins');
+        doc.fontSize(9).font(this.fontRegularName);
         commentsHeight = doc.heightOfString(commentsText, {
           width: colWidth - 47,
         });
@@ -1045,23 +1097,23 @@ export class PdfGeneratorService {
 
       // Renderizar los elementos en la misma línea
       if (aliasText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
         doc.text('EMPRESA:', col1X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
         doc.text(aliasText, col1X + 50, textY, { width: colWidth - 65 });
       }
       if (specialInstructionsText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
         doc.text('NOTAS CLIENTE:', col2X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
         doc.text(specialInstructionsText, col2X + 78, textY, {
           width: colWidth - 45,
         });
       }
       if (commentsText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
         doc.text('COMENTARIOS:', col3X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
         doc.text(commentsText, col3X + 73, textY, { width: colWidth - 47 });
       }
 
@@ -1070,9 +1122,9 @@ export class PdfGeneratorService {
     }
 
     if (creditsText) {
-      doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins-Bold');
+      doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
       doc.text('EXTRAS DISPONIBLES:', startX, textY);
-      doc.fontSize(9).fillColor(this.colors.textPrimary).font('Poppins');
+      doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
       const creditsTextHeight = doc.heightOfString(creditsText, {
         width: tableWidth - 117,
       });
@@ -1097,7 +1149,7 @@ export class PdfGeneratorService {
 
     // Título de confirmación
     doc.rect(25, currentY, 545, 25).fill(this.colors.primary);
-    doc.fillColor(this.colors.textWhite).fontSize(12).font('Poppins-Bold');
+    doc.fillColor(this.colors.textWhite).fontSize(12).font(this.fontBoldName);
     doc.text('CONFIRMACIÓN DE ENTREGAS', 25, currentY + 5, {
       align: 'center',
       width: 545,
@@ -1114,10 +1166,10 @@ export class PdfGeneratorService {
       .stroke(this.colors.borderColor);
     doc.rect(25, currentY, 4, signatureHeight).fill(this.colors.primary);
 
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
+    doc.fillColor(this.colors.textPrimary).fontSize(12).font(this.fontBoldName);
     doc.text('CONDUCTOR', 45, currentY + 10);
 
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
     doc.text('Nombre: _________________________', 45, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', 45, currentY + 50);
     doc.text('Hora: _____ : _____', 45, currentY + 65);
@@ -1132,10 +1184,10 @@ export class PdfGeneratorService {
       .rect(supervisorX, currentY, 4, signatureHeight)
       .fill(this.colors.secondary);
 
-    doc.fillColor(this.colors.textPrimary).fontSize(12).font('Poppins-Bold');
+    doc.fillColor(this.colors.textPrimary).fontSize(12).font(this.fontBoldName);
     doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
 
-    doc.fontSize(10).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
     doc.text('Nombre: _____________________', supervisorX + 20, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
     doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
@@ -1311,10 +1363,8 @@ export class PdfGeneratorService {
     routeSheet: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions,
   ): Promise<void> {
-    // Registrar fuentes Poppins
-    const fontsPath = join(process.cwd(), 'public', 'fonts');
-    doc.registerFont('Poppins', join(fontsPath, 'Poppins-Regular.ttf'));
-    doc.registerFont('Poppins-Bold', join(fontsPath, 'Poppins-Bold.ttf'));
+    // Asegurar fuentes (registro si existen, fallback a Helvetica)
+    this.ensureFonts(doc);
 
     let currentY = 25;
 
@@ -1352,12 +1402,12 @@ export class PdfGeneratorService {
     // Título principal
     doc
       .fontSize(12)
-      .font('Poppins-Bold')
+      .font(this.fontBoldName)
       .fillColor(this.colors.primary)
       .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
 
     // Información básica - solo fecha
-    doc.fontSize(12).font('Poppins').fillColor(this.colors.textPrimary);
+    doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
 
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY);
@@ -1401,7 +1451,7 @@ export class PdfGeneratorService {
       let headerX = startX;
       doc.rect(startX, y, tableWidth, headerHeight).fill(this.colors.primary);
 
-      doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textWhite);
+      doc.fontSize(9).font(this.fontBoldName).fillColor(this.colors.textWhite);
 
       headers.forEach((header, index) => {
         doc.text(header, headerX + 5, y + 4, {
@@ -1576,7 +1626,7 @@ export class PdfGeneratorService {
       },
     ];
 
-    doc.fontSize(9).font('Poppins');
+    doc.fontSize(9).font(this.fontRegularName);
     cellData.forEach((cell) => {
       const textHeight = doc.heightOfString(cell.text, {
         width: cell.width - padding,
@@ -1589,7 +1639,7 @@ export class PdfGeneratorService {
     const finalNotes = this.buildCollectionNotesText(collection);
 
     if (finalNotes) {
-      doc.fontSize(9).font('Poppins');
+      doc.fontSize(9).font(this.fontRegularName);
       const notesTextHeight = doc.heightOfString(finalNotes, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
       });
@@ -1660,7 +1710,7 @@ export class PdfGeneratorService {
     const padding = 7;
     let maxHeight = minRowHeight;
 
-    doc.fontSize(9).font('Poppins');
+    doc.fontSize(9).font(this.fontRegularName);
     cellData.forEach((cell, colIndex) => {
       const textHeight = doc.heightOfString(cell.text, {
         width: colWidths[colIndex] - padding,
@@ -1692,7 +1742,7 @@ export class PdfGeneratorService {
           ? this.colors.textWhite
           : this.colors.textPrimary;
 
-      doc.fontSize(9).font('Poppins').fillColor(textColor);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(textColor);
       doc.text(cell.text, cellX + 5, currentY + 5, {
         width: colWidths[colIndex] - padding,
         align: cell.align,
@@ -1802,9 +1852,9 @@ export class PdfGeneratorService {
         )
         .fill(this.colors.warningColor)
         .stroke(this.colors.borderColor);
-      doc.fontSize(9).font('Poppins-Bold').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       doc.text('Notas: ', startX + 5, notesY);
-      doc.fontSize(9).font('Poppins').fillColor(this.colors.textPrimary);
+      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
       doc.text(finalNotes, startX + 50, notesY, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
         align: 'left',
