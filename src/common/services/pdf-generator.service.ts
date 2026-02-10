@@ -603,11 +603,12 @@ export class PdfGeneratorService {
         .toString()
         .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
     const todayYmd = toYmd(new Date());
-    const deliveryYmd = routeSheet.delivery_date
-      ? toYmd(new Date(routeSheet.delivery_date))
-      : '';
+    const deliveryYmd =
+      typeof routeSheet.delivery_date === 'string'
+        ? routeSheet.delivery_date.slice(0, 10)
+        : '';
     const deliveryDay =
-      deliveryYmd === todayYmd ? new Date(routeSheet.delivery_date).getDate() : null;
+      deliveryYmd === todayYmd ? Number(deliveryYmd.slice(8, 10)) : null;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
