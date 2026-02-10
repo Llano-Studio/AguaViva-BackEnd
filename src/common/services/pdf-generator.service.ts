@@ -3,7 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
+import { formatBAYMD, formatBAHMS, nowBAYMD } from '../utils/date.utils';
 import {
   GeneratePdfCollectionsDto,
   PdfGenerationResponseDto,
@@ -598,11 +598,18 @@ export class PdfGeneratorService {
     let pageCount = 1;
 
     const headerColWidths = [...baseColWidths];
-    const todayDisplay = this.formatDateForDisplay(new Date());
-    const deliveryDisplay = this.formatDateForDisplay(routeSheet.delivery_date);
+    const todayYmd = nowBAYMD();
+    let deliveryYmd = '';
+    if (typeof routeSheet.delivery_date === 'string') {
+      const raw = routeSheet.delivery_date.trim();
+      const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
+      deliveryYmd = match ? match[0] : formatBAYMD(new Date(raw));
+    } else {
+      deliveryYmd = formatBAYMD(routeSheet.delivery_date);
+    }
     const deliveryDay =
-      todayDisplay === deliveryDisplay
-        ? Number(deliveryDisplay.slice(0, 2))
+      deliveryYmd && deliveryYmd === todayYmd
+        ? Number(deliveryYmd.slice(8, 10))
         : null;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
