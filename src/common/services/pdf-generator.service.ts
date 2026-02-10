@@ -3,7 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBAHMS, pad2 } from '../utils/date.utils';
+import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
 import {
   GeneratePdfCollectionsDto,
   PdfGenerationResponseDto,
@@ -598,6 +598,16 @@ export class PdfGeneratorService {
     let pageCount = 1;
 
     const headerColWidths = [...baseColWidths];
+    const toYmd = (date: Date) =>
+      `${date.getFullYear()}-${(date.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+    const todayYmd = toYmd(new Date());
+    const deliveryYmd = routeSheet.delivery_date
+      ? toYmd(new Date(routeSheet.delivery_date))
+      : '';
+    const deliveryDay =
+      deliveryYmd === todayYmd ? new Date(routeSheet.delivery_date).getDate() : null;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -715,6 +725,7 @@ export class PdfGeneratorService {
         startX,
         baseColWidths,
         rowHeight,
+        deliveryDay,
       );
 
       if (includeProductDetails && detail.order.items.length > 0) {
@@ -750,6 +761,7 @@ export class PdfGeneratorService {
     startX: number,
     colWidths: number[],
     rowHeight: number,
+    deliveryDay: number | null,
   ): number {
     const isEven = index % 2 === 0;
     const rowBgColor = isEven ? this.colors.bgWhite : this.colors.bgPrimary;
@@ -760,9 +772,7 @@ export class PdfGeneratorService {
         ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
         : detail.order.customer.address || 'Sin dirección';
 
-    let dueDays: string[] = [];
-    const today = new Date();
-    const currentDay = pad2(today.getDate());
+    let dueDays: number[] = [];
     const collectionDays = Array.isArray(detail.order.collection_days)
       ? detail.order.collection_days
       : [];
@@ -770,9 +780,9 @@ export class PdfGeneratorService {
       .map((day) => (typeof day === 'number' ? day : Number(day)))
       .filter((day) => Number.isFinite(day) && day > 0);
     if (normalizedDays.length > 0) {
-      dueDays = normalizedDays.map((day) => pad2(day));
+      dueDays = normalizedDays;
     }
-    if (dueDays.length === 0) dueDays = ['-'];
+    if (dueDays.length === 0) dueDays = [0];
     const vColBaseWidth = 15;
     const vColWidth = vColBaseWidth * dueDays.length;
     // Compensar el ancho extra de la columna V tomándolo de la columna Cliente
@@ -811,7 +821,7 @@ export class PdfGeneratorService {
           // Renderizar cada día como una caja de 15px de ancho
           let boxX = x;
           dueDays.forEach((day) => {
-            const isToday = day === currentDay;
+            const isToday = deliveryDay !== null && day === deliveryDay;
             // Fondo
             if (isToday) {
               doc
@@ -825,7 +835,7 @@ export class PdfGeneratorService {
               .fillColor(
                 isToday ? this.colors.textWhite : this.colors.textAccent,
               )
-              .text(day, boxX + 2, y + 3, {
+              .text(day === 0 ? '-' : day.toString(), boxX + 2, y + 3, {
                 width: vColBaseWidth - 4,
                 align: 'center',
               });
