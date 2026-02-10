@@ -51,6 +51,7 @@ export class PaymentSemaphoreService
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const gracePeriodDays = 10;
 
       // 🔧 CAMBIO CRÍTICO: Obtener TODOS los ciclos activos del cliente, no solo el último
       // IMPORTANTE: Incluir ciclos terminados que aún tengan pagos pendientes
@@ -121,10 +122,16 @@ export class PaymentSemaphoreService
 
           // Verificar si está vencido
           if (paymentDueDate < today) {
-            hasAnyOverdue = true;
             const diffTime = today.getTime() - paymentDueDate.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            maxOverdueDays = Math.max(maxOverdueDays, diffDays);
+            const effectiveOverdueDays = Math.max(
+              0,
+              diffDays - gracePeriodDays,
+            );
+            if (effectiveOverdueDays > 0) {
+              hasAnyOverdue = true;
+              maxOverdueDays = Math.max(maxOverdueDays, effectiveOverdueDays);
+            }
           } else {
             // Rastrear la fecha de vencimiento más próxima
             if (!earliestDueDate || paymentDueDate < earliestDueDate) {
@@ -137,10 +144,16 @@ export class PaymentSemaphoreService
         if (pendingBalance > 0) {
           hasAnyPendingOrPartial = true;
           if (paymentDueDate < today) {
-            hasAnyOverdue = true;
             const diffTime = today.getTime() - paymentDueDate.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            maxOverdueDays = Math.max(maxOverdueDays, diffDays);
+            const effectiveOverdueDays = Math.max(
+              0,
+              diffDays - gracePeriodDays,
+            );
+            if (effectiveOverdueDays > 0) {
+              hasAnyOverdue = true;
+              maxOverdueDays = Math.max(maxOverdueDays, effectiveOverdueDays);
+            }
           }
         }
       }

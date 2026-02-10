@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
 import { buildImageUrl } from '../../common/utils/file-upload.util';
-import { formatBAYMD } from '../utils/date.utils';
+import { formatBAYMD, isValidYMD, parseYMD } from '../utils/date.utils';
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -22,9 +22,20 @@ export interface FirstCycleComodatoResult {
 export class FirstCycleComodatoService extends PrismaClient {
   private readonly logger = new Logger(FirstCycleComodatoService.name);
 
+  private toDate(input: Date | string): Date {
+    if (input instanceof Date) return input;
+    const s = String(input).trim();
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const [dd, mm, yyyy] = s.split('/');
+      return parseYMD(`${yyyy}-${mm}-${dd}`);
+    }
+    if (isValidYMD(s)) return parseYMD(s);
+    return new Date(s);
+  }
+
   async processFirstCycleComodato(
     subscriptionId: number,
-    deliveryDate: Date,
+    deliveryDate: Date | string,
   ): Promise<FirstCycleComodatoResult> {
     this.logger.log(
       `🔍 Verificando primer ciclo para suscripción ${subscriptionId}`,
@@ -76,20 +87,6 @@ export class FirstCycleComodatoService extends PrismaClient {
       };
     }
 
-    // Verificar si el cliente posee bidones propios
-    if (subscription.person.owns_returnable_containers) {
-      this.logger.log(
-        `🏠 Cliente ${subscription.customer_id} posee bidones propios - No se crearán comodatos`,
-      );
-      return {
-        comodatos_created: [],
-        total_comodatos: 0,
-        is_first_cycle: true,
-        customer_id: subscription.customer_id,
-        subscription_id: subscriptionId,
-      };
-    }
-
     // Filtrar productos retornables
     const returnableProducts =
       subscription.subscription_plan.subscription_plan_product.filter(
@@ -116,6 +113,16 @@ export class FirstCycleComodatoService extends PrismaClient {
     // MODIFICADO: Ya no validamos conflictos globales, permitimos comodatos por suscripción
     this.logger.log(
       `📦 Procesando ${returnableProducts.length} productos retornables para suscripción ${subscriptionId}`,
+    );
+
+    const deliveryDateDb = parseYMD(formatBAYMD(this.toDate(deliveryDate)));
+
+    const expectedReturnDateDb = new Date(deliveryDateDb);
+    expectedReturnDateDb.setFullYear(expectedReturnDateDb.getFullYear() + 1);
+    expectedReturnDateDb.setHours(0, 0, 0, 0);
+
+    const expectedReturnDateDbNormalized = parseYMD(
+      formatBAYMD(expectedReturnDateDb),
     );
 
     // Crear comodatos para productos retornables
@@ -162,16 +169,12 @@ export class FirstCycleComodatoService extends PrismaClient {
           );
         }
 
-        // Calcular fecha esperada de devolución (1 año después)
-        const expectedReturnDate = new Date(deliveryDate);
-        expectedReturnDate.setFullYear(expectedReturnDate.getFullYear() + 1);
-
         const comodatoDto: CreateComodatoDto = {
           person_id: subscription.customer_id,
           product_id: planProduct.product_id,
           quantity: 0, // 🆕 CORRECCIÓN: Inicializar con 0 items - se incrementará con cada entrega
-          delivery_date: formatBAYMD(deliveryDate),
-          expected_return_date: formatBAYMD(expectedReturnDate),
+          delivery_date: formatBAYMD(deliveryDateDb),
+          expected_return_date: formatBAYMD(expectedReturnDateDbNormalized),
           status: ComodatoStatus.ACTIVE,
           notes: `Comodato automático - Primer ciclo de suscripción ${subscriptionId} - Cantidad máxima: ${planProduct.product_quantity}`,
           article_description: planProduct.product.description,
@@ -186,18 +189,8 @@ export class FirstCycleComodatoService extends PrismaClient {
             subscription_id: subscriptionId, // ← Agregar subscription_id
             quantity: comodatoDto.quantity, // Inicializado con 0
             max_quantity: planProduct.product_quantity, // 🆕 Cantidad máxima según el plan de suscripción
-            delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(
-              String(comodatoDto.delivery_date).trim(),
-            )
-              ? parseYMD(String(comodatoDto.delivery_date).trim())
-              : new Date(comodatoDto.delivery_date),
-            expected_return_date: comodatoDto.expected_return_date
-              ? /^\d{4}-\d{2}-\d{2}$/.test(
-                  String(comodatoDto.expected_return_date).trim(),
-                )
-                ? parseYMD(String(comodatoDto.expected_return_date).trim())
-                : new Date(comodatoDto.expected_return_date)
-              : null,
+            delivery_date: deliveryDateDb,
+            expected_return_date: expectedReturnDateDbNormalized,
             status: comodatoDto.status,
             notes: `${comodatoDto.notes} - Suscripción ID: ${subscriptionId}`,
             deposit_amount: comodatoDto.deposit_amount || null,
@@ -215,7 +208,7 @@ export class FirstCycleComodatoService extends PrismaClient {
           product_id: planProduct.product_id,
           product_description: planProduct.product.description,
           quantity: planProduct.product_quantity,
-          delivery_date: formatBAYMD(deliveryDate),
+          delivery_date: formatBAYMD(deliveryDateDb),
         });
 
         this.logger.log(
@@ -489,4 +482,3 @@ export class FirstCycleComodatoService extends PrismaClient {
     };
   }
 }
-import { parseYMD } from '../utils/date.utils';

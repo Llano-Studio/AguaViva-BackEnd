@@ -27,11 +27,15 @@ export class RegisterUserDto {
     example: 'Password123',
   })
   @IsString()
-  @MinLength(6)
-  @MaxLength(50)
+  @MinLength(6, {
+    message: 'La contraseña debe tener al menos 6 caracteres',
+  })
+  @MaxLength(50, {
+    message: 'La contraseña no puede tener más de 50 caracteres',
+  })
   @Matches(/(?:(?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
     message:
-      'La contraseña debe tener una letra mayuscula, letra miniscula y un numero',
+      'La contraseña debe contener al menos: una letra mayúscula, una letra minúscula y un número',
   })
   password: string;
 

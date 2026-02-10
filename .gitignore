@@ -13,6 +13,7 @@ d output
 /dist
 /node_modules
 /build
+/backups
 # Logs
 logs
 *.log

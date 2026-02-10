@@ -44,6 +44,12 @@ async function main() {
   // Mostrar advertencia si estamos en producción
   showProductionWarning();
 
+  const existingUser = await prisma.user.findFirst();
+  if (existingUser) {
+    console.log('Seed ya ejecutado previamente, no se realizan cambios');
+    return;
+  }
+
   // 1. Crear tipos de movimiento
   console.log('📋 Creando tipos de movimiento...');
   // Tipos de movimiento según la base de datos

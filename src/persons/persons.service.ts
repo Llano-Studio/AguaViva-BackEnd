@@ -1630,11 +1630,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     filters: FilterComodatosDto,
   ): Promise<ComodatoResponseDto[]> {
     try {
-      // Verificar que la persona existe y está activa
+      // Verificar que la persona existe
       const person = await this.person.findUnique({
         where: {
           person_id: personId,
-          is_active: true, // Solo buscar comodatos de personas activas
         },
       });
       if (!person) {
@@ -1715,6 +1714,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         skip: skip,
         take: limit,
       });
+
+      if (!comodatos || comodatos.length === 0) {
+        return [];
+      }
 
       return comodatos.map((comodato) =>
         this.mapToComodatoResponseDto(comodato),

@@ -97,14 +97,14 @@ export const FormDataBody = createParamDecorator(
         // Validar el DTO
         const errors = await validate(dto as object);
         if (errors.length > 0) {
-          const mensaje = errors
+          const messages = errors
             .map((e) => Object.values(e.constraints || {}))
-            .flat()
-            .join(', ');
+            .flat();
 
           throw new BadRequestException({
             statusCode: 400,
-            mensaje: mensaje,
+            message: messages.length === 1 ? messages[0] : messages,
+            error: 'Bad Request',
           });
         }
 

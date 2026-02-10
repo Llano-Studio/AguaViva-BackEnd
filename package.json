@@ -17,7 +17,12 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "db:backup": "bash scripts/db-backup.sh",
+    "db:restore": "bash scripts/db-restore.sh",
+    "db:reset-and-seed": "bash scripts/db-reset.sh",
+    "migrate:deploy": "npx prisma migrate deploy",
+    "db:seed": "npx prisma db seed"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.0.1",

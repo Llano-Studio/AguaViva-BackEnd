@@ -16,15 +16,31 @@ const stripDiacritics = (input: string) =>
 
 const normalizePaymentMethod = (value: unknown): unknown => {
   if (value === null || value === undefined) return value;
+  if (typeof value === 'number') {
+    const mapById: Record<number, PaymentMethod> = {
+      1: PaymentMethod.EFECTIVO,
+      2: PaymentMethod.TRANSFERENCIA,
+      3: PaymentMethod.TARJETA_DEBITO,
+      4: PaymentMethod.TARJETA_CREDITO,
+      5: PaymentMethod.CHEQUE,
+      6: PaymentMethod.MOBILE_PAYMENT,
+    };
+    return mapById[value] ?? value;
+  }
   if (typeof value === 'object') {
     const v = (value as any)?.key ?? (value as any)?.value;
     if (typeof v === 'string') return normalizePaymentMethod(v);
+    if (typeof v === 'number') return normalizePaymentMethod(v);
     return value;
   }
   if (typeof value !== 'string') return value;
 
   const trimmed = value.trim();
   if (!trimmed) return value;
+
+  if (/^\d+$/.test(trimmed)) {
+    return normalizePaymentMethod(parseInt(trimmed, 10));
+  }
 
   const allValues = Object.values(PaymentMethod) as string[];
   if (allValues.includes(trimmed)) return trimmed;
