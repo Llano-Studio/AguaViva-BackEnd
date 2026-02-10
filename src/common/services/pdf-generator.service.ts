@@ -3,7 +3,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
+import { formatBAYMD, formatBAHMS, pad2 } from '../utils/date.utils';
 import {
   GeneratePdfCollectionsDto,
   PdfGenerationResponseDto,
@@ -69,6 +69,7 @@ export interface RouteSheetPdfData {
       subscription_id: number;
       subscription_due_date: string;
       all_due_dates: string[];
+      collection_days?: number[];
       customer: {
         person_id: number;
         name: string;
@@ -596,29 +597,6 @@ export class PdfGeneratorService {
     const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
     let pageCount = 1;
 
-    // Helper: obtener los días (DD) de vencimiento de todas las suscripciones (sin deduplicar)
-    const getAllDueDays = (detail: any): string[] => {
-      const extractDay = (dateStr: string) => {
-        const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
-        return match ? match[1] : null;
-      };
-      if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-        const validDates = (detail.order.all_due_dates as string[])
-          .map((d) => (typeof d === 'string' ? d.trim() : ''))
-          .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-        if (validDates.length > 0) {
-          const days = validDates
-            .map((d) => extractDay(d))
-            .filter((d): d is string => d !== null);
-          if (days.length > 0) return days;
-        }
-      } else if (detail.order.subscription_due_date) {
-        const day = extractDay(detail.order.subscription_due_date);
-        if (day) return [day];
-      }
-      return ['-'];
-    };
-
     const headerColWidths = [...baseColWidths];
 
     // Función helper para agregar footer con información completa de la hoja de ruta
@@ -782,36 +760,19 @@ export class PdfGeneratorService {
         ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
         : detail.order.customer.address || 'Sin dirección';
 
-    // --- LÓGICA PARA LA COLUMNA V (Vencimientos) ---
-    // Extraer todos los días únicos de vencimiento de todas las suscripciones
     let dueDays: string[] = [];
     const today = new Date();
-    const currentDay = today.getDate().toString().padStart(2, '0');
-    const extractDay = (dateStr: string) => {
-      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
-      return match ? match[1] : null;
-    };
-    if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-      const validDates = (detail.order.all_due_dates as string[])
-        .map((d) => (typeof d === 'string' ? d.trim() : ''))
-        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-      if (validDates.length > 0) {
-        const days = validDates
-          .map((d) => extractDay(d))
-          .filter((d): d is string => d !== null);
-        if (days.length > 0) {
-          dueDays = days;
-        }
-      }
-    } else if (detail.order.subscription_due_date) {
-      const day = extractDay(detail.order.subscription_due_date);
-      if (day) {
-        dueDays = [day];
-      }
+    const currentDay = pad2(today.getDate());
+    const collectionDays = Array.isArray(detail.order.collection_days)
+      ? detail.order.collection_days
+      : [];
+    const normalizedDays = collectionDays
+      .map((day) => (typeof day === 'number' ? day : Number(day)))
+      .filter((day) => Number.isFinite(day) && day > 0);
+    if (normalizedDays.length > 0) {
+      dueDays = normalizedDays.map((day) => pad2(day));
     }
-    if (dueDays.length === 0) {
-      dueDays = ['-'];
-    }
+    if (dueDays.length === 0) dueDays = ['-'];
     const vColBaseWidth = 15;
     const vColWidth = vColBaseWidth * dueDays.length;
     // Compensar el ancho extra de la columna V tomándolo de la columna Cliente
