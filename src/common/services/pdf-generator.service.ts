@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
@@ -195,6 +195,7 @@ export class PdfGeneratorService {
   };
 
   constructor(private readonly tempFileManager: TempFileManagerService) {}
+  private readonly logger = new Logger(PdfGeneratorService.name);
   private readonly baTimeZone = 'America/Argentina/Buenos_Aires';
   private readonly baLocale = 'es-AR';
   // Nombres de fuente usados en el documento (se ajustan según disponibilidad)
@@ -600,10 +601,8 @@ export class PdfGeneratorService {
     const headerColWidths = [...baseColWidths];
     const todayDisplay = this.formatDateForDisplay(new Date());
     const deliveryDisplay = this.formatDateForDisplay(routeSheet.delivery_date);
-    const deliveryDay =
-      todayDisplay === deliveryDisplay
-        ? Number(deliveryDisplay.slice(0, 2))
-        : null;
+    const deliveryDay = Number(deliveryDisplay.slice(0, 2))
+    
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -817,7 +816,7 @@ export class PdfGeneratorService {
           // Renderizar cada día como una caja de 15px de ancho
           let boxX = x;
           dueDays.forEach((day) => {
-            const isToday = deliveryDay !== null && day === deliveryDay;
+            const isToday = deliveryDay !== null && day == deliveryDay;
             // Fondo
             if (isToday) {
               doc
