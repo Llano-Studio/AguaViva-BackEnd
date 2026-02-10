@@ -598,17 +598,12 @@ export class PdfGeneratorService {
     let pageCount = 1;
 
     const headerColWidths = [...baseColWidths];
-    const toYmd = (date: Date) =>
-      `${date.getFullYear()}-${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-    const todayYmd = toYmd(new Date());
-    const deliveryYmd =
-      typeof routeSheet.delivery_date === 'string'
-        ? routeSheet.delivery_date.slice(0, 10)
-        : '';
+    const todayDisplay = this.formatDateForDisplay(new Date());
+    const deliveryDisplay = this.formatDateForDisplay(routeSheet.delivery_date);
     const deliveryDay =
-      deliveryYmd === todayYmd ? Number(deliveryYmd.slice(8, 10)) : null;
+      todayDisplay === deliveryDisplay
+        ? Number(deliveryDisplay.slice(0, 2))
+        : null;
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
