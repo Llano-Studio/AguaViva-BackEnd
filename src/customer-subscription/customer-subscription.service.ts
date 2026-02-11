@@ -22,6 +22,7 @@ import { RecoveryOrderService } from '../common/services/recovery-order.service'
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { dayBefore, formatBAYMD, parseYMD } from '../common/utils/date.utils';
+import { calculatePaymentDueDate } from './utils/payment-due-date';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -1223,32 +1224,7 @@ export class CustomerSubscriptionService
     paymentMode: string,
     paymentDueDay?: number,
   ): Date {
-    if (paymentMode === 'ADVANCE') {
-      // PAGO ADELANTADO: Se paga al inicio del ciclo
-      return new Date(cycleStart);
-    } else {
-      // PAGO VENCIDO (ARREARS): Se paga después del ciclo
-      if (paymentDueDay) {
-        // Usar día específico del mes siguiente al fin del ciclo
-        const paymentDate = new Date(
-          cycleEnd.getFullYear(),
-          cycleEnd.getMonth(),
-          paymentDueDay,
-        );
-
-        // Si el día específico es antes del fin del ciclo, mover al siguiente mes
-        if (paymentDate <= cycleEnd) {
-          paymentDate.setMonth(paymentDate.getMonth() + 1);
-        }
-
-        return paymentDate;
-      } else {
-        // Sin día específico: pagar 10 días después del fin del ciclo (default)
-        const paymentDate = new Date(cycleEnd);
-        paymentDate.setDate(paymentDate.getDate() + 10);
-        return paymentDate;
-      }
-    }
+    return calculatePaymentDueDate(cycleStart, cycleEnd, paymentMode, paymentDueDay);
   }
 
   /**
