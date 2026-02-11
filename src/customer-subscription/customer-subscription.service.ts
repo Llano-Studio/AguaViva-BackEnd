@@ -500,7 +500,6 @@ export class CustomerSubscriptionService
       if (updateDto.subscription_plan_id !== undefined) {
         updateData.subscription_plan_id = updateDto.subscription_plan_id;
       }
-      // end_date field removed - not present in schema
       if (updateDto.collection_day !== undefined) {
         updateData.collection_day = updateDto.collection_day;
       }
@@ -520,19 +519,170 @@ export class CustomerSubscriptionService
         updateData.notes = notes;
       }
 
-      const subscription = await this.customer_subscription.update({
-        where: { subscription_id: id },
-        data: updateData,
-        include: {
-          subscription_plan: {
-            select: {
-              name: true,
-              description: true,
-              price: true,
+      const collectionDayChanged =
+        updateDto.collection_day !== undefined &&
+        updateDto.collection_day !== existingSubscription.collection_day;
+      const effectivePaymentMode =
+        updateDto.payment_mode ?? existingSubscription.payment_mode;
+      const effectivePaymentDueDay =
+        updateDto.payment_due_day ?? existingSubscription.payment_due_day;
+      const planId =
+        updateDto.subscription_plan_id ??
+        existingSubscription.subscription_plan_id;
+
+      let createdNextCycleId: number | null = null;
+
+      const subscription = await this.$transaction(async (tx) => {
+        const updatedSubscription = await tx.customer_subscription.update({
+          where: { subscription_id: id },
+          data: updateData,
+          include: {
+            subscription_plan: {
+              select: {
+                name: true,
+                description: true,
+                price: true,
+              },
             },
           },
-        },
+        });
+
+        if (collectionDayChanged && updateDto.collection_day) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const currentCycle = await tx.subscription_cycle.findFirst({
+            where: {
+              subscription_id: id,
+              cycle_start: { lte: today },
+              cycle_end: { gte: today },
+            },
+            orderBy: { cycle_start: 'desc' },
+          });
+
+          if (currentCycle) {
+            const collectionDay = updateDto.collection_day;
+            const nextCollectionDate = new Date(
+              today.getFullYear(),
+              today.getMonth() + (today.getDate() >= collectionDay ? 1 : 0),
+              collectionDay,
+            );
+            nextCollectionDate.setHours(0, 0, 0, 0);
+
+            const newCurrentCycleEnd = dayBefore(nextCollectionDate);
+            const currentPaymentDueDate = this.calculatePaymentDueDate(
+              currentCycle.cycle_start,
+              newCurrentCycleEnd,
+              effectivePaymentMode,
+              effectivePaymentDueDay ?? undefined,
+            );
+
+            await tx.subscription_cycle.update({
+              where: { cycle_id: currentCycle.cycle_id },
+              data: {
+                cycle_end: newCurrentCycleEnd,
+                payment_due_date: currentPaymentDueDate,
+              },
+            });
+
+            const nextCycleEnd = dayBefore(
+              new Date(
+                nextCollectionDate.getFullYear(),
+                nextCollectionDate.getMonth() + 1,
+                collectionDay,
+              ),
+            );
+            const nextPaymentDueDate = this.calculatePaymentDueDate(
+              nextCollectionDate,
+              nextCycleEnd,
+              effectivePaymentMode,
+              effectivePaymentDueDay ?? undefined,
+            );
+
+            const nextCycle = await tx.subscription_cycle.findFirst({
+              where: {
+                subscription_id: id,
+                cycle_start: { gt: currentCycle.cycle_start },
+              },
+              orderBy: { cycle_start: 'asc' },
+            });
+
+            if (nextCycle) {
+              await tx.subscription_cycle.update({
+                where: { cycle_id: nextCycle.cycle_id },
+                data: {
+                  cycle_start: nextCollectionDate,
+                  cycle_end: nextCycleEnd,
+                  payment_due_date: nextPaymentDueDate,
+                },
+              });
+            } else {
+              const subscriptionPlan = await tx.subscription_plan.findUnique({
+                where: { subscription_plan_id: planId },
+                include: {
+                  subscription_plan_product: true,
+                },
+              });
+
+              if (!subscriptionPlan) {
+                throw new NotFoundException(
+                  `Plan de suscripción con ID ${planId} no encontrado`,
+                );
+              }
+
+              const existingCycle = await tx.subscription_cycle.findFirst({
+                where: { subscription_id: id },
+                orderBy: { cycle_number: 'desc' },
+                select: { cycle_number: true },
+              });
+              const nextCycleNumber = existingCycle
+                ? existingCycle.cycle_number + 1
+                : 1;
+
+              const newCycle = await tx.subscription_cycle.create({
+                data: {
+                  subscription_id: id,
+                  cycle_number: nextCycleNumber,
+                  cycle_start: nextCollectionDate,
+                  cycle_end: nextCycleEnd,
+                  payment_due_date: nextPaymentDueDate,
+                  total_amount: 0,
+                },
+              });
+
+              for (const planProduct of subscriptionPlan
+                .subscription_plan_product) {
+                await tx.subscription_cycle_detail.create({
+                  data: {
+                    cycle_id: newCycle.cycle_id,
+                    product_id: planProduct.product_id,
+                    planned_quantity: planProduct.product_quantity,
+                    delivered_quantity: 0,
+                    remaining_balance: planProduct.product_quantity,
+                  },
+                });
+              }
+
+              createdNextCycleId = newCycle.cycle_id;
+            }
+          }
+        }
+
+        return updatedSubscription;
       });
+
+      if (createdNextCycleId) {
+        try {
+          await this.subscriptionCycleCalculatorService.calculateAndUpdateCycleAmount(
+            createdNextCycleId,
+          );
+        } catch (error) {
+          this.logger.error(
+            `❌ Error calculating total amount for cycle ${createdNextCycleId}:`,
+            error,
+          );
+        }
+      }
 
       const response = new CustomerSubscriptionResponseDto(subscription);
       response.delivery_preferences = this.parseDeliveryPreferences(
