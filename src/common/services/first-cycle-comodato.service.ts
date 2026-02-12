@@ -472,9 +472,9 @@ export class FirstCycleComodatoService extends PrismaClient {
         product_id: comodato.product_id,
         product_description: comodato.product.description,
         quantity: comodato.quantity,
-        delivery_date: formatBAYMD(comodato.delivery_date as any),
+        delivery_date: formatBAYMD(comodato.delivery_date),
         expected_return_date: comodato.expected_return_date
-          ? formatBAYMD(comodato.expected_return_date as any)
+          ? formatBAYMD(comodato.expected_return_date)
           : null,
         notes: comodato.notes,
       })),

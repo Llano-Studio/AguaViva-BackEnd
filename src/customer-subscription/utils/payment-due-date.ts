@@ -24,4 +24,3 @@ export function calculatePaymentDueDate(
 
   return new Date(cycleEnd);
 }
-

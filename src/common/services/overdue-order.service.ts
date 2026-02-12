@@ -84,7 +84,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
               (1000 * 60 * 60 * 24),
           );
           this.logger.log(
-            `📋 Pedido ${order.order_id} - Cliente: ${(order as any).customer?.name || 'N/A'} - ` +
+            `📋 Pedido ${order.order_id} - Cliente: ${order.customer?.name || 'N/A'} - ` +
               `Creado hace ${daysDiff} días - Estado anterior: ${order.status}`,
           );
         });

@@ -1420,7 +1420,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: item.product_id,
             description: item.product.description,
             loaned_quantity: netLoanedForItem,
-            acquisition_date: formatBAYMD(order.order_date as any),
+            acquisition_date: formatBAYMD(order.order_date),
             order_id: order.order_id,
             order_status: order.status,
           });

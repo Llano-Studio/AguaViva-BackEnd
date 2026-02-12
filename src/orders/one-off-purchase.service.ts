@@ -993,7 +993,7 @@ export class OneOffPurchaseService
 
         // Agregar pagos a las compras
         relatedPurchases.forEach((purchase) => {
-          (purchase as any).payment_transaction = payments;
+          purchase.payment_transaction = payments;
         });
 
         return this.mapToConsolidatedOneOffPurchaseResponseDto(
@@ -2334,7 +2334,7 @@ export class OneOffPurchaseService
           );
 
           // Agregar pagos al header
-          (header as any).payment_transaction = payments;
+          header.payment_transaction = payments;
 
           return this.mapToHeaderItemsOneOffPurchaseResponseDto(header);
         }),

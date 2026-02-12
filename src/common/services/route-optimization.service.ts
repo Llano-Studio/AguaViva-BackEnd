@@ -156,7 +156,7 @@ export class RouteOptimizationService extends PrismaClient {
         estimated_distance: Number(optimization.estimated_distance),
         optimization_status: optimization.optimization_status,
         waypoints: optimizedWaypoints,
-        created_at: formatBATimestampISO(optimization.created_at as any),
+        created_at: formatBATimestampISO(optimization.created_at),
       });
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -190,8 +190,8 @@ export class RouteOptimizationService extends PrismaClient {
       estimated_duration: optimization.estimated_duration,
       estimated_distance: Number(optimization.estimated_distance),
       optimization_status: optimization.optimization_status,
-      waypoints: optimization.waypoints as any,
-      created_at: formatBATimestampISO(optimization.created_at as any),
+      waypoints: optimization.waypoints,
+      created_at: formatBATimestampISO(optimization.created_at),
     });
   }
 

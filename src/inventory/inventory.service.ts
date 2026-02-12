@@ -157,9 +157,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     createStockMovementDto: CreateStockMovementDto,
     tx?: Prisma.TransactionClient,
   ): Promise<PrismaStockMovement> {
-    const operations = async (
-      prismaClient: Prisma.TransactionClient | PrismaClient,
-    ) => {
+    const operations = async (prismaClient: Prisma.TransactionClient) => {
       const {
         movement_type_id,
         product_id,
@@ -550,9 +548,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     createInventoryDto: CreateInventoryDto,
     tx?: Prisma.TransactionClient,
   ): Promise<InventoryResponseDto> {
-    const operations = async (
-      prismaClient: Prisma.TransactionClient | PrismaClient,
-    ) => {
+    const operations = async (prismaClient: Prisma.TransactionClient) => {
       const { product_id, warehouse_id, quantity, remarks } =
         createInventoryDto;
 

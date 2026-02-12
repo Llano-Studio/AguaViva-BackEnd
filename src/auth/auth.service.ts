@@ -155,9 +155,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           name: user.name,
           role: user.role,
           isActive: user.isActive,
-          createdAt: formatBATimestampISO(user.createdAt as any),
+          createdAt: formatBATimestampISO(user.createdAt),
           updatedAt: user.updatedAt
-            ? formatBATimestampISO(user.updatedAt as any)
+            ? formatBATimestampISO(user.updatedAt)
             : undefined,
           profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         }),
@@ -302,9 +302,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         (user) =>
           new UserResponseDto({
             ...user,
-            createdAt: formatBATimestampISO(user.createdAt as any),
+            createdAt: formatBATimestampISO(user.createdAt),
             updatedAt: user.updatedAt
-              ? formatBATimestampISO(user.updatedAt as any)
+              ? formatBATimestampISO(user.updatedAt)
               : undefined,
             profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
           }),
@@ -353,9 +353,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       }
       return new UserResponseDto({
         ...user,
-        createdAt: formatBATimestampISO(user.createdAt as any),
+        createdAt: formatBATimestampISO(user.createdAt),
         updatedAt: user.updatedAt
-          ? formatBATimestampISO(user.updatedAt as any)
+          ? formatBATimestampISO(user.updatedAt)
           : undefined,
         profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
       });
@@ -408,9 +408,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return new UserResponseDto({
         ...updatedUser,
-        createdAt: formatBATimestampISO(updatedUser.createdAt as any),
+        createdAt: formatBATimestampISO(updatedUser.createdAt),
         updatedAt: updatedUser.updatedAt
-          ? formatBATimestampISO(updatedUser.updatedAt as any)
+          ? formatBATimestampISO(updatedUser.updatedAt)
           : undefined,
         profileImageUrl: this.buildProfileImageUrl(updatedUser.profileImageUrl),
       });
@@ -596,9 +596,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return new UserResponseDto({
         ...newUser,
-        createdAt: formatBATimestampISO(newUser.createdAt as any),
+        createdAt: formatBATimestampISO(newUser.createdAt),
         updatedAt: newUser.updatedAt
-          ? formatBATimestampISO(newUser.updatedAt as any)
+          ? formatBATimestampISO(newUser.updatedAt)
           : undefined,
         profileImageUrl: this.buildProfileImageUrl(newUser.profileImageUrl),
       });
@@ -892,9 +892,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             name: uv.user.name,
             role: uv.user.role,
             isActive: uv.user.isActive,
-            createdAt: formatBATimestampISO(uv.user.createdAt as any),
+            createdAt: formatBATimestampISO(uv.user.createdAt),
             updatedAt: uv.user.updatedAt
-              ? formatBATimestampISO(uv.user.updatedAt as any)
+              ? formatBATimestampISO(uv.user.updatedAt)
               : undefined,
             profileImageUrl: this.buildProfileImageUrl(uv.user.profileImageUrl),
           }),

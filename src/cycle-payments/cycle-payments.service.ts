@@ -214,7 +214,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     return {
       payment_id: result.payment_id,
       cycle_id: result.cycle_id,
-      payment_date: formatBATimestampISO(result.payment_date as any),
+      payment_date: formatBATimestampISO(result.payment_date),
       amount: parseFloat(result.amount?.toString() || '0'),
       payment_method: result.payment_method as PaymentMethod,
       reference: result.reference,
@@ -248,7 +248,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       (payment) => ({
         payment_id: payment.payment_id,
         cycle_id: payment.cycle_id,
-        payment_date: formatBATimestampISO(payment.payment_date as any),
+        payment_date: formatBATimestampISO(payment.payment_date),
         amount: parseFloat(payment.amount?.toString() || '0'),
         payment_method: payment.payment_method as PaymentMethod,
         reference: payment.reference,
@@ -264,7 +264,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
       credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
       payment_status: cycle.payment_status,
-      payment_due_date: formatBAYMD(cycle.payment_due_date as any),
+      payment_due_date: formatBAYMD(cycle.payment_due_date),
       payments,
     };
   }
@@ -305,7 +305,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         (payment) => ({
           payment_id: payment.payment_id,
           cycle_id: payment.cycle_id,
-          payment_date: formatBATimestampISO(payment.payment_date as any),
+          payment_date: formatBATimestampISO(payment.payment_date),
           amount: parseFloat(payment.amount?.toString() || '0'),
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
@@ -321,7 +321,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
-        payment_due_date: formatBAYMD(cycle.payment_due_date as any),
+        payment_due_date: formatBAYMD(cycle.payment_due_date),
         payments,
       });
     }
@@ -561,7 +561,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         (payment) => ({
           payment_id: payment.payment_id,
           cycle_id: payment.cycle_id,
-          payment_date: formatBATimestampISO(payment.payment_date as any),
+          payment_date: formatBATimestampISO(payment.payment_date),
           amount: parseFloat(payment.amount?.toString() || '0'),
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
@@ -577,7 +577,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
-        payment_due_date: formatBAYMD(cycle.payment_due_date as any),
+        payment_due_date: formatBAYMD(cycle.payment_due_date),
         payments,
       };
     });
@@ -619,7 +619,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         (payment) => ({
           payment_id: payment.payment_id,
           cycle_id: payment.cycle_id,
-          payment_date: formatBATimestampISO(payment.payment_date as any),
+          payment_date: formatBATimestampISO(payment.payment_date),
           amount: parseFloat(payment.amount?.toString() || '0'),
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
@@ -635,7 +635,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         pending_balance: parseFloat(cycle.pending_balance?.toString() || '0'),
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
-        payment_due_date: formatBAYMD(cycle.payment_due_date as any),
+        payment_due_date: formatBAYMD(cycle.payment_due_date),
         payments,
       };
     });
@@ -740,7 +740,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       data: {
         payment_id: result.payment_id,
         cycle_id: result.cycle_id,
-        payment_date: formatBATimestampISO(result.payment_date as any),
+        payment_date: formatBATimestampISO(result.payment_date),
         amount: parseFloat(result.amount?.toString() || '0'),
         payment_method: result.payment_method,
         reference: result.reference,
@@ -894,7 +894,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     if (
       !user ||
       !['SUPERADMIN', 'BOSSADMINISTRATIVE', 'ADMINISTRATIVE'].includes(
-        user.role as any,
+        user.role,
       )
     ) {
       throw new ForbiddenException('No tiene permisos para eliminar pagos');

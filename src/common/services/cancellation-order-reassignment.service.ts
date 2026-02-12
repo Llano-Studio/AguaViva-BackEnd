@@ -210,7 +210,7 @@ export class CancellationOrderReassignmentService
       };
     }
 
-    const availableDriver = (await this.user.findFirst({
+    const availableDriver = await this.user.findFirst({
       where: whereClause,
       include: {
         user_vehicle: {
@@ -229,7 +229,7 @@ export class CancellationOrderReassignmentService
           },
         },
       },
-    })) as any;
+    });
 
     if (!availableDriver || !availableDriver.user_vehicle[0]) {
       throw new Error(

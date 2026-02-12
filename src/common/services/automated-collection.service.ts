@@ -100,10 +100,10 @@ export class AutomatedCollectionService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base y calcular recargo del 20%
-          const planPriceRaw = cycle.customer_subscription?.subscription_plan
-            ?.price as any;
-          const currentTotalRaw = cycle.total_amount as any;
-          const paidAmountRaw = cycle.paid_amount as any;
+          const planPriceRaw =
+            cycle.customer_subscription?.subscription_plan?.price;
+          const currentTotalRaw = cycle.total_amount;
+          const paidAmountRaw = cycle.paid_amount;
 
           const planPrice = parseFloat(planPriceRaw?.toString() || '0');
           const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
@@ -1372,8 +1372,8 @@ export class AutomatedCollectionService
     // Transformar datos
     const data: AutomatedCollectionResponseDto[] = orders.map((order) => {
       const today = new Date();
-      const dueDate = (order as any).customer_subscription
-        ?.subscription_cycle?.[0]?.payment_due_date;
+      const dueDate =
+        order.customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
       const isOverdue = dueDate ? dueDate < today : false;
       const daysOverdue =
         isOverdue && dueDate
@@ -1387,79 +1387,78 @@ export class AutomatedCollectionService
         parseFloat(order.paid_amount.toString());
 
       const result: AutomatedCollectionResponseDto = {
-        order_id: (order as any).collection_order_id ?? (order as any).order_id,
+        order_id: order.collection_order_id ?? order.order_id,
         order_date: order.order_date
-          ? formatBATimestampISO(order.order_date as any)
+          ? formatBATimestampISO(order.order_date)
           : '',
         due_date: dueDate ? formatBATimestampISO(dueDate) : null,
         total_amount: order.total_amount.toString(),
         paid_amount: order.paid_amount.toString(),
         pending_amount: pendingAmount.toFixed(2),
         status: order.status as OrderStatus,
-        payment_status: order.payment_status as any,
+        payment_status: order.payment_status,
         notes: order.notes,
         is_overdue: isOverdue,
         days_overdue: daysOverdue,
         customer: {
           customer_id: order.customer_id,
-          name: (order as any).customer.name,
-          document_number: (order as any).customer.document_number,
-          phone: (order as any).customer.phone,
-          email: (order as any).customer.email,
-          address: (order as any).customer.address,
-          zone: (order as any).customer.zone
+          name: order.customer.name,
+          document_number: order.customer.document_number,
+          phone: order.customer.phone,
+          email: order.customer.email,
+          address: order.customer.address,
+          zone: order.customer.zone
             ? {
-                zone_id: (order as any).customer.zone.zone_id,
-                name: (order as any).customer.zone.name,
+                zone_id: order.customer.zone.zone_id,
+                name: order.customer.zone.name,
               }
             : null,
         },
-        subscription_info: (order as any).customer_subscription
+        subscription_info: order.customer_subscription
           ? {
-              subscription_id: (order as any).customer_subscription
-                .subscription_id,
+              subscription_id: order.customer_subscription.subscription_id,
               subscription_plan: {
-                subscription_plan_id: (order as any).customer_subscription
-                  .subscription_plan.subscription_plan_id,
-                name: (order as any).customer_subscription.subscription_plan
-                  .name,
-                price: (
-                  order as any
-                ).customer_subscription.subscription_plan.price.toString(),
-                billing_frequency: (order as any).customer_subscription
-                  .subscription_plan.billing_frequency,
+                subscription_plan_id:
+                  order.customer_subscription.subscription_plan
+                    .subscription_plan_id,
+                name: order.customer_subscription.subscription_plan.name,
+                price:
+                  order.customer_subscription.subscription_plan.price.toString(),
+                billing_frequency:
+                  order.customer_subscription.subscription_plan
+                    .billing_frequency,
               },
-              cycle_info: (order as any).customer_subscription
-                .subscription_cycle?.[0]
+              cycle_info: order.customer_subscription.subscription_cycle?.[0]
                 ? {
-                    cycle_id: (order as any).customer_subscription
-                      .subscription_cycle[0].cycle_id,
-                    cycle_number: (order as any).customer_subscription
-                      .subscription_cycle[0].cycle_number,
+                    cycle_id:
+                      order.customer_subscription.subscription_cycle[0]
+                        .cycle_id,
+                    cycle_number:
+                      order.customer_subscription.subscription_cycle[0]
+                        .cycle_number,
                     start_date: formatBATimestampISO(
-                      (order as any).customer_subscription.subscription_cycle[0]
+                      order.customer_subscription.subscription_cycle[0]
                         .start_date,
                     ),
                     end_date: formatBATimestampISO(
-                      (order as any).customer_subscription.subscription_cycle[0]
+                      order.customer_subscription.subscription_cycle[0]
                         .end_date,
                     ),
                     due_date: formatBATimestampISO(
-                      (order as any).customer_subscription.subscription_cycle[0]
+                      order.customer_subscription.subscription_cycle[0]
                         .payment_due_date,
                     ),
-                    pending_balance: (
-                      order as any
-                    ).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+                    pending_balance:
+                      order.customer_subscription.subscription_cycle[0].pending_balance.toString(),
                   }
                 : null,
             }
           : null,
         created_at: order.order_date
-          ? formatBATimestampISO(order.order_date as any)
+          ? formatBATimestampISO(order.order_date)
           : '',
         updated_at: order.order_date
-          ? formatBATimestampISO(order.order_date as any)
+          ? formatBATimestampISO(order.order_date)
           : '',
       };
 
@@ -1555,8 +1554,8 @@ export class AutomatedCollectionService
     }
 
     const today = new Date();
-    const dueDate = (order as any).customer_subscription
-      ?.subscription_cycle?.[0]?.payment_due_date;
+    const dueDate =
+      order.customer_subscription?.subscription_cycle?.[0]?.payment_due_date;
     const isOverdue = dueDate ? dueDate < today : false;
     const daysOverdue =
       isOverdue && dueDate
@@ -1570,78 +1569,75 @@ export class AutomatedCollectionService
       parseFloat(order.paid_amount.toString());
 
     const result: AutomatedCollectionResponseDto = {
-      order_id: (order as any).collection_order_id ?? (order as any).order_id,
+      order_id: order.collection_order_id ?? order.order_id,
       order_date: order.order_date
-        ? formatBATimestampISO(order.order_date as any)
+        ? formatBATimestampISO(order.order_date)
         : '',
       due_date: dueDate ? formatBATimestampISO(dueDate) : null,
       total_amount: order.total_amount.toString(),
       paid_amount: order.paid_amount.toString(),
       pending_amount: pendingAmount.toFixed(2),
       status: order.status as OrderStatus,
-      payment_status: order.payment_status as any,
+      payment_status: order.payment_status,
       notes: order.notes,
       is_overdue: isOverdue,
       days_overdue: daysOverdue,
       customer: {
         customer_id: order.customer_id,
-        name: (order as any).customer.name,
-        document_number: (order as any).customer.document_number,
-        phone: (order as any).customer.phone,
-        email: (order as any).customer.email,
-        address: (order as any).customer.address,
-        zone: (order as any).customer.zone
+        name: order.customer.name,
+        document_number: order.customer.document_number,
+        phone: order.customer.phone,
+        email: order.customer.email,
+        address: order.customer.address,
+        zone: order.customer.zone
           ? {
-              zone_id: (order as any).customer.zone.zone_id,
-              name: (order as any).customer.zone.name,
+              zone_id: order.customer.zone.zone_id,
+              name: order.customer.zone.name,
             }
           : null,
       },
-      subscription_info: (order as any).customer_subscription
+      subscription_info: order.customer_subscription
         ? {
-            subscription_id: (order as any).customer_subscription
-              .subscription_id,
+            subscription_id: order.customer_subscription.subscription_id,
             subscription_plan: {
-              subscription_plan_id: (order as any).customer_subscription
-                .subscription_plan.subscription_plan_id,
-              name: (order as any).customer_subscription.subscription_plan.name,
-              price: (
-                order as any
-              ).customer_subscription.subscription_plan.price.toString(),
-              billing_frequency: (order as any).customer_subscription
-                .subscription_plan.billing_frequency,
+              subscription_plan_id:
+                order.customer_subscription.subscription_plan
+                  .subscription_plan_id,
+              name: order.customer_subscription.subscription_plan.name,
+              price:
+                order.customer_subscription.subscription_plan.price.toString(),
+              billing_frequency:
+                order.customer_subscription.subscription_plan.billing_frequency,
             },
-            cycle_info: (order as any).customer_subscription
-              .subscription_cycle?.[0]
+            cycle_info: order.customer_subscription.subscription_cycle?.[0]
               ? {
-                  cycle_id: (order as any).customer_subscription
-                    .subscription_cycle[0].cycle_id,
-                  cycle_number: (order as any).customer_subscription
-                    .subscription_cycle[0].cycle_number,
+                  cycle_id:
+                    order.customer_subscription.subscription_cycle[0].cycle_id,
+                  cycle_number:
+                    order.customer_subscription.subscription_cycle[0]
+                      .cycle_number,
                   start_date: formatBATimestampISO(
-                    (order as any).customer_subscription.subscription_cycle[0]
+                    order.customer_subscription.subscription_cycle[0]
                       .start_date,
                   ),
                   end_date: formatBATimestampISO(
-                    (order as any).customer_subscription.subscription_cycle[0]
-                      .end_date,
+                    order.customer_subscription.subscription_cycle[0].end_date,
                   ),
                   due_date: formatBATimestampISO(
-                    (order as any).customer_subscription.subscription_cycle[0]
+                    order.customer_subscription.subscription_cycle[0]
                       .payment_due_date,
                   ),
-                  pending_balance: (
-                    order as any
-                  ).customer_subscription.subscription_cycle[0].pending_balance.toString(),
+                  pending_balance:
+                    order.customer_subscription.subscription_cycle[0].pending_balance.toString(),
                 }
               : null,
           }
         : null,
       created_at: order.order_date
-        ? formatBATimestampISO(order.order_date as any)
+        ? formatBATimestampISO(order.order_date)
         : '',
       updated_at: order.order_date
-        ? formatBATimestampISO(order.order_date as any)
+        ? formatBATimestampISO(order.order_date)
         : '',
     };
 
@@ -1700,7 +1696,7 @@ export class AutomatedCollectionService
       deletionInfo: {
         was_paid: hasPaidAmount,
         had_pending_amount: pendingAmount.toFixed(2),
-        customer_name: (order as any).customer.name,
+        customer_name: order.customer.name,
         deletion_type: 'logical',
       },
     };

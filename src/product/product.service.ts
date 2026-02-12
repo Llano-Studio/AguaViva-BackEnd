@@ -185,12 +185,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           );
           return new ProductResponseDto({
             ...product,
-            price: product.price as any,
-            volume_liters: product.volume_liters as any,
+            price: product.price,
+            volume_liters: product.volume_liters,
             total_stock: stock,
-            inventory: includeInventory
-              ? (product as any).inventory
-              : undefined,
+            inventory: includeInventory ? product.inventory : undefined,
             image_url: buildImageUrl(product.image_url, 'products'),
           });
         }),
@@ -254,12 +252,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     return new ProductResponseDto({
       ...productEntity,
-      price: productEntity.price as any,
-      volume_liters: productEntity.volume_liters as any,
+      price: productEntity.price,
+      volume_liters: productEntity.volume_liters,
       total_stock: stock,
-      inventory: includeInventory
-        ? (productEntity as any).inventory
-        : undefined,
+      inventory: includeInventory ? productEntity.inventory : undefined,
       image_url: buildImageUrl(productEntity.image_url, 'products'),
     });
   }
@@ -356,10 +352,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
         return new ProductResponseDto({
           ...product,
-          price: product.price as any,
-          volume_liters: product.volume_liters as any,
+          price: product.price,
+          volume_liters: product.volume_liters,
           total_stock: stock,
-          inventory: product.inventory as any,
+          inventory: product.inventory,
           image_url: buildImageUrl(product.image_url, 'products'),
         });
       });
@@ -459,10 +455,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
         return new ProductResponseDto({
           ...updatedProduct,
-          price: updatedProduct.price as any,
-          volume_liters: updatedProduct.volume_liters as any,
+          price: updatedProduct.price,
+          volume_liters: updatedProduct.volume_liters,
           total_stock: stock,
-          inventory: updatedProduct.inventory as any,
+          inventory: updatedProduct.inventory,
           image_url: buildImageUrl(updatedProduct.image_url, 'products'),
         });
       });
@@ -560,10 +556,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
       return new ProductResponseDto({
         ...updatedProduct,
-        price: updatedProduct.price as any,
-        volume_liters: updatedProduct.volume_liters as any,
+        price: updatedProduct.price,
+        volume_liters: updatedProduct.volume_liters,
         total_stock: stock,
-        inventory: updatedProduct.inventory as any,
+        inventory: updatedProduct.inventory,
         image_url: null,
       });
     } catch (error) {
