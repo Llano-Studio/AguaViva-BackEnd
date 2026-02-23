@@ -228,10 +228,10 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base de la cuota (del plan) y calcular recargo del 20%
-          const planPriceRaw =
-            cycle.customer_subscription?.subscription_plan?.price;
-          const currentTotalRaw = cycle.total_amount;
-          const paidAmountRaw = cycle.paid_amount;
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan
+            ?.price as any;
+          const currentTotalRaw = cycle.total_amount as any;
+          const paidAmountRaw = cycle.paid_amount as any;
 
           const planPrice = parseFloat(planPriceRaw?.toString() || '0');
           const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
@@ -347,10 +347,10 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base y calcular recargo del 20%
-          const planPriceRaw =
-            cycle.customer_subscription?.subscription_plan?.price;
-          const currentTotalRaw = cycle.total_amount;
-          const paidAmountRaw = cycle.paid_amount;
+          const planPriceRaw = cycle.customer_subscription?.subscription_plan
+            ?.price as any;
+          const currentTotalRaw = cycle.total_amount as any;
+          const paidAmountRaw = cycle.paid_amount as any;
 
           const planPrice = parseFloat(planPriceRaw?.toString() || '0');
           const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
