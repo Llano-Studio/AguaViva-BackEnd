@@ -190,9 +190,24 @@ export class RouteOptimizationService extends PrismaClient {
       estimated_duration: optimization.estimated_duration,
       estimated_distance: Number(optimization.estimated_distance),
       optimization_status: optimization.optimization_status,
-      waypoints: optimization.waypoints,
+      waypoints: this.parseWaypoints(optimization.waypoints),
       created_at: formatBATimestampISO(optimization.created_at),
     });
+  }
+
+  private parseWaypoints(value: unknown): WaypointDto[] {
+    if (Array.isArray(value)) {
+      return value as WaypointDto[];
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? (parsed as WaypointDto[]) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
   }
 
   /**

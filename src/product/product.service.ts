@@ -185,8 +185,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           );
           return new ProductResponseDto({
             ...product,
-            price: product.price,
-            volume_liters: product.volume_liters,
+            price: this.toNumber(product.price),
+            volume_liters: this.toNullableNumber(product.volume_liters),
             total_stock: stock,
             inventory: includeInventory ? product.inventory : undefined,
             image_url: buildImageUrl(product.image_url, 'products'),
@@ -252,8 +252,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     return new ProductResponseDto({
       ...productEntity,
-      price: productEntity.price,
-      volume_liters: productEntity.volume_liters,
+      price: this.toNumber(productEntity.price),
+      volume_liters: this.toNullableNumber(productEntity.volume_liters),
       total_stock: stock,
       inventory: includeInventory ? productEntity.inventory : undefined,
       image_url: buildImageUrl(productEntity.image_url, 'products'),
@@ -352,8 +352,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
         return new ProductResponseDto({
           ...product,
-          price: product.price,
-          volume_liters: product.volume_liters,
+          price: this.toNumber(product.price),
+          volume_liters: this.toNullableNumber(product.volume_liters),
           total_stock: stock,
           inventory: product.inventory,
           image_url: buildImageUrl(product.image_url, 'products'),
@@ -455,8 +455,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
         return new ProductResponseDto({
           ...updatedProduct,
-          price: updatedProduct.price,
-          volume_liters: updatedProduct.volume_liters,
+          price: this.toNumber(updatedProduct.price),
+          volume_liters: this.toNullableNumber(updatedProduct.volume_liters),
           total_stock: stock,
           inventory: updatedProduct.inventory,
           image_url: buildImageUrl(updatedProduct.image_url, 'products'),
@@ -556,8 +556,8 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
       return new ProductResponseDto({
         ...updatedProduct,
-        price: updatedProduct.price,
-        volume_liters: updatedProduct.volume_liters,
+        price: this.toNumber(updatedProduct.price),
+        volume_liters: this.toNullableNumber(updatedProduct.volume_liters),
         total_stock: stock,
         inventory: updatedProduct.inventory,
         image_url: null,
@@ -654,5 +654,16 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         tx,
       );
     }
+  }
+
+  private toNumber(value: unknown): number {
+    return Number(value);
+  }
+
+  private toNullableNumber(value: unknown): number | null | undefined {
+    if (value === null || value === undefined) {
+      return value as null | undefined;
+    }
+    return Number(value);
   }
 }

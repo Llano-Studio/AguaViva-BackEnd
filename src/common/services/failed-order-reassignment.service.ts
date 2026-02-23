@@ -186,6 +186,11 @@ export class FailedOrderReassignmentService
         route_notes:
           'Hoja de ruta creada automáticamente para reasignación de pedidos fallidos',
       },
+      include: {
+        driver: true,
+        vehicle: true,
+        route_sheet_detail: true,
+      },
     });
   }
 

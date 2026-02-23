@@ -1,10 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { OrderStatus } from '../../common/constants/enums';
+import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
-import { OrderCollectionEditService } from './order-collection-edit.service';
 import { FilterAutomatedCollectionsDto } from '../../orders/dto/filter-automated-collections.dto';
 import {
   AutomatedCollectionResponseDto,
@@ -1387,7 +1385,7 @@ export class AutomatedCollectionService
         parseFloat(order.paid_amount.toString());
 
       const result: AutomatedCollectionResponseDto = {
-        order_id: order.collection_order_id ?? order.order_id,
+        order_id: order.collection_order_id,
         order_date: order.order_date
           ? formatBATimestampISO(order.order_date)
           : '',
@@ -1396,16 +1394,16 @@ export class AutomatedCollectionService
         paid_amount: order.paid_amount.toString(),
         pending_amount: pendingAmount.toFixed(2),
         status: order.status as OrderStatus,
-        payment_status: order.payment_status,
+        payment_status: order.payment_status as PaymentStatus,
         notes: order.notes,
         is_overdue: isOverdue,
         days_overdue: daysOverdue,
         customer: {
           customer_id: order.customer_id,
           name: order.customer.name,
-          document_number: order.customer.document_number,
+          document_number: order.customer.tax_id || undefined,
           phone: order.customer.phone,
-          email: order.customer.email,
+          email: undefined,
           address: order.customer.address,
           zone: order.customer.zone
             ? {
@@ -1424,9 +1422,10 @@ export class AutomatedCollectionService
                 name: order.customer_subscription.subscription_plan.name,
                 price:
                   order.customer_subscription.subscription_plan.price.toString(),
-                billing_frequency:
+                billing_frequency: this.getBillingFrequency(
                   order.customer_subscription.subscription_plan
-                    .billing_frequency,
+                    .default_cycle_days,
+                ),
               },
               cycle_info: order.customer_subscription.subscription_cycle?.[0]
                 ? {
@@ -1438,11 +1437,11 @@ export class AutomatedCollectionService
                         .cycle_number,
                     start_date: formatBATimestampISO(
                       order.customer_subscription.subscription_cycle[0]
-                        .start_date,
+                        .cycle_start,
                     ),
                     end_date: formatBATimestampISO(
                       order.customer_subscription.subscription_cycle[0]
-                        .end_date,
+                        .cycle_end,
                     ),
                     due_date: formatBATimestampISO(
                       order.customer_subscription.subscription_cycle[0]
@@ -1569,7 +1568,7 @@ export class AutomatedCollectionService
       parseFloat(order.paid_amount.toString());
 
     const result: AutomatedCollectionResponseDto = {
-      order_id: order.collection_order_id ?? order.order_id,
+      order_id: order.collection_order_id,
       order_date: order.order_date
         ? formatBATimestampISO(order.order_date)
         : '',
@@ -1578,16 +1577,16 @@ export class AutomatedCollectionService
       paid_amount: order.paid_amount.toString(),
       pending_amount: pendingAmount.toFixed(2),
       status: order.status as OrderStatus,
-      payment_status: order.payment_status,
+      payment_status: order.payment_status as PaymentStatus,
       notes: order.notes,
       is_overdue: isOverdue,
       days_overdue: daysOverdue,
       customer: {
         customer_id: order.customer_id,
         name: order.customer.name,
-        document_number: order.customer.document_number,
+        document_number: order.customer.tax_id || undefined,
         phone: order.customer.phone,
-        email: order.customer.email,
+        email: undefined,
         address: order.customer.address,
         zone: order.customer.zone
           ? {
@@ -1606,8 +1605,10 @@ export class AutomatedCollectionService
               name: order.customer_subscription.subscription_plan.name,
               price:
                 order.customer_subscription.subscription_plan.price.toString(),
-              billing_frequency:
-                order.customer_subscription.subscription_plan.billing_frequency,
+              billing_frequency: this.getBillingFrequency(
+                order.customer_subscription.subscription_plan
+                  .default_cycle_days,
+              ),
             },
             cycle_info: order.customer_subscription.subscription_cycle?.[0]
               ? {
@@ -1618,10 +1619,10 @@ export class AutomatedCollectionService
                       .cycle_number,
                   start_date: formatBATimestampISO(
                     order.customer_subscription.subscription_cycle[0]
-                      .start_date,
+                      .cycle_start,
                   ),
                   end_date: formatBATimestampISO(
-                    order.customer_subscription.subscription_cycle[0].end_date,
+                    order.customer_subscription.subscription_cycle[0].cycle_end,
                   ),
                   due_date: formatBATimestampISO(
                     order.customer_subscription.subscription_cycle[0]
@@ -1700,6 +1701,22 @@ export class AutomatedCollectionService
         deletion_type: 'logical',
       },
     };
+  }
+
+  private getBillingFrequency(defaultCycleDays?: number | null): string {
+    if (!defaultCycleDays || defaultCycleDays <= 0) {
+      return 'MONTHLY';
+    }
+    if (defaultCycleDays === 30) {
+      return 'MONTHLY';
+    }
+    if (defaultCycleDays === 15) {
+      return 'BIWEEKLY';
+    }
+    if (defaultCycleDays === 7) {
+      return 'WEEKLY';
+    }
+    return `DAYS_${defaultCycleDays}`;
   }
 
   /**
