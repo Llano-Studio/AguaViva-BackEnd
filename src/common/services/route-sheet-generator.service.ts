@@ -376,7 +376,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
     const whereClause: Prisma.collection_ordersWhereInput = {
-      order_type: 'ONE_OFF',
+      order_type: 'COLLECTION',
       is_active: true,
       AND: [
         {

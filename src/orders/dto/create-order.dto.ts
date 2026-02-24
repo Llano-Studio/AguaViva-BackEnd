@@ -249,7 +249,8 @@ El sistema valida que el total coincida exactamente con la suma calculada según
 - **SUBSCRIPTION**: Solo productos incluidos en el plan de suscripción
 - **HYBRID**: Productos del plan + productos adicionales con listas individuales
 - **CONTRACT_DELIVERY**: Entrega según contrato con precios del contrato
-- **ONE_OFF**: Compra única con listas de precios personalizables`,
+- **ONE_OFF**: Compra única con listas de precios personalizables
+- **COLLECTION**: Pedido de cobranza sin productos`,
     enum: OrderType,
     example: OrderType.HYBRID,
   })

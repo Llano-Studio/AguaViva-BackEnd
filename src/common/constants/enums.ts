@@ -10,6 +10,7 @@ export enum OrderType {
   ONE_OFF = 'ONE_OFF',
   CONTRACT_DELIVERY = 'CONTRACT_DELIVERY',
   HYBRID = 'HYBRID',
+  COLLECTION = 'COLLECTION',
 }
 
 export enum OrderStatus {

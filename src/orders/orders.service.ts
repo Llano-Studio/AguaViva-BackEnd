@@ -709,7 +709,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         let finalPaidAmount: Decimal;
         if (
           createOrderDto.order_type === 'HYBRID' ||
-          createOrderDto.order_type === 'ONE_OFF'
+          createOrderDto.order_type === 'ONE_OFF' ||
+          createOrderDto.order_type === 'COLLECTION'
         ) {
           finalPaidAmount = new Decimal('0');
         } else {
@@ -729,17 +730,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               'Las órdenes de suscripción deben tener total_amount = 0 porque ya están pagadas en el plan.',
             );
           }
-        } else if (createOrderDto.order_type === 'HYBRID' && subscription_id) {
-          // 🆕 CORRECCIÓN: Para órdenes HYBRID con suscripción (incluyendo cobranzas)
-          // Si no hay items (órdenes de cobranza), usar el total_amount del DTO
+        } else if (
+          (createOrderDto.order_type === 'HYBRID' && subscription_id) ||
+          createOrderDto.order_type === 'COLLECTION'
+        ) {
           if (items.length === 0 && dtoTotalAmountStr) {
-            // Para órdenes de cobranza sin items, usar el total_amount enviado
             calculatedTotalFromDB = new Decimal(dtoTotalAmountStr);
           } else if (
             dtoTotalAmountStr &&
             !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)
           ) {
-            // No lanzar error, usar el total calculado
           }
         } else {
           // Para otros tipos de orden, validar que el total coincida
@@ -2189,7 +2189,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           notes: {
             contains: `Ciclo: ${cycleId}`,
           },
-          order_type: 'ONE_OFF',
+          order_type: AppOrderType.COLLECTION,
           status: {
             in: [
               'PENDING',
@@ -2226,7 +2226,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         delivery_time: '09:00-18:00',
         total_amount: pendingBalance.toString(), // 🆕 CORRECCIÓN: Usar el monto pendiente de la cuota
         paid_amount: '0.00',
-        order_type: 'ONE_OFF' as any,
+        order_type: AppOrderType.COLLECTION,
         status: 'PENDING' as any,
         notes: [
           'ORDEN DE COBRANZA AUTOMÁTICA GENERADA',

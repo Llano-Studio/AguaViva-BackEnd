@@ -507,7 +507,7 @@ export class ManualCollectionService extends PrismaClient {
 
       try {
         // Intentar crear pedido usando el servicio estándar
-        // CORRECCIÓN: Usar HYBRID para órdenes de cobranza y fechas correctas
+        // CORRECCIÓN: Usar COLLECTION para órdenes de cobranza y fechas correctas
         const createOrderDto: CreateOrderDto = {
           customer_id: customer_id,
           subscription_id: cycles[0].subscription_id, // Usar la primera suscripción
@@ -517,7 +517,7 @@ export class ManualCollectionService extends PrismaClient {
           delivery_time: '09:00-18:00',
           total_amount: totalAmount.toString(), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas
           paid_amount: '0.00',
-          order_type: OrderType.HYBRID, // CORRECCIÓN: Usar HYBRID para órdenes de cobranza
+          order_type: OrderType.COLLECTION,
           status: OrderStatus.PENDING,
           notes: orderNotes,
           items: [], // Sin productos, solo cobranza
@@ -545,7 +545,7 @@ export class ManualCollectionService extends PrismaClient {
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(totalAmount), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas
             paid_amount: new Prisma.Decimal(0),
-            order_type: 'HYBRID',
+            order_type: OrderType.COLLECTION,
             status: 'PENDING',
             notes: orderNotes,
           },

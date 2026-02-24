@@ -743,7 +743,7 @@ export class AutomatedCollectionService
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(cycle.pending_balance),
             paid_amount: new Prisma.Decimal(0),
-            order_type: 'ONE_OFF', // Tipo de pedido para cobranzas
+            order_type: 'COLLECTION',
             status: 'PENDING',
             payment_status: 'PENDING',
             notes: notes,
@@ -1149,7 +1149,7 @@ export class AutomatedCollectionService
 
     // Construir filtros dinámicos
     const whereClause: any = {
-      order_type: 'ONE_OFF',
+      order_type: 'COLLECTION',
       notes: {
         contains: 'COBRANZA AUTOMÁTICA',
       },
@@ -1523,7 +1523,7 @@ export class AutomatedCollectionService
     const order = await this.collection_orders.findFirst({
       where: {
         collection_order_id: orderId,
-        order_type: 'ONE_OFF',
+        order_type: 'COLLECTION',
         notes: {
           contains: 'COBRANZA AUTOMÁTICA',
         },
@@ -1657,7 +1657,7 @@ export class AutomatedCollectionService
     const order = await this.collection_orders.findFirst({
       where: {
         collection_order_id: orderId,
-        order_type: 'ONE_OFF',
+        order_type: 'COLLECTION',
         notes: {
           contains: 'COBRANZA AUTOMÁTICA',
         },
