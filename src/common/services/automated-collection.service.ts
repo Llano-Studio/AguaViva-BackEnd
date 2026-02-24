@@ -1041,6 +1041,9 @@ export class AutomatedCollectionService
   ): Promise<void> {
     const person = cycle.customer_subscription.person;
     const subscription = cycle.customer_subscription;
+    const cycleAmount = new Prisma.Decimal(cycle.pending_balance || 0).toFixed(
+      2,
+    );
 
     // Crear un pedido híbrido básico sin productos adicionales
     const createOrderDto: CreateOrderDto = {
@@ -1050,7 +1053,7 @@ export class AutomatedCollectionService
       order_date: formatBATimestampISO(targetDate),
       scheduled_delivery_date: formatBATimestampISO(targetDate),
       delivery_time: '09:00-18:00',
-      total_amount: '0.00', // Pedido híbrido sin productos adicionales
+      total_amount: cycleAmount,
       paid_amount: '0.00',
       order_type: 'HYBRID' as any,
       status: 'PENDING' as any,
