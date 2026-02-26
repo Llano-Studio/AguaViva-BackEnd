@@ -1,6 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
-import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
+import {
+  OrderStatus,
+  OrderType,
+  PaymentStatus,
+} from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
 import { FilterAutomatedCollectionsDto } from '../../orders/dto/filter-automated-collections.dto';
@@ -1031,7 +1035,7 @@ export class AutomatedCollectionService
   }
 
   /**
-   * Crea un pedido híbrido para una cobranza manual
+   * Crea un pedido de cobranza para una cobranza manual
    * @param cycle - Ciclo de suscripción
    * @param targetDate - Fecha objetivo
    */
@@ -1045,7 +1049,6 @@ export class AutomatedCollectionService
       2,
     );
 
-    // Crear un pedido híbrido básico sin productos adicionales
     const createOrderDto: CreateOrderDto = {
       customer_id: person.person_id,
       subscription_id: subscription.subscription_id,
@@ -1055,9 +1058,9 @@ export class AutomatedCollectionService
       delivery_time: '09:00-18:00',
       total_amount: cycleAmount,
       paid_amount: '0.00',
-      order_type: 'HYBRID' as any,
+      order_type: OrderType.COLLECTION,
       status: 'PENDING' as any,
-      notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
+      notes: `PEDIDO DE COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
       items: [], // Solo productos de la suscripción, sin adicionales
     };
 

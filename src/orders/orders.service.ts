@@ -330,7 +330,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         );
     }
 
-    if (createOrderDto.scheduled_delivery_date) {
+    if (
+      createOrderDto.order_type !== 'COLLECTION' &&
+      createOrderDto.scheduled_delivery_date
+    ) {
       const rawOrderDate = createOrderDto.order_date as any;
       const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
       const orderDate =
@@ -401,7 +404,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     // Validar horario usando el servicio de schedule
-    if (createOrderDto.scheduled_delivery_date) {
+    if (
+      createOrderDto.order_type !== 'COLLECTION' &&
+      createOrderDto.scheduled_delivery_date
+    ) {
       const rawOrderDate = createOrderDto.order_date as any;
       const rawDeliveryDate = createOrderDto.scheduled_delivery_date as any;
       const orderDate =

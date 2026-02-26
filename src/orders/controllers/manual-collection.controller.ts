@@ -404,7 +404,7 @@ export class ManualCollectionController {
             continue;
           }
 
-          // Generar la orden de cobranza manual con pedido híbrido
+          // Generar la orden de cobranza manual con pedido de cobranza
           const result =
             await this.automatedCollectionService.generateManualCollectionOrder(
               cycleId,
@@ -458,7 +458,7 @@ export class ManualCollectionController {
         action: 'created',
         total_amount: totalAmount,
         cycles_processed: cyclesProcessed,
-        message: `${cyclesProcessed} orden(es) de cobranza manual generada(s) exitosamente con pedidos híbridos`,
+        message: `${cyclesProcessed} orden(es) de cobranza manual generada(s) exitosamente`,
       };
 
       this.logger.log(
