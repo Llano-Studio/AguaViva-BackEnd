@@ -227,7 +227,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       order.payment_transaction?.map((payment) => ({
         payment_id: payment.transaction_id,
         amount: payment.transaction_amount.toString(),
-        payment_date: formatBATimestampISO(payment.transaction_date as any),
+        payment_date: formatBATimestampISO(payment.transaction_date),
         payment_method:
           payment.payment_method?.description || 'No especificado',
         transaction_reference: payment.receipt_number || undefined,
@@ -2234,7 +2234,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           `Ciclo: ${cycleId}`,
           `Monto a cobrar: $${pendingBalance.toString()}`,
           cycle.payment_due_date
-            ? `Vencimiento: ${formatBATimestampISO(cycle.payment_due_date as any).slice(0, 10)}`
+            ? `Vencimiento: ${formatBATimestampISO(cycle.payment_due_date).slice(0, 10)}`
             : '',
           notes ? `Notas adicionales: ${notes}` : '',
         ]
@@ -2488,7 +2488,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
             transaction_date: formatBATimestampISO(
-              currentTransaction.transaction_date as any,
+              currentTransaction.transaction_date,
             ),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,
@@ -2576,7 +2576,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             transaction_id: updatedTransaction.transaction_id,
             amount: updatedTransaction.transaction_amount.toString(),
             payment_date: formatBATimestampISO(
-              updatedTransaction.transaction_date as any,
+              updatedTransaction.transaction_date,
             ),
             reference: updatedTransaction.receipt_number,
             notes: updatedTransaction.notes,
@@ -2640,7 +2640,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               currentTransaction.transaction_amount.toString(),
             payment_method_id: currentTransaction.payment_method_id,
             transaction_date: formatBATimestampISO(
-              currentTransaction.transaction_date as any,
+              currentTransaction.transaction_date,
             ),
             receipt_number: currentTransaction.receipt_number,
             notes: currentTransaction.notes,

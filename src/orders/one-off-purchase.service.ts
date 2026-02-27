@@ -879,12 +879,14 @@ export class OneOffPurchaseService
             true, // isLegacyStructure = true
           );
 
-          // Agregar pagos a las compras
-          group.forEach((purchase) => {
-            purchase.payment_transaction = payments;
-          });
+          const purchasesWithPayments = group.map((purchase) => ({
+            ...purchase,
+            payment_transaction: payments,
+          }));
 
-          return this.mapToConsolidatedOneOffPurchaseResponseDto(group);
+          return this.mapToConsolidatedOneOffPurchaseResponseDto(
+            purchasesWithPayments,
+          );
         }),
       );
 
@@ -991,13 +993,13 @@ export class OneOffPurchaseService
           true, // isLegacyStructure = true
         );
 
-        // Agregar pagos a las compras
-        relatedPurchases.forEach((purchase) => {
-          (purchase as any).payment_transaction = payments;
-        });
+        const purchasesWithPayments = relatedPurchases.map((purchase) => ({
+          ...purchase,
+          payment_transaction: payments,
+        }));
 
         return this.mapToConsolidatedOneOffPurchaseResponseDto(
-          relatedPurchases,
+          purchasesWithPayments,
         );
       }
 
@@ -2333,10 +2335,14 @@ export class OneOffPurchaseService
             false, // isLegacyStructure = false
           );
 
-          // Agregar pagos al header
-          (header as any).payment_transaction = payments;
+          const headerWithPayments = {
+            ...header,
+            payment_transaction: payments,
+          };
 
-          return this.mapToHeaderItemsOneOffPurchaseResponseDto(header);
+          return this.mapToHeaderItemsOneOffPurchaseResponseDto(
+            headerWithPayments,
+          );
         }),
       );
 

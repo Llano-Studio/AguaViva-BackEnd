@@ -161,6 +161,13 @@ export class OrderDto {
   all_due_dates?: string[];
 
   @ApiProperty({
+    description: 'Días de recolección de abonos del cliente',
+    example: [4, 10, 18],
+    required: false,
+  })
+  collection_days?: number[];
+
+  @ApiProperty({
     description: 'Cliente',
     type: CustomerDto,
   })

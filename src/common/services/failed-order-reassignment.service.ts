@@ -119,10 +119,10 @@ export class FailedOrderReassignmentService
 
       // Si no existe una hoja de ruta para esa fecha, crear una nueva
       if (!targetRouteSheet) {
-        targetRouteSheet = (await this.createNewRouteSheet(
+        targetRouteSheet = await this.createNewRouteSheet(
           newDeliveryDate,
           failedDelivery,
-        )) as any;
+        );
       }
 
       // Reasignar el pedido a la nueva hoja de ruta
@@ -150,7 +150,7 @@ export class FailedOrderReassignmentService
    */
   private async createNewRouteSheet(deliveryDate: Date, failedDelivery: any) {
     // Buscar un conductor y vehículo disponible
-    const availableDriver = (await this.user.findFirst({
+    const availableDriver = await this.user.findFirst({
       where: {
         role: 'DRIVERS',
         isActive: true,
@@ -168,7 +168,7 @@ export class FailedOrderReassignmentService
           },
         },
       },
-    })) as any;
+    });
 
     if (!availableDriver || !availableDriver.user_vehicle[0]) {
       throw new Error(
@@ -185,6 +185,11 @@ export class FailedOrderReassignmentService
         vehicle_id: vehicle.vehicle_id,
         route_notes:
           'Hoja de ruta creada automáticamente para reasignación de pedidos fallidos',
+      },
+      include: {
+        driver: true,
+        vehicle: true,
+        route_sheet_detail: true,
       },
     });
   }

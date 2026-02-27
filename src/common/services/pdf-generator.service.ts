@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
-import { formatBAYMD, formatBAHMS } from '../utils/date.utils';
+import { formatBAYMD, formatBAHMS, nowBAYMD } from '../utils/date.utils';
 import {
   GeneratePdfCollectionsDto,
   PdfGenerationResponseDto,
@@ -69,6 +69,7 @@ export interface RouteSheetPdfData {
       subscription_id: number;
       subscription_due_date: string;
       all_due_dates: string[];
+      collection_days?: number[];
       customer: {
         person_id: number;
         name: string;
@@ -194,6 +195,7 @@ export class PdfGeneratorService {
   };
 
   constructor(private readonly tempFileManager: TempFileManagerService) {}
+  private readonly logger = new Logger(PdfGeneratorService.name);
   private readonly baTimeZone = 'America/Argentina/Buenos_Aires';
   private readonly baLocale = 'es-AR';
   // Nombres de fuente usados en el documento (se ajustan según disponibilidad)
@@ -208,9 +210,11 @@ export class PdfGeneratorService {
     collectionsData: AutomatedCollectionListResponseDto,
   ): Promise<PdfGenerationResponseDto> {
     try {
+      const startedAt = Date.now();
       const fileName =
         this.tempFileManager.generateUniqueFileName('collections-report');
       const filePath = this.tempFileManager.getTempFilePath(fileName);
+      this.logger.log(`Generando PDF de cobranzas automáticas: ${fileName}`);
 
       const doc = new PDFDocument({ margin: 25 });
       const stream = fs.createWriteStream(filePath);
@@ -224,6 +228,9 @@ export class PdfGeneratorService {
       });
 
       const fileInfo = this.tempFileManager.createTempFileInfo(fileName, 60);
+      this.logger.log(
+        `PDF de cobranzas automáticas generado: ${fileInfo.fileName} (${Date.now() - startedAt} ms)`,
+      );
 
       return {
         success: true,
@@ -314,6 +321,7 @@ export class PdfGeneratorService {
     data: RouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
+    const startedAt = Date.now();
     const datePart = data.delivery_date || formatBAYMD(new Date());
     const timeRaw = formatBAHMS(new Date());
     const timePart = `${timeRaw.slice(0, 2)}-${timeRaw.slice(2, 4)}-${timeRaw.slice(4, 6)}`;
@@ -337,6 +345,7 @@ export class PdfGeneratorService {
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
     await fs.ensureDir(pdfDir);
     const pdfPath = join(pdfDir, filename);
+    this.logger.log(`Generando PDF hoja de ruta: ${filename}`);
 
     const doc = new PDFDocument({
       margin: 25,
@@ -348,6 +357,9 @@ export class PdfGeneratorService {
     doc.pipe(writeStream);
 
     await this.generateRouteSheetContent(doc, data, options);
+    this.logger.log(
+      `PDF hoja de ruta generado: ${filename} (${Date.now() - startedAt} ms)`,
+    );
 
     return { doc, filename, pdfPath };
   }
@@ -434,14 +446,22 @@ export class PdfGeneratorService {
     const boldPath = join(fontsPath, 'Poppins-Bold.ttf');
     try {
       if (fs.existsSync(regularPath)) {
-        try { doc.registerFont('Poppins', regularPath); } catch (e) { /* ignore */ }
+        try {
+          doc.registerFont('Poppins', regularPath);
+        } catch (e) {
+          /* ignore */
+        }
         this.fontRegularName = 'Poppins';
       } else {
         this.fontRegularName = 'Helvetica';
       }
 
       if (fs.existsSync(boldPath)) {
-        try { doc.registerFont('Poppins-Bold', boldPath); } catch (e) { /* ignore */ }
+        try {
+          doc.registerFont('Poppins-Bold', boldPath);
+        } catch (e) {
+          /* ignore */
+        }
         this.fontBoldName = 'Poppins-Bold';
       } else {
         this.fontBoldName = 'Helvetica-Bold';
@@ -473,14 +493,20 @@ export class PdfGeneratorService {
     );
 
     // Fecha de entrega (más a la derecha, misma línea)
-    doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(12)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY + 4);
 
     // Zonas cubiertas
     if (routeSheet.zones_covered && routeSheet.zones_covered.length > 0) {
       const zonesNames = routeSheet.zones_covered.map((z) => z.name).join(', ');
-      doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(12)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       doc.text(`Zonas: ${zonesNames}`, 25, currentY + 15);
       return currentY + 35;
     }
@@ -512,7 +538,10 @@ export class PdfGeneratorService {
     doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
     doc.text('CONDUCTOR', startX + 20, currentY + 3);
 
-    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(10)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
     doc.text(`Nombre: ${routeSheet.driver.name}`, startX + 20, currentY + 17);
 
     // Información del vehículo
@@ -525,7 +554,10 @@ export class PdfGeneratorService {
     doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
     doc.text('VEHÍCULO', vehicleX + 20, currentY + 3);
 
-    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(10)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
     doc.text(
       `Nombre: ${routeSheet.vehicle.name}`,
       vehicleX + 20,
@@ -558,10 +590,16 @@ export class PdfGeneratorService {
         .fill(this.colors.warningColor)
         .stroke(this.colors.borderColor);
 
-      doc.fontSize(10).font(this.fontBoldName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(10)
+        .font(this.fontBoldName)
+        .fillColor(this.colors.textPrimary);
       doc.text('INSTRUCCIONES ESPECIALES', startX + 20, currentY + 3);
 
-      doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(10)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       doc.text(routeSheet.route_notes, startX + 20, currentY + 15, {
         width: textWidth,
       });
@@ -596,30 +634,10 @@ export class PdfGeneratorService {
     const baseColWidths = [30, 15, 105, 170, 70, 70, 80];
     let pageCount = 1;
 
-    // Helper: obtener los días (DD) de vencimiento de todas las suscripciones (sin deduplicar)
-    const getAllDueDays = (detail: any): string[] => {
-      const extractDay = (dateStr: string) => {
-        const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
-        return match ? match[1] : null;
-      };
-      if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-        const validDates = (detail.order.all_due_dates as string[])
-          .map((d) => (typeof d === 'string' ? d.trim() : ''))
-          .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-        if (validDates.length > 0) {
-          const days = validDates
-            .map((d) => extractDay(d))
-            .filter((d): d is string => d !== null);
-          if (days.length > 0) return days;
-        }
-      } else if (detail.order.subscription_due_date) {
-        const day = extractDay(detail.order.subscription_due_date);
-        if (day) return [day];
-      }
-      return ['-'];
-    };
-
     const headerColWidths = [...baseColWidths];
+    const todayDisplay = this.formatDateForDisplay(new Date());
+    const deliveryDisplay = this.formatDateForDisplay(routeSheet.delivery_date);
+    const deliveryDay = Number(deliveryDisplay.slice(0, 2));
 
     // Función helper para agregar footer con información completa de la hoja de ruta
     const addFooter = (currentPageNum: number, isLastPage: boolean = false) => {
@@ -635,15 +653,24 @@ export class PdfGeneratorService {
       doc.rect(25, footerY - 10, 545, 1).fill(this.colors.borderColor);
 
       // Número de hoja de ruta y fecha en la misma línea
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textAccent);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textAccent);
       doc.text(`#${routeSheet.route_sheet_id}`, 25, footerY);
 
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
       doc.text(`Fecha: ${displayDate}`, 200, footerY + 2);
 
       // Vehículo en el centro
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       doc.text(
         `Vehículo: ${routeSheet.vehicle?.name || 'N/D'}`,
         350,
@@ -651,7 +678,10 @@ export class PdfGeneratorService {
       );
 
       // Paginación en el lado derecho de la misma línea
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.secondary);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.secondary);
       doc.text(`Página ${currentPageNum}/${totalPages}`, 470, footerY + 3, {
         width: 100,
         align: 'right',
@@ -662,7 +692,10 @@ export class PdfGeneratorService {
         const zonesNames = routeSheet.zones_covered
           .map((z) => z.name)
           .join(', ');
-        doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+        doc
+          .fontSize(10)
+          .font(this.fontRegularName)
+          .fillColor(this.colors.textPrimary);
         doc.text(`Zonas: ${zonesNames}`, 25, footerY + 15);
       }
 
@@ -712,7 +745,10 @@ export class PdfGeneratorService {
         doc
           .rect(startX, currentY, tableWidth, rowHeight)
           .fill(this.colors.primary);
-        doc.fillColor(this.colors.textWhite).fontSize(10).font(this.fontBoldName);
+        doc
+          .fillColor(this.colors.textWhite)
+          .fontSize(10)
+          .font(this.fontBoldName);
 
         const pageColWidths = [...baseColWidths];
 
@@ -737,6 +773,7 @@ export class PdfGeneratorService {
         startX,
         baseColWidths,
         rowHeight,
+        deliveryDay,
       );
 
       if (includeProductDetails && detail.order.items.length > 0) {
@@ -772,6 +809,7 @@ export class PdfGeneratorService {
     startX: number,
     colWidths: number[],
     rowHeight: number,
+    deliveryDay: number | null,
   ): number {
     const isEven = index % 2 === 0;
     const rowBgColor = isEven ? this.colors.bgWhite : this.colors.bgPrimary;
@@ -782,36 +820,17 @@ export class PdfGeneratorService {
         ? `${detail.order.customer.address} - ${detail.order.customer.locality?.name}`
         : detail.order.customer.address || 'Sin dirección';
 
-    // --- LÓGICA PARA LA COLUMNA V (Vencimientos) ---
-    // Extraer todos los días únicos de vencimiento de todas las suscripciones
-    let dueDays: string[] = [];
-    const today = new Date();
-    const currentDay = today.getDate().toString().padStart(2, '0');
-    const extractDay = (dateStr: string) => {
-      const match = dateStr.match(/\d{4}-\d{2}-(\d{2})/);
-      return match ? match[1] : null;
-    };
-    if (detail.order.all_due_dates && detail.order.all_due_dates.length > 0) {
-      const validDates = (detail.order.all_due_dates as string[])
-        .map((d) => (typeof d === 'string' ? d.trim() : ''))
-        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-      if (validDates.length > 0) {
-        const days = validDates
-          .map((d) => extractDay(d))
-          .filter((d): d is string => d !== null);
-        if (days.length > 0) {
-          dueDays = days;
-        }
-      }
-    } else if (detail.order.subscription_due_date) {
-      const day = extractDay(detail.order.subscription_due_date);
-      if (day) {
-        dueDays = [day];
-      }
+    let dueDays: number[] = [];
+    const collectionDays = Array.isArray(detail.order.collection_days)
+      ? detail.order.collection_days
+      : [];
+    const normalizedDays = collectionDays
+      .map((day) => (typeof day === 'number' ? day : Number(day)))
+      .filter((day) => Number.isFinite(day) && day > 0);
+    if (normalizedDays.length > 0) {
+      dueDays = normalizedDays;
     }
-    if (dueDays.length === 0) {
-      dueDays = ['-'];
-    }
+    if (dueDays.length === 0) dueDays = [0];
     const vColBaseWidth = 15;
     const vColWidth = vColBaseWidth * dueDays.length;
     // Compensar el ancho extra de la columna V tomándolo de la columna Cliente
@@ -850,7 +869,7 @@ export class PdfGeneratorService {
           // Renderizar cada día como una caja de 15px de ancho
           let boxX = x;
           dueDays.forEach((day) => {
-            const isToday = day === currentDay;
+            const isToday = deliveryDay !== null && day == deliveryDay;
             // Fondo
             if (isToday) {
               doc
@@ -864,7 +883,7 @@ export class PdfGeneratorService {
               .fillColor(
                 isToday ? this.colors.textWhite : this.colors.textAccent,
               )
-              .text(day, boxX + 2, y + 3, {
+              .text(day === 0 ? '-' : day.toString(), boxX + 2, y + 3, {
                 width: vColBaseWidth - 4,
                 align: 'center',
               });
@@ -890,7 +909,12 @@ export class PdfGeneratorService {
             });
         },
       },
-      { text: addressText, fontSize: 9, font: this.fontRegularName, align: 'left' },
+      {
+        text: addressText,
+        fontSize: 9,
+        font: this.fontRegularName,
+        align: 'left',
+      },
       {
         text: detail.order.customer.phone,
         fontSize: 9,
@@ -1053,7 +1077,10 @@ export class PdfGeneratorService {
     // Renderizar PEDIDOS y calcular altura dinámica
     doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
     doc.text('PEDIDOS:', startX, textY);
-    doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
+    doc
+      .fontSize(9)
+      .fillColor(this.colors.textPrimary)
+      .font(this.fontRegularName);
     const productTextHeight = doc.heightOfString(productText, {
       width: tableWidth - 62,
     });
@@ -1097,23 +1124,41 @@ export class PdfGeneratorService {
 
       // Renderizar los elementos en la misma línea
       if (aliasText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontBoldName);
         doc.text('EMPRESA:', col1X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontRegularName);
         doc.text(aliasText, col1X + 50, textY, { width: colWidth - 65 });
       }
       if (specialInstructionsText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontBoldName);
         doc.text('NOTAS CLIENTE:', col2X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontRegularName);
         doc.text(specialInstructionsText, col2X + 78, textY, {
           width: colWidth - 45,
         });
       }
       if (commentsText) {
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontBoldName);
         doc.text('COMENTARIOS:', col3X, textY);
-        doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
+        doc
+          .fontSize(9)
+          .fillColor(this.colors.textPrimary)
+          .font(this.fontRegularName);
         doc.text(commentsText, col3X + 73, textY, { width: colWidth - 47 });
       }
 
@@ -1122,9 +1167,15 @@ export class PdfGeneratorService {
     }
 
     if (creditsText) {
-      doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontBoldName);
+      doc
+        .fontSize(9)
+        .fillColor(this.colors.textPrimary)
+        .font(this.fontBoldName);
       doc.text('EXTRAS DISPONIBLES:', startX, textY);
-      doc.fontSize(9).fillColor(this.colors.textPrimary).font(this.fontRegularName);
+      doc
+        .fontSize(9)
+        .fillColor(this.colors.textPrimary)
+        .font(this.fontRegularName);
       const creditsTextHeight = doc.heightOfString(creditsText, {
         width: tableWidth - 117,
       });
@@ -1169,7 +1220,10 @@ export class PdfGeneratorService {
     doc.fillColor(this.colors.textPrimary).fontSize(12).font(this.fontBoldName);
     doc.text('CONDUCTOR', 45, currentY + 10);
 
-    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(10)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
     doc.text('Nombre: _________________________', 45, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', 45, currentY + 50);
     doc.text('Hora: _____ : _____', 45, currentY + 65);
@@ -1187,7 +1241,10 @@ export class PdfGeneratorService {
     doc.fillColor(this.colors.textPrimary).fontSize(12).font(this.fontBoldName);
     doc.text('SUPERVISOR', supervisorX + 20, currentY + 10);
 
-    doc.fontSize(10).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(10)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
     doc.text('Nombre: _____________________', supervisorX + 20, currentY + 30);
     doc.text('Fecha: _____ / _____ / _____', supervisorX + 20, currentY + 50);
     doc.text('Hora: _____ : _____', supervisorX + 20, currentY + 65);
@@ -1213,14 +1270,19 @@ export class PdfGeneratorService {
     data: CollectionRouteSheetPdfData,
     options: PdfGenerationOptions = {},
   ): Promise<{ doc: PDFKit.PDFDocument; filename: string; pdfPath: string }> {
+    const startedAt = Date.now();
     const filename = this.buildCollectionRouteSheetFilename(data);
     const pdfPath = join(process.cwd(), 'public', 'pdfs', filename);
 
     // Asegurar que el directorio existe
     await fs.ensureDir(dirname(pdfPath));
+    this.logger.log(`Generando PDF hoja de ruta cobranzas: ${filename}`);
 
     const doc = new PDFDocument({ margin: 25 });
     await this.generateCollectionRouteSheetContent(doc, data, options);
+    this.logger.log(
+      `PDF hoja de ruta cobranzas generado: ${filename} (${Date.now() - startedAt} ms)`,
+    );
 
     return { doc, filename, pdfPath };
   }
@@ -1407,7 +1469,10 @@ export class PdfGeneratorService {
       .text('HOJA DE RUTA - COBRANZAS', 25, currentY, { align: 'left' });
 
     // Información básica - solo fecha
-    doc.fontSize(12).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+    doc
+      .fontSize(12)
+      .font(this.fontRegularName)
+      .fillColor(this.colors.textPrimary);
 
     const displayDate = this.formatDateForDisplay(routeSheet.delivery_date);
     doc.text(`Fecha: ${displayDate}`, 440, currentY);
@@ -1852,9 +1917,15 @@ export class PdfGeneratorService {
         )
         .fill(this.colors.warningColor)
         .stroke(this.colors.borderColor);
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       doc.text('Notas: ', startX + 5, notesY);
-      doc.fontSize(9).font(this.fontRegularName).fillColor(this.colors.textPrimary);
+      doc
+        .fontSize(9)
+        .font(this.fontRegularName)
+        .fillColor(this.colors.textPrimary);
       doc.text(finalNotes, startX + 50, notesY, {
         width: colWidths.reduce((a, b) => a + b, 0) - 60,
         align: 'left',

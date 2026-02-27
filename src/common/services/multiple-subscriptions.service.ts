@@ -131,7 +131,7 @@ export class MultipleSubscriptionsService
         customer_id: subscription.customer_id,
         customer_name: `${customer.name}`,
         subscription_plan_id: subscription.subscription_plan_id,
-        start_date: formatBAYMD(subscription.start_date as any),
+        start_date: formatBAYMD(subscription.start_date),
         // end_date field removed - not present in schema
         collection_day: subscription.collection_day || null,
         payment_mode: subscription.payment_mode,
@@ -140,10 +140,10 @@ export class MultipleSubscriptionsService
         notes: subscription.notes,
         cancellation_reason: subscription.cancellation_reason,
         cancellation_date: subscription.cancellation_date
-          ? formatBAYMD(subscription.cancellation_date as any)
+          ? formatBAYMD(subscription.cancellation_date)
           : null,
         collection_scheduled_date: subscription.collection_scheduled_date
-          ? formatBAYMD(subscription.collection_scheduled_date as any)
+          ? formatBAYMD(subscription.collection_scheduled_date)
           : null,
         collection_completed: subscription.collection_completed,
         is_active: subscription.is_active,
@@ -220,10 +220,10 @@ export class MultipleSubscriptionsService
         subscription_id: cycle.subscription_id,
         subscription_plan_name:
           cycle.customer_subscription.subscription_plan.name,
-        cycle_start: formatBAYMD(cycle.cycle_start as any),
-        cycle_end: formatBAYMD(cycle.cycle_end as any),
+        cycle_start: formatBAYMD(cycle.cycle_start),
+        cycle_end: formatBAYMD(cycle.cycle_end),
         payment_due_date: cycle.payment_due_date
-          ? formatBAYMD(cycle.payment_due_date as any)
+          ? formatBAYMD(cycle.payment_due_date)
           : '',
         total_amount: Number(cycle.total_amount || 0),
         paid_amount: Number(cycle.paid_amount),

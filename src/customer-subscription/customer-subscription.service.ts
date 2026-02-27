@@ -22,6 +22,7 @@ import { RecoveryOrderService } from '../common/services/recovery-order.service'
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { dayBefore, formatBAYMD, parseYMD } from '../common/utils/date.utils';
+import { calculatePaymentDueDate } from './utils/payment-due-date';
 
 @Injectable()
 export class CustomerSubscriptionService
@@ -500,7 +501,6 @@ export class CustomerSubscriptionService
       if (updateDto.subscription_plan_id !== undefined) {
         updateData.subscription_plan_id = updateDto.subscription_plan_id;
       }
-      // end_date field removed - not present in schema
       if (updateDto.collection_day !== undefined) {
         updateData.collection_day = updateDto.collection_day;
       }
@@ -520,18 +520,70 @@ export class CustomerSubscriptionService
         updateData.notes = notes;
       }
 
-      const subscription = await this.customer_subscription.update({
-        where: { subscription_id: id },
-        data: updateData,
-        include: {
-          subscription_plan: {
-            select: {
-              name: true,
-              description: true,
-              price: true,
+      const collectionDayChanged =
+        updateDto.collection_day !== undefined &&
+        updateDto.collection_day !== existingSubscription.collection_day;
+      const effectivePaymentMode =
+        updateDto.payment_mode ?? existingSubscription.payment_mode;
+      const effectivePaymentDueDay =
+        updateDto.payment_due_day ?? existingSubscription.payment_due_day;
+
+      const subscription = await this.$transaction(async (tx) => {
+        const updatedSubscription = await tx.customer_subscription.update({
+          where: { subscription_id: id },
+          data: updateData,
+          include: {
+            subscription_plan: {
+              select: {
+                name: true,
+                description: true,
+                price: true,
+              },
             },
           },
-        },
+        });
+
+        if (collectionDayChanged && updateDto.collection_day) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const currentCycle = await tx.subscription_cycle.findFirst({
+            where: {
+              subscription_id: id,
+              cycle_start: { lte: today },
+              cycle_end: { gte: today },
+            },
+            orderBy: { cycle_start: 'desc' },
+          });
+
+          if (currentCycle) {
+            const collectionDay = updateDto.collection_day;
+            const nextCollectionDate = new Date(
+              today.getFullYear(),
+              today.getMonth() + (today.getDate() >= collectionDay ? 1 : 0),
+              collectionDay,
+            );
+            nextCollectionDate.setHours(0, 0, 0, 0);
+
+            const newCurrentCycleEnd = dayBefore(nextCollectionDate);
+            const currentPaymentDueDate = this.calculatePaymentDueDate(
+              currentCycle.cycle_start,
+              newCurrentCycleEnd,
+              effectivePaymentMode,
+              effectivePaymentDueDay ?? undefined,
+            );
+
+            await tx.subscription_cycle.update({
+              where: { cycle_id: currentCycle.cycle_id },
+              data: {
+                cycle_end: newCurrentCycleEnd,
+                payment_due_date: currentPaymentDueDate,
+              },
+            });
+          }
+        }
+
+        return updatedSubscription;
       });
 
       const response = new CustomerSubscriptionResponseDto(subscription);
@@ -1073,32 +1125,12 @@ export class CustomerSubscriptionService
     paymentMode: string,
     paymentDueDay?: number,
   ): Date {
-    if (paymentMode === 'ADVANCE') {
-      // PAGO ADELANTADO: Se paga al inicio del ciclo
-      return new Date(cycleStart);
-    } else {
-      // PAGO VENCIDO (ARREARS): Se paga después del ciclo
-      if (paymentDueDay) {
-        // Usar día específico del mes siguiente al fin del ciclo
-        const paymentDate = new Date(
-          cycleEnd.getFullYear(),
-          cycleEnd.getMonth(),
-          paymentDueDay,
-        );
-
-        // Si el día específico es antes del fin del ciclo, mover al siguiente mes
-        if (paymentDate <= cycleEnd) {
-          paymentDate.setMonth(paymentDate.getMonth() + 1);
-        }
-
-        return paymentDate;
-      } else {
-        // Sin día específico: pagar 10 días después del fin del ciclo (default)
-        const paymentDate = new Date(cycleEnd);
-        paymentDate.setDate(paymentDate.getDate() + 10);
-        return paymentDate;
-      }
-    }
+    return calculatePaymentDueDate(
+      cycleStart,
+      cycleEnd,
+      paymentMode,
+      paymentDueDay,
+    );
   }
 
   /**

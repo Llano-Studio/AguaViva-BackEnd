@@ -104,7 +104,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         new_values: record.new_values
           ? JSON.parse(record.new_values as string)
           : null,
-        created_at: formatBATimestampISO(record.created_at as any),
+        created_at: formatBATimestampISO(record.created_at),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
@@ -196,7 +196,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         new_values: record.new_values
           ? JSON.parse(record.new_values as string)
           : null,
-        created_at: formatBATimestampISO(record.created_at as any),
+        created_at: formatBATimestampISO(record.created_at),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,
@@ -241,7 +241,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         'BOSSADMINISTRATIVE',
         'ADMINISTRATIVE',
       ];
-      return allowedRoles.includes(user.role as any);
+      return allowedRoles.includes(user.role);
     } catch (error) {
       this.logger.error('Error validating audit permissions:', error);
       return false;
@@ -340,7 +340,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         new_values: record.new_values
           ? JSON.parse(record.new_values as string)
           : null,
-        created_at: formatBATimestampISO(record.created_at as any),
+        created_at: formatBATimestampISO(record.created_at),
         created_by: record.created_by,
         reason: record.reason,
         ip_address: record.ip_address,

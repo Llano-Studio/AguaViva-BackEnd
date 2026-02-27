@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, SubscriptionStatus } from '@prisma/client';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { SubscriptionCycleNumberingService } from './subscription-cycle-numbering.service';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 
@@ -57,6 +56,8 @@ export class SubscriptionCycleRenewalService
             status: SubscriptionStatus.ACTIVE,
           },
         },
+        distinct: ['subscription_id'],
+        orderBy: { cycle_end: 'desc' },
         include: {
           customer_subscription: {
             include: {
@@ -109,6 +110,21 @@ export class SubscriptionCycleRenewalService
       // Calcular fechas del nuevo ciclo (un mes desde hoy)
       const cycleStartDate = new Date();
       cycleStartDate.setHours(0, 0, 0, 0);
+
+      const existingFutureCycle = await this.subscription_cycle.findFirst({
+        where: {
+          subscription_id: subscription.subscription_id,
+          cycle_start: { gte: cycleStartDate },
+        },
+        orderBy: { cycle_start: 'asc' },
+        select: { cycle_id: true, cycle_start: true, cycle_end: true },
+      });
+      if (existingFutureCycle) {
+        this.logger.log(
+          `⏭️ Se omite creación de ciclo: ya existe ciclo ${existingFutureCycle.cycle_id} para suscripción ${subscription.subscription_id}`,
+        );
+        return;
+      }
 
       const cycleEndDate = new Date(cycleStartDate);
       cycleEndDate.setMonth(cycleStartDate.getMonth() + 1);
@@ -212,10 +228,10 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base de la cuota (del plan) y calcular recargo del 20%
-          const planPriceRaw = cycle.customer_subscription?.subscription_plan
-            ?.price as any;
-          const currentTotalRaw = cycle.total_amount as any;
-          const paidAmountRaw = cycle.paid_amount as any;
+          const planPriceRaw =
+            cycle.customer_subscription?.subscription_plan?.price;
+          const currentTotalRaw = cycle.total_amount;
+          const paidAmountRaw = cycle.paid_amount;
 
           const planPrice = parseFloat(planPriceRaw?.toString() || '0');
           const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');
@@ -331,10 +347,10 @@ export class SubscriptionCycleRenewalService
       for (const cycle of overdueCycles) {
         try {
           // Determinar el precio base y calcular recargo del 20%
-          const planPriceRaw = cycle.customer_subscription?.subscription_plan
-            ?.price as any;
-          const currentTotalRaw = cycle.total_amount as any;
-          const paidAmountRaw = cycle.paid_amount as any;
+          const planPriceRaw =
+            cycle.customer_subscription?.subscription_plan?.price;
+          const currentTotalRaw = cycle.total_amount;
+          const paidAmountRaw = cycle.paid_amount;
 
           const planPrice = parseFloat(planPriceRaw?.toString() || '0');
           const currentTotal = parseFloat(currentTotalRaw?.toString() || '0');

@@ -428,9 +428,9 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         email: uv.user.email,
         role: uv.user.role,
         isActive: uv.user.isActive,
-        createdAt: formatBATimestampISO(uv.user.createdAt as any),
+        createdAt: formatBATimestampISO(uv.user.createdAt),
         updatedAt: uv.user.updatedAt
-          ? formatBATimestampISO(uv.user.updatedAt as any)
+          ? formatBATimestampISO(uv.user.updatedAt)
           : undefined,
         profileImageUrl: undefined, // No tenemos acceso al buildProfileImageUrl aquí
       }));

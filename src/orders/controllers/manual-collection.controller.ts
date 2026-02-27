@@ -9,6 +9,8 @@ import {
   ValidationPipe,
   UseGuards,
   Logger,
+  BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -382,6 +384,8 @@ export class ManualCollectionController {
       let totalAmount = 0;
       let cyclesProcessed = 0;
       let lastOrderId = 0;
+      const skippedCycles: number[] = [];
+      const failedCycles: number[] = [];
 
       // Procesar cada ciclo seleccionado
       for (const cycleId of generateDto.selected_cycles) {
@@ -396,6 +400,7 @@ export class ManualCollectionController {
             this.logger.warn(
               `⚠️ Saltando ciclo ${cycleId} - ya tiene una orden de cobranza`,
             );
+            skippedCycles.push(cycleId);
             continue;
           }
 
@@ -419,13 +424,31 @@ export class ManualCollectionController {
           this.logger.error(
             `❌ Error procesando ciclo ${cycleId}: ${error.message}`,
           );
+          failedCycles.push(cycleId);
           // Continuar con los demás ciclos
         }
       }
 
       if (cyclesProcessed === 0) {
-        throw new Error(
-          'No se pudo procesar ningún ciclo. Verifique que los ciclos sean válidos y no tengan órdenes existentes.',
+        if (skippedCycles.length > 0 && failedCycles.length === 0) {
+          throw new ConflictException(
+            `Todos los ciclos seleccionados ya tienen una orden de cobranza. Ciclos: ${skippedCycles.join(', ')}`,
+          );
+        }
+
+        const details = [
+          skippedCycles.length > 0
+            ? `Ciclos con orden existente: ${skippedCycles.join(', ')}`
+            : '',
+          failedCycles.length > 0
+            ? `Ciclos con error: ${failedCycles.join(', ')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('. ');
+
+        throw new BadRequestException(
+          `No se pudo procesar ningún ciclo. ${details}`.trim(),
         );
       }
 

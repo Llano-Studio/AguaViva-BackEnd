@@ -323,7 +323,7 @@ export class ManualCollectionService extends PrismaClient {
 
     const orderInfo: ExistingOrderInfoDto = {
       order_id: existingOrder.order_id,
-      order_date: formatBATimestampISO(existingOrder.order_date as any),
+      order_date: formatBATimestampISO(existingOrder.order_date),
       total_amount: Number(existingOrder.total_amount),
       status: existingOrder.status,
       notes: existingOrder.notes || undefined,

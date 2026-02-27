@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -136,6 +137,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
   }
 
   private readonly entityName = 'Hoja de Ruta';
+  private readonly logger = new Logger(RouteSheetService.name);
   private readonly reconciliationSignaturesPath = join(
     process.cwd(),
     'public',
@@ -1456,7 +1458,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
               // Capturar zone_id del pedido para validación
               const orderZoneId =
-                (order as any).zone_id ?? order.customer.zone_id ?? null;
+                order.zone_id ?? order.customer.zone_id ?? null;
               if (typeof orderZoneId === 'number')
                 detailZoneIds.push(orderZoneId);
               // Marcar para actualizar estado
@@ -1502,7 +1504,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               });
 
               const purchaseZoneId =
-                (purchase as any).zone_id ?? purchase.person.zone_id ?? null;
+                purchase.zone_id ?? purchase.person.zone_id ?? null;
               if (typeof purchaseZoneId === 'number')
                 detailZoneIds.push(purchaseZoneId);
               oneOffIdsToUpdate.push(detail.one_off_purchase_id);
@@ -1549,7 +1551,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               });
 
               const headerZoneId =
-                (header as any).zone_id ?? header.person.zone_id ?? null;
+                header.zone_id ?? header.person.zone_id ?? null;
               if (typeof headerZoneId === 'number')
                 detailZoneIds.push(headerZoneId);
               oneOffHeaderIdsToUpdate.push(detail.one_off_purchase_header_id);
@@ -1839,6 +1841,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                   subscription_due_date: (detail.order as any)
                     .subscription_due_date,
                   all_due_dates: (detail.order as any).all_due_dates,
+                  collection_days: (detail.order as any).collection_days,
                   customer: {
                     person_id: detail.order.customer.person_id || 0,
                     name: detail.order.customer.name,
@@ -1880,6 +1883,17 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           .filter((detail) => detail !== null),
         zones_covered: routeSheet.zones_covered || [],
       };
+      const pdfLogPayload = {
+        route_sheet_id: pdfData.route_sheet_id,
+        delivery_date: pdfData.delivery_date,
+        details: pdfData.details.map((detail) => ({
+          order_id: detail.order.order_id,
+          collection_days: detail.order.collection_days ?? [],
+        })),
+      };
+      this.logger.log(
+        `Hoja de ruta PDF data: ${JSON.stringify(pdfLogPayload)}`,
+      );
       // Generar PDF usando el servicio común
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateRouteSheetPdf(pdfData, options);
@@ -1893,6 +1907,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         filename,
       );
 
+      this.logger.log(`Hoja de ruta PDF result: ${JSON.stringify(result)}`);
       return result;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
@@ -1980,6 +1995,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         firstIndexByPerson.set(pid, item.idx);
       }
     }
+
+    const collectionDaysByPerson = new Map<number, number[]>();
 
     const groupedDetails = sortedDetails
       .slice()
@@ -2101,6 +2118,32 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             items: orderItemsDto,
             notes: detail.order_header.notes || undefined,
           };
+
+          const customerId = customerDto.person_id;
+          let cachedCollectionDays = collectionDaysByPerson.get(customerId);
+          if (!cachedCollectionDays) {
+            try {
+              const subscriptions = await this.customer_subscription.findMany({
+                where: {
+                  customer_id: customerId,
+                  is_active: true,
+                  status: 'ACTIVE',
+                  collection_day: { not: null },
+                },
+                select: { collection_day: true },
+                orderBy: { collection_day: 'asc' },
+              });
+              cachedCollectionDays = subscriptions
+                .map((sub) => sub.collection_day)
+                .filter((day): day is number => typeof day === 'number');
+            } catch {
+              cachedCollectionDays = [];
+            }
+            collectionDaysByPerson.set(customerId, cachedCollectionDays);
+          }
+          if (cachedCollectionDays.length > 0) {
+            orderDto.collection_days = cachedCollectionDays;
+          }
 
           const cycle = (detail.order_header as any).customer_subscription
             ?.subscription_cycle?.[0];
@@ -2387,6 +2430,32 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             items: orderItemsDto,
           };
 
+          const customerId = customerDto.person_id;
+          let cachedCollectionDays = collectionDaysByPerson.get(customerId);
+          if (!cachedCollectionDays) {
+            try {
+              const subscriptions = await this.customer_subscription.findMany({
+                where: {
+                  customer_id: customerId,
+                  is_active: true,
+                  status: 'ACTIVE',
+                  collection_day: { not: null },
+                },
+                select: { collection_day: true },
+                orderBy: { collection_day: 'asc' },
+              });
+              cachedCollectionDays = subscriptions
+                .map((sub) => sub.collection_day)
+                .filter((day): day is number => typeof day === 'number');
+            } catch {
+              cachedCollectionDays = [];
+            }
+            collectionDaysByPerson.set(customerId, cachedCollectionDays);
+          }
+          if (cachedCollectionDays.length > 0) {
+            orderDto.collection_days = cachedCollectionDays;
+          }
+
           const due = detail.cycle_payment.subscription_cycle?.payment_due_date;
           if (due) {
             orderDto.subscription_due_date = formatUTCYMD(due as any);
@@ -2489,7 +2558,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       if (routeSheet.reconciliation_at) {
         throw new BadRequestException(
-          `La ${this.entityName} ${route_sheet_id} ya fue rendida el ${formatBATimestampISO(routeSheet.reconciliation_at as any)}.`,
+          `La ${this.entityName} ${route_sheet_id} ya fue rendida el ${formatBATimestampISO(routeSheet.reconciliation_at)}.`,
         );
       }
 
@@ -3255,27 +3324,25 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             payment_method: detail.cycle_payment.payment_method || undefined,
             subscription_notes: subscription.notes || undefined,
             payment_due_date: cycle?.payment_due_date
-              ? formatUTCYMD(cycle.payment_due_date as any)
+              ? formatUTCYMD(cycle.payment_due_date)
               : '',
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
             payment_status: (() => {
-              const dbStatus = (cycle as any)?.payment_status as
-                | string
-                | undefined;
+              const dbStatus = cycle?.payment_status as string | undefined;
               if (dbStatus && dbStatus !== 'PENDING') return dbStatus;
-              const pbRaw = (cycle as any)?.pending_balance;
+              const pbRaw = cycle?.pending_balance;
               const pb =
                 pbRaw !== undefined && pbRaw !== null ? Number(pbRaw) : NaN;
               if (!Number.isNaN(pb)) {
                 if (pb <= 0) return 'PAID';
                 const isOver =
-                  Boolean((cycle as any)?.is_overdue) ||
+                  Boolean(cycle?.is_overdue) ||
                   (cycle?.payment_due_date &&
                     formatUTCYMD(new Date(cycle.payment_due_date)) <
                       formatUTCYMD(new Date()));
                 if (isOver) return 'OVERDUE';
-                const paidRaw = (cycle as any)?.paid_amount;
+                const paidRaw = cycle?.paid_amount;
                 const paid =
                   paidRaw !== undefined && paidRaw !== null
                     ? Number(paidRaw)
@@ -3288,7 +3355,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             delivery_status: detail.delivery_status,
             delivery_time: detail.delivery_time,
             comments: detail.comments,
-            subscription_id: (cycle as any).subscription_id,
+            subscription_id: cycle.subscription_id,
             credits:
               cycle.subscription_cycle_detail?.map((cycleDetail) => ({
                 product_description: cycleDetail.product.description,
