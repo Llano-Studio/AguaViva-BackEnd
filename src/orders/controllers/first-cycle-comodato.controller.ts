@@ -131,7 +131,7 @@ export class FirstCycleComodatoController {
   ): Promise<FirstCycleComodatoResult> {
     const raw = String(dto.delivery_date || '').trim();
     const deliveryDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-      ? parseYMD(raw)
+      ? parseBAYMD(raw)
       : new Date(raw);
     return await this.firstCycleComodatoService.processFirstCycleComodato(
       dto.subscription_id,
@@ -333,4 +333,4 @@ export class FirstCycleComodatoController {
     };
   }
 }
-import { parseYMD } from '../../common/utils/date.utils';
+import { parseBAYMD } from '../../common/utils/date.utils';

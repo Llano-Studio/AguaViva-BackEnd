@@ -23,7 +23,7 @@ import { RouteSheetGeneratorService } from './route-sheet-generator.service';
 import { AuditService } from '../../audit/audit.service';
 import {
   isValidYMD,
-  parseYMD,
+  parseBAYMD,
   formatBAYMD,
   startOfDayBA,
   formatBATimestampISO,
@@ -420,7 +420,7 @@ export class AutomatedCollectionService
       if (!isValidYMD(dto.date)) {
         throw new Error('La fecha debe estar en formato YYYY-MM-DD válido');
       }
-      baseDate = parseYMD(dto.date);
+      baseDate = parseBAYMD(dto.date);
     } else {
       baseDate = new Date();
       baseDate.setHours(0, 0, 0, 0);
@@ -1161,13 +1161,13 @@ export class AutomatedCollectionService
       if (filters.orderDateFrom) {
         const raw = String(filters.orderDateFrom).trim();
         whereClause.order_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.orderDateFrom);
       }
       if (filters.orderDateTo) {
         const raw = String(filters.orderDateTo).trim();
         const endDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.orderDateTo);
         endDate.setHours(23, 59, 59, 999);
         whereClause.order_date.lte = endDate;
@@ -1184,13 +1184,13 @@ export class AutomatedCollectionService
         subscriptionCycleSome.payment_due_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(
           raw,
         )
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.dueDateFrom);
       }
       if (filters.dueDateTo) {
         const raw = String(filters.dueDateTo).trim();
         const dueEndDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.dueDateTo);
         dueEndDate.setHours(23, 59, 59, 999);
         subscriptionCycleSome.payment_due_date.lte = dueEndDate;

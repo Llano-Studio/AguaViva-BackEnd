@@ -39,7 +39,7 @@ import {
 import {
   formatBAYMD,
   formatBATimestampISO,
-  parseYMD,
+  parseBAYMD,
 } from '../utils/date.utils';
 
 @Injectable()
@@ -365,7 +365,7 @@ export class ManualCollectionService extends PrismaClient {
     const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(
       String(collection_date).trim(),
     )
-      ? parseYMD(String(collection_date).trim())
+      ? parseBAYMD(String(collection_date).trim())
       : new Date(collection_date);
     targetDate.setHours(0, 0, 0, 0);
     const adjustedDate = this.adjustDateForSunday(targetDate);
@@ -540,7 +540,7 @@ export class ManualCollectionService extends PrismaClient {
             scheduled_delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(
               collection_date.trim(),
             )
-              ? parseYMD(collection_date.trim())
+              ? parseBAYMD(collection_date.trim())
               : new Date(collection_date),
             delivery_time: '09:00-18:00',
             total_amount: new Prisma.Decimal(totalAmount), // 🆕 CORRECCIÓN: Usar el monto total calculado de las cuotas

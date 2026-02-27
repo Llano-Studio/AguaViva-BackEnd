@@ -44,7 +44,11 @@ import {
 } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO, parseYMD } from '../common/utils/date.utils';
+import {
+  formatBATimestampISO,
+  parseBAYMD,
+  parseUTCYMD,
+} from '../common/utils/date.utils';
 
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload =
@@ -208,8 +212,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       paymentStatus = 'PARTIAL';
     }
 
+    const normalizedOrderDate = this.normalizeDateForBA(order.order_date as any);
+
     // Calcular traffic_light_status basado en días desde creación
-    const orderDate = new Date(order.order_date);
+    const orderDate = normalizedOrderDate
+      ? new Date(normalizedOrderDate)
+      : new Date(order.order_date);
     const currentDate = new Date();
     const daysDifference = Math.floor(
       (currentDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24),
@@ -240,9 +248,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       contract_id: order.contract_id ?? undefined,
       subscription_id: order.subscription_id ?? undefined,
       sale_channel_id: order.sale_channel_id,
-      order_date: formatBATimestampISO(order.order_date as any),
+      order_date: normalizedOrderDate
+        ? formatBATimestampISO(normalizedOrderDate as any)
+        : formatBATimestampISO(order.order_date as any),
       scheduled_delivery_date: order.scheduled_delivery_date
-        ? formatBATimestampISO(order.scheduled_delivery_date as any)
+        ? formatBATimestampISO(
+            this.normalizeDateForBA(order.scheduled_delivery_date as any) as any,
+          )
         : undefined,
       delivery_time: order.delivery_time || undefined,
       total_amount: order.total_amount.toString(),
@@ -267,6 +279,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       traffic_light_status: trafficLightStatus,
       payments: payments,
     };
+  }
+
+  private normalizeDateForBA(date: Date | string | null | undefined) {
+    if (!date) return undefined;
+    const normalized = new Date(date as any);
+    if (
+      normalized.getUTCHours() === 0 &&
+      normalized.getUTCMinutes() === 0 &&
+      normalized.getUTCSeconds() === 0 &&
+      normalized.getUTCMilliseconds() === 0
+    ) {
+      normalized.setUTCHours(3, 0, 0, 0);
+    }
+    return normalized;
   }
 
   private async validateOrderData(
@@ -336,13 +362,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const orderDate =
         typeof rawOrderDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
-            ? parseYMD(rawOrderDate.trim())
+            ? parseBAYMD(rawOrderDate.trim())
             : new Date(rawOrderDate)
           : new Date(rawOrderDate);
       const deliveryDate =
         typeof rawDeliveryDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
-            ? parseYMD(rawDeliveryDate.trim())
+            ? parseBAYMD(rawDeliveryDate.trim())
             : new Date(rawDeliveryDate)
           : new Date(rawDeliveryDate);
 
@@ -407,13 +433,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const orderDate =
         typeof rawOrderDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
-            ? parseYMD(rawOrderDate.trim())
+            ? parseBAYMD(rawOrderDate.trim())
             : new Date(rawOrderDate)
           : new Date(rawOrderDate);
       const deliveryDate =
         typeof rawDeliveryDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
-            ? parseYMD(rawDeliveryDate.trim())
+            ? parseBAYMD(rawDeliveryDate.trim())
             : new Date(rawDeliveryDate)
           : new Date(rawDeliveryDate);
 
@@ -809,7 +835,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_date:
               restOfDto.order_date && typeof restOfDto.order_date === 'string'
                 ? /^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())
-                  ? parseYMD(restOfDto.order_date.trim())
+                  ? parseBAYMD(restOfDto.order_date.trim())
                   : new Date(restOfDto.order_date)
                 : (restOfDto.order_date as any) instanceof Date
                   ? (restOfDto.order_date as any)
@@ -820,7 +846,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 ? /^\d{4}-\d{2}-\d{2}$/.test(
                     restOfDto.scheduled_delivery_date.trim(),
                   )
-                  ? parseYMD(restOfDto.scheduled_delivery_date.trim())
+                  ? parseBAYMD(restOfDto.scheduled_delivery_date.trim())
                   : new Date(restOfDto.scheduled_delivery_date)
                 : (restOfDto.scheduled_delivery_date as any) instanceof Date
                   ? (restOfDto.scheduled_delivery_date as any)
@@ -1096,19 +1122,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.order_date = {};
       if (orderDateFrom) {
         const rawFrom = String(orderDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(orderDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.order_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.order_date.gte = parseUTCYMD(rawFrom);
+        } else {
+          where.order_date.gte = new Date(orderDateFrom);
+        }
       }
       if (orderDateTo) {
         const rawTo = String(orderDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(orderDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.order_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseUTCYMD(rawTo);
+          where.order_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.order_date.lte = new Date(orderDateTo);
+        }
       }
     }
 
@@ -1116,19 +1145,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
         const rawFrom = String(deliveryDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(deliveryDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.scheduled_delivery_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.scheduled_delivery_date.gte = parseUTCYMD(rawFrom);
+        } else {
+          where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+        }
       }
       if (deliveryDateTo) {
         const rawTo = String(deliveryDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(deliveryDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.scheduled_delivery_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseUTCYMD(rawTo);
+          where.scheduled_delivery_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.scheduled_delivery_date.lte = new Date(deliveryDateTo);
+        }
       }
     }
 
@@ -1252,7 +1284,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           } else if (typeof rawValue === 'string') {
             const trimmed = rawValue.trim();
             const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
-              ? parseYMD(trimmed)
+              ? parseBAYMD(trimmed)
               : new Date(trimmed);
             if (isNaN(parsed.getTime())) {
               throw new BadRequestException(
