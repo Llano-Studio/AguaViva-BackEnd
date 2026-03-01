@@ -212,7 +212,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       paymentStatus = 'PARTIAL';
     }
 
-    const normalizedOrderDate = this.normalizeDateForBA(order.order_date as any);
+    const normalizedOrderDate = this.normalizeDateForBA(
+      order.order_date as any,
+    );
 
     // Calcular traffic_light_status basado en días desde creación
     const orderDate = normalizedOrderDate
@@ -253,7 +255,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         : formatBATimestampISO(order.order_date as any),
       scheduled_delivery_date: order.scheduled_delivery_date
         ? formatBATimestampISO(
-            this.normalizeDateForBA(order.scheduled_delivery_date as any) as any,
+            this.normalizeDateForBA(
+              order.scheduled_delivery_date as any,
+            ) as any,
           )
         : undefined,
       delivery_time: order.delivery_time || undefined,
@@ -301,6 +305,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     user?: any,
   ) {
     const prisma = tx || this;
+    const allowPastDates = user?.role === Role.SUPERADMIN;
     const customer = await prisma.person.findUnique({
       where: { person_id: createOrderDto.customer_id },
     });
@@ -382,7 +387,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         }
 
         // Si es el mismo día, validar que el horario de entrega sea posterior al horario actual
-        if (deliveryDate.toDateString() === orderDate.toDateString()) {
+        if (
+          !allowPastDates &&
+          deliveryDate.toDateString() === orderDate.toDateString()
+        ) {
           if (createOrderDto.delivery_time) {
             const now = new Date();
             const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -442,9 +450,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             ? parseBAYMD(rawDeliveryDate.trim())
             : new Date(rawDeliveryDate)
           : new Date(rawDeliveryDate);
-
-      // Permitir fechas pasadas solo para SUPERADMIN
-      const allowPastDates = user?.role === Role.SUPERADMIN;
 
       const scheduleResult = this.scheduleService.validateOrderSchedule(
         orderDate,
@@ -515,6 +520,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         let subscriptionQuotaValidation: any = null;
         if (
           subscription_id &&
+          items.length > 0 &&
           (createOrderDto.order_type === 'HYBRID' ||
             createOrderDto.order_type === 'SUBSCRIPTION')
         ) {
@@ -865,11 +871,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             ...(contract_id && {
               client_contract: { connect: { contract_id } },
             }),
-            order_item: {
-              createMany: {
-                data: orderItemsDataForCreation,
+            ...(orderItemsDataForCreation.length > 0 && {
+              order_item: {
+                createMany: {
+                  data: orderItemsDataForCreation,
+                },
               },
-            },
+            }),
           },
           include: {
             order_item: { include: { product: true } },

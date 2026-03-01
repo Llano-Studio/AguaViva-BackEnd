@@ -2155,7 +2155,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           const cycle = (detail.order_header as any).customer_subscription
             ?.subscription_cycle?.[0];
           if (cycle?.payment_due_date) {
-            orderDto.subscription_due_date = formatBAYMD(cycle.payment_due_date);
+            orderDto.subscription_due_date = formatBAYMD(
+              cycle.payment_due_date,
+            );
           }
           // Agregar todas las fechas de vencimiento pendientes para TODOS los abonos del cliente
           try {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus, Role } from '@prisma/client';
 import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
@@ -1039,6 +1039,7 @@ export class AutomatedCollectionService
     cycle: any,
     targetDate: Date,
   ): Promise<void> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
     const person = cycle.customer_subscription.person;
     const subscription = cycle.customer_subscription;
     const cycleAmount = new Prisma.Decimal(cycle.pending_balance || 0).toFixed(
@@ -1050,9 +1051,8 @@ export class AutomatedCollectionService
       customer_id: person.person_id,
       subscription_id: subscription.subscription_id,
       sale_channel_id: 1,
-      order_date: formatBATimestampISO(targetDate),
-      scheduled_delivery_date: formatBATimestampISO(targetDate),
-      delivery_time: '09:00-18:00',
+      order_date: formatBATimestampISO(adjustedDate),
+      scheduled_delivery_date: formatBATimestampISO(adjustedDate),
       total_amount: cycleAmount,
       paid_amount: '0.00',
       order_type: 'HYBRID' as any,
@@ -1061,7 +1061,7 @@ export class AutomatedCollectionService
       items: [], // Solo productos de la suscripción, sin adicionales
     };
 
-    await this.ordersService.create(createOrderDto);
+    await this.ordersService.create(createOrderDto, { role: Role.SUPERADMIN });
   }
 
   /**
