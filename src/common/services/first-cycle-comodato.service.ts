@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
 import { buildImageUrl } from '../../common/utils/file-upload.util';
-import { formatBAYMD, isValidYMD, parseYMD } from '../utils/date.utils';
+import { formatBAYMD, isValidYMD, parseBAYMD } from '../utils/date.utils';
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -27,9 +27,9 @@ export class FirstCycleComodatoService extends PrismaClient {
     const s = String(input).trim();
     if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
       const [dd, mm, yyyy] = s.split('/');
-      return parseYMD(`${yyyy}-${mm}-${dd}`);
+      return parseBAYMD(`${yyyy}-${mm}-${dd}`);
     }
-    if (isValidYMD(s)) return parseYMD(s);
+    if (isValidYMD(s)) return parseBAYMD(s);
     return new Date(s);
   }
 
@@ -115,13 +115,13 @@ export class FirstCycleComodatoService extends PrismaClient {
       `📦 Procesando ${returnableProducts.length} productos retornables para suscripción ${subscriptionId}`,
     );
 
-    const deliveryDateDb = parseYMD(formatBAYMD(this.toDate(deliveryDate)));
+    const deliveryDateDb = parseBAYMD(formatBAYMD(this.toDate(deliveryDate)));
 
     const expectedReturnDateDb = new Date(deliveryDateDb);
     expectedReturnDateDb.setFullYear(expectedReturnDateDb.getFullYear() + 1);
     expectedReturnDateDb.setHours(0, 0, 0, 0);
 
-    const expectedReturnDateDbNormalized = parseYMD(
+    const expectedReturnDateDbNormalized = parseBAYMD(
       formatBAYMD(expectedReturnDateDb),
     );
 

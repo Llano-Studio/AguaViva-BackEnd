@@ -37,10 +37,9 @@ import {
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import {
-  formatBAYMD,
   formatBATimestampISO,
-  parseYMD,
-  formatUTCYMD,
+  formatBAYMD,
+  parseBAYMD,
 } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
@@ -379,7 +378,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               delivery_date:
                 typeof delivery_date === 'string' &&
                 /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
-                  ? parseYMD(delivery_date.trim())
+                  ? parseBAYMD(delivery_date.trim())
                   : new Date(delivery_date),
               is_active: true,
             },
@@ -591,7 +590,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             delivery_date:
               typeof delivery_date === 'string' &&
               /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
-                ? parseYMD(delivery_date.trim())
+                ? parseBAYMD(delivery_date.trim())
                 : new Date(delivery_date),
             route_notes,
           },
@@ -988,19 +987,27 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           typeof whereClause.delivery_date === 'object'
         ) {
           const rawFrom = String(filters.from_date).trim();
-          const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-            ? parseYMD(rawFrom)
-            : new Date(filters.from_date);
-          fromDate.setHours(0, 0, 0, 0);
-          (whereClause.delivery_date as Prisma.DateTimeFilter).gte = fromDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+            (whereClause.delivery_date as Prisma.DateTimeFilter).gte =
+              parseBAYMD(rawFrom);
+          } else {
+            (whereClause.delivery_date as Prisma.DateTimeFilter).gte = new Date(
+              filters.from_date,
+            );
+          }
         }
         if (filters.to_date && typeof whereClause.delivery_date === 'object') {
           const rawTo = String(filters.to_date).trim();
-          const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-            ? parseYMD(rawTo)
-            : new Date(filters.to_date);
-          toDate.setHours(23, 59, 59, 999);
-          (whereClause.delivery_date as Prisma.DateTimeFilter).lte = toDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+            const start = parseBAYMD(rawTo);
+            (whereClause.delivery_date as Prisma.DateTimeFilter).lte = new Date(
+              start.getTime() + 24 * 60 * 60 * 1000 - 1,
+            );
+          } else {
+            (whereClause.delivery_date as Prisma.DateTimeFilter).lte = new Date(
+              filters.to_date,
+            );
+          }
         }
       }
 
@@ -1270,7 +1277,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           updateData.delivery_date =
             typeof delivery_date === 'string' &&
             /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
-              ? parseYMD(delivery_date.trim())
+              ? parseBAYMD(delivery_date.trim())
               : new Date(delivery_date);
         }
         if (route_notes !== undefined) updateData.route_notes = route_notes;
@@ -2148,7 +2155,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           const cycle = (detail.order_header as any).customer_subscription
             ?.subscription_cycle?.[0];
           if (cycle?.payment_due_date) {
-            orderDto.subscription_due_date = formatUTCYMD(
+            orderDto.subscription_due_date = formatBAYMD(
               cycle.payment_due_date,
             );
           }
@@ -2165,7 +2172,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               orderBy: { payment_due_date: 'asc' },
             });
             orderDto.all_due_dates = unpaidCycles
-              .map((c) => formatUTCYMD(c.payment_due_date))
+              .map((c) => formatBAYMD(c.payment_due_date))
               .filter((d) => !!d);
             orderDto.subscription_id = detail.order_header.subscription_id;
           } catch {
@@ -2458,7 +2465,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
           const due = detail.cycle_payment.subscription_cycle?.payment_due_date;
           if (due) {
-            orderDto.subscription_due_date = formatUTCYMD(due as any);
+            orderDto.subscription_due_date = formatBAYMD(due as any);
           }
           // Agregar todas las fechas de vencimiento pendientes para TODOS los abonos del cliente
           try {
@@ -2473,7 +2480,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               orderBy: { payment_due_date: 'asc' },
             });
             orderDto.all_due_dates = unpaidCycles
-              .map((c) => formatUTCYMD(c.payment_due_date))
+              .map((c) => formatBAYMD(c.payment_due_date))
               .filter((d) => !!d);
           } catch {
             // Ignorar errores de consulta y continuar
@@ -2530,7 +2537,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       route_sheet_id: routeSheet.route_sheet_id,
       driver: driverDto,
       vehicle: vehicleDto,
-      delivery_date: formatUTCYMD(routeSheet.delivery_date),
+      delivery_date: formatBAYMD(routeSheet.delivery_date),
       route_notes: routeSheet.route_notes?.trim()
         ? routeSheet.route_notes
         : '-',
@@ -3324,7 +3331,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
             payment_method: detail.cycle_payment.payment_method || undefined,
             subscription_notes: subscription.notes || undefined,
             payment_due_date: cycle?.payment_due_date
-              ? formatUTCYMD(cycle.payment_due_date)
+              ? formatBAYMD(cycle.payment_due_date)
               : '',
             cycle_period: cycle.cycle_number.toString(),
             subscription_plan: subscription.subscription_plan.name,
@@ -3339,8 +3346,8 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
                 const isOver =
                   Boolean(cycle?.is_overdue) ||
                   (cycle?.payment_due_date &&
-                    formatUTCYMD(new Date(cycle.payment_due_date)) <
-                      formatUTCYMD(new Date()));
+                    formatBAYMD(new Date(cycle.payment_due_date)) <
+                      formatBAYMD(new Date()));
                 if (isOver) return 'OVERDUE';
                 const paidRaw = cycle?.paid_amount;
                 const paid =
@@ -3370,7 +3377,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
 
       const collectionData = {
         route_sheet_id: routeSheet.route_sheet_id,
-        delivery_date: formatUTCYMD(routeSheet.delivery_date),
+        delivery_date: formatBAYMD(routeSheet.delivery_date),
         route_notes: routeSheet.route_notes,
         driver: {
           name: routeSheet.driver.name,

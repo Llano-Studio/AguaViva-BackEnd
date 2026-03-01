@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+import { PrismaClient, Prisma, SubscriptionStatus, Role } from '@prisma/client';
 import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
@@ -23,7 +23,7 @@ import { RouteSheetGeneratorService } from './route-sheet-generator.service';
 import { AuditService } from '../../audit/audit.service';
 import {
   isValidYMD,
-  parseYMD,
+  parseBAYMD,
   formatBAYMD,
   startOfDayBA,
   formatBATimestampISO,
@@ -420,7 +420,7 @@ export class AutomatedCollectionService
       if (!isValidYMD(dto.date)) {
         throw new Error('La fecha debe estar en formato YYYY-MM-DD válido');
       }
-      baseDate = parseYMD(dto.date);
+      baseDate = parseBAYMD(dto.date);
     } else {
       baseDate = new Date();
       baseDate.setHours(0, 0, 0, 0);
@@ -1000,7 +1000,15 @@ export class AutomatedCollectionService
 
     // Verificar que el ciclo tenga saldo pendiente
     const pendingBalance = new Prisma.Decimal(cycle.pending_balance || 0);
-    if (pendingBalance.lessThanOrEqualTo(0)) {
+    const allowedStatuses = [
+      PaymentStatus.PENDING,
+      PaymentStatus.PARTIAL,
+      PaymentStatus.OVERDUE,
+    ];
+    if (
+      pendingBalance.lessThanOrEqualTo(0) ||
+      !allowedStatuses.includes(cycle.payment_status as PaymentStatus)
+    ) {
       throw new Error(
         `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,
       );
@@ -1039,6 +1047,7 @@ export class AutomatedCollectionService
     cycle: any,
     targetDate: Date,
   ): Promise<void> {
+    const adjustedDate = this.adjustDateForSunday(targetDate);
     const person = cycle.customer_subscription.person;
     const subscription = cycle.customer_subscription;
     const cycleAmount = new Prisma.Decimal(cycle.pending_balance || 0).toFixed(
@@ -1050,9 +1059,8 @@ export class AutomatedCollectionService
       customer_id: person.person_id,
       subscription_id: subscription.subscription_id,
       sale_channel_id: 1,
-      order_date: formatBATimestampISO(targetDate),
-      scheduled_delivery_date: formatBATimestampISO(targetDate),
-      delivery_time: '09:00-18:00',
+      order_date: formatBATimestampISO(adjustedDate),
+      scheduled_delivery_date: formatBATimestampISO(adjustedDate),
       total_amount: cycleAmount,
       paid_amount: '0.00',
       order_type: 'HYBRID' as any,
@@ -1061,7 +1069,7 @@ export class AutomatedCollectionService
       items: [], // Solo productos de la suscripción, sin adicionales
     };
 
-    await this.ordersService.create(createOrderDto);
+    await this.ordersService.create(createOrderDto, { role: Role.SUPERADMIN });
   }
 
   /**
@@ -1161,13 +1169,13 @@ export class AutomatedCollectionService
       if (filters.orderDateFrom) {
         const raw = String(filters.orderDateFrom).trim();
         whereClause.order_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.orderDateFrom);
       }
       if (filters.orderDateTo) {
         const raw = String(filters.orderDateTo).trim();
         const endDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.orderDateTo);
         endDate.setHours(23, 59, 59, 999);
         whereClause.order_date.lte = endDate;
@@ -1184,13 +1192,13 @@ export class AutomatedCollectionService
         subscriptionCycleSome.payment_due_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(
           raw,
         )
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.dueDateFrom);
       }
       if (filters.dueDateTo) {
         const raw = String(filters.dueDateTo).trim();
         const dueEndDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-          ? parseYMD(raw)
+          ? parseBAYMD(raw)
           : new Date(filters.dueDateTo);
         dueEndDate.setHours(23, 59, 59, 999);
         subscriptionCycleSome.payment_due_date.lte = dueEndDate;

@@ -26,7 +26,7 @@ import { BUSINESS_CONFIG } from '../common/config/business.config';
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseYMD,
+  parseBAYMD,
 } from '../common/utils/date.utils';
 
 @Injectable()
@@ -230,7 +230,7 @@ export class OneOffPurchaseService
             notes: createDto.notes,
             purchase_date: createDto.purchase_date
               ? /^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
-                ? parseYMD(createDto.purchase_date.trim())
+                ? parseBAYMD(createDto.purchase_date.trim())
                 : new Date(createDto.purchase_date)
               : new Date(),
             scheduled_delivery_date:
@@ -239,7 +239,7 @@ export class OneOffPurchaseService
                 ? /^\d{4}-\d{2}-\d{2}$/.test(
                     createDto.scheduled_delivery_date.trim(),
                   )
-                  ? parseYMD(createDto.scheduled_delivery_date.trim())
+                  ? parseBAYMD(createDto.scheduled_delivery_date.trim())
                   : new Date(createDto.scheduled_delivery_date)
                 : null,
             delivery_time:
@@ -492,7 +492,7 @@ export class OneOffPurchaseService
               sale_channel_id: createDto.sale_channel_id,
               purchase_date: createDto.purchase_date
                 ? /^\d{4}-\d{2}-\d{2}$/.test(createDto.purchase_date.trim())
-                  ? parseYMD(createDto.purchase_date.trim())
+                  ? parseBAYMD(createDto.purchase_date.trim())
                   : new Date(createDto.purchase_date)
                 : new Date(),
               total_amount: finalTotalAmount.toString(),
@@ -508,7 +508,7 @@ export class OneOffPurchaseService
                   ? /^\d{4}-\d{2}-\d{2}$/.test(
                       createDto.scheduled_delivery_date.trim(),
                     )
-                    ? parseYMD(createDto.scheduled_delivery_date.trim())
+                    ? parseBAYMD(createDto.scheduled_delivery_date.trim())
                     : new Date(createDto.scheduled_delivery_date)
                   : null,
               delivery_time:
@@ -768,10 +768,10 @@ export class OneOffPurchaseService
       const rawFrom = String(purchaseDateFrom).trim();
       const rawTo = String(purchaseDateTo).trim();
       const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-        ? parseYMD(rawFrom)
+        ? parseBAYMD(rawFrom)
         : new Date(purchaseDateFrom);
       const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-        ? parseYMD(rawTo)
+        ? parseBAYMD(rawTo)
         : new Date(purchaseDateTo);
       if (toDate < fromDate) {
         throw new BadRequestException(
@@ -785,10 +785,10 @@ export class OneOffPurchaseService
       const rawFrom = String(deliveryDateFrom).trim();
       const rawTo = String(deliveryDateTo).trim();
       const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-        ? parseYMD(rawFrom)
+        ? parseBAYMD(rawFrom)
         : new Date(deliveryDateFrom);
       const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-        ? parseYMD(rawTo)
+        ? parseBAYMD(rawTo)
         : new Date(deliveryDateTo);
       if (toDate < fromDate) {
         throw new BadRequestException(
@@ -802,19 +802,22 @@ export class OneOffPurchaseService
 
       if (purchaseDateFrom) {
         const rawFrom = String(purchaseDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(purchaseDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.purchase_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.purchase_date.gte = parseBAYMD(rawFrom);
+        } else {
+          where.purchase_date.gte = new Date(purchaseDateFrom);
+        }
       }
       if (purchaseDateTo) {
         const rawTo = String(purchaseDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(purchaseDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.purchase_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseBAYMD(rawTo);
+          where.purchase_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.purchase_date.lte = new Date(purchaseDateTo);
+        }
       }
 
       // Log para debugging del filtrado de fechas
@@ -827,19 +830,22 @@ export class OneOffPurchaseService
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
         const rawFrom = String(deliveryDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(deliveryDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.scheduled_delivery_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.scheduled_delivery_date.gte = parseBAYMD(rawFrom);
+        } else {
+          where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+        }
       }
       if (deliveryDateTo) {
         const rawTo = String(deliveryDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(deliveryDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.scheduled_delivery_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseBAYMD(rawTo);
+          where.scheduled_delivery_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.scheduled_delivery_date.lte = new Date(deliveryDateTo);
+        }
       }
     }
 
@@ -1266,7 +1272,9 @@ export class OneOffPurchaseService
                 : { connect: { zone_id: updateDto.zone_id } },
           }),
           purchase_date: updateDto.purchase_date
-            ? new Date(updateDto.purchase_date)
+            ? /^\d{4}-\d{2}-\d{2}$/.test(updateDto.purchase_date.trim())
+              ? parseBAYMD(updateDto.purchase_date.trim())
+              : new Date(updateDto.purchase_date)
             : existingPurchase.purchase_date,
           ...(updateDto.scheduled_delivery_date !== undefined && {
             scheduled_delivery_date:
@@ -1275,7 +1283,7 @@ export class OneOffPurchaseService
                 ? /^\d{4}-\d{2}-\d{2}$/.test(
                     updateDto.scheduled_delivery_date.trim(),
                   )
-                  ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                  ? parseBAYMD(updateDto.scheduled_delivery_date.trim())
                   : new Date(updateDto.scheduled_delivery_date)
                 : null,
           }),
@@ -1344,7 +1352,9 @@ export class OneOffPurchaseService
                     : { connect: { zone_id: updateDto.zone_id } },
               }),
               purchase_date: updateDto.purchase_date
-                ? new Date(updateDto.purchase_date)
+                ? /^\d{4}-\d{2}-\d{2}$/.test(updateDto.purchase_date.trim())
+                  ? parseBAYMD(updateDto.purchase_date.trim())
+                  : new Date(updateDto.purchase_date)
                 : headerPurchase.purchase_date,
               ...(updateDto.scheduled_delivery_date !== undefined && {
                 scheduled_delivery_date:
@@ -1353,7 +1363,7 @@ export class OneOffPurchaseService
                     ? /^\d{4}-\d{2}-\d{2}$/.test(
                         updateDto.scheduled_delivery_date.trim(),
                       )
-                      ? parseYMD(updateDto.scheduled_delivery_date.trim())
+                      ? parseBAYMD(updateDto.scheduled_delivery_date.trim())
                       : new Date(updateDto.scheduled_delivery_date)
                     : null,
               }),
@@ -2268,17 +2278,22 @@ export class OneOffPurchaseService
         where.purchase_date = {};
         if (purchaseDateFrom) {
           const rawFrom = String(purchaseDateFrom).trim();
-          where.purchase_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-            ? parseYMD(rawFrom)
-            : new Date(purchaseDateFrom);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+            where.purchase_date.gte = parseBAYMD(rawFrom);
+          } else {
+            where.purchase_date.gte = new Date(purchaseDateFrom);
+          }
         }
         if (purchaseDateTo) {
           const rawTo = String(purchaseDateTo).trim();
-          const endDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-            ? parseYMD(rawTo)
-            : new Date(purchaseDateTo);
-          endDate.setHours(23, 59, 59, 999);
-          where.purchase_date.lte = endDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+            const start = parseBAYMD(rawTo);
+            where.purchase_date.lte = new Date(
+              start.getTime() + 24 * 60 * 60 * 1000 - 1,
+            );
+          } else {
+            where.purchase_date.lte = new Date(purchaseDateTo);
+          }
         }
       }
 
@@ -2286,19 +2301,22 @@ export class OneOffPurchaseService
         where.scheduled_delivery_date = {};
         if (deliveryDateFrom) {
           const rawFrom = String(deliveryDateFrom).trim();
-          where.scheduled_delivery_date.gte = /^\d{4}-\d{2}-\d{2}$/.test(
-            rawFrom,
-          )
-            ? parseYMD(rawFrom)
-            : new Date(deliveryDateFrom);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+            where.scheduled_delivery_date.gte = parseBAYMD(rawFrom);
+          } else {
+            where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+          }
         }
         if (deliveryDateTo) {
           const rawTo = String(deliveryDateTo).trim();
-          const endDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-            ? parseYMD(rawTo)
-            : new Date(deliveryDateTo);
-          endDate.setHours(23, 59, 59, 999);
-          where.scheduled_delivery_date.lte = endDate;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+            const start = parseBAYMD(rawTo);
+            where.scheduled_delivery_date.lte = new Date(
+              start.getTime() + 24 * 60 * 60 * 1000 - 1,
+            );
+          } else {
+            where.scheduled_delivery_date.lte = new Date(deliveryDateTo);
+          }
         }
       }
 
