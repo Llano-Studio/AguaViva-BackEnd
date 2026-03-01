@@ -1000,7 +1000,15 @@ export class AutomatedCollectionService
 
     // Verificar que el ciclo tenga saldo pendiente
     const pendingBalance = new Prisma.Decimal(cycle.pending_balance || 0);
-    if (pendingBalance.lessThanOrEqualTo(0)) {
+    const allowedStatuses = [
+      PaymentStatus.PENDING,
+      PaymentStatus.PARTIAL,
+      PaymentStatus.OVERDUE,
+    ];
+    if (
+      pendingBalance.lessThanOrEqualTo(0) ||
+      !allowedStatuses.includes(cycle.payment_status as PaymentStatus)
+    ) {
       throw new Error(
         `El ciclo ${cycleId} no tiene saldo pendiente por cobrar. Saldo actual: $${pendingBalance.toString()}`,
       );

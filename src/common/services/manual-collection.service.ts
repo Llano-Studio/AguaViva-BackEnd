@@ -138,6 +138,13 @@ export class ManualCollectionService extends PrismaClient {
                 pending_balance: {
                   gt: 0,
                 },
+                payment_status: {
+                  in: [
+                    PaymentStatus.PENDING,
+                    PaymentStatus.PARTIAL,
+                    PaymentStatus.OVERDUE,
+                  ],
+                },
               },
             },
           },
@@ -225,6 +232,13 @@ export class ManualCollectionService extends PrismaClient {
         pending_balance: {
           gt: 0,
         },
+        payment_status: {
+          in: [
+            PaymentStatus.PENDING,
+            PaymentStatus.PARTIAL,
+            PaymentStatus.OVERDUE,
+          ],
+        },
       },
       include: {
         customer_subscription: {
@@ -249,10 +263,8 @@ export class ManualCollectionService extends PrismaClient {
             )
           : 0;
 
-      let paymentStatus = 'PENDING';
-      if (daysOverdue > 0) {
-        paymentStatus = 'OVERDUE';
-      }
+      const paymentStatus =
+        daysOverdue > 0 ? PaymentStatus.OVERDUE : cycle.payment_status;
 
       return {
         cycle_id: cycle.cycle_id,
@@ -396,6 +408,13 @@ export class ManualCollectionService extends PrismaClient {
         },
         pending_balance: {
           gt: 0,
+        },
+        payment_status: {
+          in: [
+            PaymentStatus.PENDING,
+            PaymentStatus.PARTIAL,
+            PaymentStatus.OVERDUE,
+          ],
         },
       },
       include: {
