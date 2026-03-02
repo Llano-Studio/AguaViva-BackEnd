@@ -2118,7 +2118,9 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               const raw = d.isNegative() ? '0.00' : d.toFixed(2);
               if (
                 orderItemsDto.length === 0 &&
-                detail.order_header.notes?.toUpperCase().includes('COBRANZA MANUAL')
+                detail.order_header.notes
+                  ?.toUpperCase()
+                  .includes('COBRANZA MANUAL')
               ) {
                 return detail.order_header.total_amount.toString();
               }
@@ -2725,6 +2727,21 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       );
     }
 
+    const isManualCollectionOrder =
+      order.order_type === 'HYBRID' &&
+      (order.notes || '').toUpperCase().includes('COBRANZA MANUAL');
+    const cycleIds = (() => {
+      if (!isManualCollectionOrder || !order.notes) return [];
+      const ids = new Set<number>();
+      const regex = /Ciclo[:\s]+(\d+)/gi;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(order.notes)) !== null) {
+        const value = parseInt(match[1], 10);
+        if (!Number.isNaN(value)) ids.add(value);
+      }
+      return Array.from(ids);
+    })();
+
     const paymentMethod = await this.payment_method.findUnique({
       where: { payment_method_id: recordPaymentDto.payment_method_id },
     });
@@ -2784,6 +2801,30 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
           paid_amount: newPaidAmount.toString(),
         },
       });
+
+      const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(
+        orderTotalAmount,
+      )
+        ? 'PAID'
+        : newPaidAmount.equals(0)
+          ? 'PENDING'
+          : 'PARTIAL';
+
+      if (
+        isManualCollectionOrder &&
+        order.subscription_id &&
+        cycleIds.length > 0
+      ) {
+        await tx.subscription_cycle.updateMany({
+          where: {
+            subscription_id: order.subscription_id,
+            cycle_id: { in: cycleIds },
+          },
+          data: {
+            payment_status: newPaymentStatus,
+          },
+        });
+      }
       return paymentTransaction;
     });
     // Aplicar lógica centralizada de entrega/comodatos a través de OrdersService

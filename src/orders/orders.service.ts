@@ -90,6 +90,28 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     return hours * 60 + minutes;
   }
 
+  private isWithdrawalOrder(order: {
+    notes?: string | null;
+    order_item?: Array<{ notes?: string | null }>;
+  }): boolean {
+    const notes = order.notes ? order.notes.toLowerCase() : '';
+    const itemNotes =
+      order.order_item?.map((item) => item.notes || '').join(' ') || '';
+    return `${notes} ${itemNotes}`.toLowerCase().includes('retiro de comodato');
+  }
+
+  private extractCycleIdsFromNotes(notes?: string | null): number[] {
+    if (!notes) return [];
+    const ids = new Set<number>();
+    const regex = /Ciclo[:\s]+(\d+)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(notes)) !== null) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) ids.add(value);
+    }
+    return Array.from(ids);
+  }
+
   private mapToOrderResponseDto(
     order: Prisma.order_headerGetPayload<{
       include: {
@@ -1376,6 +1398,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           );
         }
 
+        const requestedStatus = orderHeaderDataToUpdateInput.status as
+          | PrismaOrderStatus
+          | undefined;
+        const isFinalStatus =
+          requestedStatus &&
+          ['DELIVERED', 'RETIRADO'].includes(requestedStatus);
+        const shouldProcessWithdrawal =
+          isFinalStatus && existingOrder.status !== requestedStatus;
+
         // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
         if (items && items.length > 0) {
           // Eliminar todos los items existentes y crear los nuevos
@@ -1662,6 +1693,33 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           await tx.order_header.update({
             where: { order_id: id },
             data: dataToUpdate,
+          });
+        }
+
+        if (
+          shouldProcessWithdrawal &&
+          this.isWithdrawalOrder(existingOrder) &&
+          existingOrder.order_item.length > 0
+        ) {
+          const productIds = Array.from(
+            new Set(existingOrder.order_item.map((item) => item.product_id)),
+          );
+
+          await tx.comodato.updateMany({
+            where: {
+              person_id: existingOrder.customer_id,
+              product_id: { in: productIds },
+              status: 'ACTIVE',
+              is_active: true,
+              ...(existingOrder.subscription_id
+                ? { subscription_id: existingOrder.subscription_id }
+                : {}),
+            },
+            data: {
+              status: 'RETURNED',
+              return_date: new Date(),
+              is_active: false,
+            },
           });
         }
 
@@ -2175,6 +2233,28 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             payment_status: newPaymentStatus,
           },
         });
+
+        const isManualCollectionOrder =
+          order.order_type === 'HYBRID' &&
+          (order.notes || '').toUpperCase().includes('COBRANZA MANUAL');
+        const cycleIds = isManualCollectionOrder
+          ? this.extractCycleIdsFromNotes(order.notes)
+          : [];
+        if (
+          isManualCollectionOrder &&
+          order.subscription_id &&
+          cycleIds.length > 0
+        ) {
+          await tx.subscription_cycle.updateMany({
+            where: {
+              subscription_id: order.subscription_id,
+              cycle_id: { in: cycleIds },
+            },
+            data: {
+              payment_status: newPaymentStatus,
+            },
+          });
+        }
 
         return paymentTransaction;
       });

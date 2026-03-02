@@ -104,6 +104,37 @@ export class RouteSheetGeneratorService extends PrismaClient {
     super();
   }
 
+  private buildCollectionExtraNotes(
+    collection: any,
+    subscriptionNotes?: string,
+  ): string {
+    const parts: string[] = [];
+    const alias = collection?.customer?.alias;
+    if (alias) parts.push(`EMPRESA: ${alias}`);
+
+    let clientNotes = '';
+    if (subscriptionNotes) {
+      const trimmed = String(subscriptionNotes).trim();
+      if (trimmed) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          const si =
+            parsed?.delivery_preferences?.special_instructions ||
+            parsed?.special_instructions;
+          clientNotes = si ? String(si).trim() : trimmed;
+        } catch {
+          clientNotes = trimmed;
+        }
+      }
+    }
+    if (clientNotes) parts.push(`NOTAS CLIENTE: ${clientNotes}`);
+
+    const orderNotes = collection?.notes ? String(collection.notes).trim() : '';
+    if (orderNotes) parts.push(`NOTAS DEL PEDIDO: ${orderNotes}`);
+
+    return parts.join(' | ');
+  }
+
   /**
    * Genera una hoja de ruta para cobranzas automáticas
    */
@@ -648,6 +679,13 @@ export class RouteSheetGeneratorService extends PrismaClient {
       dueDate || undefined,
       isNaN(amountNumber) ? String(collection.total_amount) : amountNumber,
     );
+    const extraNotes = this.buildCollectionExtraNotes(
+      collection,
+      subscriptionNotes,
+    );
+    const combinedNotes = [formattedNotes, extraNotes]
+      .filter((value) => value && String(value).trim().length > 0)
+      .join(' | ');
 
     const cycleForStatus = (() => {
       if (typeof cycleId === 'number') {
@@ -728,7 +766,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         .map((d: Date) => formatBAYMD(d)),
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
-      notes: formattedNotes,
+      notes: combinedNotes,
       status: collection.status,
       payment_status: resolvedPaymentStatus,
       is_backlog: isBacklog,
@@ -806,6 +844,13 @@ export class RouteSheetGeneratorService extends PrismaClient {
       dueDate || undefined,
       pendingBalance,
     );
+    const extraNotes = this.buildCollectionExtraNotes(
+      collection,
+      subscriptionNotes,
+    );
+    const combinedNotes = [formattedNotes, extraNotes]
+      .filter((value) => value && String(value).trim().length > 0)
+      .join(' | ');
 
     // Resolver el estado de pago del ciclo
     const resolvedPaymentStatus = (() => {
@@ -853,7 +898,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       due_dates: dueDate ? [formatBAYMD(dueDate)] : [],
       days_overdue: daysOverdue,
       priority: isOverdue ? (daysOverdue > 30 ? 1 : 2) : 3,
-      notes: formattedNotes,
+      notes: combinedNotes,
       status: collection.status,
       payment_status: resolvedPaymentStatus,
       is_backlog: isBacklog,
