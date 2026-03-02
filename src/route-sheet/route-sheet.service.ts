@@ -2115,7 +2115,14 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
               const d = new Decimal(detail.order_header.total_amount).minus(
                 new Decimal(detail.order_header.paid_amount),
               );
-              return d.isNegative() ? '0.00' : d.toFixed(2);
+              const raw = d.isNegative() ? '0.00' : d.toFixed(2);
+              if (
+                orderItemsDto.length === 0 &&
+                detail.order_header.notes?.toUpperCase().includes('COBRANZA MANUAL')
+              ) {
+                return detail.order_header.total_amount.toString();
+              }
+              return raw;
             })(),
             status:
               detail.order_header.status === 'OVERDUE'

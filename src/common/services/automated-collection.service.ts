@@ -1059,7 +1059,7 @@ export class AutomatedCollectionService
       customer_id: person.person_id,
       subscription_id: subscription.subscription_id,
       sale_channel_id: 1,
-      order_date: formatBATimestampISO(adjustedDate),
+      order_date: formatBATimestampISO(new Date()),
       scheduled_delivery_date: formatBATimestampISO(adjustedDate),
       total_amount: cycleAmount,
       paid_amount: '0.00',

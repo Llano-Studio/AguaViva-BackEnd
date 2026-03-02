@@ -945,6 +945,29 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             quantityForStockMovement > 0 &&
             createdItem.product.is_returnable
           ) {
+            if (subscription_id) {
+              const comodato = await prismaTx.comodato.findFirst({
+                where: {
+                  person_id: customer_id,
+                  subscription_id: subscription_id,
+                  product_id: createdItem.product_id,
+                  status: 'ACTIVE',
+                  is_active: true,
+                },
+              });
+
+              if (comodato) {
+                const updatedQuantity =
+                  (comodato.quantity || 0) + createdItem.quantity;
+
+                await prismaTx.comodato.update({
+                  where: { comodato_id: comodato.comodato_id },
+                  data: {
+                    quantity: updatedQuantity,
+                  },
+                });
+              }
+            }
           }
         }
 
