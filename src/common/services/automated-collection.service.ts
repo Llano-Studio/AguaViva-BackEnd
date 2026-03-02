@@ -1066,10 +1066,34 @@ export class AutomatedCollectionService
       order_type: 'HYBRID' as any,
       status: 'PENDING' as any,
       notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
-      items: [], // Solo productos de la suscripción, sin adicionales
+      items: [],
     };
 
-    await this.ordersService.create(createOrderDto, { role: Role.SUPERADMIN });
+    try {
+      await this.ordersService.create(createOrderDto, {
+        role: Role.SUPERADMIN,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `⚠️ Fallo creación de pedido híbrido de cobranza, creando pedido básico: ${error.message}`,
+      );
+
+      await this.order_header.create({
+        data: {
+          customer_id: person.person_id,
+          subscription_id: subscription.subscription_id,
+          sale_channel_id: 1,
+          order_date: new Date(),
+          scheduled_delivery_date: adjustedDate,
+          delivery_time: '09:00-18:00',
+          total_amount: new Prisma.Decimal(cycleAmount),
+          paid_amount: new Prisma.Decimal(0),
+          order_type: 'HYBRID',
+          status: 'PENDING',
+          notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
+        },
+      });
+    }
   }
 
   /**
