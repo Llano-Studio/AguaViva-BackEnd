@@ -6,9 +6,10 @@ import { MobileInventoryService } from '../common/services/mobile-inventory.serv
 import { CommonModule } from '../common/common.module';
 import { OrdersModule } from '../orders/orders.module';
 import { ServicesModule } from '../common/services/services.module';
+import { CyclePaymentsModule } from '../cycle-payments/cycle-payments.module';
 
 @Module({
-  imports: [CommonModule, OrdersModule, ServicesModule],
+  imports: [CommonModule, OrdersModule, ServicesModule, CyclePaymentsModule],
   controllers: [RouteSheetController],
   providers: [
     RouteSheetService,

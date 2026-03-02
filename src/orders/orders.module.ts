@@ -17,9 +17,16 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { CommonModule } from '../common/common.module';
 import { ServicesModule } from '../common/services/services.module';
 import { AuditModule } from '../audit/audit.module';
+import { CyclePaymentsModule } from '../cycle-payments/cycle-payments.module';
 
 @Module({
-  imports: [InventoryModule, CommonModule, ServicesModule, AuditModule],
+  imports: [
+    InventoryModule,
+    CommonModule,
+    ServicesModule,
+    AuditModule,
+    CyclePaymentsModule,
+  ],
   controllers: [
     OrdersController,
     OneOffPurchaseController,

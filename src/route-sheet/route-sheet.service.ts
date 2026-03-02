@@ -41,8 +41,9 @@ import {
   formatBAYMD,
   parseBAYMD,
 } from '../common/utils/date.utils';
-import { DeliveryStatus } from '../common/constants/enums';
+import { DeliveryStatus, PaymentMethod } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
+import { CyclePaymentsService } from '../cycle-payments/cycle-payments.service';
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -131,6 +132,7 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly ordersService: OrdersService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
+    private readonly cyclePaymentsService: CyclePaymentsService,
   ) {
     super();
   }
@@ -162,6 +164,90 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
     const pdfDir = join(process.cwd(), 'public', 'pdfs');
     await fs.ensureDir(pdfDir);
     return pdfDir;
+  }
+
+  private mapPaymentMethodId(paymentMethodId: number): PaymentMethod {
+    const mapById: Record<number, PaymentMethod> = {
+      1: PaymentMethod.EFECTIVO,
+      2: PaymentMethod.TRANSFERENCIA,
+      3: PaymentMethod.TARJETA_DEBITO,
+      4: PaymentMethod.TARJETA_CREDITO,
+      5: PaymentMethod.CHEQUE,
+      6: PaymentMethod.MOBILE_PAYMENT,
+    };
+    return mapById[paymentMethodId] ?? PaymentMethod.EFECTIVO;
+  }
+
+  private extractCycleIdsFromNotes(notes?: string | null): number[] {
+    if (!notes) return [];
+    const ids = new Set<number>();
+    const regex = /Ciclo[:\s]+(\d+)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(notes)) !== null) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) ids.add(value);
+    }
+    return Array.from(ids);
+  }
+
+  private async createCyclePaymentsFromManualCollection(
+    order: {
+      order_id: number;
+      order_type: string;
+      notes?: string | null;
+      subscription_id?: number | null;
+    },
+    amount: number,
+    paymentMethodId: number,
+    paymentDate: string | undefined,
+    reference: string | undefined,
+    notes: string | undefined,
+    userId: number,
+  ): Promise<void> {
+    const isManualCollectionOrder =
+      order.order_type === 'HYBRID' &&
+      (order.notes || '').toUpperCase().includes('COBRANZA MANUAL');
+    if (!isManualCollectionOrder || !order.subscription_id) return;
+
+    const cycleIds = this.extractCycleIdsFromNotes(order.notes);
+    if (cycleIds.length === 0) return;
+
+    const cycles = await this.subscription_cycle.findMany({
+      where: { cycle_id: { in: cycleIds } },
+      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }],
+    });
+    if (cycles.length === 0) return;
+
+    let remaining = Number(amount);
+    const baseNotes = `Pago desde orden de cobranza manual ${order.order_id}`;
+    const combinedNotes =
+      notes && notes.trim().length > 0 ? `${baseNotes} - ${notes}` : baseNotes;
+
+    for (let i = 0; i < cycles.length && remaining > 0; i++) {
+      const cycle = cycles[i];
+      const pending = Number(cycle.pending_balance ?? 0);
+      let applyAmount = remaining;
+      if (i < cycles.length - 1) {
+        if (pending <= 0) continue;
+        applyAmount = Math.min(remaining, pending);
+      }
+
+      if (applyAmount <= 0) continue;
+
+      await this.cyclePaymentsService.createCyclePayment(
+        {
+          cycle_id: cycle.cycle_id,
+          amount: applyAmount,
+          payment_method: this.mapPaymentMethodId(paymentMethodId),
+          payment_date: paymentDate,
+          reference,
+          notes: combinedNotes,
+        },
+        userId,
+      );
+
+      remaining = Number(new Decimal(remaining).minus(applyAmount));
+    }
   }
 
   private async saveFile(
@@ -2727,21 +2813,6 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
       );
     }
 
-    const isManualCollectionOrder =
-      order.order_type === 'HYBRID' &&
-      (order.notes || '').toUpperCase().includes('COBRANZA MANUAL');
-    const cycleIds = (() => {
-      if (!isManualCollectionOrder || !order.notes) return [];
-      const ids = new Set<number>();
-      const regex = /Ciclo[:\s]+(\d+)/gi;
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(order.notes)) !== null) {
-        const value = parseInt(match[1], 10);
-        if (!Number.isNaN(value)) ids.add(value);
-      }
-      return Array.from(ids);
-    })();
-
     const paymentMethod = await this.payment_method.findUnique({
       where: { payment_method_id: recordPaymentDto.payment_method_id },
     });
@@ -2802,31 +2873,18 @@ export class RouteSheetService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      const newPaymentStatus = newPaidAmount.greaterThanOrEqualTo(
-        orderTotalAmount,
-      )
-        ? 'PAID'
-        : newPaidAmount.equals(0)
-          ? 'PENDING'
-          : 'PARTIAL';
-
-      if (
-        isManualCollectionOrder &&
-        order.subscription_id &&
-        cycleIds.length > 0
-      ) {
-        await tx.subscription_cycle.updateMany({
-          where: {
-            subscription_id: order.subscription_id,
-            cycle_id: { in: cycleIds },
-          },
-          data: {
-            payment_status: newPaymentStatus,
-          },
-        });
-      }
       return paymentTransaction;
     });
+
+    await this.createCyclePaymentsFromManualCollection(
+      order,
+      recordPaymentDto.amount,
+      recordPaymentDto.payment_method_id,
+      recordPaymentDto.payment_date,
+      recordPaymentDto.transaction_reference,
+      recordPaymentDto.notes,
+      userId,
+    );
     // Aplicar lógica centralizada de entrega/comodatos a través de OrdersService
     const updatedPaidAmount = new Decimal(order.paid_amount).plus(
       new Decimal(recordPaymentDto.amount),

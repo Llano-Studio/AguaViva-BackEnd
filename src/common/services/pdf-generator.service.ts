@@ -776,7 +776,14 @@ export class PdfGeneratorService {
         deliveryDay,
       );
 
-      if (includeProductDetails && detail.order.items.length > 0) {
+      const hasExtraDetails =
+        (detail.order.items && detail.order.items.length > 0) ||
+        detail.order?.customer?.alias ||
+        detail.order?.customer?.special_instructions ||
+        detail.order?.notes ||
+        (Array.isArray(detail.credits) && detail.credits.length > 0);
+
+      if (includeProductDetails && hasExtraDetails) {
         currentY = this.generateProductDetails(
           doc,
           detail,
@@ -998,9 +1005,12 @@ export class PdfGeneratorService {
     const aliasText = detail.order.customer.alias
       ? `${detail.order.customer.alias}`
       : '';
-    const productText = detail.order.items
-      .map((item: any) => `${item.quantity}x ${item.product.description}`)
-      .join(' | ');
+    const productText =
+      detail.order.items && detail.order.items.length > 0
+        ? detail.order.items
+            .map((item: any) => `${item.quantity}x ${item.product.description}`)
+            .join(' | ')
+        : 'Sin productos';
     // Comentarios: usar notes del pedido (nuevo formato)
     const commentsText =
       detail.order && detail.order.notes ? `${detail.order.notes}` : '';
