@@ -60,7 +60,7 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseYMD,
+  parseBAYMD,
 } from '../common/utils/date.utils';
 
 @Injectable()
@@ -1562,13 +1562,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           delivery_date: /^\d{4}-\d{2}-\d{2}$/.test(
             String(dto.delivery_date).trim(),
           )
-            ? parseYMD(String(dto.delivery_date).trim())
+            ? parseBAYMD(String(dto.delivery_date).trim())
             : new Date(dto.delivery_date),
           expected_return_date: dto.expected_return_date
             ? /^\d{4}-\d{2}-\d{2}$/.test(
                 String(dto.expected_return_date).trim(),
               )
-              ? parseYMD(String(dto.expected_return_date).trim())
+              ? parseBAYMD(String(dto.expected_return_date).trim())
               : new Date(dto.expected_return_date)
             : null,
           status: dto.status,
@@ -1656,14 +1656,27 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (filters.delivery_date_from || filters.delivery_date_to) {
         whereConditions.delivery_date = {};
         if (filters.delivery_date_from) {
-          whereConditions.delivery_date.gte = new Date(
-            filters.delivery_date_from,
-          );
+          const rawFrom = String(filters.delivery_date_from).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+            whereConditions.delivery_date.gte = parseBAYMD(rawFrom);
+          } else {
+            whereConditions.delivery_date.gte = new Date(
+              filters.delivery_date_from,
+            );
+          }
         }
         if (filters.delivery_date_to) {
-          whereConditions.delivery_date.lte = new Date(
-            filters.delivery_date_to,
-          );
+          const rawTo = String(filters.delivery_date_to).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+            const start = parseBAYMD(rawTo);
+            whereConditions.delivery_date.lte = new Date(
+              start.getTime() + 24 * 60 * 60 * 1000 - 1,
+            );
+          } else {
+            whereConditions.delivery_date.lte = new Date(
+              filters.delivery_date_to,
+            );
+          }
         }
       }
 
@@ -2000,14 +2013,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         updateData.delivery_date = /^\d{4}-\d{2}-\d{2}$/.test(
           String(dto.delivery_date).trim(),
         )
-          ? parseYMD(String(dto.delivery_date).trim())
+          ? parseBAYMD(String(dto.delivery_date).trim())
           : new Date(dto.delivery_date);
       }
 
       if (dto.expected_return_date !== undefined) {
         updateData.expected_return_date = dto.expected_return_date
           ? /^\d{4}-\d{2}-\d{2}$/.test(String(dto.expected_return_date).trim())
-            ? parseYMD(String(dto.expected_return_date).trim())
+            ? parseBAYMD(String(dto.expected_return_date).trim())
             : new Date(dto.expected_return_date)
           : null;
       }
@@ -2015,7 +2028,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (dto.actual_return_date !== undefined) {
         updateData.return_date = dto.actual_return_date
           ? /^\d{4}-\d{2}-\d{2}$/.test(String(dto.actual_return_date).trim())
-            ? parseYMD(String(dto.actual_return_date).trim())
+            ? parseBAYMD(String(dto.actual_return_date).trim())
             : new Date(dto.actual_return_date)
           : null;
       }
@@ -2379,7 +2392,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           data: {
             expected_return_date: scheduledDate,
             notes:
-              `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${scheduledDate.toISOString().split('T')[0]}`.trim(),
+              `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${formatBAYMD(scheduledDate)}`.trim(),
           },
         });
 

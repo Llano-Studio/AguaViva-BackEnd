@@ -23,11 +23,12 @@ import { OrdersService } from '../../orders/orders.service';
 import { CommonModule } from '../common.module';
 import { InventoryModule } from '../../inventory/inventory.module';
 import { AuditModule } from '../../audit/audit.module';
+import { CyclePaymentsModule } from '../../cycle-payments/cycle-payments.module';
 import { PrismaClient } from '@prisma/client';
 
 @Global()
 @Module({
-  imports: [CommonModule, InventoryModule, AuditModule],
+  imports: [CommonModule, InventoryModule, AuditModule, CyclePaymentsModule],
   providers: [
     GeneralCycleNumberingService,
     RecoveryOrderService,

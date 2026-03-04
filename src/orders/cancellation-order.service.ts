@@ -7,6 +7,7 @@ import {
 import { PrismaClient, CancellationOrderStatus, Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { parseBAYMD } from '../common/utils/date.utils';
 import { CreateCancellationOrderDto } from './dto/create-cancellation-order.dto';
 import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto';
 import {
@@ -120,7 +121,7 @@ export class CancellationOrderService extends PrismaClient {
         );
       }
       scheduledDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
-        ? parseYMD(raw)
+        ? parseBAYMD(raw)
         : new Date(raw);
       if (isNaN(scheduledDate.getTime())) {
         throw new BadRequestException(

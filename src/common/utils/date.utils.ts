@@ -5,6 +5,44 @@ export function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
+export function getAppTimeZone(): string {
+  return process.env.APP_TIMEZONE || 'America/Argentina/Buenos_Aires';
+}
+
+function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(date);
+  const values: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== 'literal') values[p.type] = p.value;
+  }
+  const asUTC = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  );
+  return (asUTC - date.getTime()) / 60000;
+}
+
+function formatOffset(offsetMinutes: number): string {
+  const sign = offsetMinutes <= 0 ? '-' : '+';
+  const abs = Math.abs(offsetMinutes);
+  const hh = pad2(Math.floor(abs / 60));
+  const mm = pad2(abs % 60);
+  return `${sign}${hh}:${mm}`;
+}
+
 // Parse a strict YYYY-MM-DD string into a local Date at 00:00:00.000
 export function parseYMD(dateStr: string): Date {
   const m = /^\d{4}-\d{2}-\d{2}$/.exec(dateStr);
@@ -15,8 +53,38 @@ export function parseYMD(dateStr: string): Date {
   const d = Number(dStr);
   const dt = new Date(y, mo - 1, d);
   dt.setHours(0, 0, 0, 0);
-  // Validate round-trip equality to catch impossible dates like 2025-02-30
   if (formatLocalYMD(dt) !== dateStr) {
+    throw new Error('Fecha fuera de rango o inválida');
+  }
+  return dt;
+}
+
+export function parseBAYMD(dateStr: string): Date {
+  const m = /^\d{4}-\d{2}-\d{2}$/.exec(dateStr);
+  if (!m) throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
+  const [yStr, mStr, dStr] = dateStr.split('-');
+  const y = Number(yStr);
+  const mo = Number(mStr);
+  const d = Number(dStr);
+  const timeZone = getAppTimeZone();
+  const utcMidnight = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+  const offsetMinutes = getTimeZoneOffsetMinutes(timeZone, utcMidnight);
+  const dt = new Date(utcMidnight.getTime() - offsetMinutes * 60000);
+  if (formatBAYMD(dt) !== dateStr) {
+    throw new Error('Fecha fuera de rango o inválida');
+  }
+  return dt;
+}
+
+export function parseUTCYMD(dateStr: string): Date {
+  const m = /^\d{4}-\d{2}-\d{2}$/.exec(dateStr);
+  if (!m) throw new Error('Formato de fecha inválido. Use YYYY-MM-DD');
+  const [yStr, mStr, dStr] = dateStr.split('-');
+  const y = Number(yStr);
+  const mo = Number(mStr);
+  const d = Number(dStr);
+  const dt = new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0));
+  if (formatUTCYMD(dt) !== dateStr) {
     throw new Error('Fecha fuera de rango o inválida');
   }
   return dt;
@@ -62,8 +130,9 @@ export function formatBAYMD(date: Date): string {
     const d = pad2(date.getUTCDate());
     return `${y}-${m}-${d}`;
   }
+  const timeZone = getAppTimeZone();
   const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -85,7 +154,7 @@ export function nowBAYMD(): string {
 
 // Start of day in BA timezone projected to a local Date by round-tripping YYYY-MM-DD
 export function startOfDayBA(date: Date): Date {
-  return parseYMD(formatBAYMD(date));
+  return parseBAYMD(formatBAYMD(date));
 }
 
 // End of day in BA timezone as local Date (23:59:59.999 of BA day)
@@ -96,8 +165,15 @@ export function endOfDayBA(date: Date): Date {
 }
 
 export function formatBATimestampISO(date: Date): string {
+  const timeZone = getAppTimeZone();
+  const isUtcMidnight = /T00:00:00\.000Z$/.test(date.toISOString());
+  const normalized = isUtcMidnight
+    ? new Date(
+        date.getTime() - getTimeZoneOffsetMinutes(timeZone, date) * 60000,
+      )
+    : date;
   const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -105,7 +181,7 @@ export function formatBATimestampISO(date: Date): string {
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(date);
+  }).formatToParts(normalized);
   const get = (t: string) =>
     String(parts.find((p) => p.type === t)?.value || '').padStart(
       t === 'day' || t === 'month' ? 2 : 0,
@@ -117,7 +193,8 @@ export function formatBATimestampISO(date: Date): string {
   const hh = get('hour');
   const mm = get('minute');
   const ss = get('second');
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}-03:00`;
+  const offset = formatOffset(getTimeZoneOffsetMinutes(timeZone, normalized));
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}${offset}`;
 }
 
 // Compare two YYYY-MM-DD strings for descending sort
@@ -128,8 +205,9 @@ export function compareYmdDesc(a: string, b: string): number {
 }
 
 export function formatBAHMS(date: Date): string {
+  const timeZone = getAppTimeZone();
   const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
+    timeZone,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

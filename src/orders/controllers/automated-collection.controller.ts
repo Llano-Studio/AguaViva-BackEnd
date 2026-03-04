@@ -47,7 +47,7 @@ import { GenerateDailyRouteSheetsDto } from '../dto/generate-daily-route-sheets.
 import { DeleteAutomatedCollectionResponseDto } from '../dto/delete-automated-collection.dto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseYMD, compareYmdDesc } from '../../common/utils/date.utils';
+import { parseBAYMD, compareYmdDesc } from '../../common/utils/date.utils';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 
 export class GenerateCollectionOrdersDto {
@@ -216,7 +216,7 @@ export class AutomatedCollectionController {
     try {
       let targetDate: Date;
       try {
-        targetDate = parseYMD(dto.target_date);
+        targetDate = parseBAYMD(dto.target_date);
       } catch {
         throw new HttpException(
           'Formato de fecha inválido. Use YYYY-MM-DD',
@@ -1257,13 +1257,13 @@ Ejemplo UI: columna "Venc." muestra principal y "(+N)" si aplica; sección de de
 
       const withinDateRange = (date: string) => {
         if (!dateFrom && !dateTo) return true;
-        const d = parseYMD(date);
+        const d = parseBAYMD(date);
         if (dateFrom) {
-          const from = parseYMD(dateFrom);
+          const from = parseBAYMD(dateFrom);
           if (d < from) return false;
         }
         if (dateTo) {
-          const to = parseYMD(dateTo);
+          const to = parseBAYMD(dateTo);
           to.setHours(23, 59, 59, 999);
           if (d > to) return false;
         }

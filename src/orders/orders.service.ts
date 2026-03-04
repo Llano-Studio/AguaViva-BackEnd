@@ -36,6 +36,7 @@ import { OrderResponseDto } from './dto/order-response.dto';
 import {
   OrderStatus as AppOrderStatus,
   OrderType as AppOrderType,
+  PaymentMethod,
 } from '../common/constants/enums';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
 import {
@@ -44,7 +45,12 @@ import {
 } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { formatBATimestampISO, parseYMD } from '../common/utils/date.utils';
+import {
+  formatBATimestampISO,
+  parseBAYMD,
+  parseUTCYMD,
+} from '../common/utils/date.utils';
+import { CyclePaymentsService } from '../cycle-payments/cycle-payments.service';
 
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload =
@@ -70,6 +76,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     private readonly scheduleService: ScheduleService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
     private readonly auditService: AuditService,
+    private readonly cyclePaymentsService: CyclePaymentsService,
   ) {
     super();
   }
@@ -84,6 +91,95 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
   private timeToMinutes(time: string): number {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
+  }
+
+  private isWithdrawalOrder(order: {
+    notes?: string | null;
+    order_item?: Array<{ notes?: string | null }>;
+  }): boolean {
+    const notes = order.notes ? order.notes.toLowerCase() : '';
+    const itemNotes =
+      order.order_item?.map((item) => item.notes || '').join(' ') || '';
+    return `${notes} ${itemNotes}`.toLowerCase().includes('retiro de comodato');
+  }
+
+  private extractCycleIdsFromNotes(notes?: string | null): number[] {
+    if (!notes) return [];
+    const ids = new Set<number>();
+    const regex = /Ciclo[:\s]+(\d+)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(notes)) !== null) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) ids.add(value);
+    }
+    return Array.from(ids);
+  }
+
+  private mapPaymentMethodId(paymentMethodId: number): PaymentMethod {
+    const mapById: Record<number, PaymentMethod> = {
+      1: PaymentMethod.EFECTIVO,
+      2: PaymentMethod.TRANSFERENCIA,
+      3: PaymentMethod.TARJETA_DEBITO,
+      4: PaymentMethod.TARJETA_CREDITO,
+      5: PaymentMethod.CHEQUE,
+      6: PaymentMethod.MOBILE_PAYMENT,
+    };
+    return mapById[paymentMethodId] ?? PaymentMethod.EFECTIVO;
+  }
+
+  private async createCyclePaymentsFromManualCollection(
+    order: PrismaOrderHeader,
+    amount: number,
+    paymentMethodId: number,
+    paymentDate: string | undefined,
+    reference: string | undefined,
+    notes: string | undefined,
+    userId: number,
+  ): Promise<void> {
+    const isManualCollectionOrder =
+      order.order_type === 'HYBRID' &&
+      (order.notes || '').toUpperCase().includes('COBRANZA MANUAL');
+    if (!isManualCollectionOrder || !order.subscription_id) return;
+
+    const cycleIds = this.extractCycleIdsFromNotes(order.notes);
+    if (cycleIds.length === 0) return;
+
+    const cycles = await this.subscription_cycle.findMany({
+      where: { cycle_id: { in: cycleIds } },
+      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }],
+    });
+    if (cycles.length === 0) return;
+
+    let remaining = Number(amount);
+    const baseNotes = `Pago desde orden de cobranza manual ${order.order_id}`;
+    const combinedNotes =
+      notes && notes.trim().length > 0 ? `${baseNotes} - ${notes}` : baseNotes;
+
+    for (let i = 0; i < cycles.length && remaining > 0; i++) {
+      const cycle = cycles[i];
+      const pending = Number(cycle.pending_balance ?? 0);
+      let applyAmount = remaining;
+      if (i < cycles.length - 1) {
+        if (pending <= 0) continue;
+        applyAmount = Math.min(remaining, pending);
+      }
+
+      if (applyAmount <= 0) continue;
+
+      await this.cyclePaymentsService.createCyclePayment(
+        {
+          cycle_id: cycle.cycle_id,
+          amount: applyAmount,
+          payment_method: this.mapPaymentMethodId(paymentMethodId),
+          payment_date: paymentDate,
+          reference,
+          notes: combinedNotes,
+        },
+        userId,
+      );
+
+      remaining = Number(new Decimal(remaining).minus(applyAmount));
+    }
   }
 
   private mapToOrderResponseDto(
@@ -208,8 +304,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       paymentStatus = 'PARTIAL';
     }
 
+    const normalizedOrderDate = this.normalizeDateForBA(
+      order.order_date as any,
+    );
+
     // Calcular traffic_light_status basado en días desde creación
-    const orderDate = new Date(order.order_date);
+    const orderDate = normalizedOrderDate
+      ? new Date(normalizedOrderDate)
+      : new Date(order.order_date);
     const currentDate = new Date();
     const daysDifference = Math.floor(
       (currentDate.getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24),
@@ -240,9 +342,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       contract_id: order.contract_id ?? undefined,
       subscription_id: order.subscription_id ?? undefined,
       sale_channel_id: order.sale_channel_id,
-      order_date: formatBATimestampISO(order.order_date as any),
+      order_date: normalizedOrderDate
+        ? formatBATimestampISO(normalizedOrderDate as any)
+        : formatBATimestampISO(order.order_date as any),
       scheduled_delivery_date: order.scheduled_delivery_date
-        ? formatBATimestampISO(order.scheduled_delivery_date as any)
+        ? formatBATimestampISO(
+            this.normalizeDateForBA(
+              order.scheduled_delivery_date as any,
+            ) as any,
+          )
         : undefined,
       delivery_time: order.delivery_time || undefined,
       total_amount: order.total_amount.toString(),
@@ -269,12 +377,27 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     };
   }
 
+  private normalizeDateForBA(date: Date | string | null | undefined) {
+    if (!date) return undefined;
+    const normalized = new Date(date as any);
+    if (
+      normalized.getUTCHours() === 0 &&
+      normalized.getUTCMinutes() === 0 &&
+      normalized.getUTCSeconds() === 0 &&
+      normalized.getUTCMilliseconds() === 0
+    ) {
+      normalized.setUTCHours(3, 0, 0, 0);
+    }
+    return normalized;
+  }
+
   private async validateOrderData(
     createOrderDto: CreateOrderDto,
     tx: Prisma.TransactionClient,
     user?: any,
   ) {
     const prisma = tx || this;
+    const allowPastDates = user?.role === Role.SUPERADMIN;
     const customer = await prisma.person.findUnique({
       where: { person_id: createOrderDto.customer_id },
     });
@@ -336,13 +459,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const orderDate =
         typeof rawOrderDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
-            ? parseYMD(rawOrderDate.trim())
+            ? parseBAYMD(rawOrderDate.trim())
             : new Date(rawOrderDate)
           : new Date(rawOrderDate);
       const deliveryDate =
         typeof rawDeliveryDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
-            ? parseYMD(rawDeliveryDate.trim())
+            ? parseBAYMD(rawDeliveryDate.trim())
             : new Date(rawDeliveryDate)
           : new Date(rawDeliveryDate);
 
@@ -356,7 +479,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         }
 
         // Si es el mismo día, validar que el horario de entrega sea posterior al horario actual
-        if (deliveryDate.toDateString() === orderDate.toDateString()) {
+        if (
+          !allowPastDates &&
+          deliveryDate.toDateString() === orderDate.toDateString()
+        ) {
           if (createOrderDto.delivery_time) {
             const now = new Date();
             const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -407,18 +533,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const orderDate =
         typeof rawOrderDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawOrderDate.trim())
-            ? parseYMD(rawOrderDate.trim())
+            ? parseBAYMD(rawOrderDate.trim())
             : new Date(rawOrderDate)
           : new Date(rawOrderDate);
       const deliveryDate =
         typeof rawDeliveryDate === 'string'
           ? /^\d{4}-\d{2}-\d{2}$/.test(rawDeliveryDate.trim())
-            ? parseYMD(rawDeliveryDate.trim())
+            ? parseBAYMD(rawDeliveryDate.trim())
             : new Date(rawDeliveryDate)
           : new Date(rawDeliveryDate);
-
-      // Permitir fechas pasadas solo para SUPERADMIN
-      const allowPastDates = user?.role === Role.SUPERADMIN;
 
       const scheduleResult = this.scheduleService.validateOrderSchedule(
         orderDate,
@@ -489,6 +612,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         let subscriptionQuotaValidation: any = null;
         if (
           subscription_id &&
+          items.length > 0 &&
           (createOrderDto.order_type === 'HYBRID' ||
             createOrderDto.order_type === 'SUBSCRIPTION')
         ) {
@@ -809,7 +933,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_date:
               restOfDto.order_date && typeof restOfDto.order_date === 'string'
                 ? /^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())
-                  ? parseYMD(restOfDto.order_date.trim())
+                  ? parseBAYMD(restOfDto.order_date.trim())
                   : new Date(restOfDto.order_date)
                 : (restOfDto.order_date as any) instanceof Date
                   ? (restOfDto.order_date as any)
@@ -820,7 +944,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 ? /^\d{4}-\d{2}-\d{2}$/.test(
                     restOfDto.scheduled_delivery_date.trim(),
                   )
-                  ? parseYMD(restOfDto.scheduled_delivery_date.trim())
+                  ? parseBAYMD(restOfDto.scheduled_delivery_date.trim())
                   : new Date(restOfDto.scheduled_delivery_date)
                 : (restOfDto.scheduled_delivery_date as any) instanceof Date
                   ? (restOfDto.scheduled_delivery_date as any)
@@ -839,11 +963,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             ...(contract_id && {
               client_contract: { connect: { contract_id } },
             }),
-            order_item: {
-              createMany: {
-                data: orderItemsDataForCreation,
+            ...(orderItemsDataForCreation.length > 0 && {
+              order_item: {
+                createMany: {
+                  data: orderItemsDataForCreation,
+                },
               },
-            },
+            }),
           },
           include: {
             order_item: { include: { product: true } },
@@ -911,6 +1037,29 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             quantityForStockMovement > 0 &&
             createdItem.product.is_returnable
           ) {
+            if (subscription_id) {
+              const comodato = await prismaTx.comodato.findFirst({
+                where: {
+                  person_id: customer_id,
+                  subscription_id: subscription_id,
+                  product_id: createdItem.product_id,
+                  status: 'ACTIVE',
+                  is_active: true,
+                },
+              });
+
+              if (comodato) {
+                const updatedQuantity =
+                  (comodato.quantity || 0) + createdItem.quantity;
+
+                await prismaTx.comodato.update({
+                  where: { comodato_id: comodato.comodato_id },
+                  data: {
+                    quantity: updatedQuantity,
+                  },
+                });
+              }
+            }
           }
         }
 
@@ -1096,19 +1245,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.order_date = {};
       if (orderDateFrom) {
         const rawFrom = String(orderDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(orderDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.order_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.order_date.gte = parseUTCYMD(rawFrom);
+        } else {
+          where.order_date.gte = new Date(orderDateFrom);
+        }
       }
       if (orderDateTo) {
         const rawTo = String(orderDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(orderDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.order_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseUTCYMD(rawTo);
+          where.order_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.order_date.lte = new Date(orderDateTo);
+        }
       }
     }
 
@@ -1116,19 +1268,22 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.scheduled_delivery_date = {};
       if (deliveryDateFrom) {
         const rawFrom = String(deliveryDateFrom).trim();
-        const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-          ? parseYMD(rawFrom)
-          : new Date(deliveryDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        where.scheduled_delivery_date.gte = fromDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
+          where.scheduled_delivery_date.gte = parseUTCYMD(rawFrom);
+        } else {
+          where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+        }
       }
       if (deliveryDateTo) {
         const rawTo = String(deliveryDateTo).trim();
-        const toDate = /^\d{4}-\d{2}-\d{2}$/.test(rawTo)
-          ? parseYMD(rawTo)
-          : new Date(deliveryDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        where.scheduled_delivery_date.lte = toDate;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
+          const start = parseUTCYMD(rawTo);
+          where.scheduled_delivery_date.lte = new Date(
+            start.getTime() + 24 * 60 * 60 * 1000 - 1,
+          );
+        } else {
+          where.scheduled_delivery_date.lte = new Date(deliveryDateTo);
+        }
       }
     }
 
@@ -1252,7 +1407,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           } else if (typeof rawValue === 'string') {
             const trimmed = rawValue.trim();
             const parsed = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
-              ? parseYMD(trimmed)
+              ? parseBAYMD(trimmed)
               : new Date(trimmed);
             if (isNaN(parsed.getTime())) {
               throw new BadRequestException(
@@ -1312,6 +1467,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             tx,
           );
         }
+
+        const requestedStatus = orderHeaderDataToUpdateInput.status as
+          | PrismaOrderStatus
+          | undefined;
+        const isFinalStatus =
+          requestedStatus &&
+          ['DELIVERED', 'RETIRADO'].includes(requestedStatus);
+        const shouldProcessWithdrawal =
+          isFinalStatus && existingOrder.status !== requestedStatus;
 
         // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
         if (items && items.length > 0) {
@@ -1595,10 +1759,42 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           }
         }
 
+        const shouldRecalculateTotals =
+          (items && items.length > 0) ||
+          (items_to_update_or_create && items_to_update_or_create.length > 0) ||
+          (item_ids_to_delete && item_ids_to_delete.length > 0);
+
         if (Object.keys(dataToUpdate).length > 0) {
           await tx.order_header.update({
             where: { order_id: id },
             data: dataToUpdate,
+          });
+        }
+
+        if (
+          shouldProcessWithdrawal &&
+          this.isWithdrawalOrder(existingOrder) &&
+          existingOrder.order_item.length > 0
+        ) {
+          const productIds = Array.from(
+            new Set(existingOrder.order_item.map((item) => item.product_id)),
+          );
+
+          await tx.comodato.updateMany({
+            where: {
+              person_id: existingOrder.customer_id,
+              product_id: { in: productIds },
+              status: 'ACTIVE',
+              is_active: true,
+              ...(existingOrder.subscription_id
+                ? { subscription_id: existingOrder.subscription_id }
+                : {}),
+            },
+            data: {
+              status: 'RETURNED',
+              return_date: new Date(),
+              is_active: false,
+            },
           });
         }
 
@@ -1637,23 +1833,25 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           });
         }
 
-        const updatedOrderItems = await tx.order_item.findMany({
-          where: { order_id: id },
-        });
-        const newOrderTotalAmount = updatedOrderItems.reduce(
-          (sum, item) => sum.plus(new Decimal(item.subtotal)),
-          new Decimal(0),
-        );
-        const currentPaidAmount = new Decimal(existingOrder.paid_amount);
-        await tx.order_header.update({
-          where: { order_id: id },
-          data: {
-            total_amount: newOrderTotalAmount.toString(),
-            paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
-              ? newOrderTotalAmount.toString()
-              : currentPaidAmount.toString(),
-          },
-        });
+        if (shouldRecalculateTotals) {
+          const updatedOrderItems = await tx.order_item.findMany({
+            where: { order_id: id },
+          });
+          const newOrderTotalAmount = updatedOrderItems.reduce(
+            (sum, item) => sum.plus(new Decimal(item.subtotal)),
+            new Decimal(0),
+          );
+          const currentPaidAmount = new Decimal(existingOrder.paid_amount);
+          await tx.order_header.update({
+            where: { order_id: id },
+            data: {
+              total_amount: newOrderTotalAmount.toString(),
+              paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
+                ? newOrderTotalAmount.toString()
+                : currentPaidAmount.toString(),
+            },
+          });
+        }
 
         const finalOrder = await tx.order_header.findUniqueOrThrow({
           where: { order_id: id },
@@ -2115,6 +2313,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         return paymentTransaction;
       });
+
+      await this.createCyclePaymentsFromManualCollection(
+        order,
+        Number(paymentAmount),
+        processPaymentDto.payment_method_id,
+        processPaymentDto.payment_date,
+        processPaymentDto.transaction_reference,
+        processPaymentDto.notes,
+        userId,
+      );
 
       return paymentTransactionResult;
     } catch (error) {

@@ -21,7 +21,7 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { dayBefore, formatBAYMD, parseYMD } from '../common/utils/date.utils';
+import { dayBefore, formatBAYMD, parseBAYMD } from '../common/utils/date.utils';
 import { calculatePaymentDueDate } from './utils/payment-due-date';
 
 @Injectable()
@@ -198,7 +198,7 @@ export class CustomerSubscriptionService
     );
 
     try {
-      const subscriptionStartDate = parseYMD(
+      const subscriptionStartDate = parseBAYMD(
         String(createDto.start_date).trim(),
       );
       // Crear el primer ciclo de suscripción usando la nueva lógica de collection_day y modalidad de pago
