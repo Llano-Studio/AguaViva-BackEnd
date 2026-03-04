@@ -1759,6 +1759,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           }
         }
 
+        const shouldRecalculateTotals =
+          (items && items.length > 0) ||
+          (items_to_update_or_create && items_to_update_or_create.length > 0) ||
+          (item_ids_to_delete && item_ids_to_delete.length > 0);
+
         if (Object.keys(dataToUpdate).length > 0) {
           await tx.order_header.update({
             where: { order_id: id },
@@ -1828,23 +1833,25 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           });
         }
 
-        const updatedOrderItems = await tx.order_item.findMany({
-          where: { order_id: id },
-        });
-        const newOrderTotalAmount = updatedOrderItems.reduce(
-          (sum, item) => sum.plus(new Decimal(item.subtotal)),
-          new Decimal(0),
-        );
-        const currentPaidAmount = new Decimal(existingOrder.paid_amount);
-        await tx.order_header.update({
-          where: { order_id: id },
-          data: {
-            total_amount: newOrderTotalAmount.toString(),
-            paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
-              ? newOrderTotalAmount.toString()
-              : currentPaidAmount.toString(),
-          },
-        });
+        if (shouldRecalculateTotals) {
+          const updatedOrderItems = await tx.order_item.findMany({
+            where: { order_id: id },
+          });
+          const newOrderTotalAmount = updatedOrderItems.reduce(
+            (sum, item) => sum.plus(new Decimal(item.subtotal)),
+            new Decimal(0),
+          );
+          const currentPaidAmount = new Decimal(existingOrder.paid_amount);
+          await tx.order_header.update({
+            where: { order_id: id },
+            data: {
+              total_amount: newOrderTotalAmount.toString(),
+              paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
+                ? newOrderTotalAmount.toString()
+                : currentPaidAmount.toString(),
+            },
+          });
+        }
 
         const finalOrder = await tx.order_header.findUniqueOrThrow({
           where: { order_id: id },
