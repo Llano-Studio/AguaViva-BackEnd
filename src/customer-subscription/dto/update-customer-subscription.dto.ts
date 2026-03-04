@@ -4,7 +4,7 @@ import {
   IsEnum,
   IsString,
   IsInt,
-  IsDateString,
+  IsBoolean,
   ValidateNested,
   Min,
   Max,
@@ -83,4 +83,14 @@ export class UpdateCustomerSubscriptionDto {
   @ValidateNested()
   @Type(() => DeliveryPreferences)
   delivery_preferences?: DeliveryPreferences;
+
+  @ApiPropertyOptional({
+    description:
+      'Si es true, cierra el ciclo actual y crea uno nuevo iniciando hoy',
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  begin_today_cycle?: boolean;
 }
