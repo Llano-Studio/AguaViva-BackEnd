@@ -62,6 +62,7 @@ import {
   formatBAYMD,
   parseBAYMD,
 } from '../common/utils/date.utils';
+import { DeliveryStatus } from '../common/constants/enums';
 
 @Injectable()
 export class PersonsService extends PrismaClient implements OnModuleInit {
@@ -87,6 +88,50 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     personId: number,
   ): Promise<PaymentSemaphoreStatus> {
     return this.paymentSemaphoreService.getPaymentSemaphoreStatus(personId);
+  }
+
+  private async getDeliverySemaphoreStatus(
+    personId: number,
+    personType: PrismaPersonType,
+  ): Promise<PaymentSemaphoreStatus> {
+    if (personType !== PrismaPersonType.INDIVIDUAL) return 'NONE';
+
+    const lastDeliveredDetail = await this.route_sheet_detail.findFirst({
+      where: {
+        delivery_status: DeliveryStatus.DELIVERED,
+        OR: [
+          { order_header: { customer_id: personId } },
+          { one_off_purchase: { person_id: personId } },
+          { one_off_purchase_header: { person_id: personId } },
+        ],
+      },
+      select: {
+        actual_arrival_time: true,
+        route_sheet: { select: { delivery_date: true } },
+      },
+      orderBy: { route_sheet: { delivery_date: 'desc' } },
+    });
+
+    if (!lastDeliveredDetail) return 'NONE';
+
+    const deliveryDate =
+      lastDeliveredDetail.actual_arrival_time ||
+      lastDeliveredDetail.route_sheet?.delivery_date;
+
+    if (!deliveryDate) return 'NONE';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const deliveredAt = new Date(deliveryDate);
+    deliveredAt.setHours(0, 0, 0, 0);
+
+    const daysSinceDelivery = Math.floor(
+      (today.getTime() - deliveredAt.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysSinceDelivery <= 7) return 'GREEN';
+    if (daysSinceDelivery <= 14) return 'YELLOW';
+    return 'RED';
   }
 
   private async getAvailableCredits(personId: number): Promise<
@@ -154,6 +199,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     },
     loanedProductsDetail: LoanedProductDetailDto[],
     paymentSemaphoreStatus: PaymentSemaphoreStatus,
+    deliverySemaphoreStatus: PaymentSemaphoreStatus,
     availableCredits: {
       product_id: number;
       product_description: string;
@@ -182,6 +228,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       notes: personEntity.notes || '',
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
+      delivery_semaphore_status: deliverySemaphoreStatus,
       available_credits: availableCredits,
     };
   }
@@ -276,6 +323,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         newPerson.person_id,
       );
+      const deliverySemaphoreStatus = await this.getDeliverySemaphoreStatus(
+        newPerson.person_id,
+        newPerson.type,
+      );
       const loanedProductsDetail = await this.getLoanedProductsDetail(
         newPerson.person_id,
       );
@@ -287,6 +338,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         newPerson,
         loanedProductsDetail,
         semaphoreStatus,
+        deliverySemaphoreStatus,
         availableCredits,
       );
     } catch (error) {
@@ -452,6 +504,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const processedPersons: PersonResponseDto[] = [];
         for (const person of allPersonsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
+          const deliverySemaphoreStatus = await this.getDeliverySemaphoreStatus(
+            person.person_id,
+            person.type,
+          );
 
           // Si hay filtro por semáforo (múltiples o único), aplicar filtro
           if (
@@ -481,6 +537,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               person,
               loanedProductsDetail,
               semaphoreStatus,
+              deliverySemaphoreStatus,
               availableCredits,
             ),
           );
@@ -553,6 +610,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         const processedPersons: PersonResponseDto[] = [];
         for (const person of personsFromDb) {
           const semaphoreStatus = semaphoreMap.get(person.person_id) || 'NONE';
+          const deliverySemaphoreStatus = await this.getDeliverySemaphoreStatus(
+            person.person_id,
+            person.type,
+          );
 
           const loanedProductsDetail = await this.getLoanedProductsDetail(
             person.person_id,
@@ -565,6 +626,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               person,
               loanedProductsDetail,
               semaphoreStatus,
+              deliverySemaphoreStatus,
               availableCredits,
             ),
           );
@@ -613,6 +675,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       );
 
     const semaphoreStatus = await this.getPaymentSemaphoreStatus(id);
+    const deliverySemaphoreStatus = await this.getDeliverySemaphoreStatus(
+      id,
+      person.type,
+    );
 
     const loanedProductsDetail = await this.getLoanedProductsDetail(id);
     const availableCredits = await this.getAvailableCredits(id);
@@ -621,6 +687,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       person,
       loanedProductsDetail,
       semaphoreStatus,
+      deliverySemaphoreStatus,
       availableCredits,
     );
   }
@@ -741,6 +808,10 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         updatedPerson.person_id,
       );
+      const deliverySemaphoreStatus = await this.getDeliverySemaphoreStatus(
+        updatedPerson.person_id,
+        updatedPerson.type,
+      );
       const loanedProductsDetail = await this.getLoanedProductsDetail(
         updatedPerson.person_id,
       );
@@ -751,6 +822,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         updatedPerson,
         loanedProductsDetail,
         semaphoreStatus,
+        deliverySemaphoreStatus,
         availableCredits,
       );
     } catch (error) {

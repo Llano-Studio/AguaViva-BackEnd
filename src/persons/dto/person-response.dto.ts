@@ -98,6 +98,15 @@ export class PersonResponseDto extends CreatePersonDto {
   payment_semaphore_status: PaymentSemaphoreStatus;
 
   @ApiProperty({
+    example: 'GREEN',
+    description:
+      'Estado del semáforo de entregas para clientes INDIVIDUAL (NONE, GREEN, YELLOW, RED)',
+    enum: ['NONE', 'GREEN', 'YELLOW', 'RED'],
+    required: false,
+  })
+  delivery_semaphore_status?: PaymentSemaphoreStatus;
+
+  @ApiProperty({
     example: false,
     description: 'Indica si el cliente posee bidones retornables propios',
   })
