@@ -139,6 +139,44 @@ export class SubscriptionCycleResponseDto {
   subscription_cycle_detail?: SubscriptionCycleDetailResponseDto[];
 }
 
+export class SubscriptionCycleTransitionDto {
+  @ApiProperty({
+    description: 'ID del ciclo cerrado',
+    example: 14,
+  })
+  closed_cycle_id: number;
+
+  @ApiProperty({
+    description: 'Fecha de inicio del ciclo cerrado',
+    example: '2026-02-20',
+  })
+  closed_cycle_start: string;
+
+  @ApiProperty({
+    description: 'Fecha de fin del ciclo cerrado',
+    example: '2026-03-03',
+  })
+  closed_cycle_end: string;
+
+  @ApiProperty({
+    description: 'ID del nuevo ciclo creado',
+    example: 15,
+  })
+  new_cycle_id: number;
+
+  @ApiProperty({
+    description: 'Fecha de inicio del nuevo ciclo',
+    example: '2026-03-04',
+  })
+  new_cycle_start: string;
+
+  @ApiProperty({
+    description: 'Fecha de fin del nuevo ciclo',
+    example: '2026-03-19',
+  })
+  new_cycle_end: string;
+}
+
 export class DeliveryPreferences {
   @ApiProperty({
     example: '09:00-12:00',
@@ -259,6 +297,13 @@ export class CustomerSubscriptionResponseDto {
     required: false,
   })
   orders_count?: number;
+
+  @ApiPropertyOptional({
+    type: SubscriptionCycleTransitionDto,
+    description:
+      'Información del cierre y creación de ciclo cuando begin_today_cycle es true',
+  })
+  cycle_transition?: SubscriptionCycleTransitionDto;
 
   constructor(partial: Partial<any>) {
     Object.assign(this, partial);

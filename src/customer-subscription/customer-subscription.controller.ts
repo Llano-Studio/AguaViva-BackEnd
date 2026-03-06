@@ -324,6 +324,7 @@ export class CustomerSubscriptionController {
 - **collection_day**: Día de recolección (1-28)
 - **payment_mode**: ADVANCE (adelantado) o ARREARS (vencido)
 - **payment_due_day**: Día de vencimiento para pagos vencidos
+- **begin_today_cycle**: Cierra ciclo actual y crea nuevo ciclo iniciando hoy
 
 **Estado y Configuración:**
 - **status**: ACTIVE, PAUSED, CANCELLED, EXPIRED
@@ -342,6 +343,7 @@ export class CustomerSubscriptionController {
 - Ajuste de ciclos de facturación al cambiar collection_day
 - Actualización de fechas de vencimiento
 - Sincronización con órdenes pendientes
+- Cierre/apertura de ciclo atómico con retorno de transición de ciclos
 
 ## 🎯 CASOS DE USO
 
