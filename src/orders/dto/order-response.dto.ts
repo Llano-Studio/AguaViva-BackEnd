@@ -1,5 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { OrderStatus, OrderType } from '../../common/constants/enums';
+import {
+  OrderItemCoverageMode,
+  OrderStatus,
+  OrderType,
+} from '../../common/constants/enums';
 
 export class OrderItemResponseDto {
   @ApiProperty({
@@ -60,6 +64,21 @@ export class OrderItemResponseDto {
     nullable: true,
   })
   notes?: string;
+
+  @ApiProperty({
+    description: 'Modo de cobertura aplicado al ítem',
+    enum: OrderItemCoverageMode,
+    nullable: true,
+  })
+  coverage_mode?: OrderItemCoverageMode;
+
+  @ApiProperty({
+    description:
+      'Suscripción aplicada al ítem cuando coverage_mode es SUBSCRIPTION',
+    example: 6,
+    nullable: true,
+  })
+  subscription_id?: number;
 
   @ApiProperty({
     description:

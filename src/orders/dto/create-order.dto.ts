@@ -13,7 +13,11 @@ import {
   MaxLength,
   Matches,
 } from 'class-validator';
-import { OrderStatus, OrderType } from '../../common/constants/enums';
+import {
+  OrderItemCoverageMode,
+  OrderStatus,
+  OrderType,
+} from '../../common/constants/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateOrderItemDto {
@@ -82,6 +86,25 @@ export class CreateOrderItemDto {
   @IsOptional()
   @IsInt()
   price_list_id?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Modo de cobertura del ítem. SUBSCRIPTION descuenta cuota del abono, EXTRA se cobra completo.',
+    enum: OrderItemCoverageMode,
+    example: OrderItemCoverageMode.SUBSCRIPTION,
+  })
+  @IsOptional()
+  @IsEnum(OrderItemCoverageMode)
+  coverage_mode?: OrderItemCoverageMode;
+
+  @ApiPropertyOptional({
+    description:
+      'Suscripción asociada al ítem cuando coverage_mode = SUBSCRIPTION',
+    example: 6,
+  })
+  @IsOptional()
+  @IsInt()
+  subscription_id?: number;
 
   @ApiPropertyOptional({
     description: 'Notas específicas para este producto',

@@ -141,6 +141,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       planned_quantity: number;
       delivered_quantity: number;
       remaining_balance: number;
+      subscription_id: number;
+      abono_name: string;
     }[]
   > {
     try {
@@ -149,6 +151,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: {
           customer_id: personId,
           status: SubscriptionStatus.ACTIVE,
+        },
+        include: {
+          subscription_plan: {
+            select: {
+              name: true,
+            },
+          },
         },
       });
 
@@ -163,6 +172,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         planned_quantity: number;
         delivered_quantity: number;
         remaining_balance: number;
+        subscription_id: number;
+        abono_name: string;
       }[] = [];
 
       for (const subscription of activeSubscriptions) {
@@ -176,6 +187,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             planned_quantity: credit.planned_quantity,
             delivered_quantity: credit.delivered_quantity,
             remaining_balance: credit.remaining_balance,
+            subscription_id: subscription.subscription_id,
+            abono_name:
+              subscription.subscription_plan?.name || 'Plan sin nombre',
           })),
         );
       }
@@ -206,6 +220,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       planned_quantity: number;
       delivered_quantity: number;
       remaining_balance: number;
+      subscription_id: number;
+      abono_name: string;
     }[],
   ): PersonResponseDto {
     return {

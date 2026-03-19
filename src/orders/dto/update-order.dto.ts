@@ -12,8 +12,12 @@ import {
   ValidateNested,
   IsNotEmpty,
   Min,
+  IsEnum,
+  IsString,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { OrderItemCoverageMode } from '../../common/constants/enums';
 
 // DTO para un ítem individual durante la actualización de un pedido
 export class UpdateOrderItemDto {
@@ -52,6 +56,35 @@ export class UpdateOrderItemDto {
   @IsOptional()
   @IsInt()
   price_list_id?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Modo de cobertura del ítem. SUBSCRIPTION descuenta cuota del abono, EXTRA se cobra completo.',
+    enum: OrderItemCoverageMode,
+    example: OrderItemCoverageMode.EXTRA,
+  })
+  @IsOptional()
+  @IsEnum(OrderItemCoverageMode)
+  coverage_mode?: OrderItemCoverageMode;
+
+  @ApiPropertyOptional({
+    description:
+      'Suscripción asociada al ítem cuando coverage_mode = SUBSCRIPTION',
+    example: 6,
+  })
+  @IsOptional()
+  @IsInt()
+  subscription_id?: number;
+
+  @ApiPropertyOptional({
+    description: 'Notas específicas para este ítem',
+    maxLength: 200,
+    example: 'Entregar en portería',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  notes?: string;
 
   // Los montos (subtotal, total_amount, amount_paid) se recalcularán en el backend.
   // Si se envían, se pueden ignorar o usar como referencia, pero el backend tiene la última palabra.

@@ -122,6 +122,8 @@ export class PersonResponseDto extends CreatePersonDto {
         planned_quantity: { type: 'number', example: 6 },
         delivered_quantity: { type: 'number', example: 4 },
         remaining_balance: { type: 'number', example: 2 },
+        subscription_id: { type: 'number', example: 2 },
+        abono_name: { type: 'string', example: 'Abono 20lts x 6' },
       },
     },
     description:
@@ -133,6 +135,8 @@ export class PersonResponseDto extends CreatePersonDto {
         planned_quantity: 6,
         delivered_quantity: 4,
         remaining_balance: 2,
+        subscription_id: 2,
+        abono_name: 'Abono 20lts x 6',
       },
     ],
     required: false,
@@ -143,5 +147,7 @@ export class PersonResponseDto extends CreatePersonDto {
     planned_quantity: number;
     delivered_quantity: number;
     remaining_balance: number;
+    subscription_id: number;
+    abono_name: string;
   }[];
 }
