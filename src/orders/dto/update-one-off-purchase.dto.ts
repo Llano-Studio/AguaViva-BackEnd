@@ -10,7 +10,7 @@ import {
   Min,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { PersonType } from '../../common/constants/enums';
 
 export class UpdateOneOffPurchaseCustomerDto {
@@ -184,6 +184,9 @@ export class UpdateOneOffPurchaseDto {
     example: '2024-03-21T14:00:00Z',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsDateString()
   scheduled_delivery_date?: string;
 
