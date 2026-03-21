@@ -1161,59 +1161,179 @@ export class OneOffPurchaseService
         }
 
         // Variables para manejo de productos (opcional en actualización)
-        // Determinar si estamos trabajando con estructura legacy o header
         const isLegacyStructure = !!legacyPurchase;
         const isHeaderStructure = !!headerPurchase;
+        const normalizedStatus =
+          typeof updateDto.status === 'string' &&
+          updateDto.status.trim().length === 0
+            ? undefined
+            : updateDto.status;
+        const shouldClearDeliveryWindow = updateDto.requires_delivery === false;
+        const stockAdjustments: Array<{
+          product_id: number;
+          description: string;
+          quantityChange: number;
+        }> = [];
 
-        // Obtener cantidad actual según estructura
-        const currentQuantity = isLegacyStructure
-          ? legacyPurchase.quantity
-          : headerPurchase.purchase_items[0]?.quantity || 0;
-
-        let newQuantity = currentQuantity;
         let newTotalAmount =
           existingPurchase.total_amount || headerPurchase?.total_amount;
-        let quantityChange = 0;
-        let productForUpdate = null;
-        let priceListId =
-          existingPurchase.price_list_id ||
-          (headerPurchase
-            ? headerPurchase.purchase_items[0]?.price_list_id
-            : null);
+        let legacyProductForUpdate = null;
+        const currentLegacyQuantity = isLegacyStructure
+          ? legacyPurchase.quantity
+          : 0;
+        let newLegacyQuantity = currentLegacyQuantity;
+        let legacyPriceListId = existingPurchase.price_list_id || null;
+        let legacyQuantityChange = 0;
 
-        // Solo procesar items si se proporcionan
-        if (updateDto.items && updateDto.items.length > 0) {
-          // Tomar el primer item (limitación actual del sistema)
+        if (
+          isLegacyStructure &&
+          updateDto.items &&
+          updateDto.items.length > 0
+        ) {
           const firstItem = updateDto.items[0];
-          productForUpdate = await prismaTx.product.findUniqueOrThrow({
+          legacyProductForUpdate = await prismaTx.product.findUniqueOrThrow({
             where: { product_id: firstItem.product_id },
           });
-
-          newQuantity = firstItem.quantity;
-          quantityChange = newQuantity - currentQuantity;
-
-          // Determinar la lista de precios a usar
-          priceListId =
+          newLegacyQuantity = firstItem.quantity;
+          legacyQuantityChange = newLegacyQuantity - currentLegacyQuantity;
+          legacyPriceListId =
             firstItem.price_list_id ||
             existingPurchase.price_list_id ||
             BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
 
-          // Buscar precio en la lista seleccionada, si no existe usar precio base
-          let itemPrice = new Decimal(productForUpdate.price); // Precio base como fallback
-
+          let itemPrice = new Decimal(legacyProductForUpdate.price);
           const priceItem = await prismaTx.price_list_item.findFirst({
             where: {
-              price_list_id: priceListId,
-              product_id: productForUpdate.product_id,
+              price_list_id: legacyPriceListId,
+              product_id: legacyProductForUpdate.product_id,
             },
           });
-
           if (priceItem) {
             itemPrice = new Decimal(priceItem.unit_price);
           }
+          newTotalAmount = itemPrice.mul(newLegacyQuantity);
+        }
 
-          // Calcular el total amount basado en el producto
-          newTotalAmount = itemPrice.mul(newQuantity);
+        const headerItemsForCreate: Array<{
+          product_id: number;
+          quantity: number;
+          unit_price: string;
+          subtotal: string;
+          price_list_id: number;
+        }> = [];
+
+        if (
+          isHeaderStructure &&
+          updateDto.items &&
+          updateDto.items.length > 0
+        ) {
+          let calculatedTotal = new Decimal(0);
+          const existingQtyByProduct = new Map<number, number>();
+          for (const existingItem of headerPurchase.purchase_items) {
+            const currentQty =
+              existingQtyByProduct.get(existingItem.product_id) || 0;
+            existingQtyByProduct.set(
+              existingItem.product_id,
+              currentQty + existingItem.quantity,
+            );
+          }
+
+          const newQtyByProduct = new Map<number, number>();
+          const productInfoById = new Map<
+            number,
+            { description: string; is_returnable: boolean }
+          >();
+
+          for (const itemDto of updateDto.items) {
+            const product = await prismaTx.product.findUniqueOrThrow({
+              where: { product_id: itemDto.product_id },
+            });
+            productInfoById.set(product.product_id, {
+              description: product.description,
+              is_returnable: product.is_returnable,
+            });
+
+            const itemPriceListId =
+              itemDto.price_list_id ||
+              BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
+            let unitPrice = new Decimal(product.price);
+            const priceItem = await prismaTx.price_list_item.findFirst({
+              where: {
+                price_list_id: itemPriceListId,
+                product_id: product.product_id,
+              },
+            });
+            if (priceItem) {
+              unitPrice = new Decimal(priceItem.unit_price);
+            }
+
+            const subtotal = unitPrice.mul(itemDto.quantity);
+            calculatedTotal = calculatedTotal.plus(subtotal);
+            const accumulatedQuantity =
+              newQtyByProduct.get(itemDto.product_id) || 0;
+            newQtyByProduct.set(
+              itemDto.product_id,
+              accumulatedQuantity + itemDto.quantity,
+            );
+
+            headerItemsForCreate.push({
+              product_id: itemDto.product_id,
+              quantity: itemDto.quantity,
+              unit_price: unitPrice.toString(),
+              subtotal: subtotal.toString(),
+              price_list_id: itemPriceListId,
+            });
+          }
+
+          const allProductIds = new Set<number>([
+            ...Array.from(existingQtyByProduct.keys()),
+            ...Array.from(newQtyByProduct.keys()),
+          ]);
+          for (const productId of allProductIds) {
+            const oldQty = existingQtyByProduct.get(productId) || 0;
+            const newQty = newQtyByProduct.get(productId) || 0;
+            const quantityChange = newQty - oldQty;
+            if (quantityChange === 0) {
+              continue;
+            }
+
+            const productInfo =
+              productInfoById.get(productId) ||
+              ({
+                description:
+                  headerPurchase.purchase_items.find(
+                    (item) => item.product_id === productId,
+                  )?.product.description || `Producto ${productId}`,
+                is_returnable:
+                  headerPurchase.purchase_items.find(
+                    (item) => item.product_id === productId,
+                  )?.product.is_returnable || false,
+              } as { description: string; is_returnable: boolean });
+
+            if (!productInfo.is_returnable && quantityChange > 0) {
+              const stockDisponible =
+                await this.inventoryService.getProductStock(
+                  productId,
+                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                  prismaTx,
+                );
+              if (stockDisponible < quantityChange) {
+                throw new BadRequestException(
+                  `Compra One-Off: Stock insuficiente para ${productInfo.description}. Se necesita ${quantityChange} adicional, disponible: ${stockDisponible}.`,
+                );
+              }
+            }
+
+            if (!productInfo.is_returnable) {
+              stockAdjustments.push({
+                product_id: productId,
+                description: productInfo.description,
+                quantityChange,
+              });
+            }
+          }
+
+          newTotalAmount = calculatedTotal;
         }
 
         // Si se proporciona total_amount en el DTO, usarlo en su lugar
@@ -1221,30 +1341,34 @@ export class OneOffPurchaseService
           newTotalAmount = new Decimal(updateDto.total_amount);
         }
 
-        // Validar stock solo si hay cambio de cantidad y producto no retornable
+        // Validar stock para estructura legacy si hay cambio
         if (
-          productForUpdate &&
-          !productForUpdate.is_returnable &&
-          quantityChange !== 0
+          legacyProductForUpdate &&
+          !legacyProductForUpdate.is_returnable &&
+          legacyQuantityChange > 0
         ) {
           const stockDisponible = await this.inventoryService.getProductStock(
-            productForUpdate.product_id,
+            legacyProductForUpdate.product_id,
             BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
             prismaTx,
           );
-          if (quantityChange > 0 && stockDisponible < quantityChange) {
+          if (stockDisponible < legacyQuantityChange) {
             throw new BadRequestException(
-              `Compra One-Off: Stock insuficiente para ${productForUpdate.description}. Se necesita ${quantityChange} adicional, disponible: ${stockDisponible}.`,
+              `Compra One-Off: Stock insuficiente para ${legacyProductForUpdate.description}. Se necesita ${legacyQuantityChange} adicional, disponible: ${stockDisponible}.`,
             );
           }
         }
 
         const dataToUpdate: Prisma.one_off_purchaseUpdateInput = {
-          ...(productForUpdate && {
-            product: { connect: { product_id: productForUpdate.product_id } },
+          ...(legacyProductForUpdate && {
+            product: {
+              connect: { product_id: legacyProductForUpdate.product_id },
+            },
           }),
-          quantity: newQuantity,
-          price_list: { connect: { price_list_id: priceListId } },
+          quantity: newLegacyQuantity,
+          ...(legacyPriceListId && {
+            price_list: { connect: { price_list_id: legacyPriceListId } },
+          }),
           ...(updatedPersonId !== existingPurchase.person_id && {
             person: { connect: { person_id: updatedPersonId } },
           }),
@@ -1287,16 +1411,24 @@ export class OneOffPurchaseService
                   : new Date(updateDto.scheduled_delivery_date)
                 : null,
           }),
+          ...(shouldClearDeliveryWindow &&
+            updateDto.scheduled_delivery_date === undefined && {
+              scheduled_delivery_date: null,
+            }),
           ...(updateDto.delivery_time !== undefined && {
             delivery_time: updateDto.delivery_time,
           }),
+          ...(shouldClearDeliveryWindow &&
+            updateDto.delivery_time === undefined && {
+              delivery_time: null,
+            }),
           ...(updateDto.paid_amount !== undefined && {
             paid_amount: updateDto.paid_amount
               ? new Decimal(updateDto.paid_amount)
               : new Decimal(0),
           }),
           ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
-          ...(updateDto.status !== undefined && { status: updateDto.status }),
+          ...(normalizedStatus !== undefined && { status: normalizedStatus }),
           total_amount: newTotalAmount,
         };
 
@@ -1334,6 +1466,10 @@ export class OneOffPurchaseService
               ...(updateDto.delivery_address !== undefined && {
                 delivery_address: updateDto.delivery_address,
               }),
+              ...(shouldClearDeliveryWindow &&
+                updateDto.delivery_address === undefined && {
+                  delivery_address: null,
+                }),
               ...(updateDto.sale_channel_id && {
                 sale_channel: {
                   connect: { sale_channel_id: updateDto.sale_channel_id },
@@ -1367,70 +1503,76 @@ export class OneOffPurchaseService
                       : new Date(updateDto.scheduled_delivery_date)
                     : null,
               }),
+              ...(shouldClearDeliveryWindow &&
+                updateDto.scheduled_delivery_date === undefined && {
+                  scheduled_delivery_date: null,
+                }),
               ...(updateDto.delivery_time !== undefined && {
                 delivery_time: updateDto.delivery_time,
               }),
+              ...(shouldClearDeliveryWindow &&
+                updateDto.delivery_time === undefined && {
+                  delivery_time: null,
+                }),
               ...(updateDto.paid_amount !== undefined && {
                 paid_amount: updateDto.paid_amount
                   ? new Decimal(updateDto.paid_amount)
                   : new Decimal(0),
               }),
               ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
-              ...(updateDto.status !== undefined && {
-                status: updateDto.status,
+              ...(normalizedStatus !== undefined && {
+                status: normalizedStatus,
               }),
               total_amount: newTotalAmount,
             };
 
-          updatedPurchase = await prismaTx.one_off_purchase_header.update({
+          await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
             data: headerDataToUpdate,
-            include: {
-              purchase_items: {
-                include: {
-                  product: true,
-                },
-              },
-              person: true,
-              sale_channel: true,
-              locality: true,
-              zone: true,
-            },
           });
 
-          // Si hay items para actualizar, actualizar el primer item
-          if (
-            updateDto.items &&
-            updateDto.items.length > 0 &&
-            headerPurchase.purchase_items.length > 0
-          ) {
-            const firstItem = updateDto.items[0];
-            await prismaTx.one_off_purchase_item.update({
-              where: {
-                purchase_item_id:
-                  headerPurchase.purchase_items[0].purchase_item_id,
-              },
-              data: {
-                ...(productForUpdate && {
-                  product: {
-                    connect: { product_id: productForUpdate.product_id },
-                  },
-                }),
-                quantity: newQuantity,
-                price_list: { connect: { price_list_id: priceListId } },
-              },
+          if (updateDto.items && updateDto.items.length > 0) {
+            await prismaTx.one_off_purchase_item.deleteMany({
+              where: { purchase_header_id: id },
+            });
+            await prismaTx.one_off_purchase_item.createMany({
+              data: headerItemsForCreate.map((item) => ({
+                purchase_header_id: id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                subtotal: item.subtotal,
+                price_list_id: item.price_list_id,
+              })),
             });
           }
+
+          updatedPurchase =
+            await prismaTx.one_off_purchase_header.findUniqueOrThrow({
+              where: { purchase_header_id: id },
+              include: {
+                purchase_items: {
+                  include: {
+                    product: true,
+                    price_list: true,
+                  },
+                },
+                person: true,
+                sale_channel: true,
+                locality: true,
+                zone: true,
+              },
+            });
         }
 
-        // Crear movimiento de stock solo si hay producto actualizado y cambio de cantidad
+        // Crear movimientos de stock para estructura legacy
         if (
-          productForUpdate &&
-          !productForUpdate.is_returnable &&
-          quantityChange !== 0
+          legacyProductForUpdate &&
+          !legacyProductForUpdate.is_returnable &&
+          legacyQuantityChange !== 0
         ) {
           const movementTypeId =
-            quantityChange > 0
+            legacyQuantityChange > 0
               ? await this.inventoryService.getMovementTypeIdByCode(
                   BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
                   prismaTx,
@@ -1443,9 +1585,9 @@ export class OneOffPurchaseService
 
           const stockMovement: CreateStockMovementDto = {
             movement_type_id: movementTypeId,
-            product_id: productForUpdate.product_id,
-            quantity: Math.abs(quantityChange),
-            ...(quantityChange > 0
+            product_id: legacyProductForUpdate.product_id,
+            quantity: Math.abs(legacyQuantityChange),
+            ...(legacyQuantityChange > 0
               ? {
                   source_warehouse_id:
                     BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
@@ -1455,8 +1597,48 @@ export class OneOffPurchaseService
                     BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                 }),
             movement_date: new Date(),
-            remarks: `Compra One-Off #${id} ACTUALIZADA - ${productForUpdate.description} (${quantityChange > 0 ? 'Venta' : 'Devolución'})`,
+            remarks: `Compra One-Off #${id} ACTUALIZADA - ${legacyProductForUpdate.description} (${legacyQuantityChange > 0 ? 'Venta' : 'Devolución'})`,
           };
+          await this.inventoryService.createStockMovement(
+            stockMovement,
+            prismaTx,
+          );
+        }
+
+        // Crear movimientos de stock para estructura header
+        for (const stockAdjustment of stockAdjustments) {
+          if (stockAdjustment.quantityChange === 0) {
+            continue;
+          }
+          const movementTypeId =
+            stockAdjustment.quantityChange > 0
+              ? await this.inventoryService.getMovementTypeIdByCode(
+                  BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_UNICA,
+                  prismaTx,
+                )
+              : await this.inventoryService.getMovementTypeIdByCode(
+                  BUSINESS_CONFIG.MOVEMENT_TYPES
+                    .INGRESO_DEVOLUCION_VENTA_UNICA_CANCELADA,
+                  prismaTx,
+                );
+
+          const stockMovement: CreateStockMovementDto = {
+            movement_type_id: movementTypeId,
+            product_id: stockAdjustment.product_id,
+            quantity: Math.abs(stockAdjustment.quantityChange),
+            ...(stockAdjustment.quantityChange > 0
+              ? {
+                  source_warehouse_id:
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                }
+              : {
+                  destination_warehouse_id:
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                }),
+            movement_date: new Date(),
+            remarks: `Compra One-Off #${id} ACTUALIZADA - ${stockAdjustment.description} (${stockAdjustment.quantityChange > 0 ? 'Venta' : 'Devolución'})`,
+          };
+
           await this.inventoryService.createStockMovement(
             stockMovement,
             prismaTx,

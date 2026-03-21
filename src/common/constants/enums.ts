@@ -25,6 +25,11 @@ export enum OrderStatus {
   OVERDUE = 'OVERDUE',
 }
 
+export enum OrderItemCoverageMode {
+  SUBSCRIPTION = 'SUBSCRIPTION',
+  EXTRA = 'EXTRA',
+}
+
 export enum SubscriptionStatus {
   ACTIVE = 'ACTIVE',
   PAUSED = 'PAUSED',

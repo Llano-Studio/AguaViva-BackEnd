@@ -34,6 +34,7 @@ import { SubscriptionQuotaService } from '../common/services/subscription-quota.
 import { Decimal } from '@prisma/client/runtime/library';
 import { OrderResponseDto } from './dto/order-response.dto';
 import {
+  OrderItemCoverageMode as AppOrderItemCoverageMode,
   OrderStatus as AppOrderStatus,
   OrderType as AppOrderType,
   PaymentMethod,
@@ -66,10 +67,18 @@ type CustomerPayload =
 // Definición del tipo para el payload del sale_channel
 type SaleChannelPayload = Prisma.sale_channelGetPayload<{}> | null | undefined;
 
+type ItemCoverageResolution = {
+  coverageMode?: AppOrderItemCoverageMode;
+  effectiveSubscriptionId?: number;
+  isSubscriptionAware: boolean;
+  isStrictSubscription: boolean;
+};
+
 @Injectable()
 export class OrdersService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Pedido';
   private readonly logger = new Logger(OrdersService.name);
+  private readonly itemCoverageMetaPrefix = '§§COVERAGE_META§§';
 
   constructor(
     private readonly inventoryService: InventoryService,
@@ -115,6 +124,112 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     return Array.from(ids);
   }
 
+  private extractCoverageMeta(notes?: string | null): {
+    cleanNotes?: string;
+    coverageMode?: AppOrderItemCoverageMode;
+    subscriptionId?: number;
+  } {
+    if (!notes) {
+      return {};
+    }
+
+    const metaIndex = notes.lastIndexOf(this.itemCoverageMetaPrefix);
+    if (metaIndex < 0) {
+      const trimmed = notes.trim();
+      return { cleanNotes: trimmed.length > 0 ? trimmed : undefined };
+    }
+
+    const userNotes = notes.slice(0, metaIndex).trim();
+    const rawMeta = notes
+      .slice(metaIndex + this.itemCoverageMetaPrefix.length)
+      .trim();
+    try {
+      const parsed = JSON.parse(rawMeta) as {
+        coverage_mode?: AppOrderItemCoverageMode;
+        subscription_id?: number;
+      };
+      return {
+        cleanNotes: userNotes.length > 0 ? userNotes : undefined,
+        coverageMode: parsed.coverage_mode,
+        subscriptionId:
+          typeof parsed.subscription_id === 'number'
+            ? parsed.subscription_id
+            : undefined,
+      };
+    } catch (_) {
+      const trimmed = notes.trim();
+      return { cleanNotes: trimmed.length > 0 ? trimmed : undefined };
+    }
+  }
+
+  private composeItemNotes(
+    notes?: string,
+    coverageMode?: AppOrderItemCoverageMode,
+    subscriptionId?: number,
+  ): string | undefined {
+    const cleanNotes = notes?.trim();
+    if (!coverageMode && !subscriptionId) {
+      return cleanNotes && cleanNotes.length > 0 ? cleanNotes : undefined;
+    }
+    const metaPayload = {
+      coverage_mode: coverageMode,
+      subscription_id: subscriptionId,
+    };
+    const metaPart = `${this.itemCoverageMetaPrefix}${JSON.stringify(metaPayload)}`;
+    if (!cleanNotes || cleanNotes.length === 0) {
+      return metaPart;
+    }
+    return `${cleanNotes}\n${metaPart}`;
+  }
+
+  private resolveItemCoverage(
+    item: {
+      coverage_mode?: AppOrderItemCoverageMode;
+      subscription_id?: number;
+    },
+    orderSubscriptionId?: number,
+  ): ItemCoverageResolution {
+    if (item.coverage_mode === AppOrderItemCoverageMode.EXTRA) {
+      return {
+        coverageMode: AppOrderItemCoverageMode.EXTRA,
+        effectiveSubscriptionId: undefined,
+        isSubscriptionAware: false,
+        isStrictSubscription: false,
+      };
+    }
+
+    const effectiveSubscriptionId = item.subscription_id ?? orderSubscriptionId;
+    const isStrictSubscription =
+      item.coverage_mode === AppOrderItemCoverageMode.SUBSCRIPTION;
+    const isSubscriptionAware = Boolean(effectiveSubscriptionId);
+
+    return {
+      coverageMode: item.coverage_mode,
+      effectiveSubscriptionId,
+      isSubscriptionAware,
+      isStrictSubscription,
+    };
+  }
+
+  private async ensureSubscriptionBelongsToCustomer(
+    subscriptionId: number,
+    customerId: number,
+    prisma: Prisma.TransactionClient | OrdersService,
+  ): Promise<void> {
+    const subscription = await prisma.customer_subscription.findUnique({
+      where: { subscription_id: subscriptionId },
+    });
+    if (!subscription) {
+      throw new NotFoundException(
+        `Suscripción con ID ${subscriptionId} no encontrada.`,
+      );
+    }
+    if (subscription.customer_id !== customerId) {
+      throw new BadRequestException(
+        `La suscripción ${subscriptionId} no pertenece al cliente especificado.`,
+      );
+    }
+  }
   private mapPaymentMethodId(paymentMethodId: number): PaymentMethod {
     const mapById: Record<number, PaymentMethod> = {
       1: PaymentMethod.EFECTIVO,
@@ -201,11 +316,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
   ): OrderResponseDto {
     const items =
       order.order_item?.map((item) => {
-        // Para órdenes híbridas, verificar si el producto está en el plan de suscripción
         let abono_id: number | undefined;
         let abono_name: string | undefined;
+        const coverageMeta = this.extractCoverageMeta(item.notes);
+        if (coverageMeta.subscriptionId) {
+          abono_id = coverageMeta.subscriptionId;
+        }
 
         if (
+          !abono_id &&
           order.order_type === 'HYBRID' &&
           order.customer_subscription?.subscription_plan
         ) {
@@ -224,7 +343,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           delivered_quantity: item.delivered_quantity || undefined,
           returned_quantity: item.returned_quantity || undefined,
           price_list_id: item.price_list_id || undefined,
-          notes: item.notes || undefined,
+          notes: coverageMeta.cleanNotes,
+          coverage_mode: coverageMeta.coverageMode,
+          subscription_id: coverageMeta.subscriptionId,
           abono_id,
           abono_name,
           product: {
@@ -429,17 +550,61 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
 
     if (createOrderDto.subscription_id) {
-      const subscription = await prisma.customer_subscription.findUnique({
-        where: { subscription_id: createOrderDto.subscription_id },
-      });
-      if (!subscription)
-        throw new NotFoundException(
-          `Suscripción con ID ${createOrderDto.subscription_id} no encontrada.`,
-        );
-      if (subscription.customer_id !== createOrderDto.customer_id)
+      await this.ensureSubscriptionBelongsToCustomer(
+        createOrderDto.subscription_id,
+        createOrderDto.customer_id,
+        prisma,
+      );
+    }
+
+    const subscriptionIdsToValidate = new Set<number>();
+    for (const item of createOrderDto.items || []) {
+      const resolution = this.resolveItemCoverage(
+        {
+          coverage_mode: item.coverage_mode,
+          subscription_id: item.subscription_id,
+        },
+        createOrderDto.subscription_id,
+      );
+
+      if (
+        item.coverage_mode === AppOrderItemCoverageMode.EXTRA &&
+        item.subscription_id
+      ) {
         throw new BadRequestException(
-          'La suscripción no pertenece al cliente especificado.',
+          `El ítem con producto ${item.product_id} no puede incluir subscription_id cuando coverage_mode es EXTRA.`,
         );
+      }
+
+      if (
+        createOrderDto.order_type === 'SUBSCRIPTION' &&
+        item.coverage_mode === AppOrderItemCoverageMode.EXTRA
+      ) {
+        throw new BadRequestException(
+          `El ítem con producto ${item.product_id} no puede ser EXTRA en una orden SUBSCRIPTION.`,
+        );
+      }
+
+      if (
+        item.coverage_mode === AppOrderItemCoverageMode.SUBSCRIPTION &&
+        !resolution.effectiveSubscriptionId
+      ) {
+        throw new BadRequestException(
+          `El ítem con producto ${item.product_id} requiere subscription_id cuando coverage_mode es SUBSCRIPTION.`,
+        );
+      }
+
+      if (resolution.effectiveSubscriptionId) {
+        subscriptionIdsToValidate.add(resolution.effectiveSubscriptionId);
+      }
+    }
+
+    for (const subscriptionIdToValidate of subscriptionIdsToValidate) {
+      await this.ensureSubscriptionBelongsToCustomer(
+        subscriptionIdToValidate,
+        createOrderDto.customer_id,
+        prisma,
+      );
     }
 
     // 🆕 CORRECCIÓN: Para órdenes HYBRID, no validar paid_amount aquí
@@ -607,35 +772,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
           contractPriceList = contract.price_list;
         }
-
-        // 🆕 NUEVO: Validación de cuotas de suscripción
-        let subscriptionQuotaValidation: any = null;
-        if (
-          subscription_id &&
-          items.length > 0 &&
-          (createOrderDto.order_type === 'HYBRID' ||
-            createOrderDto.order_type === 'SUBSCRIPTION')
-        ) {
-          subscriptionQuotaValidation =
-            await this.subscriptionQuotaService.validateSubscriptionQuotas(
-              subscription_id,
-              items.map((item) => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-              })),
-              prismaTx,
-            );
-
-          // Para órdenes SUBSCRIPTION puras, no puede haber productos adicionales
-          if (
-            createOrderDto.order_type === 'SUBSCRIPTION' &&
-            subscriptionQuotaValidation.has_additional_charges
-          ) {
-            throw new BadRequestException(
-              'Las órdenes de tipo SUBSCRIPTION no pueden contener productos adicionales. Use tipo HYBRID para incluir productos adicionales.',
-            );
-          }
-        }
+        const processedItems: Array<{
+          itemDto: (typeof items)[number];
+          productDetails: Awaited<
+            ReturnType<typeof prismaTx.product.findUnique>
+          >;
+          quotaCovered: number;
+          quotaAdditional: number;
+          isSubscriptionAware: boolean;
+          effectiveSubscriptionId?: number;
+        }> = [];
 
         for (const itemDto of items) {
           const productDetails = await prismaTx.product
@@ -648,57 +794,78 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               );
             });
 
-          let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
+          const coverageResolution = this.resolveItemCoverage(
+            {
+              coverage_mode: itemDto.coverage_mode,
+              subscription_id: itemDto.subscription_id,
+            },
+            subscription_id,
+          );
+
+          if (
+            createOrderDto.order_type === 'SUBSCRIPTION' &&
+            coverageResolution.coverageMode === AppOrderItemCoverageMode.EXTRA
+          ) {
+            throw new BadRequestException(
+              `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no puede usar coverage_mode EXTRA en órdenes SUBSCRIPTION.`,
+            );
+          }
+
+          if (
+            coverageResolution.coverageMode ===
+              AppOrderItemCoverageMode.SUBSCRIPTION &&
+            !coverageResolution.effectiveSubscriptionId
+          ) {
+            throw new BadRequestException(
+              `El producto ${productDetails.description} (ID: ${itemDto.product_id}) requiere subscription_id cuando coverage_mode es SUBSCRIPTION.`,
+            );
+          }
+
+          let quotaCovered = 0;
+          let quotaAdditional = itemDto.quantity;
+          let itemPrice = new Decimal(productDetails.price);
           let itemSubtotal = new Decimal(0);
           let usedPriceListId: number | null = null;
 
-          if (itemDto.price_list_id) {
-            // ✅ PRIORIDAD 1: Lista de precios específica del producto
-            const customPriceItem = await prismaTx.price_list_item.findFirst({
-              where: {
-                price_list_id: itemDto.price_list_id,
-                product_id: itemDto.product_id,
-              },
-            });
-
-            if (customPriceItem) {
-              itemPrice = new Decimal(customPriceItem.unit_price);
-              usedPriceListId = itemDto.price_list_id;
-            } else {
-              throw new BadRequestException(
-                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`,
-              );
-            }
-
-            itemSubtotal = itemPrice.mul(itemDto.quantity);
-          } else if (
-            subscriptionQuotaValidation &&
+          if (
+            coverageResolution.isSubscriptionAware &&
             (createOrderDto.order_type === 'HYBRID' ||
               createOrderDto.order_type === 'SUBSCRIPTION')
           ) {
-            // 🆕 PRIORIDAD 2: Órdenes con suscripción - usar control de cuotas
-            const productQuota = subscriptionQuotaValidation.products.find(
-              (quota) => quota.product_id === itemDto.product_id,
-            );
+            const quotaValidation =
+              await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                coverageResolution.effectiveSubscriptionId,
+                [
+                  {
+                    product_id: itemDto.product_id,
+                    quantity: itemDto.quantity,
+                  },
+                ],
+                prismaTx,
+              );
 
+            const productQuota = quotaValidation.products[0];
             if (!productQuota) {
               throw new BadRequestException(
                 `Error interno: No se encontró información de cuota para el producto ${itemDto.product_id}.`,
               );
             }
 
-            // DEBUG: Log para entender el cálculo
+            quotaCovered = productQuota.covered_by_subscription;
+            quotaAdditional = productQuota.additional_quantity;
 
-            // Calcular precio basado en cuotas
-            if (productQuota.covered_by_subscription > 0) {
-              // Producto está en el plan de suscripción
+            if (
+              coverageResolution.isStrictSubscription &&
+              quotaAdditional > 0
+            ) {
+              throw new BadRequestException(
+                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) excede la cuota disponible para la suscripción ${coverageResolution.effectiveSubscriptionId}.`,
+              );
+            }
 
-              // Si hay cantidad adicional, calcular su precio
-              if (productQuota.additional_quantity > 0) {
-                let additionalPrice = new Decimal(productDetails.price); // Precio base por defecto
-
-                // 🆕 REGLA ESPECIAL: Productos que ESTÁN en suscripción pero exceden cuota
-                // → SIEMPRE usan lista general (no permiten price_list_id específica)
+            if (quotaCovered > 0) {
+              if (quotaAdditional > 0) {
+                let additionalPrice = new Decimal(productDetails.price);
                 const standardPriceItem =
                   await prismaTx.price_list_item.findFirst({
                     where: {
@@ -713,23 +880,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   usedPriceListId =
                     BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
                 }
-                // Si el producto no está en la lista general, usa precio base del producto
 
-                // 🆕 CORRECCIÓN: Solo cobrar por la cantidad adicional, no por el total
-                // La cantidad cubierta por suscripción tiene precio $0
-                // Solo la cantidad adicional se cobra al precio normal
-                itemPrice = additionalPrice; // Precio por unidad adicional
-                itemSubtotal = additionalPrice.mul(
-                  productQuota.additional_quantity,
-                );
+                itemPrice = additionalPrice;
+                itemSubtotal = additionalPrice.mul(quotaAdditional);
               } else {
-                // Todo está cubierto por suscripción
                 itemPrice = new Decimal(0);
                 itemSubtotal = new Decimal(0);
               }
             } else {
-              // Todo el producto es adicional (no está en el plan o no hay créditos)
-
               if (itemDto.price_list_id) {
                 const customPriceItem =
                   await prismaTx.price_list_item.findFirst({
@@ -761,30 +919,29 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   itemPrice = new Decimal(standardPriceItem.unit_price);
                   usedPriceListId =
                     BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
-                } else {
                 }
               }
               itemSubtotal = itemPrice.mul(itemDto.quantity);
             }
-
-            // NUEVO: Agregar el ítem al array de creación después de procesar suscripción
-
-            // 🆕 IMPORTANTE: Actualizar el total antes de continuar
-            calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
-
-            orderItemsDataForCreation.push({
-              product_id: itemDto.product_id,
-              quantity: itemDto.quantity,
-              unit_price: itemPrice.toString(),
-              subtotal: itemSubtotal.toString(),
-              price_list_id: usedPriceListId,
-              notes: itemDto.notes,
+          } else if (itemDto.price_list_id) {
+            const customPriceItem = await prismaTx.price_list_item.findFirst({
+              where: {
+                price_list_id: itemDto.price_list_id,
+                product_id: itemDto.product_id,
+              },
             });
 
-            // 🆕 IMPORTANTE: Continuar al siguiente producto después de procesar suscripción
-            continue;
+            if (customPriceItem) {
+              itemPrice = new Decimal(customPriceItem.unit_price);
+              usedPriceListId = itemDto.price_list_id;
+            } else {
+              throw new BadRequestException(
+                `El producto ${productDetails.description} (ID: ${itemDto.product_id}) no está disponible en la lista de precios especificada (ID: ${itemDto.price_list_id}).`,
+              );
+            }
+
+            itemSubtotal = itemPrice.mul(itemDto.quantity);
           } else if (contractPriceList) {
-            // ✅ PRIORIDAD 3: Cliente con contrato → usar lista de precios del contrato
             const priceListItem = contractPriceList.price_list_item.find(
               (item) => item.product_id === itemDto.product_id,
             );
@@ -801,7 +958,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             }
             itemSubtotal = itemPrice.mul(itemDto.quantity);
           } else {
-            // ✅ PRIORIDAD 4: Lista de precios estándar → último recurso
             const standardPriceItem = await prismaTx.price_list_item.findFirst({
               where: {
                 price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
@@ -813,20 +969,32 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               itemPrice = new Decimal(standardPriceItem.unit_price);
               usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
             }
-            // Si no hay precio en lista estándar, usa precio base (itemPrice ya está configurado)
             itemSubtotal = itemPrice.mul(itemDto.quantity);
           }
 
           calculatedTotalFromDB = calculatedTotalFromDB.plus(itemSubtotal);
+          const itemNotes = this.composeItemNotes(
+            itemDto.notes,
+            coverageResolution.coverageMode,
+            coverageResolution.effectiveSubscriptionId,
+          );
 
-          // 🆕 NUEVO: Incluir price_list_id y notes en los datos del ítem
           orderItemsDataForCreation.push({
             product_id: itemDto.product_id,
             quantity: itemDto.quantity,
             unit_price: itemPrice.toString(),
             subtotal: itemSubtotal.toString(),
             price_list_id: usedPriceListId,
-            notes: itemDto.notes,
+            notes: itemNotes,
+          });
+
+          processedItems.push({
+            itemDto,
+            productDetails,
+            quotaCovered,
+            quotaAdditional,
+            isSubscriptionAware: coverageResolution.isSubscriptionAware,
+            effectiveSubscriptionId: coverageResolution.effectiveSubscriptionId,
           });
         }
 
@@ -846,27 +1014,31 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           );
         }
 
-        // Para órdenes de suscripción, permitir total_amount = 0 porque ya están pagadas
-        if (createOrderDto.order_type === 'SUBSCRIPTION' && subscription_id) {
+        const hasSubscriptionItems = processedItems.some(
+          (item) => item.isSubscriptionAware,
+        );
+
+        if (
+          createOrderDto.order_type === 'SUBSCRIPTION' &&
+          hasSubscriptionItems
+        ) {
           if (calculatedTotalFromDB.greaterThan(0)) {
             throw new BadRequestException(
               'Las órdenes de suscripción deben tener total_amount = 0 porque ya están pagadas en el plan.',
             );
           }
-        } else if (createOrderDto.order_type === 'HYBRID' && subscription_id) {
-          // 🆕 CORRECCIÓN: Para órdenes HYBRID con suscripción (incluyendo cobranzas)
-          // Si no hay items (órdenes de cobranza), usar el total_amount del DTO
+        } else if (
+          createOrderDto.order_type === 'HYBRID' &&
+          (subscription_id || hasSubscriptionItems)
+        ) {
           if (items.length === 0 && dtoTotalAmountStr) {
-            // Para órdenes de cobranza sin items, usar el total_amount enviado
             calculatedTotalFromDB = new Decimal(dtoTotalAmountStr);
           } else if (
             dtoTotalAmountStr &&
             !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)
           ) {
-            // No lanzar error, usar el total calculado
           }
         } else {
-          // Para otros tipos de orden, validar que el total coincida
           if (
             dtoTotalAmountStr &&
             !new Decimal(dtoTotalAmountStr).equals(calculatedTotalFromDB)
@@ -883,34 +1055,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             prismaTx,
           );
 
-        for (const itemDto of items) {
-          const productDetails = await prismaTx.product.findUniqueOrThrow({
-            where: { product_id: itemDto.product_id },
-          });
-
-          // 🆕 CORRECCIÓN: Solo validar stock para productos NO retornables
-          // Los productos retornables no necesitan validación de stock porque no se descuenta del inventario
-          if (!productDetails.is_returnable) {
-            let quantityToValidate = itemDto.quantity;
-
+        for (const processedItem of processedItems) {
+          if (!processedItem.productDetails?.is_returnable) {
+            let quantityToValidate = processedItem.itemDto.quantity;
             if (
-              subscriptionQuotaValidation &&
-              subscription_id &&
+              processedItem.isSubscriptionAware &&
               (createOrderDto.order_type === 'HYBRID' ||
-                createOrderDto.order_type === 'SUBSCRIPTION')
+                createOrderDto.order_type === 'SUBSCRIPTION') &&
+              processedItem.quotaCovered > 0
             ) {
-              const productQuota = subscriptionQuotaValidation.products.find(
-                (quota) => quota.product_id === itemDto.product_id,
-              );
-
-              if (productQuota && productQuota.covered_by_subscription > 0) {
-                // Producto está en suscripción - solo validar la cantidad adicional
-                quantityToValidate = productQuota.additional_quantity;
-              }
+              quantityToValidate = processedItem.quotaAdditional;
             }
-
             const stockDisponible = await this.inventoryService.getProductStock(
-              itemDto.product_id,
+              processedItem.itemDto.product_id,
               BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               prismaTx,
             );
@@ -920,11 +1077,25 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               stockDisponible < quantityToValidate
             ) {
               throw new BadRequestException(
-                `${this.entityName}: Stock insuficiente para el producto ${productDetails.description} (ID: ${itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
+                `${this.entityName}: Stock insuficiente para el producto ${processedItem.productDetails?.description} (ID: ${processedItem.itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
               );
             }
-          } else {
           }
+        }
+
+        const uniqueSubscriptionIdsFromItems = Array.from(
+          new Set(
+            processedItems
+              .map((item) => item.effectiveSubscriptionId)
+              .filter((value): value is number => typeof value === 'number'),
+          ),
+        );
+
+        let headerSubscriptionId = subscription_id;
+        if (uniqueSubscriptionIdsFromItems.length === 1) {
+          headerSubscriptionId = uniqueSubscriptionIdsFromItems[0];
+        } else if (uniqueSubscriptionIdsFromItems.length > 1) {
+          headerSubscriptionId = undefined;
         }
 
         const newOrderHeader = await prismaTx.order_header.create({
@@ -957,8 +1128,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             customer: { connect: { person_id: customer_id } },
             sale_channel: { connect: { sale_channel_id: sale_channel_id } },
             order_type: restOfDto.order_type as PrismaOrderType,
-            ...(subscription_id && {
-              customer_subscription: { connect: { subscription_id } },
+            ...(headerSubscriptionId && {
+              customer_subscription: {
+                connect: { subscription_id: headerSubscriptionId },
+              },
             }),
             ...(contract_id && {
               client_contract: { connect: { contract_id } },
@@ -986,48 +1159,31 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           },
         });
 
-        for (const createdItem of newOrderHeader.order_item) {
-          const productDesc = createdItem.product
-            ? createdItem.product.description
-            : 'N/A';
+        for (const processedItem of processedItems) {
+          const productDesc =
+            processedItem.productDetails?.description || 'N/A';
+          let quantityForStockMovement = processedItem.itemDto.quantity;
 
-          // 🔧 CORRECCIÓN: Crear movimientos de stock para TODOS los productos
-          // SIEMPRE se debe restar el stock, independientemente del tipo de orden o abono
-          let quantityForStockMovement = createdItem.quantity;
-
-          // Solo para órdenes de suscripción pura, ajustar la cantidad según las cuotas
           if (
-            subscriptionQuotaValidation &&
-            subscription_id &&
-            createOrderDto.order_type === 'SUBSCRIPTION'
+            createOrderDto.order_type === 'SUBSCRIPTION' &&
+            processedItem.isSubscriptionAware
           ) {
-            const productQuota = subscriptionQuotaValidation.products.find(
-              (quota) => quota.product_id === createdItem.product_id,
-            );
-
-            if (productQuota && productQuota.covered_by_subscription > 0) {
-              // Para órdenes SUBSCRIPTION puras, solo la cantidad adicional afecta el stock
-              quantityForStockMovement = productQuota.additional_quantity;
-            }
-          }
-          // Para órdenes HYBRID, ONE_OFF, o cualquier otra, SIEMPRE restar toda la cantidad
-          else {
+            quantityForStockMovement = processedItem.quotaAdditional;
           }
 
-          // 🆕 CORRECCIÓN: Crear movimiento de stock SOLO para productos NO retornables
           if (
             quantityForStockMovement > 0 &&
-            !createdItem.product.is_returnable
+            !processedItem.productDetails?.is_returnable
           ) {
             const stockMovementDto: CreateStockMovementDto = {
               movement_type_id: saleMovementTypeId,
-              product_id: createdItem.product_id,
+              product_id: processedItem.itemDto.product_id,
               quantity: quantityForStockMovement,
               source_warehouse_id:
                 BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               destination_warehouse_id: null,
               movement_date: new Date(),
-              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${createdItem.product_id}) NO retornable - Abono: $${finalPaidAmount.toString()}`,
+              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${processedItem.itemDto.product_id}) NO retornable - Abono: $${finalPaidAmount.toString()}`,
             };
             await this.inventoryService.createStockMovement(
               stockMovementDto,
@@ -1035,14 +1191,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
           } else if (
             quantityForStockMovement > 0 &&
-            createdItem.product.is_returnable
+            processedItem.productDetails?.is_returnable
           ) {
-            if (subscription_id) {
+            if (processedItem.effectiveSubscriptionId) {
               const comodato = await prismaTx.comodato.findFirst({
                 where: {
                   person_id: customer_id,
-                  subscription_id: subscription_id,
-                  product_id: createdItem.product_id,
+                  subscription_id: processedItem.effectiveSubscriptionId,
+                  product_id: processedItem.itemDto.product_id,
                   status: 'ACTIVE',
                   is_active: true,
                 },
@@ -1050,7 +1206,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
               if (comodato) {
                 const updatedQuantity =
-                  (comodato.quantity || 0) + createdItem.quantity;
+                  (comodato.quantity || 0) + processedItem.itemDto.quantity;
 
                 await prismaTx.comodato.update({
                   where: { comodato_id: comodato.comodato_id },
@@ -1063,18 +1219,47 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           }
         }
 
-        // 🆕 NUEVO: Actualizar cantidades entregadas en ciclo de suscripción
-        if (subscriptionQuotaValidation && subscription_id) {
-          const deliveredProducts = subscriptionQuotaValidation.products
-            .filter((quota) => quota.covered_by_subscription > 0)
-            .map((quota) => ({
-              product_id: quota.product_id,
-              quantity: quota.covered_by_subscription,
-            }));
+        const deliveredBySubscription = new Map<number, Map<number, number>>();
+        for (const processedItem of processedItems) {
+          if (
+            processedItem.effectiveSubscriptionId &&
+            processedItem.quotaCovered > 0
+          ) {
+            if (
+              !deliveredBySubscription.has(
+                processedItem.effectiveSubscriptionId,
+              )
+            ) {
+              deliveredBySubscription.set(
+                processedItem.effectiveSubscriptionId,
+                new Map<number, number>(),
+              );
+            }
+            const productMap = deliveredBySubscription.get(
+              processedItem.effectiveSubscriptionId,
+            );
+            const currentQuantity =
+              productMap.get(processedItem.itemDto.product_id) || 0;
+            productMap.set(
+              processedItem.itemDto.product_id,
+              currentQuantity + processedItem.quotaCovered,
+            );
+          }
+        }
 
+        for (const [
+          deliveredSubscriptionId,
+          deliveredProductsMap,
+        ] of deliveredBySubscription.entries()) {
+          const deliveredProducts = Array.from(
+            deliveredProductsMap.entries(),
+          ).map(([product_id, quantity]) => ({
+            product_id,
+            quantity,
+          }));
           if (deliveredProducts.length > 0) {
             await this.subscriptionQuotaService.updateDeliveredQuantities(
-              subscription_id,
+              deliveredSubscriptionId,
               deliveredProducts,
               prismaTx,
             );
@@ -1459,14 +1644,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
           });
 
-        // 🆕 LÓGICA DE MANEJO DE CRÉDITOS PARA ITEMS CON ABONO
-        if (existingOrder.subscription_id) {
-          await this.handleCreditIntegrityForOrderEdit(
-            existingOrder,
-            updateOrderDto,
-            tx,
-          );
-        }
+        await this.handleCreditIntegrityForOrderEdit(
+          existingOrder,
+          updateOrderDto,
+          tx,
+        );
+
+        const requestedStatus = orderHeaderDataToUpdateInput.status as
+          | PrismaOrderStatus
+          | undefined;
+        const isFinalStatus =
+          requestedStatus &&
+          ['DELIVERED', 'RETIRADO'].includes(requestedStatus);
+        const shouldProcessWithdrawal =
+          isFinalStatus && existingOrder.status !== requestedStatus;
 
         const requestedStatus = orderHeaderDataToUpdateInput.status as
           | PrismaOrderStatus
@@ -1490,16 +1681,120 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               tx,
             );
 
-          // Procesar cada item del campo 'items'
+          const effectiveOrderSubscriptionId =
+            updateOrderDto.subscription_id ||
+            existingOrder.subscription_id ||
+            undefined;
+
           for (const itemDto of items) {
             const productDetails = await tx.product.findUniqueOrThrow({
               where: { product_id: itemDto.product_id },
             });
 
-            let itemPrice = new Decimal(productDetails.price);
+            const coverageResolution = this.resolveItemCoverage(
+              {
+                coverage_mode: itemDto.coverage_mode,
+                subscription_id: itemDto.subscription_id,
+              },
+              effectiveOrderSubscriptionId,
+            );
 
-            // Aplicar lógica de precios similar a items_to_update_or_create
-            if (itemDto.price_list_id) {
+            if (
+              itemDto.coverage_mode === AppOrderItemCoverageMode.EXTRA &&
+              itemDto.subscription_id
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} no puede incluir subscription_id cuando coverage_mode es EXTRA.`,
+              );
+            }
+
+            if (
+              existingOrder.order_type === 'SUBSCRIPTION' &&
+              coverageResolution.coverageMode === AppOrderItemCoverageMode.EXTRA
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} no puede usar coverage_mode EXTRA en órdenes SUBSCRIPTION.`,
+              );
+            }
+
+            if (
+              coverageResolution.coverageMode ===
+                AppOrderItemCoverageMode.SUBSCRIPTION &&
+              !coverageResolution.effectiveSubscriptionId
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} requiere subscription_id cuando coverage_mode es SUBSCRIPTION.`,
+              );
+            }
+
+            if (coverageResolution.effectiveSubscriptionId) {
+              await this.ensureSubscriptionBelongsToCustomer(
+                coverageResolution.effectiveSubscriptionId,
+                existingOrder.customer_id,
+                tx,
+              );
+            }
+
+            let itemPrice = new Decimal(productDetails.price);
+            let quotaAdditional = itemDto.quantity;
+
+            if (
+              coverageResolution.isSubscriptionAware &&
+              (existingOrder.order_type === 'HYBRID' ||
+                existingOrder.order_type === 'SUBSCRIPTION')
+            ) {
+              const quotaValidation =
+                await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                  coverageResolution.effectiveSubscriptionId,
+                  [
+                    {
+                      product_id: itemDto.product_id,
+                      quantity: itemDto.quantity,
+                    },
+                  ],
+                  tx,
+                );
+              const productQuota = quotaValidation.products[0];
+              if (!productQuota) {
+                throw new BadRequestException(
+                  `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
+                );
+              }
+
+              quotaAdditional = productQuota.additional_quantity;
+
+              if (
+                coverageResolution.isStrictSubscription &&
+                quotaAdditional > 0
+              ) {
+                throw new BadRequestException(
+                  `El producto ${itemDto.product_id} excede la cuota disponible para la suscripción ${coverageResolution.effectiveSubscriptionId}.`,
+                );
+              }
+
+              if (productQuota.covered_by_subscription > 0) {
+                if (quotaAdditional > 0) {
+                  const standardPriceItem = await tx.price_list_item.findFirst({
+                    where: {
+                      price_list_id:
+                        BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                      product_id: itemDto.product_id,
+                    },
+                  });
+                  itemPrice = standardPriceItem
+                    ? new Decimal(standardPriceItem.unit_price)
+                    : new Decimal(productDetails.price);
+                } else {
+                  itemPrice = new Decimal(0);
+                }
+              }
+            }
+
+            if (
+              itemDto.price_list_id &&
+              (!coverageResolution.isSubscriptionAware ||
+                itemPrice.greaterThan(0))
+            ) {
               const priceItem = await tx.price_list_item.findFirst({
                 where: {
                   price_list_id: itemDto.price_list_id,
@@ -1516,15 +1811,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
             // Validar stock para productos no retornables
             if (!productDetails.is_returnable) {
+              const requiredStockQuantity =
+                existingOrder.order_type === 'SUBSCRIPTION'
+                  ? quotaAdditional
+                  : itemDto.quantity;
               const stockDisponible =
                 await this.inventoryService.getProductStock(
                   itemDto.product_id,
                   BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                   tx,
                 );
-              if (stockDisponible < itemDto.quantity) {
+              if (stockDisponible < requiredStockQuantity) {
                 throw new BadRequestException(
-                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Necesario: ${itemDto.quantity}, disponible: ${stockDisponible}.`,
+                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Necesario: ${requiredStockQuantity}, disponible: ${stockDisponible}.`,
                 );
               }
             }
@@ -1537,6 +1836,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 quantity: itemDto.quantity,
                 unit_price: itemPrice.toString(),
                 subtotal: subtotal.toString(),
+                notes: this.composeItemNotes(
+                  itemDto.notes,
+                  coverageResolution.coverageMode,
+                  coverageResolution.effectiveSubscriptionId,
+                ),
               },
             });
 
@@ -1598,11 +1902,118 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               where: { product_id: itemDto.product_id },
             });
 
+            const effectiveOrderSubscriptionId =
+              updateOrderDto.subscription_id ||
+              existingOrderWithRelations.subscription_id ||
+              undefined;
+            const coverageResolution = this.resolveItemCoverage(
+              {
+                coverage_mode: itemDto.coverage_mode,
+                subscription_id: itemDto.subscription_id,
+              },
+              effectiveOrderSubscriptionId,
+            );
+
+            if (
+              itemDto.coverage_mode === AppOrderItemCoverageMode.EXTRA &&
+              itemDto.subscription_id
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} no puede incluir subscription_id cuando coverage_mode es EXTRA.`,
+              );
+            }
+
+            if (
+              existingOrderWithRelations.order_type === 'SUBSCRIPTION' &&
+              coverageResolution.coverageMode === AppOrderItemCoverageMode.EXTRA
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} no puede usar coverage_mode EXTRA en órdenes SUBSCRIPTION.`,
+              );
+            }
+
+            if (
+              coverageResolution.coverageMode ===
+                AppOrderItemCoverageMode.SUBSCRIPTION &&
+              !coverageResolution.effectiveSubscriptionId
+            ) {
+              throw new BadRequestException(
+                `El producto ${itemDto.product_id} requiere subscription_id cuando coverage_mode es SUBSCRIPTION.`,
+              );
+            }
+
+            if (coverageResolution.effectiveSubscriptionId) {
+              await this.ensureSubscriptionBelongsToCustomer(
+                coverageResolution.effectiveSubscriptionId,
+                existingOrder.customer_id,
+                tx,
+              );
+            }
+
             // Calcular precio usando el mismo sistema que en create()
             let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
+            let stockQuantityForItem = itemDto.quantity;
+
+            if (
+              coverageResolution.isSubscriptionAware &&
+              (existingOrderWithRelations.order_type === 'HYBRID' ||
+                existingOrderWithRelations.order_type === 'SUBSCRIPTION')
+            ) {
+              const quotaValidation =
+                await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                  coverageResolution.effectiveSubscriptionId,
+                  [
+                    {
+                      product_id: itemDto.product_id,
+                      quantity: itemDto.quantity,
+                    },
+                  ],
+                  tx,
+                );
+              const productQuota = quotaValidation.products[0];
+              if (!productQuota) {
+                throw new BadRequestException(
+                  `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
+                );
+              }
+
+              stockQuantityForItem =
+                existingOrderWithRelations.order_type === 'SUBSCRIPTION'
+                  ? productQuota.additional_quantity
+                  : itemDto.quantity;
+
+              if (
+                coverageResolution.isStrictSubscription &&
+                productQuota.additional_quantity > 0
+              ) {
+                throw new BadRequestException(
+                  `El producto ${itemDto.product_id} excede la cuota disponible para la suscripción ${coverageResolution.effectiveSubscriptionId}.`,
+                );
+              }
+
+              if (productQuota.covered_by_subscription > 0) {
+                if (productQuota.additional_quantity > 0) {
+                  const standardPriceItem = await tx.price_list_item.findFirst({
+                    where: {
+                      price_list_id:
+                        BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
+                      product_id: itemDto.product_id,
+                    },
+                  });
+                  itemPrice = standardPriceItem
+                    ? new Decimal(standardPriceItem.unit_price)
+                    : new Decimal(productDetails.price);
+                } else {
+                  itemPrice = new Decimal(0);
+                }
+              }
+            }
 
             // Lógica de precios por prioridad: Contrato > Suscripción específica > Precio base
-            if (existingOrderWithRelations.client_contract?.price_list) {
+            if (
+              itemPrice.greaterThan(0) &&
+              existingOrderWithRelations.client_contract?.price_list
+            ) {
               const contractPriceList =
                 existingOrderWithRelations.client_contract.price_list;
               const priceListItem = contractPriceList.price_list_item.find(
@@ -1693,9 +2104,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                   tx,
                 );
-              if (stockDisponible < quantityChange) {
+              if (stockDisponible < stockQuantityForItem) {
                 throw new BadRequestException(
-                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Se necesita ${quantityChange} adicional, disponible: ${stockDisponible}.`,
+                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Se necesita ${stockQuantityForItem} adicional, disponible: ${stockDisponible}.`,
                 );
               }
             }
@@ -1714,6 +2125,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   quantity: itemDto.quantity,
                   unit_price: itemPrice.toString(),
                   subtotal: subtotal.toString(),
+                  notes: this.composeItemNotes(
+                    itemDto.notes,
+                    coverageResolution.coverageMode,
+                    coverageResolution.effectiveSubscriptionId,
+                  ),
                 },
               });
             } else {
@@ -1725,6 +2141,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   quantity: itemDto.quantity,
                   unit_price: itemPrice.toString(),
                   subtotal: subtotal.toString(),
+                  notes: this.composeItemNotes(
+                    itemDto.notes,
+                    coverageResolution.coverageMode,
+                    coverageResolution.effectiveSubscriptionId,
+                  ),
                 },
               });
             }
@@ -2496,165 +2917,258 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     updateOrderDto: UpdateOrderDto,
     tx: Prisma.TransactionClient,
   ): Promise<void> {
-    const subscriptionId = existingOrder.subscription_id;
-    if (!subscriptionId) return;
+    const hasItemChanges =
+      (updateOrderDto.items && updateOrderDto.items.length > 0) ||
+      (updateOrderDto.items_to_update_or_create &&
+        updateOrderDto.items_to_update_or_create.length > 0) ||
+      (updateOrderDto.item_ids_to_delete &&
+        updateOrderDto.item_ids_to_delete.length > 0);
+    if (!hasItemChanges) return;
 
-    this.logger.log(
-      `🔄 Iniciando manejo de créditos para pedido ${existingOrder.order_id} de suscripción ${subscriptionId}`,
+    const effectiveOrderSubscriptionId =
+      updateOrderDto.subscription_id ??
+      existingOrder.subscription_id ??
+      undefined;
+
+    const aggregateBySubscriptionAndProduct = (
+      sourceItems: Array<{
+        order_item_id?: number;
+        product_id: number;
+        quantity: number;
+        coverage_mode?: AppOrderItemCoverageMode;
+        subscription_id?: number;
+      }>,
+    ) => {
+      const map = new Map<string, number>();
+      for (const item of sourceItems) {
+        const resolution = this.resolveItemCoverage(
+          {
+            coverage_mode: item.coverage_mode,
+            subscription_id: item.subscription_id,
+          },
+          effectiveOrderSubscriptionId,
+        );
+        if (
+          resolution.coverageMode === AppOrderItemCoverageMode.EXTRA ||
+          !resolution.effectiveSubscriptionId
+        ) {
+          continue;
+        }
+        const key = `${resolution.effectiveSubscriptionId}:${item.product_id}`;
+        const current = map.get(key) || 0;
+        map.set(key, current + item.quantity);
+      }
+      return map;
+    };
+
+    const originalItemsForDiff = existingOrder.order_item.map((item) => {
+      const coverageMeta = this.extractCoverageMeta(item.notes);
+      return {
+        order_item_id: item.order_item_id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        coverage_mode:
+          coverageMeta.coverageMode ||
+          (existingOrder.subscription_id
+            ? AppOrderItemCoverageMode.SUBSCRIPTION
+            : undefined),
+        subscription_id:
+          coverageMeta.subscriptionId ||
+          existingOrder.subscription_id ||
+          undefined,
+      };
+    });
+
+    let nextItemsForDiff: Array<{
+      order_item_id?: number;
+      product_id: number;
+      quantity: number;
+      coverage_mode?: AppOrderItemCoverageMode;
+      subscription_id?: number;
+    }> = [];
+
+    if (updateOrderDto.items && updateOrderDto.items.length > 0) {
+      nextItemsForDiff = updateOrderDto.items.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        coverage_mode: item.coverage_mode,
+        subscription_id: item.subscription_id,
+      }));
+    } else {
+      const nextMap = new Map<
+        string,
+        {
+          order_item_id?: number;
+          product_id: number;
+          quantity: number;
+          coverage_mode?: AppOrderItemCoverageMode;
+          subscription_id?: number;
+        }
+      >();
+
+      for (const item of originalItemsForDiff) {
+        nextMap.set(String(item.order_item_id), item);
+      }
+
+      if (
+        updateOrderDto.items_to_update_or_create &&
+        updateOrderDto.items_to_update_or_create.length > 0
+      ) {
+        let newItemIndex = 0;
+        for (const item of updateOrderDto.items_to_update_or_create) {
+          if (item.order_item_id) {
+            nextMap.set(String(item.order_item_id), {
+              order_item_id: item.order_item_id,
+              product_id: item.product_id,
+              quantity: item.quantity,
+              coverage_mode: item.coverage_mode,
+              subscription_id: item.subscription_id,
+            });
+          } else {
+            const syntheticId = `new-${newItemIndex++}`;
+            nextMap.set(syntheticId, {
+              product_id: item.product_id,
+              quantity: item.quantity,
+              coverage_mode: item.coverage_mode,
+              subscription_id: item.subscription_id,
+            });
+          }
+        }
+      }
+
+      if (
+        updateOrderDto.item_ids_to_delete &&
+        updateOrderDto.item_ids_to_delete.length > 0
+      ) {
+        for (const itemId of updateOrderDto.item_ids_to_delete) {
+          nextMap.delete(String(itemId));
+        }
+      }
+
+      nextItemsForDiff = Array.from(nextMap.values());
+    }
+
+    const oldAggregate =
+      aggregateBySubscriptionAndProduct(originalItemsForDiff);
+    const newAggregate = aggregateBySubscriptionAndProduct(nextItemsForDiff);
+
+    const allKeys = new Set<string>([
+      ...Array.from(oldAggregate.keys()),
+      ...Array.from(newAggregate.keys()),
+    ]);
+    if (allKeys.size === 0) return;
+
+    const productIds = new Set<number>();
+    const subscriptionIds = new Set<number>();
+    const diffs = new Map<string, number>();
+
+    for (const key of allKeys) {
+      const oldQty = oldAggregate.get(key) || 0;
+      const newQty = newAggregate.get(key) || 0;
+      const diff = newQty - oldQty;
+      if (diff === 0) continue;
+      diffs.set(key, diff);
+      const [subscriptionIdRaw, productIdRaw] = key.split(':');
+      subscriptionIds.add(Number(subscriptionIdRaw));
+      productIds.add(Number(productIdRaw));
+    }
+
+    if (diffs.size === 0) return;
+
+    const products = await tx.product.findMany({
+      where: { product_id: { in: Array.from(productIds) } },
+      select: { product_id: true, is_returnable: true, description: true },
+    });
+    const productsMap = new Map(
+      products.map((product) => [product.product_id, product]),
     );
 
-    try {
-      // 1. Obtener el ciclo activo de la suscripción
+    for (const subscriptionId of subscriptionIds) {
       const currentCycle = await tx.subscription_cycle.findFirst({
         where: {
           subscription_id: subscriptionId,
           cycle_end: { gte: new Date() },
         },
         include: {
-          subscription_cycle_detail: {
-            include: { product: true },
-          },
+          subscription_cycle_detail: true,
         },
         orderBy: { cycle_start: 'desc' },
       });
 
       if (!currentCycle) {
-        this.logger.warn(
-          `No se encontró ciclo activo para suscripción ${subscriptionId}`,
+        throw new BadRequestException(
+          `No se encontró ciclo activo para la suscripción ${subscriptionId}.`,
         );
-        return;
       }
 
-      // 2. Identificar items con abono del pedido original
-      const originalDownPaymentItems = existingOrder.order_item.filter(
-        (item) => {
-          // Un item tiene abono si está en el plan de suscripción
-          return currentCycle.subscription_cycle_detail.some(
-            (detail) => detail.product_id === item.product_id,
-          );
-        },
-      );
+      for (const [key, diff] of diffs.entries()) {
+        const [subscriptionIdRaw, productIdRaw] = key.split(':');
+        const keySubscriptionId = Number(subscriptionIdRaw);
+        if (keySubscriptionId !== subscriptionId) continue;
+        const productId = Number(productIdRaw);
 
-      // 3. Calcular el total de créditos asociados a items con abono originales
-      let originalDownPaymentTotal = new Decimal(0);
-      for (const item of originalDownPaymentItems) {
-        const itemSubtotal = new Decimal(item.subtotal);
-        originalDownPaymentTotal = originalDownPaymentTotal.plus(itemSubtotal);
-      }
-
-      // 4. Identificar items con abono en la nueva solicitud de edición
-      let newDownPaymentTotal = new Decimal(0);
-      const newDownPaymentItems: any[] = [];
-
-      // Procesar items del updateOrderDto
-      if (updateOrderDto.items) {
-        for (const item of updateOrderDto.items) {
-          const isDownPaymentItem = currentCycle.subscription_cycle_detail.some(
-            (detail) => detail.product_id === item.product_id,
-          );
-          if (isDownPaymentItem) {
-            newDownPaymentItems.push(item);
-            // For subscription items, the price is 0 (already paid in subscription)
-            const itemSubtotal = new Decimal(0).mul(new Decimal(item.quantity));
-            newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
-          }
-        }
-      }
-
-      if (updateOrderDto.items_to_update_or_create) {
-        for (const item of updateOrderDto.items_to_update_or_create) {
-          const isDownPaymentItem = currentCycle.subscription_cycle_detail.some(
-            (detail) => detail.product_id === item.product_id,
-          );
-          if (isDownPaymentItem) {
-            newDownPaymentItems.push(item);
-            // Para items de suscripción, el precio es 0 (ya pagado en suscripción)
-            const itemPrice = new Decimal(0);
-            const itemSubtotal = itemPrice.mul(new Decimal(item.quantity));
-            newDownPaymentTotal = newDownPaymentTotal.plus(itemSubtotal);
-          }
-        }
-      }
-
-      // 5. Calcular el ajuste de créditos
-      const creditAdjustment =
-        originalDownPaymentTotal.minus(newDownPaymentTotal);
-
-      this.logger.log(
-        `⚖️ Ajuste de créditos calculado: ${creditAdjustment.toString()}`,
-      );
-
-      // 6. Aplicar el ajuste al ciclo de suscripción
-      if (!creditAdjustment.isZero()) {
-        const currentCreditBalance = new Decimal(
-          currentCycle.credit_balance || 0,
+        const cycleDetail = currentCycle.subscription_cycle_detail.find(
+          (detail) => detail.product_id === productId,
         );
-        const newCreditBalance = currentCreditBalance.plus(creditAdjustment);
-
-        // Validar que el crédito no sea negativo
-        if (newCreditBalance.isNegative()) {
+        if (!cycleDetail) {
           throw new BadRequestException(
-            `La edición del pedido resultaría en un crédito negativo. ` +
-              `Crédito actual: ${currentCreditBalance.toString()}, ` +
-              `Ajuste: ${creditAdjustment.toString()}`,
+            `El producto ${productId} no pertenece al plan/ciclo de la suscripción ${subscriptionId}.`,
           );
         }
 
-        await tx.subscription_cycle.update({
-          where: { cycle_id: currentCycle.cycle_id },
+        if (diff > 0 && cycleDetail.remaining_balance < diff) {
+          const productDescription =
+            productsMap.get(productId)?.description || `ID ${productId}`;
+          throw new BadRequestException(
+            `Créditos insuficientes para el producto ${productDescription} en la suscripción ${subscriptionId}. Disponible: ${cycleDetail.remaining_balance}, requerido: ${diff}.`,
+          );
+        }
+
+        const nextDelivered = Math.max(
+          0,
+          cycleDetail.delivered_quantity + diff,
+        );
+        const nextRemaining = Math.max(
+          0,
+          cycleDetail.planned_quantity - nextDelivered,
+        );
+
+        await tx.subscription_cycle_detail.update({
+          where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
-            credit_balance: newCreditBalance.toString(),
+            delivered_quantity: nextDelivered,
+            remaining_balance: nextRemaining,
           },
         });
 
-        // 7. Actualizar las cantidades entregadas en el detalle del ciclo
-        for (const newItem of newDownPaymentItems) {
-          const cycleDetail = currentCycle.subscription_cycle_detail.find(
-            (detail) => detail.product_id === newItem.product_id,
-          );
+        const product = productsMap.get(productId);
+        if (!product?.is_returnable) continue;
 
-          if (cycleDetail) {
-            const originalItem = originalDownPaymentItems.find(
-              (item) => item.product_id === newItem.product_id,
-            );
-            const originalQuantity = originalItem ? originalItem.quantity : 0;
-            const quantityDifference = newItem.quantity - originalQuantity;
+        const comodato = await tx.comodato.findFirst({
+          where: {
+            person_id: existingOrder.customer_id,
+            subscription_id: subscriptionId,
+            product_id: productId,
+            status: 'ACTIVE',
+            is_active: true,
+          },
+        });
 
-            const newDeliveredQuantity = Math.max(
-              0,
-              cycleDetail.delivered_quantity + quantityDifference,
-            );
-            const newRemainingBalance = Math.max(
-              0,
-              cycleDetail.planned_quantity - newDeliveredQuantity,
-            );
-
-            await tx.subscription_cycle_detail.update({
-              where: { cycle_detail_id: cycleDetail.cycle_detail_id },
-              data: {
-                delivered_quantity: newDeliveredQuantity,
-                remaining_balance: newRemainingBalance,
-              },
-            });
-
-            this.logger.log(
-              `📦 Actualizado detalle de ciclo para producto ${newItem.product_id}: ` +
-                `entregado ${cycleDetail.delivered_quantity} → ${newDeliveredQuantity}, ` +
-                `restante ${cycleDetail.remaining_balance} → ${newRemainingBalance}`,
+        if (!comodato) {
+          if (diff > 0) {
+            this.logger.warn(
+              `No se encontró comodato activo para producto ${productId} en suscripción ${subscriptionId} al editar pedido ${existingOrder.order_id}.`,
             );
           }
+          continue;
         }
-      }
 
-      this.logger.log(
-        `✅ Manejo de créditos completado para pedido ${existingOrder.order_id}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `❌ Error en manejo de créditos para pedido ${existingOrder.order_id}:`,
-        error,
-      );
-      throw error;
+        const updatedQuantity = Math.max(0, (comodato.quantity || 0) + diff);
+        await tx.comodato.update({
+          where: { comodato_id: comodato.comodato_id },
+          data: { quantity: updatedQuantity },
+        });
+      }
     }
   }
 
