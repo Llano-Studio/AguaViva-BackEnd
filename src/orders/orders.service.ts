@@ -1659,15 +1659,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const shouldProcessWithdrawal =
           isFinalStatus && existingOrder.status !== requestedStatus;
 
-        const requestedStatus = orderHeaderDataToUpdateInput.status as
-          | PrismaOrderStatus
-          | undefined;
-        const isFinalStatus =
-          requestedStatus &&
-          ['DELIVERED', 'RETIRADO'].includes(requestedStatus);
-        const shouldProcessWithdrawal =
-          isFinalStatus && existingOrder.status !== requestedStatus;
-
         // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
         if (items && items.length > 0) {
           // Eliminar todos los items existentes y crear los nuevos
