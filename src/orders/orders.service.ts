@@ -1641,26 +1641,68 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         // 🆕 COMPATIBILIDAD: Procesar campo 'items' para órdenes híbridas
         if (items && items.length > 0) {
+          const effectiveOrderSubscriptionId =
+            updateOrderDto.subscription_id ||
+            existingOrder.subscription_id ||
+            undefined;
+          const originalProductQuantities = new Map<number, number>();
+          const originalSubscriptionQuantities = new Map<string, number>();
+          const productDescriptions = new Map<number, string>();
+
+          for (const existingItem of existingOrder.order_item) {
+            originalProductQuantities.set(
+              existingItem.product_id,
+              (originalProductQuantities.get(existingItem.product_id) || 0) +
+                existingItem.quantity,
+            );
+            productDescriptions.set(
+              existingItem.product_id,
+              existingItem.product.description,
+            );
+
+            const coverageMeta = this.extractCoverageMeta(existingItem.notes);
+            const coverageResolution = this.resolveItemCoverage(
+              {
+                coverage_mode: coverageMeta.coverageMode,
+                subscription_id: coverageMeta.subscriptionId,
+              },
+              effectiveOrderSubscriptionId,
+            );
+
+            if (!coverageResolution.effectiveSubscriptionId) {
+              continue;
+            }
+
+            const key = `${coverageResolution.effectiveSubscriptionId}:${existingItem.product_id}`;
+            originalSubscriptionQuantities.set(
+              key,
+              (originalSubscriptionQuantities.get(key) || 0) +
+                existingItem.quantity,
+            );
+          }
+
+          const newProductQuantities = new Map<number, number>();
+          for (const itemDto of items) {
+            newProductQuantities.set(
+              itemDto.product_id,
+              (newProductQuantities.get(itemDto.product_id) || 0) +
+                itemDto.quantity,
+            );
+          }
+
           // Eliminar todos los items existentes y crear los nuevos
           await tx.order_item.deleteMany({
             where: { order_id: id },
           });
 
-          const saleMovementTypeId =
-            await this.inventoryService.getMovementTypeIdByCode(
-              BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
-              tx,
-            );
-
-          const effectiveOrderSubscriptionId =
-            updateOrderDto.subscription_id ||
-            existingOrder.subscription_id ||
-            undefined;
-
           for (const itemDto of items) {
             const productDetails = await tx.product.findUniqueOrThrow({
               where: { product_id: itemDto.product_id },
             });
+            productDescriptions.set(
+              itemDto.product_id,
+              productDetails.description,
+            );
 
             const coverageResolution = this.resolveItemCoverage(
               {
@@ -1714,36 +1756,53 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               (existingOrder.order_type === 'HYBRID' ||
                 existingOrder.order_type === 'SUBSCRIPTION')
             ) {
-              const quotaValidation =
-                await this.subscriptionQuotaService.validateSubscriptionQuotas(
-                  coverageResolution.effectiveSubscriptionId,
-                  [
-                    {
-                      product_id: itemDto.product_id,
-                      quantity: itemDto.quantity,
-                    },
-                  ],
-                  tx,
-                );
-              const productQuota = quotaValidation.products[0];
-              if (!productQuota) {
-                throw new BadRequestException(
-                  `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
-                );
+              const subscriptionProductKey = `${coverageResolution.effectiveSubscriptionId}:${itemDto.product_id}`;
+              const originalCoveredQuantity =
+                originalSubscriptionQuantities.get(subscriptionProductKey) || 0;
+              const requestedQuantityDelta = Math.max(
+                0,
+                itemDto.quantity - originalCoveredQuantity,
+              );
+
+              let newlyCoveredQuantity = 0;
+              if (requestedQuantityDelta > 0) {
+                const quotaValidation =
+                  await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                    coverageResolution.effectiveSubscriptionId,
+                    [
+                      {
+                        product_id: itemDto.product_id,
+                        quantity: requestedQuantityDelta,
+                      },
+                    ],
+                    tx,
+                  );
+                const productQuota = quotaValidation.products[0];
+                if (!productQuota) {
+                  throw new BadRequestException(
+                    `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
+                  );
+                }
+
+                quotaAdditional = productQuota.additional_quantity;
+                newlyCoveredQuantity = productQuota.covered_by_subscription;
+              } else {
+                quotaAdditional = 0;
               }
 
-              quotaAdditional = productQuota.additional_quantity;
+              const totalCoveredQuantity =
+                originalCoveredQuantity + newlyCoveredQuantity;
 
               if (
                 coverageResolution.isStrictSubscription &&
-                quotaAdditional > 0
+                itemDto.quantity > totalCoveredQuantity
               ) {
                 throw new BadRequestException(
                   `El producto ${itemDto.product_id} excede la cuota disponible para la suscripción ${coverageResolution.effectiveSubscriptionId}.`,
                 );
               }
 
-              if (productQuota.covered_by_subscription > 0) {
+              if (totalCoveredQuantity > 0) {
                 if (quotaAdditional > 0) {
                   const standardPriceItem = await tx.price_list_item.findFirst({
                     where: {
@@ -1780,22 +1839,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const quantityDecimal = new Decimal(itemDto.quantity);
             const subtotal = itemPrice.mul(quantityDecimal);
 
-            // Validar stock para productos no retornables
-            if (!productDetails.is_returnable) {
-              const requiredStockQuantity = itemDto.quantity;
-              const stockDisponible =
-                await this.inventoryService.getProductStock(
-                  itemDto.product_id,
-                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                  tx,
-                );
-              if (stockDisponible < requiredStockQuantity) {
-                throw new BadRequestException(
-                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Necesario: ${requiredStockQuantity}, disponible: ${stockDisponible}.`,
-                );
-              }
-            }
-
             // Crear el nuevo item
             await tx.order_item.create({
               data: {
@@ -1811,23 +1854,66 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 ),
               },
             });
+          }
 
-            // Crear movimiento de stock
-            if (itemDto.quantity > 0) {
-              await this.inventoryService.createStockMovement(
-                {
-                  movement_type_id: saleMovementTypeId,
-                  product_id: itemDto.product_id,
-                  quantity: itemDto.quantity,
-                  source_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                  destination_warehouse_id: null,
-                  movement_date: new Date(),
-                  remarks: `${this.entityName} #${id} - ${productDetails.description}`,
-                },
-                tx,
-              );
+          const saleMovementTypeId =
+            await this.inventoryService.getMovementTypeIdByCode(
+              BUSINESS_CONFIG.MOVEMENT_TYPES.EGRESO_VENTA_PRODUCTO,
+              tx,
+            );
+          const returnMovementTypeId =
+            await this.inventoryService.getMovementTypeIdByCode(
+              BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_DEVOLUCION_CLIENTE,
+              tx,
+            );
+          const affectedProductIds = new Set<number>([
+            ...Array.from(originalProductQuantities.keys()),
+            ...Array.from(newProductQuantities.keys()),
+          ]);
+
+          for (const productId of affectedProductIds) {
+            const originalQuantity =
+              originalProductQuantities.get(productId) || 0;
+            const newQuantity = newProductQuantities.get(productId) || 0;
+            const quantityDiff = newQuantity - originalQuantity;
+
+            if (quantityDiff === 0) {
+              continue;
             }
+
+            if (quantityDiff > 0) {
+              const stockDisponible =
+                await this.inventoryService.getProductStock(
+                  productId,
+                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                  tx,
+                );
+              if (stockDisponible < quantityDiff) {
+                throw new BadRequestException(
+                  `${this.entityName}: Stock insuficiente para ${productDescriptions.get(productId) || `producto ${productId}`}. Necesario: ${quantityDiff}, disponible: ${stockDisponible}.`,
+                );
+              }
+            }
+
+            await this.inventoryService.createStockMovement(
+              {
+                movement_type_id:
+                  quantityDiff > 0 ? saleMovementTypeId : returnMovementTypeId,
+                product_id: productId,
+                quantity: Math.abs(quantityDiff),
+                source_warehouse_id:
+                  quantityDiff > 0
+                    ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID
+                    : null,
+                destination_warehouse_id:
+                  quantityDiff < 0
+                    ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID
+                    : null,
+                movement_date: new Date(),
+                remarks: `${this.entityName} #${id} - Ajuste por edición de pedido para ${productDescriptions.get(productId) || `producto ${productId}`}, diferencia: ${quantityDiff}`,
+              },
+              tx,
+            );
           }
         } else if (
           items_to_update_or_create &&
@@ -1869,6 +1955,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const productDetails = await tx.product.findUniqueOrThrow({
               where: { product_id: itemDto.product_id },
             });
+            const existingItemForUpdate = existingOrder.order_item.find(
+              (item) => item.order_item_id === itemDto.order_item_id,
+            );
 
             const effectiveOrderSubscriptionId =
               updateOrderDto.subscription_id ||
@@ -1926,35 +2015,68 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               (existingOrderWithRelations.order_type === 'HYBRID' ||
                 existingOrderWithRelations.order_type === 'SUBSCRIPTION')
             ) {
-              const quotaValidation =
-                await this.subscriptionQuotaService.validateSubscriptionQuotas(
-                  coverageResolution.effectiveSubscriptionId,
-                  [
-                    {
-                      product_id: itemDto.product_id,
-                      quantity: itemDto.quantity,
-                    },
-                  ],
-                  tx,
-                );
-              const productQuota = quotaValidation.products[0];
-              if (!productQuota) {
-                throw new BadRequestException(
-                  `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
-                );
+              const previousCoverageMeta = this.extractCoverageMeta(
+                existingItemForUpdate?.notes,
+              );
+              const previousCoverageResolution = this.resolveItemCoverage(
+                {
+                  coverage_mode: previousCoverageMeta.coverageMode,
+                  subscription_id: previousCoverageMeta.subscriptionId,
+                },
+                effectiveOrderSubscriptionId,
+              );
+              const originalCoveredQuantity =
+                existingItemForUpdate &&
+                existingItemForUpdate.product_id === itemDto.product_id &&
+                previousCoverageResolution.effectiveSubscriptionId ===
+                  coverageResolution.effectiveSubscriptionId
+                  ? existingItemForUpdate.quantity
+                  : 0;
+              const requestedQuantityDelta = Math.max(
+                0,
+                itemDto.quantity - originalCoveredQuantity,
+              );
+
+              let newlyCoveredQuantity = 0;
+              let additionalQuantity = 0;
+
+              if (requestedQuantityDelta > 0) {
+                const quotaValidation =
+                  await this.subscriptionQuotaService.validateSubscriptionQuotas(
+                    coverageResolution.effectiveSubscriptionId,
+                    [
+                      {
+                        product_id: itemDto.product_id,
+                        quantity: requestedQuantityDelta,
+                      },
+                    ],
+                    tx,
+                  );
+                const productQuota = quotaValidation.products[0];
+                if (!productQuota) {
+                  throw new BadRequestException(
+                    `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
+                  );
+                }
+
+                newlyCoveredQuantity = productQuota.covered_by_subscription;
+                additionalQuantity = productQuota.additional_quantity;
               }
+
+              const totalCoveredQuantity =
+                originalCoveredQuantity + newlyCoveredQuantity;
 
               if (
                 coverageResolution.isStrictSubscription &&
-                productQuota.additional_quantity > 0
+                itemDto.quantity > totalCoveredQuantity
               ) {
                 throw new BadRequestException(
                   `El producto ${itemDto.product_id} excede la cuota disponible para la suscripción ${coverageResolution.effectiveSubscriptionId}.`,
                 );
               }
 
-              if (productQuota.covered_by_subscription > 0) {
-                if (productQuota.additional_quantity > 0) {
+              if (totalCoveredQuantity > 0) {
+                if (additionalQuantity > 0) {
                   const standardPriceItem = await tx.price_list_item.findFirst({
                     where: {
                       price_list_id:
@@ -2046,18 +2168,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
             const quantityDecimal = new Decimal(itemDto.quantity);
             const subtotal = itemPrice.mul(quantityDecimal);
-            const totalAmountItem = subtotal;
-
-            let quantityChange = 0;
-            const existingItem = existingOrder.order_item.find(
-              (oi) => oi.order_item_id === itemDto.order_item_id,
-            );
-
-            if (existingItem) {
-              quantityChange = itemDto.quantity - existingItem.quantity;
-            } else {
-              quantityChange = itemDto.quantity;
-            }
+            let quantityChange = existingItemForUpdate
+              ? itemDto.quantity - existingItemForUpdate.quantity
+              : itemDto.quantity;
 
             if (quantityChange > 0 && !productDetails.is_returnable) {
               const stockDisponible =
@@ -2072,10 +2185,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 );
               }
             }
-
-            const existingItemForUpdate = existingOrder.order_item.find(
-              (i) => i.order_item_id === itemDto.order_item_id,
-            );
 
             if (existingItemForUpdate) {
               quantityChange =
