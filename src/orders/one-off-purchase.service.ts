@@ -713,7 +713,10 @@ export class OneOffPurchaseService
 
     const personFilter: Prisma.personWhereInput = {};
     if (customerName) {
-      personFilter.name = { contains: customerName, mode: 'insensitive' };
+      personFilter.OR = [
+        { name: { contains: customerName, mode: 'insensitive' } },
+        { alias: { contains: customerName, mode: 'insensitive' } },
+      ];
     }
     if (Object.keys(personFilter).length > 0) {
       where.person = personFilter;
@@ -740,6 +743,7 @@ export class OneOffPurchaseService
       const searchNum = parseInt(search);
       const orConditions: Prisma.one_off_purchaseWhereInput[] = [
         { person: { name: { contains: search, mode: 'insensitive' } } },
+        { person: { alias: { contains: search, mode: 'insensitive' } } },
         { product: { description: { contains: search, mode: 'insensitive' } } },
         { person: { phone: { contains: search, mode: 'insensitive' } } },
         {
@@ -2385,7 +2389,10 @@ export class OneOffPurchaseService
 
       const personFilter: Prisma.personWhereInput = {};
       if (customerName) {
-        personFilter.name = { contains: customerName, mode: 'insensitive' };
+        personFilter.OR = [
+          { name: { contains: customerName, mode: 'insensitive' } },
+          { alias: { contains: customerName, mode: 'insensitive' } },
+        ];
       }
       if (Object.keys(personFilter).length > 0) {
         where.person = personFilter;
@@ -2397,6 +2404,7 @@ export class OneOffPurchaseService
         const searchNum = parseInt(search);
         searchConditions = [
           { person: { name: { contains: search, mode: 'insensitive' } } },
+          { person: { alias: { contains: search, mode: 'insensitive' } } },
           { person: { phone: { contains: search, mode: 'insensitive' } } },
           {
             person: {
