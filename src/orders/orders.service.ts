@@ -1839,22 +1839,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const quantityDecimal = new Decimal(itemDto.quantity);
             const subtotal = itemPrice.mul(quantityDecimal);
 
-            // Validar stock para productos no retornables
-            if (!productDetails.is_returnable) {
-              const requiredStockQuantity = itemDto.quantity;
-              const stockDisponible =
-                await this.inventoryService.getProductStock(
-                  itemDto.product_id,
-                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                  tx,
-                );
-              if (stockDisponible < requiredStockQuantity) {
-                throw new BadRequestException(
-                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Necesario: ${requiredStockQuantity}, disponible: ${stockDisponible}.`,
-                );
-              }
-            }
-
             // Crear el nuevo item
             await tx.order_item.create({
               data: {
