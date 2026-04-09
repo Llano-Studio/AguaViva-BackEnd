@@ -1058,30 +1058,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           );
 
         for (const processedItem of processedItems) {
-          if (!processedItem.productDetails?.is_returnable) {
-            let quantityToValidate = processedItem.itemDto.quantity;
-            if (
-              processedItem.isSubscriptionAware &&
-              (createOrderDto.order_type === 'HYBRID' ||
-                createOrderDto.order_type === 'SUBSCRIPTION') &&
-              processedItem.quotaCovered > 0
-            ) {
-              quantityToValidate = processedItem.quotaAdditional;
-            }
-            const stockDisponible = await this.inventoryService.getProductStock(
-              processedItem.itemDto.product_id,
-              BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-              prismaTx,
-            );
+          if (processedItem.productDetails?.is_returnable) {
+            continue;
+          }
+          const quantityToValidate = processedItem.itemDto.quantity;
+          const stockDisponible = await this.inventoryService.getProductStock(
+            processedItem.itemDto.product_id,
+            BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+            prismaTx,
+          );
 
-            if (
-              quantityToValidate > 0 &&
-              stockDisponible < quantityToValidate
-            ) {
-              throw new BadRequestException(
-                `${this.entityName}: Stock insuficiente para el producto ${processedItem.productDetails?.description} (ID: ${processedItem.itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
-              );
-            }
+          if (quantityToValidate > 0 && stockDisponible < quantityToValidate) {
+            throw new BadRequestException(
+              `${this.entityName}: Stock insuficiente para el producto ${processedItem.productDetails?.description} (ID: ${processedItem.itemDto.product_id}). Disponible: ${stockDisponible}, Solicitado: ${quantityToValidate}.`,
+            );
           }
         }
 
@@ -1164,19 +1154,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         for (const processedItem of processedItems) {
           const productDesc =
             processedItem.productDetails?.description || 'N/A';
-          let quantityForStockMovement = processedItem.itemDto.quantity;
+          const quantityForStockMovement = processedItem.itemDto.quantity;
 
-          if (
-            createOrderDto.order_type === 'SUBSCRIPTION' &&
-            processedItem.isSubscriptionAware
-          ) {
-            quantityForStockMovement = processedItem.quotaAdditional;
-          }
-
-          if (
-            quantityForStockMovement > 0 &&
-            !processedItem.productDetails?.is_returnable
-          ) {
+          if (quantityForStockMovement > 0) {
             const stockMovementDto: CreateStockMovementDto = {
               movement_type_id: saleMovementTypeId,
               product_id: processedItem.itemDto.product_id,
@@ -1185,38 +1165,38 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               destination_warehouse_id: null,
               movement_date: new Date(),
-              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${processedItem.itemDto.product_id}) NO retornable - Abono: $${finalPaidAmount.toString()}`,
+              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${processedItem.itemDto.product_id}) - Abono: $${finalPaidAmount.toString()}`,
             };
             await this.inventoryService.createStockMovement(
               stockMovementDto,
               prismaTx,
             );
-          } else if (
+          }
+          if (
             quantityForStockMovement > 0 &&
-            processedItem.productDetails?.is_returnable
+            processedItem.productDetails?.is_returnable &&
+            processedItem.effectiveSubscriptionId
           ) {
-            if (processedItem.effectiveSubscriptionId) {
-              const comodato = await prismaTx.comodato.findFirst({
-                where: {
-                  person_id: customer_id,
-                  subscription_id: processedItem.effectiveSubscriptionId,
-                  product_id: processedItem.itemDto.product_id,
-                  status: 'ACTIVE',
-                  is_active: true,
+            const comodato = await prismaTx.comodato.findFirst({
+              where: {
+                person_id: customer_id,
+                subscription_id: processedItem.effectiveSubscriptionId,
+                product_id: processedItem.itemDto.product_id,
+                status: 'ACTIVE',
+                is_active: true,
+              },
+            });
+
+            if (comodato) {
+              const updatedQuantity =
+                (comodato.quantity || 0) + processedItem.itemDto.quantity;
+
+              await prismaTx.comodato.update({
+                where: { comodato_id: comodato.comodato_id },
+                data: {
+                  quantity: updatedQuantity,
                 },
               });
-
-              if (comodato) {
-                const updatedQuantity =
-                  (comodato.quantity || 0) + processedItem.itemDto.quantity;
-
-                await prismaTx.comodato.update({
-                  where: { comodato_id: comodato.comodato_id },
-                  data: {
-                    quantity: updatedQuantity,
-                  },
-                });
-              }
             }
           }
         }
@@ -1366,7 +1346,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     const customerConditions: Prisma.personWhereInput[] = [];
     if (customerName) {
       customerConditions.push({
-        name: { contains: customerName, mode: 'insensitive' },
+        OR: [
+          { name: { contains: customerName, mode: 'insensitive' } },
+          { alias: { contains: customerName, mode: 'insensitive' } },
+        ],
       });
     }
 
@@ -1415,7 +1398,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const orConditions: Prisma.order_headerWhereInput[] = [];
       orConditions.push({
         customer: {
-          name: { contains: search, mode: 'insensitive' },
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { alias: { contains: search, mode: 'insensitive' } },
+          ],
         },
       });
       if (searchAsNumber) {
@@ -1646,12 +1632,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
           });
 
-        await this.handleCreditIntegrityForOrderEdit(
-          existingOrder,
-          updateOrderDto,
-          tx,
-        );
-
         const requestedStatus = orderHeaderDataToUpdateInput.status as
           | PrismaOrderStatus
           | undefined;
@@ -1804,10 +1784,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
             // Validar stock para productos no retornables
             if (!productDetails.is_returnable) {
-              const requiredStockQuantity =
-                existingOrder.order_type === 'SUBSCRIPTION'
-                  ? quotaAdditional
-                  : itemDto.quantity;
+              const requiredStockQuantity = itemDto.quantity;
               const stockDisponible =
                 await this.inventoryService.getProductStock(
                   itemDto.product_id,
@@ -1838,7 +1815,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             });
 
             // Crear movimiento de stock
-            if (!productDetails.is_returnable) {
+            if (itemDto.quantity > 0) {
               await this.inventoryService.createStockMovement(
                 {
                   movement_type_id: saleMovementTypeId,
@@ -1945,7 +1922,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
             // Calcular precio usando el mismo sistema que en create()
             let itemPrice = new Decimal(productDetails.price); // Precio base por defecto
-            let stockQuantityForItem = itemDto.quantity;
 
             if (
               coverageResolution.isSubscriptionAware &&
@@ -1969,11 +1945,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   `No se encontró información de cuota para el producto ${itemDto.product_id}.`,
                 );
               }
-
-              stockQuantityForItem =
-                existingOrderWithRelations.order_type === 'SUBSCRIPTION'
-                  ? productQuota.additional_quantity
-                  : itemDto.quantity;
 
               if (
                 coverageResolution.isStrictSubscription &&
@@ -2097,9 +2068,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                   tx,
                 );
-              if (stockDisponible < stockQuantityForItem) {
+              if (stockDisponible < quantityChange) {
                 throw new BadRequestException(
-                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Se necesita ${stockQuantityForItem} adicional, disponible: ${stockDisponible}.`,
+                  `${this.entityName}: Stock insuficiente para ${productDetails.description}. Se necesita ${quantityChange} adicional, disponible: ${stockDisponible}.`,
                 );
               }
             }
@@ -2143,7 +2114,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               });
             }
 
-            if (quantityChange !== 0 && !productDetails.is_returnable) {
+            if (quantityChange !== 0) {
               const movementTypeForUpdate =
                 quantityChange > 0
                   ? saleMovementTypeId
@@ -2223,10 +2194,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             );
 
           for (const itemToDelete of itemsBeingDeleted) {
-            if (
-              !itemToDelete.product.is_returnable &&
-              itemToDelete.quantity > 0
-            ) {
+            if (itemToDelete.quantity > 0) {
               await this.inventoryService.createStockMovement(
                 {
                   movement_type_id: returnMovementTypeId,
@@ -2246,6 +2214,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             where: { order_item_id: { in: item_ids_to_delete }, order_id: id },
           });
         }
+
+        await this.handleCreditIntegrityForOrderEdit(
+          existingOrder,
+          updateOrderDto,
+          tx,
+        );
 
         if (shouldRecalculateTotals) {
           const updatedOrderItems = await tx.order_item.findMany({
@@ -2399,23 +2373,19 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               // porque el sistema de suscripción ya manejó los créditos
             }
 
-            // 🔧 CORRECCIÓN: Crear movimiento de devolución SOLO para productos NO retornables
-            // Los productos retornables nunca tuvieron stock descontado, por lo que no necesitan devolución
-            if (!item.product.is_returnable) {
-              await this.inventoryService.createStockMovement(
-                {
-                  movement_type_id: returnMovementTypeId,
-                  product_id: item.product_id,
-                  quantity: quantityToReturn,
-                  source_warehouse_id: null,
-                  destination_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                  movement_date: new Date(),
-                  remarks: `${this.entityName} #${id} CANCELADO - Devolución producto no retornable ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`,
-                },
-                tx,
-              );
-            }
+            await this.inventoryService.createStockMovement(
+              {
+                movement_type_id: returnMovementTypeId,
+                product_id: item.product_id,
+                quantity: quantityToReturn,
+                source_warehouse_id: null,
+                destination_warehouse_id:
+                  BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
+                movement_date: new Date(),
+                remarks: `${this.entityName} #${id} CANCELADO - Devolución producto ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`,
+              },
+              tx,
+            );
           }
         }
 
@@ -2426,7 +2396,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         });
       });
       return {
-        message: `${this.entityName} con ID ${id} ha sido desactivado correctamente. El stock de productos no retornables ha sido restaurado. Los créditos de suscripción han sido reiniciados si corresponde.`,
+        message: `${this.entityName} con ID ${id} ha sido desactivado correctamente. El stock de productos ha sido restaurado. Los créditos de suscripción han sido reiniciados si corresponde.`,
         deleted: true,
       };
     } catch (error) {

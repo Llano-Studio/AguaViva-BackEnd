@@ -2222,12 +2222,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         );
       }
 
-      // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
+      // Soft delete: desactivar y marcar estado del comodato como INACTIVE
       await this.comodato.update({
         where: {
           comodato_id: comodatoId,
         },
-        data: { is_active: false },
+        data: {
+          is_active: false,
+          status: ComodatoStatus.INACTIVE,
+          return_date: new Date(),
+        },
       });
 
       return {
