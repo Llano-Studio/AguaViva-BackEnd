@@ -1,10 +1,23 @@
+function getMappedField(
+  fieldMappings: Record<string, string>,
+  field: string,
+): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(fieldMappings, field)) {
+    return fieldMappings[field];
+  }
+
+  return field;
+}
+
 /**
  * Mapea campos de ordenamiento a su ruta real en Prisma para órdenes híbridas
  */
 export function mapOrderSortFields(field: string): string {
   const fieldMappings: Record<string, string> = {
     // Campos directos de order_header
+    id: 'order_id',
     order_id: 'order_id',
+    order_date: 'order_date',
     delivery_date: 'scheduled_delivery_date',
     order_type: 'order_type',
     status: 'status',
@@ -13,31 +26,39 @@ export function mapOrderSortFields(field: string): string {
     delivery_time: 'delivery_time',
     notes: 'notes',
     zone_id: 'zone_id',
+    payment_status: 'payment_status',
 
     // Campos relacionados del customer (person)
+    address: 'customer.address',
     phone: 'customer.phone',
     name: 'customer.name',
     delivery_address: 'customer.address', // order_header NO tiene delivery_address directo
     customer_address: 'customer.address',
+    'customer.address': 'customer.address',
+    'customer.phone': 'customer.phone',
+    'customer.name': 'customer.name',
     customer_id: 'customer_id',
   };
 
-  return fieldMappings[field] || field;
+  return getMappedField(fieldMappings, field) ?? field;
 }
 
 /**
  * Mapea campos de ordenamiento a su ruta real en Prisma para one-off purchases (legacy)
  */
-export function mapOneOffSortFields(field: string): string {
+export function mapOneOffSortFields(field: string): string | undefined {
   const fieldMappings: Record<string, string> = {
     // Campos directos de one_off_purchase
+    id: 'purchase_id',
     purchase_id: 'purchase_id',
     person_id: 'person_id',
     product_id: 'product_id',
     quantity: 'quantity',
     total_amount: 'total_amount',
     purchase_date: 'purchase_date',
+    order_date: 'purchase_date',
     sale_channel_id: 'sale_channel_id',
+    address: 'delivery_address',
     delivery_address: 'delivery_address', // one_off_purchase SÍ tiene delivery_address directo
     locality_id: 'locality_id',
     zone_id: 'zone_id',
@@ -50,29 +71,40 @@ export function mapOneOffSortFields(field: string): string {
     requires_delivery: 'requires_delivery',
     returned_quantity: 'returned_quantity',
     status: 'status',
+    payment_status: '',
 
     // Campos relacionados de person
     phone: 'person.phone',
     name: 'person.name',
+    'person.address': 'person.address',
+    'person.phone': 'person.phone',
+    'person.name': 'person.name',
+    'customer.address': 'person.address',
+    'customer.phone': 'person.phone',
+    'customer.name': 'person.name',
     person_address: 'person.address', // Para diferenciar del delivery_address
+    order_type: '',
   };
 
-  return fieldMappings[field] || field;
+  return getMappedField(fieldMappings, field);
 }
 
 /**
  * Mapea campos de ordenamiento a su ruta real en Prisma para one-off purchase headers
  */
-export function mapOneOffHeaderSortFields(field: string): string {
+export function mapOneOffHeaderSortFields(field: string): string | undefined {
   const fieldMappings: Record<string, string> = {
     // Campos directos de one_off_purchase_header
+    id: 'purchase_header_id',
     purchase_id: 'purchase_header_id', // Mapeo especial para mantener consistencia
     purchase_header_id: 'purchase_header_id',
     person_id: 'person_id',
     sale_channel_id: 'sale_channel_id',
     purchase_date: 'purchase_date',
+    order_date: 'purchase_date',
     total_amount: 'total_amount',
     paid_amount: 'paid_amount',
+    address: 'delivery_address',
     delivery_address: 'delivery_address', // one_off_purchase_header SÍ tiene delivery_address directo
     locality_id: 'locality_id',
     zone_id: 'zone_id',
@@ -88,10 +120,35 @@ export function mapOneOffHeaderSortFields(field: string): string {
     // Campos relacionados de person
     phone: 'person.phone',
     name: 'person.name',
+    'person.address': 'person.address',
+    'person.phone': 'person.phone',
+    'person.name': 'person.name',
+    'customer.address': 'person.address',
+    'customer.phone': 'person.phone',
+    'customer.name': 'person.name',
     person_address: 'person.address', // Para diferenciar del delivery_address
+    order_type: '',
   };
 
-  return fieldMappings[field] || field;
+  return getMappedField(fieldMappings, field);
+}
+
+export function mapPersonSortFields(field: string): string {
+  const fieldMappings: Record<string, string> = {
+    id: 'person_id',
+    personId: 'person_id',
+    person_id: 'person_id',
+    taxId: 'tax_id',
+    tax_id: 'tax_id',
+    localityId: 'locality_id',
+    locality_id: 'locality_id',
+    zoneId: 'zone_id',
+    zone_id: 'zone_id',
+    'locality.name': 'locality.name',
+    'zone.name': 'zone.name',
+  };
+
+  return getMappedField(fieldMappings, field) ?? field;
 }
 
 /**
@@ -106,7 +163,7 @@ export function mapOneOffHeaderSortFields(field: string): string {
 export function parseSortByString(
   sortBy?: string,
   defaultOrderBy?: any | any[],
-  fieldMapper?: (field: string) => string,
+  fieldMapper?: (field: string) => string | undefined,
 ): any[] | undefined {
   let orderByArray: any[] | undefined;
 
@@ -136,6 +193,10 @@ export function parseSortByString(
           fieldName = fieldMapper(fieldName);
         }
 
+        if (!fieldName || fieldName.trim() === '') {
+          return null;
+        }
+
         if (fieldName.includes('.')) {
           const parts = fieldName.split('.');
           // Asume un solo nivel de anidamiento: { relation: { field: direction } }
@@ -149,7 +210,8 @@ export function parseSortByString(
         } else {
           return { [fieldName]: direction };
         }
-      });
+      })
+      .filter((orderClause) => orderClause !== null);
   }
 
   // Si se parseó un orderByArray y tiene elementos, usarlo.

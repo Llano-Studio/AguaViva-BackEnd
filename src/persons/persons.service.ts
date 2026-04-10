@@ -46,7 +46,10 @@ import { WithdrawComodatoDto } from './dto/withdraw-comodato.dto';
 import { WithdrawComodatoResponseDto } from './dto/withdraw-comodato-response.dto';
 import { CustomerSubscriptionService } from '../customer-subscription/customer-subscription.service';
 import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
-import { parseSortByString } from '../common/utils/query-parser.utils';
+import {
+  parseSortByString,
+  mapPersonSortFields,
+} from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
@@ -485,7 +488,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           : undefined;
     }
 
-    const orderByClause = parseSortByString(otherSortFields, [{ name: 'asc' }]);
+    const orderByClause = parseSortByString(
+      otherSortFields,
+      [{ name: 'asc' }],
+      mapPersonSortFields,
+    );
 
     try {
       // Si se filtra por semáforo O se ordena por semáforo, necesitamos obtener todas las personas para calcular el semáforo
