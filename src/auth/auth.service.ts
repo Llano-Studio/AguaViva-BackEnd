@@ -32,6 +32,14 @@ import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 
+type CentralSsoUser = {
+  userId: number;
+  email: string;
+  assignedSystem: string;
+  name?: string;
+  role?: Role;
+};
+
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Usuario';
@@ -244,6 +252,62 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
         'Error al verificar el estado de autenticación.',
+      );
+    }
+  }
+
+  async issueSsoSession(centralUser: CentralSsoUser) {
+    try {
+      const normalizedEmail = centralUser.email.toLowerCase().trim();
+      const resolvedName = centralUser.name?.trim() || normalizedEmail;
+      const resolvedRole = centralUser.role ?? Role.ADMINISTRATIVE;
+
+      const user = await this.user.upsert({
+        where: { id: centralUser.userId },
+        update: {
+          email: normalizedEmail,
+          name: resolvedName,
+          role: resolvedRole,
+          isActive: true,
+          isEmailConfirmed: true,
+          updatedAt: new Date(),
+        },
+        create: {
+          id: centralUser.userId,
+          email: normalizedEmail,
+          name: resolvedName,
+          role: resolvedRole,
+          isActive: true,
+          isEmailConfirmed: true,
+        },
+      });
+
+      const accessTokenExpiresIn =
+        this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') ||
+        '4h';
+      const accessToken = this.generateJwtToken(
+        { id: user.id },
+        accessTokenExpiresIn,
+      );
+      const refreshToken = await this.generateAndStoreRefreshToken(user.id);
+
+      return {
+        sessionType: 'SSO',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.isActive,
+          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+        },
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      handlePrismaError(error, 'Sesión SSO');
+      throw new InternalServerErrorException(
+        'Error al inicializar la sesión SSO.',
       );
     }
   }

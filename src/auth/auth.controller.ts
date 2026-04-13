@@ -50,6 +50,17 @@ import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { Request } from 'express';
+
+type SsoRequest = Request & {
+  centralUser?: {
+    userId: number;
+    email: string;
+    assignedSystem: string;
+    name?: string;
+    role?: Role;
+  };
+};
 
 @ApiTags('🔐 Autenticación/Usuarios')
 @Controller('auth')
@@ -197,6 +208,35 @@ export class AuthController {
   })
   login(@Body(ValidationPipe) dto: LoginUserDto): Promise<LoginResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Get('sso/entry')
+  @ApiOperation({
+    summary: 'Entrada SSO',
+    description:
+      'Valida el JWT central, aplica JIT provisioning y devuelve el contexto de sesión SSO',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sesión SSO validada y tokens locales generados',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Token inválido o ausente',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Usuario sin acceso a este sistema',
+  })
+  ssoEntry(@Req() req: SsoRequest) {
+    return this.authService.issueSsoSession({
+      userId: req.centralUser.userId,
+      email: req.centralUser.email,
+      assignedSystem: req.centralUser.assignedSystem,
+      name: req.centralUser.name,
+      role: req.centralUser.role,
+    });
   }
 
   @Post('refresh-token')
