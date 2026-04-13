@@ -9,8 +9,9 @@ datasource db {
 
 model User {
   id                     Int                   @id @default(autoincrement())
+  centralUserId          Int?                  @unique
   email                  String                @unique
-  password               String
+  password               String?
   name                   String
   role                   Role                  @default(SUPERADMIN)
   isActive               Boolean               @default(true)
