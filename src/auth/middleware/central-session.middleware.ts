@@ -67,35 +67,61 @@ export const verifyCentralSession = async (
       return;
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      select: { id: true, email: true, name: true, role: true },
-    });
-
     const normalizedEmail = payload.email.toLowerCase().trim();
     const resolvedName = payload.name?.trim() || normalizedEmail;
     const resolvedRole = payload.role ?? Role.ADMINISTRATIVE;
+    
+    const existingByCentralId = await prisma.user.findUnique({
+      where: { centralUserId: payload.userId },
+      select: {
+        id: true,
+        centralUserId: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+    const existingByEmail = existingByCentralId
+      ? null
+      : await prisma.user.findUnique({
+          where: { email: normalizedEmail },
+          select: {
+            id: true,
+            centralUserId: true,
+            email: true,
+            name: true,
+            role: true,
+          },
+        });
+    const existingUser = existingByCentralId ?? existingByEmail;
 
     if (!existingUser) {
       await prisma.user.create({
         data: {
-          id: payload.userId,
+          centralUserId: payload.userId,
           email: normalizedEmail,
+          password: null,
           name: resolvedName,
           role: resolvedRole,
+          isActive: true,
+          isEmailConfirmed: true,
         },
       });
     } else if (
+      existingUser.centralUserId !== payload.userId ||
       existingUser.email !== normalizedEmail ||
       existingUser.name !== resolvedName ||
       existingUser.role !== resolvedRole
     ) {
       await prisma.user.update({
-        where: { id: payload.userId },
+        where: { id: existingUser.id },
         data: {
+          centralUserId: payload.userId,
           email: normalizedEmail,
           name: resolvedName,
           role: resolvedRole,
+          isActive: true,
+          isEmailConfirmed: true,
         },
       });
     }
