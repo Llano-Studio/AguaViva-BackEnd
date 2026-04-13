@@ -35,9 +35,13 @@ export const verifyCentralSession = async (
   }
 
   const jwtSecret =
-    process.env.CENTRAL_AUTH_JWT_SECRET || process.env.JWT_SECRET;
+    process.env.LOGIN_SERVICE_JWT_SECRET ||
+    process.env.CENTRAL_AUTH_JWT_SECRET ||
+    process.env.JWT_SECRET;
   if (!jwtSecret) {
-    res.status(500).json({ message: 'CENTRAL_AUTH_JWT_SECRET no configurado' });
+    res
+      .status(500)
+      .json({ message: 'LOGIN_SERVICE_JWT_SECRET no configurado' });
     return;
   }
 
@@ -70,7 +74,7 @@ export const verifyCentralSession = async (
     const normalizedEmail = payload.email.toLowerCase().trim();
     const resolvedName = payload.name?.trim() || normalizedEmail;
     const resolvedRole = payload.role ?? Role.ADMINISTRATIVE;
-    
+
     const existingByCentralId = await prisma.user.findUnique({
       where: { centralUserId: payload.userId },
       select: {
