@@ -326,6 +326,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           email: user.email,
           name: user.name,
           role: user.role,
+          system: centralUser.assignedSystem,
           isActive: user.isActive,
           profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         },
