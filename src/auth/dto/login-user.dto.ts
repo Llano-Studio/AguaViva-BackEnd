@@ -80,25 +80,39 @@ export class UserLoginDetailsDto {
   @ApiProperty({
     description: 'Rol del usuario en el sistema',
     example: 'SUPERADMIN',
-    examples: {
-      superadmin: {
-        value: 'SUPERADMIN',
-        description: 'Acceso completo al sistema',
-      },
-      admin: {
-        value: 'ADMINISTRATIVE',
-        description: 'Administrador con permisos limitados',
-      },
-      driver: {
-        value: 'DRIVER',
-        description: 'Conductor de entregas',
-      },
-    },
   })
   role: string; // o el enum Role si se prefiere
+
+  @ApiProperty({
+    description: 'Sistema actual asignado al usuario',
+    example: 'AGUAVIVA',
+    required: false,
+  })
+  system?: string;
+
+  @ApiProperty({
+    description: 'Estado de activación del usuario',
+    example: true,
+    required: false,
+  })
+  isActive?: boolean;
+
+  @ApiProperty({
+    description: 'URL de la foto de perfil',
+    example: 'https://storage.com/profile.jpg',
+    required: false,
+  })
+  profileImageUrl?: string;
 }
 
 export class LoginResponseDto {
+  @ApiProperty({
+    description: 'Tipo de sesión iniciada (Local o SSO)',
+    example: 'SSO',
+    required: false,
+  })
+  sessionType?: string;
+
   @ApiProperty({ type: UserLoginDetailsDto })
   user: UserLoginDetailsDto;
 
