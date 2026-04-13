@@ -194,6 +194,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       if (!user) {
         throw new UnauthorizedException('Credenciales inválidas.');
       }
+      if (user.centralUserId !== null) {
+        throw new UnauthorizedException(
+          'Este usuario se autentica desde login-service.',
+        );
+      }
+      if (!user.password) {
+        throw new UnauthorizedException('Credenciales inválidas.');
+      }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
@@ -261,25 +269,45 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const normalizedEmail = centralUser.email.toLowerCase().trim();
       const resolvedName = centralUser.name?.trim() || normalizedEmail;
       const resolvedRole = centralUser.role ?? Role.ADMINISTRATIVE;
+      const user = await this.$transaction(async (prisma) => {
+        const existingByCentralId = await prisma.user.findUnique({
+          where: { centralUserId: centralUser.userId },
+          select: { id: true },
+        });
+        const existingByEmail = existingByCentralId
+          ? null
+          : await prisma.user.findUnique({
+              where: { email: normalizedEmail },
+              select: { id: true },
+            });
+        const userToSync = existingByCentralId ?? existingByEmail;
 
-      const user = await this.user.upsert({
-        where: { id: centralUser.userId },
-        update: {
-          email: normalizedEmail,
-          name: resolvedName,
-          role: resolvedRole,
-          isActive: true,
-          isEmailConfirmed: true,
-          updatedAt: new Date(),
-        },
-        create: {
-          id: centralUser.userId,
-          email: normalizedEmail,
-          name: resolvedName,
-          role: resolvedRole,
-          isActive: true,
-          isEmailConfirmed: true,
-        },
+        if (!userToSync) {
+          return prisma.user.create({
+            data: {
+              centralUserId: centralUser.userId,
+              email: normalizedEmail,
+              password: null,
+              name: resolvedName,
+              role: resolvedRole,
+              isActive: true,
+              isEmailConfirmed: true,
+            },
+          });
+        }
+
+        return prisma.user.update({
+          where: { id: userToSync.id },
+          data: {
+            centralUserId: centralUser.userId,
+            email: normalizedEmail,
+            name: resolvedName,
+            role: resolvedRole,
+            isActive: true,
+            isEmailConfirmed: true,
+            updatedAt: new Date(),
+          },
+        });
       });
 
       const accessTokenExpiresIn =
@@ -530,6 +558,16 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       if (!user) {
         throw new NotFoundException(`${this.entityName} no encontrado.`);
       }
+      if (user.centralUserId !== null) {
+        throw new BadRequestException(
+          'La contraseña de este usuario se gestiona en login-service.',
+        );
+      }
+      if (!user.password) {
+        throw new BadRequestException(
+          'Este usuario no tiene contraseña local configurada.',
+        );
+      }
 
       const isPasswordValid = await bcrypt.compare(
         currentPassword,
@@ -566,6 +604,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       if (!user) {
         throw new NotFoundException(
           `${this.entityName} con email '${email}' no encontrado.`,
+        );
+      }
+      if (user.centralUserId !== null) {
+        throw new BadRequestException(
+          'La recuperación de contraseña se realiza desde login-service.',
         );
       }
 
