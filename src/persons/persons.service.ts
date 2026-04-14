@@ -427,7 +427,21 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
     // Filtros específicos (se pueden combinar con search)
     if (personId) where.person_id = personId;
-    if (name) where.name = { contains: name, mode: 'insensitive' };
+    if (name) {
+      const nameOrAliasConditions: Prisma.personWhereInput[] = [
+        { name: { contains: name, mode: 'insensitive' } },
+        { alias: { contains: name, mode: 'insensitive' } },
+      ];
+
+      if (where.OR) {
+        where.AND = [
+          ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+          { OR: nameOrAliasConditions },
+        ];
+      } else {
+        where.OR = nameOrAliasConditions;
+      }
+    }
     if (alias) where.alias = { contains: alias, mode: 'insensitive' };
     if (address) where.address = { contains: address, mode: 'insensitive' };
     if (phone) where.phone = { contains: phone, mode: 'insensitive' };
