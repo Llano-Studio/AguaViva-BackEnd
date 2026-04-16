@@ -31,14 +31,12 @@ import { parseSortByString } from '../common/utils/query-parser.utils';
 import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
+import { CentralSsoPayload } from './interfaces/central-sso-payload.interface';
 
-type CentralSsoUser = {
-  userId: number;
-  email: string;
-  assignedSystem: string;
-  name?: string;
-  role?: Role;
-};
+type CentralSsoUser = Pick<
+  CentralSsoPayload,
+  'userId' | 'email' | 'assignedSystem' | 'name' | 'role'
+>;
 
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
@@ -74,9 +72,20 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION_TIME') ||
       '7d';
     const refreshTokenPayload: JwtPayload = { id: userId };
-    const refreshToken = this.generateJwtToken(
+    const refreshTokenSecret =
+      this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET') ||
+      this.configService.get<string>('JWT_SECRET') ||
+      this.configService.get<string>('app.jwt.secret');
+    const refreshTokenSignOptions: {
+      expiresIn: string | number;
+      secret?: string;
+    } = { expiresIn: refreshTokenExpiresIn };
+    if (refreshTokenSecret) {
+      refreshTokenSignOptions.secret = refreshTokenSecret;
+    }
+    const refreshToken = this.jwtService.sign(
       refreshTokenPayload,
-      refreshTokenExpiresIn,
+      refreshTokenSignOptions,
     );
 
     const now = new Date();

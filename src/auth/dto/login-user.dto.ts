@@ -84,22 +84,22 @@ export class UserLoginDetailsDto {
   role: string; // o el enum Role si se prefiere
 
   @ApiProperty({
-    description: 'Sistema actual asignado al usuario',
+    description: 'Sistema para el que se emitió la sesión local',
     example: 'AGUAVIVA',
     required: false,
   })
   system?: string;
 
   @ApiProperty({
-    description: 'Estado de activación del usuario',
+    description: 'Indica si el usuario está activo',
     example: true,
     required: false,
   })
   isActive?: boolean;
 
   @ApiProperty({
-    description: 'URL de la foto de perfil',
-    example: 'https://storage.com/profile.jpg',
+    description: 'URL de imagen de perfil del usuario',
+    example: 'http://localhost:3000/uploads/profile-images/admin.png',
     required: false,
   })
   profileImageUrl?: string;
@@ -107,7 +107,7 @@ export class UserLoginDetailsDto {
 
 export class LoginResponseDto {
   @ApiProperty({
-    description: 'Tipo de sesión iniciada (Local o SSO)',
+    description: 'Tipo de sesión emitida por el backend del módulo',
     example: 'SSO',
     required: false,
   })
