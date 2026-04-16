@@ -14,6 +14,7 @@ import {
   Req,
   UseInterceptors,
   UploadedFile,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -50,17 +51,8 @@ import { fileUploadConfigs } from '../common/utils/file-upload.util';
 import { FormDataBody } from '../common/decorators/form-data-body.decorator';
 import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-before-upload.interceptor';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { Request } from 'express';
-
-type SsoRequest = Request & {
-  centralUser?: {
-    userId: number;
-    email: string;
-    assignedSystem: string;
-    name?: string;
-    role?: Role;
-  };
-};
+import { CentralJwtSsoGuard } from './guards/central-jwt-sso.guard';
+import { SsoRequest } from './interfaces/central-sso-payload.interface';
 
 @ApiTags('🔐 Autenticación/Usuarios')
 @Controller('auth')
@@ -211,25 +203,28 @@ export class AuthController {
   }
 
   @Get('sso/entry')
+  @UseGuards(CentralJwtSsoGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Entrada SSO',
     description:
-      'Valida el JWT central, aplica JIT provisioning y devuelve el contexto de sesión SSO',
+      'Valida el JWT central emitido por login-service y devuelve tokens locales del modulo.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Sesión SSO validada y tokens locales generados',
+    description: 'Sesion SSO validada y tokens locales generados',
     type: LoginResponseDto,
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Token inválido o ausente',
-  })
+  @ApiResponse({ status: 401, description: 'Token central invalido o ausente' })
   @ApiResponse({
     status: 403,
-    description: 'Usuario sin acceso a este sistema',
+    description: 'Usuario sin acceso al sistema (audience/assignedSystem)',
   })
   ssoEntry(@Req() req: SsoRequest) {
+    if (!req.centralUser) {
+      throw new UnauthorizedException('Sesion central no disponible');
+    }
+
     return this.authService.issueSsoSession({
       userId: req.centralUser.userId,
       email: req.centralUser.email,
