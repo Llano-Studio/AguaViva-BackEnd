@@ -1,9 +1,4 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  RequestMethod,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -13,7 +8,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { MailModule } from '../mail/mail.module';
 import { RolesService } from './roles.service';
-import { verifyCentralSession } from './middleware/central-session.middleware';
+import { CentralJwtSsoGuard } from './guards/central-jwt-sso.guard';
 
 @Module({
   imports: [
@@ -40,14 +35,13 @@ import { verifyCentralSession } from './middleware/central-session.middleware';
     MailModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, RolesService],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    RolesService,
+    CentralJwtSsoGuard,
+  ],
   exports: [JwtStrategy, PassportModule, AuthService, RolesService],
 })
-export class AuthModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(verifyCentralSession).forRoutes({
-      path: 'auth/sso/entry',
-      method: RequestMethod.GET,
-    });
-  }
-}
+export class AuthModule {}
