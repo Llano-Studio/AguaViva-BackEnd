@@ -569,9 +569,10 @@ export class AuthController {
   })
   createUser(
     @FormDataBody(CreateUserDto) createUserDto: CreateUserDto,
+    @GetUser() user: User,
     @UploadedFile() profileImage?: any,
   ) {
-    return this.authService.createUser(createUserDto, profileImage);
+    return this.authService.createUser(createUserDto, user, profileImage);
   }
 
   @Put('users/:id')
@@ -621,9 +622,10 @@ export class AuthController {
   updateUser(
     @Param('id', ParseIntPipe) id: number,
     @FormDataBody(UpdateUserDto) updateUserDto: UpdateUserDto,
+    @GetUser() user: User,
     @UploadedFile() profileImage?: any,
   ) {
-    return this.authService.updateUser(id, updateUserDto, profileImage);
+    return this.authService.updateUser(id, updateUserDto, user, profileImage);
   }
 
   @Delete('users/:id')
