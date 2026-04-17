@@ -131,6 +131,10 @@ export const buildImageUrl = (
     return null;
   }
 
+  if (/^https?:\/\//i.test(fileName)) {
+    return fileName;
+  }
+
   // Limpiar el fileName si contiene [object File] o paths problemáticos
   let cleanFileName = fileName;
 
