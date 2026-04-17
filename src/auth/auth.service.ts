@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import * as fs from 'fs/promises';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
@@ -38,6 +39,23 @@ type CentralSsoUser = Pick<
   'userId' | 'email' | 'assignedSystem' | 'name' | 'role'
 >;
 
+type CentralManagedAccess = {
+  system: string;
+  role: Role;
+  isActive: boolean;
+};
+
+type CentralManagedUser = {
+  id: number;
+  email: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string | Date;
+  updatedAt?: string | Date;
+  profileImageUrl?: string;
+  accesses: CentralManagedAccess[];
+};
+
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Usuario';
@@ -58,6 +76,46 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     profileImageUrl: string | null,
   ): string | undefined {
     return buildImageUrl(profileImageUrl, 'profile-images') || undefined;
+  }
+
+  private getModuleSystemCode() {
+    return this.configService.get<string>('MODULE_SYSTEM_CODE') || 'AGUAVIVA';
+  }
+
+  private getLoginServiceJwtSecret() {
+    const secret =
+      this.configService.get<string>('LOGIN_SERVICE_JWT_SECRET') ||
+      this.configService.get<string>('CENTRAL_AUTH_JWT_SECRET');
+
+    if (!secret) {
+      throw new InternalServerErrorException(
+        'No se configuró el secreto compartido con login-service.',
+      );
+    }
+
+    return secret;
+  }
+
+  private buildLoginServiceToken(actingUser: User) {
+    if (actingUser.centralUserId === null) {
+      throw new BadRequestException(
+        'El usuario actual no está vinculado a login-service.',
+      );
+    }
+
+    return this.jwtService.sign(
+      {
+        userId: actingUser.centralUserId,
+        email: actingUser.email,
+        name: actingUser.name,
+        role: actingUser.role,
+        assignedSystem: this.getModuleSystemCode(),
+      },
+      {
+        secret: this.getLoginServiceJwtSecret(),
+        expiresIn: '5m',
+      },
+    );
   }
 
   private generateJwtToken(
@@ -473,9 +531,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   async updateUser(
     id: number,
     updateUserDto: UpdateUserDto,
+    actingUser: User,
     profileImage?: any,
   ) {
-    const { email, name, role, isActive } = updateUserDto;
     try {
       const userToUpdate = await this.user.findUnique({ where: { id } });
       if (!userToUpdate) {
@@ -483,44 +541,58 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           `${this.entityName} con ID ${id} no encontrado.`,
         );
       }
-
-      if (email && email !== userToUpdate.email) {
-        const existingUser = await this.user.findUnique({ where: { email } });
-        if (existingUser) {
-          throw new ConflictException(
-            `El email '${email}' ya está en uso por otro ${this.entityName.toLowerCase()}.`,
-          );
-        }
+      if (userToUpdate.centralUserId === null) {
+        throw new BadRequestException(
+          'La actualización de usuarios debe realizarse sobre usuarios centralizados en login-service.',
+        );
       }
 
-      const dataToUpdate: Prisma.UserUpdateInput = {};
-      if (email) dataToUpdate.email = email;
-      if (name) dataToUpdate.name = name;
-      if (role) dataToUpdate.role = role;
-      if (isActive !== undefined) dataToUpdate.isActive = isActive;
-      if (profileImage?.filename) {
-        dataToUpdate.profileImageUrl = profileImage.filename;
+      const centralUser = await this.fetchCentralManagedUser(
+        userToUpdate.centralUserId,
+        actingUser,
+      );
+      const currentSystem = this.getModuleSystemCode();
+      const mergedAccesses = centralUser.accesses.map((access) =>
+        access.system === currentSystem
+          ? {
+              system: access.system,
+              role: updateUserDto.role ?? access.role,
+              isActive:
+                updateUserDto.isActive === undefined
+                  ? access.isActive
+                  : updateUserDto.isActive,
+            }
+          : access,
+      );
+      if (!mergedAccesses.some((access) => access.system === currentSystem)) {
+        mergedAccesses.push({
+          system: currentSystem,
+          role: updateUserDto.role ?? Role.ADMINISTRATIVE,
+          isActive:
+            updateUserDto.isActive === undefined ? true : updateUserDto.isActive,
+        });
       }
-      dataToUpdate.updatedAt = new Date();
 
-      const updatedUser = await this.user.update({
-        where: { id },
-        data: dataToUpdate,
-      });
+      const updatedCentralUser = await this.sendMultipartRequestToLoginService(
+        'PATCH',
+        `users/${userToUpdate.centralUserId}`,
+        actingUser,
+        {
+          email: updateUserDto.email,
+          name: updateUserDto.name,
+          isActive: updateUserDto.isActive,
+          accesses: mergedAccesses,
+        },
+        profileImage,
+      );
 
-      return new UserResponseDto({
-        ...updatedUser,
-        createdAt: formatBATimestampISO(updatedUser.createdAt),
-        updatedAt: updatedUser.updatedAt
-          ? formatBATimestampISO(updatedUser.updatedAt)
-          : undefined,
-        profileImageUrl: this.buildProfileImageUrl(updatedUser.profileImageUrl),
-      });
+      return this.syncCentralManagedUserToLocal(updatedCentralUser);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
         error instanceof ConflictException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
       )
         throw error;
       handlePrismaError(error, this.entityName);
@@ -741,42 +813,213 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     throw new InternalServerErrorException(message);
   }
 
-  async createUser(createUserDto: CreateUserDto, profileImage?: any) {
-    const { email, password, name, role, isActive } = createUserDto;
+  private async sendMultipartRequestToLoginService(
+    method: 'POST' | 'PATCH',
+    path: string,
+    actingUser: User,
+    payload: Record<string, unknown>,
+    profileImage?: any,
+  ) {
+    const formData = new FormData();
+
+    for (const [key, value] of Object.entries(payload)) {
+      if (value === undefined || value === null) continue;
+      if (key === 'accesses') {
+        formData.append(key, JSON.stringify(value));
+        continue;
+      }
+      formData.append(key, String(value));
+    }
+
     try {
-      const existingUser = await this.user.findUnique({ where: { email } });
-      if (existingUser) {
-        throw new ConflictException(
-          `El ${this.entityName.toLowerCase()} con email '${email}' ya existe.`,
+      if (profileImage?.path) {
+        const fileBuffer = await fs.readFile(profileImage.path);
+        formData.append(
+          'profileImage',
+          new Blob([fileBuffer]),
+          profileImage.originalname || profileImage.filename || 'profile-image',
         );
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const userData: Prisma.UserCreateInput = {
-        email,
-        password: hashedPassword,
-        name,
-        role: role || Role.ADMINISTRATIVE,
-        isActive: isActive === undefined ? true : isActive,
-      };
-      if (profileImage?.filename) {
-        userData.profileImageUrl = profileImage.filename;
+      const response = await fetch(`${this.getLoginServiceUrl()}/${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
+        },
+        body: formData,
+      });
+      const text = await response.text();
+      const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+      if (response.ok) {
+        return parsed as CentralManagedUser;
       }
 
-      const newUser = await this.user.create({ data: userData });
+      const message =
+        typeof parsed.message === 'string'
+          ? parsed.message
+          : 'Error delegando la operación a login-service.';
 
-      return new UserResponseDto({
-        ...newUser,
-        createdAt: formatBATimestampISO(newUser.createdAt),
-        updatedAt: newUser.updatedAt
-          ? formatBATimestampISO(newUser.updatedAt)
-          : undefined,
-        profileImageUrl: this.buildProfileImageUrl(newUser.profileImageUrl),
+      if (response.status === 400) {
+        throw new BadRequestException(message);
+      }
+      if (response.status === 401) {
+        throw new UnauthorizedException(message);
+      }
+      if (response.status === 404) {
+        throw new NotFoundException(message);
+      }
+      if (response.status === 409) {
+        throw new ConflictException(message);
+      }
+
+      throw new InternalServerErrorException(message);
+    } finally {
+      if (profileImage?.path) {
+        await fs.unlink(profileImage.path).catch(() => undefined);
+      }
+    }
+  }
+
+  private async fetchCentralManagedUser(
+    centralUserId: number,
+    actingUser: User,
+  ) {
+    const response = await fetch(
+      `${this.getLoginServiceUrl()}/users/${centralUserId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
+        },
+      },
+    );
+    const text = await response.text();
+    const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+    if (response.ok) {
+      return parsed as CentralManagedUser;
+    }
+
+    const message =
+      typeof parsed.message === 'string'
+        ? parsed.message
+        : 'Error obteniendo usuario central desde login-service.';
+
+    if (response.status === 404) {
+      throw new NotFoundException(message);
+    }
+    if (response.status === 401) {
+      throw new UnauthorizedException(message);
+    }
+
+    throw new InternalServerErrorException(message);
+  }
+
+  private resolveCentralAccessForCurrentSystem(user: CentralManagedUser) {
+    const access = user.accesses.find(
+      (item) => item.system === this.getModuleSystemCode(),
+    );
+
+    if (!access) {
+      throw new BadRequestException(
+        `El usuario central no tiene acceso al sistema ${this.getModuleSystemCode()}.`,
+      );
+    }
+
+    return access;
+  }
+
+  private async syncCentralManagedUserToLocal(user: CentralManagedUser) {
+    const moduleAccess = this.resolveCentralAccessForCurrentSystem(user);
+    const localUser = await this.$transaction(async (prisma) => {
+      const existingByCentralId = await prisma.user.findUnique({
+        where: { centralUserId: user.id },
+        select: { id: true },
       });
+      const existingByEmail = existingByCentralId
+        ? null
+        : await prisma.user.findUnique({
+            where: { email: user.email.toLowerCase().trim() },
+            select: { id: true },
+          });
+      const userToSync = existingByCentralId ?? existingByEmail;
+
+      if (!userToSync) {
+        return prisma.user.create({
+          data: {
+            centralUserId: user.id,
+            email: user.email.toLowerCase().trim(),
+            password: null,
+            name: user.name,
+            role: moduleAccess.role,
+            isActive: user.isActive,
+            isEmailConfirmed: true,
+            profileImageUrl: user.profileImageUrl ?? null,
+          },
+        });
+      }
+
+      return prisma.user.update({
+        where: { id: userToSync.id },
+        data: {
+          centralUserId: user.id,
+          email: user.email.toLowerCase().trim(),
+          password: null,
+          name: user.name,
+          role: moduleAccess.role,
+          isActive: user.isActive,
+          isEmailConfirmed: true,
+          profileImageUrl: user.profileImageUrl ?? null,
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    return new UserResponseDto({
+      ...localUser,
+      createdAt: formatBATimestampISO(localUser.createdAt),
+      updatedAt: localUser.updatedAt
+        ? formatBATimestampISO(localUser.updatedAt)
+        : undefined,
+      profileImageUrl: this.buildProfileImageUrl(localUser.profileImageUrl),
+    });
+  }
+
+  async createUser(
+    createUserDto: CreateUserDto,
+    actingUser: User,
+    profileImage?: any,
+  ) {
+    try {
+      const createdCentralUser = await this.sendMultipartRequestToLoginService(
+        'POST',
+        'users',
+        actingUser,
+        {
+          email: createUserDto.email,
+          name: createUserDto.name,
+          password: createUserDto.password,
+          isActive: createUserDto.isActive,
+          accesses: [
+            {
+              system: this.getModuleSystemCode(),
+              role: createUserDto.role || Role.ADMINISTRATIVE,
+              isActive:
+                createUserDto.isActive === undefined
+                  ? true
+                  : createUserDto.isActive,
+            },
+          ],
+        },
+        profileImage,
+      );
+
+      return this.syncCentralManagedUserToLocal(createdCentralUser);
     } catch (error) {
       if (
         error instanceof ConflictException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
       )
         throw error;
       handlePrismaError(error, this.entityName);
