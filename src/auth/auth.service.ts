@@ -570,7 +570,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       }
       if (user.centralUserId !== null) {
         throw new BadRequestException(
-          'La contraseña de este usuario se gestiona en login-service.',
+          'La contraseña de este usuario se gestiona en login-service. Consumir el endpoint central PATCH /users/:id/password.',
         );
       }
       if (!user.password) {
@@ -611,15 +611,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const { email } = recoverPasswordDto;
     try {
       const user = await this.user.findUnique({ where: { email } });
-      if (!user) {
-        throw new NotFoundException(
-          `${this.entityName} con email '${email}' no encontrado.`,
-        );
-      }
-      if (user.centralUserId !== null) {
-        throw new BadRequestException(
-          'La recuperación de contraseña se realiza desde login-service.',
-        );
+      if (!user || user.centralUserId !== null) {
+        return this.forwardPasswordRecoveryToLoginService(recoverPasswordDto);
       }
 
       const recoveryToken = (
@@ -659,8 +652,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         },
       });
 
-      if (!user) {
-        throw new BadRequestException('Token inválido o expirado.');
+      if (!user || user.centralUserId !== null) {
+        return this.forwardPasswordResetToLoginService(token, newPassword);
       }
 
       const hashedNewPassword = await bcrypt.hash(newPassword, 10);
@@ -685,6 +678,67 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         'Error restableciendo la contraseña.',
       );
     }
+  }
+
+  private getLoginServiceUrl() {
+    return (
+      this.configService.get<string>('LOGIN_SERVICE_URL') ||
+      'http://localhost:3001'
+    ).replace(/\/$/, '');
+  }
+
+  private async forwardPasswordRecoveryToLoginService(
+    recoverPasswordDto: RecoverPasswordDto,
+  ) {
+    return this.forwardLoginServiceRequest('forgot-password', {
+      email: recoverPasswordDto.email,
+    });
+  }
+
+  private async forwardPasswordResetToLoginService(
+    token: string,
+    newPassword: string,
+  ) {
+    return this.forwardLoginServiceRequest('reset-password', {
+      token,
+      newPassword,
+    });
+  }
+
+  private async forwardLoginServiceRequest(
+    path: string,
+    payload: Record<string, unknown>,
+  ) {
+    const response = await fetch(`${this.getLoginServiceUrl()}/${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+    if (response.ok) {
+      return parsed;
+    }
+
+    const message =
+      typeof parsed.message === 'string'
+        ? parsed.message
+        : 'Error delegando la operación a login-service.';
+
+    if (response.status === 400) {
+      throw new BadRequestException(message);
+    }
+    if (response.status === 401) {
+      throw new UnauthorizedException(message);
+    }
+    if (response.status === 404) {
+      throw new NotFoundException(message);
+    }
+
+    throw new InternalServerErrorException(message);
   }
 
   async createUser(createUserDto: CreateUserDto, profileImage?: any) {
