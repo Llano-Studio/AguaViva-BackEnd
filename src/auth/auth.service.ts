@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   OnModuleInit,
   UnauthorizedException,
@@ -33,6 +34,12 @@ import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { CentralSsoPayload } from './interfaces/central-sso-payload.interface';
+import {
+  FilterCentralUsersDto,
+  ResetCentralPasswordDto,
+  UpdateCentralUserStatusDto,
+  UpsertCentralUserAccessDto,
+} from './dto/central-user.dto';
 
 type CentralSsoUser = Pick<
   CentralSsoPayload,
@@ -983,6 +990,139 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         : undefined,
       profileImageUrl: this.buildProfileImageUrl(localUser.profileImageUrl),
     });
+  }
+
+  private async forwardJsonToLoginService<T>(
+    method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
+    path: string,
+    actingUser: User,
+    body?: Record<string, unknown>,
+    query?: Record<string, unknown>,
+  ): Promise<T> {
+    const queryString = query
+      ? (() => {
+          const entries = Object.entries(query).filter(
+            ([, v]) => v !== undefined && v !== null && v !== '',
+          );
+          if (entries.length === 0) return '';
+          return (
+            '?' +
+            entries
+              .map(
+                ([k, v]) =>
+                  `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
+              )
+              .join('&')
+          );
+        })()
+      : '';
+
+    const response = await fetch(
+      `${this.getLoginServiceUrl()}/${path}${queryString}`,
+      {
+        method,
+        headers: {
+          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
+    );
+
+    const text = await response.text();
+    const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+
+    if (response.ok) {
+      return parsed as T;
+    }
+
+    const message =
+      typeof parsed.message === 'string'
+        ? parsed.message
+        : 'Error delegando la operación a login-service.';
+
+    if (response.status === 400) throw new BadRequestException(message);
+    if (response.status === 401) throw new UnauthorizedException(message);
+    if (response.status === 403) throw new ForbiddenException(message);
+    if (response.status === 404) throw new NotFoundException(message);
+    if (response.status === 409) throw new ConflictException(message);
+
+    throw new InternalServerErrorException(message);
+  }
+
+  async listCentralUsers(actingUser: User, filters: FilterCentralUsersDto) {
+    return this.forwardJsonToLoginService<{
+      data: CentralManagedUser[];
+      meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      };
+    }>('GET', 'users', actingUser, undefined, {
+      search: filters.search,
+      role: filters.role,
+      isActive: filters.isActive,
+      page: filters.page,
+      limit: filters.limit,
+      system: this.getModuleSystemCode(),
+    });
+  }
+
+  async getCentralUserById(actingUser: User, id: number) {
+    return this.forwardJsonToLoginService<CentralManagedUser>(
+      'GET',
+      `users/${id}`,
+      actingUser,
+    );
+  }
+
+  async updateCentralUserStatus(
+    actingUser: User,
+    id: number,
+    dto: UpdateCentralUserStatusDto,
+  ) {
+    const updated = await this.forwardJsonToLoginService<CentralManagedUser>(
+      'PATCH',
+      `users/${id}/status`,
+      actingUser,
+      { isActive: dto.isActive },
+    );
+    return this.syncCentralManagedUserToLocal(updated);
+  }
+
+  async upsertCentralUserAccess(
+    actingUser: User,
+    id: number,
+    system: string,
+    dto: UpsertCentralUserAccessDto,
+  ) {
+    const updated = await this.forwardJsonToLoginService<CentralManagedUser>(
+      'PATCH',
+      `users/${id}/accesses/${system}`,
+      actingUser,
+      { role: dto.role, isActive: dto.isActive },
+    );
+    if (system === this.getModuleSystemCode()) {
+      return this.syncCentralManagedUserToLocal(updated);
+    }
+    return updated;
+  }
+
+  async resetCentralUserPassword(
+    actingUser: User,
+    id: number,
+    dto: ResetCentralPasswordDto,
+  ) {
+    return this.forwardJsonToLoginService<{ passwordReset: boolean }>(
+      'PATCH',
+      `users/${id}/password`,
+      actingUser,
+      {
+        currentPassword: dto.currentPassword,
+        newPassword: dto.newPassword,
+      },
+    );
   }
 
   async createUser(
