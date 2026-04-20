@@ -4,6 +4,7 @@ import {
   Body,
   Get,
   Put,
+  Patch,
   Delete,
   Param,
   ParseEnumPipe,
@@ -53,6 +54,12 @@ import { CleanupFileOnErrorInterceptor } from '../common/interceptors/validate-b
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { CentralJwtSsoGuard } from './guards/central-jwt-sso.guard';
 import { SsoRequest } from './interfaces/central-sso-payload.interface';
+import {
+  FilterCentralUsersDto,
+  ResetCentralPasswordDto,
+  UpdateCentralUserStatusDto,
+  UpsertCentralUserAccessDto,
+} from './dto/central-user.dto';
 
 @ApiTags('🔐 Autenticación/Usuarios')
 @Controller('auth')
@@ -458,6 +465,85 @@ export class AuthController {
     filterDto: FilterUsersDto,
   ) {
     return this.authService.getAllUsers(filterDto);
+  }
+
+  @Get('users/central')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Listar usuarios centrales (proxy a login-service)',
+    description:
+      'Proxy autenticado: valida token local, firma token central de servicio y delega a login-service. Devuelve usuarios con accesses[].',
+  })
+  listCentralUsers(
+    @GetUser() user: User,
+    @Query(
+      new ValidationPipe({
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    )
+    filters: FilterCentralUsersDto,
+  ) {
+    return this.authService.listCentralUsers(user, filters);
+  }
+
+  @Get('users/central/:id')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Obtener usuario central por id (proxy a login-service)',
+  })
+  getCentralUserById(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.authService.getCentralUserById(user, id);
+  }
+
+  @Patch('users/central/:id/status')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Activar/desactivar usuario central (proxy)',
+  })
+  updateCentralUserStatus(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body(ValidationPipe) dto: UpdateCentralUserStatusDto,
+  ) {
+    return this.authService.updateCentralUserStatus(user, id, dto);
+  }
+
+  @Patch('users/central/:id/accesses/:system')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Upsert acceso de usuario central por sistema (proxy)',
+  })
+  upsertCentralUserAccess(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('system') system: string,
+    @Body(ValidationPipe) dto: UpsertCentralUserAccessDto,
+  ) {
+    return this.authService.upsertCentralUserAccess(user, id, system, dto);
+  }
+
+  @Patch('users/central/:id/password')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cambiar password de usuario central (proxy)',
+  })
+  resetCentralUserPassword(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body(ValidationPipe) dto: ResetCentralPasswordDto,
+  ) {
+    return this.authService.resetCentralUserPassword(user, id, dto);
   }
 
   @Get('users/:id')
