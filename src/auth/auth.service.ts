@@ -1131,6 +1131,24 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     profileImage?: any,
   ) {
     try {
+      const accesses =
+        createUserDto.accesses && createUserDto.accesses.length > 0
+          ? createUserDto.accesses.map((a) => ({
+              system: a.system,
+              role: a.role,
+              isActive: a.isActive === undefined ? true : a.isActive,
+            }))
+          : [
+              {
+                system: this.getModuleSystemCode(),
+                role: createUserDto.role || Role.ADMINISTRATIVE,
+                isActive:
+                  createUserDto.isActive === undefined
+                    ? true
+                    : createUserDto.isActive,
+              },
+            ];
+
       const createdCentralUser = await this.sendMultipartRequestToLoginService(
         'POST',
         'users',
@@ -1140,16 +1158,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           name: createUserDto.name,
           password: createUserDto.password,
           isActive: createUserDto.isActive,
-          accesses: [
-            {
-              system: this.getModuleSystemCode(),
-              role: createUserDto.role || Role.ADMINISTRATIVE,
-              isActive:
-                createUserDto.isActive === undefined
-                  ? true
-                  : createUserDto.isActive,
-            },
-          ],
+          accesses,
         },
         profileImage,
       );
@@ -1165,6 +1174,64 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
         `Error creando ${this.entityName.toLowerCase()}.`,
+      );
+    }
+  }
+
+  async updateCentralUser(
+    actingUser: User,
+    id: number,
+    updateUserDto: UpdateUserDto,
+    profileImage?: any,
+  ) {
+    try {
+      const payload: Record<string, unknown> = {};
+      if (updateUserDto.email !== undefined) payload.email = updateUserDto.email;
+      if (updateUserDto.name !== undefined) payload.name = updateUserDto.name;
+      if (updateUserDto.password !== undefined)
+        payload.password = updateUserDto.password;
+      if (updateUserDto.isActive !== undefined)
+        payload.isActive = updateUserDto.isActive;
+
+      if (updateUserDto.accesses && updateUserDto.accesses.length > 0) {
+        payload.accesses = updateUserDto.accesses.map((a) => ({
+          system: a.system,
+          role: a.role,
+          isActive: a.isActive === undefined ? true : a.isActive,
+        }));
+      } else if (updateUserDto.role) {
+        payload.accesses = [
+          {
+            system: this.getModuleSystemCode(),
+            role: updateUserDto.role,
+            isActive:
+              updateUserDto.isActive === undefined
+                ? true
+                : updateUserDto.isActive,
+          },
+        ];
+      }
+
+      const updatedCentralUser = await this.sendMultipartRequestToLoginService(
+        'PATCH',
+        `users/${id}`,
+        actingUser,
+        payload,
+        profileImage,
+      );
+
+      return this.syncCentralManagedUserToLocal(updatedCentralUser);
+    } catch (error) {
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException ||
+        error instanceof NotFoundException
+      )
+        throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(
+        `Error actualizando ${this.entityName.toLowerCase()} central.`,
       );
     }
   }
