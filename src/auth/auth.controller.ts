@@ -503,6 +503,35 @@ export class AuthController {
     return this.authService.getCentralUserById(user, id);
   }
 
+  @Patch('users/central/:id')
+  @Auth(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @UseInterceptors(
+    FileInterceptor('profileImage', fileUploadConfigs.profileImages),
+    CleanupFileOnErrorInterceptor,
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Actualizar usuario central (proxy a login-service)',
+    description:
+      'Actualiza datos del usuario central (email/name/password/isActive/accesses) y proyecta el acceso local del módulo.',
+  })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 200, description: 'Usuario central actualizado' })
+  updateCentralUser(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @FormDataBody(UpdateUserDto) updateUserDto: UpdateUserDto,
+    @UploadedFile() profileImage?: any,
+  ) {
+    return this.authService.updateCentralUser(
+      user,
+      id,
+      updateUserDto,
+      profileImage,
+    );
+  }
+
   @Patch('users/central/:id/status')
   @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
@@ -618,13 +647,13 @@ export class AuthController {
     return this.authService.getUserById(id);
   }
 
-  @Post('users')
+  @Post('users/central')
   @Auth(Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Crear un nuevo usuario (SUPERADMIN)',
+    summary: 'Crear usuario central multi-sistema (proxy a login-service)',
     description:
-      'Permite a un SUPERADMINistrador crear un nuevo usuario con rol y estado específicos. Se puede incluir imagen de perfil.',
+      'Crea un usuario en login-service con accesos a uno o varios sistemas. El acceso se proyecta localmente si incluye el sistema del módulo.',
   })
   @ApiResponse({
     status: 201,
