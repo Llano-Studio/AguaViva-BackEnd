@@ -233,6 +233,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       return {
         user: new UserResponseDto({
           id: user.id,
+          centralUserId: user.centralUserId,
           email: user.email,
           name: user.name,
           role: user.role,
@@ -294,6 +295,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       return {
         user: {
           id: user.id,
+          centralUserId: user.centralUserId,
           email: user.email,
           name: user.name,
           role: user.role,
@@ -322,6 +324,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return {
         id: user.id,
+        centralUserId: user.centralUserId,
         email: user.email,
         name: user.name,
         role: user.role,
@@ -397,6 +400,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         sessionType: 'SSO',
         user: {
           id: user.id,
+          centralUserId: user.centralUserId,
           email: user.email,
           name: user.name,
           role: user.role,
