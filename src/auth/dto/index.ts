@@ -8,3 +8,4 @@ export * from './create-user.dto';
 export * from './filter-users.dto';
 export * from './user-response.dto';
 export * from './assign-vehicles.dto';
+export * from './user-system-access.dto';

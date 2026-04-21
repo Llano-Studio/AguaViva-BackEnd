@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsString,
@@ -9,9 +9,14 @@ import {
   Matches,
   IsOptional,
   IsBoolean,
+  IsArray,
+  ArrayMinSize,
+  ArrayUnique,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import { Role } from '@prisma/client';
+import { UserSystemAccessDto } from './user-system-access.dto';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -113,14 +118,44 @@ export class CreateUserDto {
     },
   })
   @IsEnum(Role)
-  @IsNotEmpty()
+  @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
       return value.toUpperCase() as Role;
     }
     return value;
   })
-  role: Role;
+  role?: Role;
+
+  @ApiPropertyOptional({
+    description:
+      'Accesos multi-sistema (string JSON en multipart o array en JSON). Si se envía, tiene precedencia sobre role.',
+    oneOf: [
+      { type: 'array', items: { $ref: '#/components/schemas/UserSystemAccessDto' } },
+      {
+        type: 'string',
+        example:
+          '[{"system":"AGUAVIVA","role":"SUPERADMIN","isActive":true},{"system":"AGUARICA","role":"ADMINISTRATIVE","isActive":true}]',
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique((access: UserSystemAccessDto) => access.system, {
+    message: 'No se puede repetir el sistema dentro de los accesos.',
+  })
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    try {
+      return plainToInstance(UserSystemAccessDto, JSON.parse(value));
+    } catch {
+      return value;
+    }
+  })
+  @ValidateNested({ each: true })
+  @Type(() => UserSystemAccessDto)
+  accesses?: UserSystemAccessDto[];
 
   @ApiProperty({
     description: 'Estado activo/inactivo del usuario',
