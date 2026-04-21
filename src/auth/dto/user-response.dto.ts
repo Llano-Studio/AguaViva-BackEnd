@@ -9,6 +9,15 @@ export class UserResponseDto {
   id: number;
 
   @ApiProperty({
+    description:
+      'ID del usuario en login-service (central). Usar para operaciones centrales como cambio de contraseña.',
+    example: 5,
+    required: false,
+    nullable: true,
+  })
+  centralUserId?: number | null;
+
+  @ApiProperty({
     description: 'Correo electrónico del usuario',
     example: 'usuario@example.com',
   })
