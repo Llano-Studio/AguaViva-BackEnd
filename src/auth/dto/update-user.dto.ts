@@ -4,10 +4,16 @@ import {
   IsEmail,
   IsBoolean,
   IsEnum,
+  MinLength,
+  IsArray,
+  ArrayMinSize,
+  ArrayUnique,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import { Role } from '@prisma/client';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { UserSystemAccessDto } from './user-system-access.dto';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
@@ -77,11 +83,49 @@ export class UpdateUserDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
+    description: 'Nueva contraseña (mínimo 8 caracteres)',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Accesos multi-sistema (string JSON en multipart o array en JSON).',
+    oneOf: [
+      { type: 'array', items: { $ref: '#/components/schemas/UserSystemAccessDto' } },
+      {
+        type: 'string',
+        example:
+          '[{"system":"AGUAVIVA","role":"SUPERADMIN","isActive":true},{"system":"AGUARICA","role":"ADMINISTRATIVE","isActive":true}]',
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique((access: UserSystemAccessDto) => access.system, {
+    message: 'No se puede repetir el sistema dentro de los accesos.',
+  })
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    try {
+      return plainToInstance(UserSystemAccessDto, JSON.parse(value));
+    } catch {
+      return value;
+    }
+  })
+  @ValidateNested({ each: true })
+  @Type(() => UserSystemAccessDto)
+  accesses?: UserSystemAccessDto[];
+
+  @ApiPropertyOptional({
     description:
       'Archivo de imagen de perfil (opcional). Enviar para actualizar o reemplazar la imagen existente.',
     type: 'string',
     format: 'binary',
   })
   @IsOptional()
-  profileImage?: any; // El tipo real será Express.Multer.File, manejado por el controlador
+  profileImage?: any;
 }

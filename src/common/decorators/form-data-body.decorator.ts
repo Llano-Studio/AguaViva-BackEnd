@@ -50,6 +50,7 @@ export const FormDataBody = createParamDecorator(
           'isActive',
           'notes',
           'profileImage',
+          'accesses',
         ];
       } else if (dtoName.includes('Person')) {
         allowedFields = [
