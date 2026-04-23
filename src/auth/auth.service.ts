@@ -354,9 +354,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         const existingByEmail = existingByCentralId
           ? null
           : await prisma.user.findUnique({
-              where: { email: normalizedEmail },
-              select: { id: true },
-            });
+            where: { email: normalizedEmail },
+            select: { id: true },
+          });
         const userToSync = existingByCentralId ?? existingByEmail;
 
         if (!userToSync) {
@@ -566,13 +566,13 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const mergedAccesses = centralUser.accesses.map((access) =>
         access.system === currentSystem
           ? {
-              system: access.system,
-              role: updateUserDto.role ?? access.role,
-              isActive:
-                updateUserDto.isActive === undefined
-                  ? access.isActive
-                  : updateUserDto.isActive,
-            }
+            system: access.system,
+            role: updateUserDto.role ?? access.role,
+            isActive:
+              updateUserDto.isActive === undefined
+                ? access.isActive
+                : updateUserDto.isActive,
+          }
           : access,
       );
       if (!mergedAccesses.some((access) => access.system === currentSystem)) {
@@ -950,9 +950,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const existingByEmail = existingByCentralId
         ? null
         : await prisma.user.findUnique({
-            where: { email: user.email.toLowerCase().trim() },
-            select: { id: true },
-          });
+          where: { email: user.email.toLowerCase().trim() },
+          select: { id: true },
+        });
       const userToSync = existingByCentralId ?? existingByEmail;
 
       if (!userToSync) {
@@ -1005,20 +1005,20 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<T> {
     const queryString = query
       ? (() => {
-          const entries = Object.entries(query).filter(
-            ([, v]) => v !== undefined && v !== null && v !== '',
-          );
-          if (entries.length === 0) return '';
-          return (
-            '?' +
-            entries
-              .map(
-                ([k, v]) =>
-                  `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
-              )
-              .join('&')
-          );
-        })()
+        const entries = Object.entries(query).filter(
+          ([, v]) => v !== undefined && v !== null && v !== '',
+        );
+        if (entries.length === 0) return '';
+        return (
+          '?' +
+          entries
+            .map(
+              ([k, v]) =>
+                `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
+            )
+            .join('&')
+        );
+      })()
       : '';
 
     const response = await fetch(
@@ -1055,7 +1055,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   }
 
   async listCentralUsers(actingUser: User, filters: FilterCentralUsersDto) {
-    return this.forwardJsonToLoginService<{
+    const result = await this.forwardJsonToLoginService<{
       data: CentralManagedUser[];
       meta: {
         total: number;
@@ -1071,6 +1071,30 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       limit: filters.limit,
       system: this.getModuleSystemCode(),
     });
+
+    const centralIds = result.data.map((u) => u.id);
+    const localUsers =
+      centralIds.length > 0
+        ? await this.user.findMany({
+          where: { centralUserId: { in: centralIds } },
+          select: { id: true, centralUserId: true },
+        })
+        : [];
+
+    const localIdByCentralId = new Map(
+      localUsers
+        .filter((u) => u.centralUserId !== null)
+        .map((u) => [u.centralUserId as number, u.id]),
+    );
+
+    return {
+      ...result,
+      data: result.data.map((u) => ({
+        ...u,
+        id: localIdByCentralId.get(u.id) ?? null,
+        centralUserId: u.id,
+      })),
+    };
   }
 
   async getCentralUserById(actingUser: User, id: number) {
@@ -1138,20 +1162,20 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const accesses =
         createUserDto.accesses && createUserDto.accesses.length > 0
           ? createUserDto.accesses.map((a) => ({
-              system: a.system,
-              role: a.role,
-              isActive: a.isActive === undefined ? true : a.isActive,
-            }))
+            system: a.system,
+            role: a.role,
+            isActive: a.isActive === undefined ? true : a.isActive,
+          }))
           : [
-              {
-                system: this.getModuleSystemCode(),
-                role: createUserDto.role || Role.ADMINISTRATIVE,
-                isActive:
-                  createUserDto.isActive === undefined
-                    ? true
-                    : createUserDto.isActive,
-              },
-            ];
+            {
+              system: this.getModuleSystemCode(),
+              role: createUserDto.role || Role.ADMINISTRATIVE,
+              isActive:
+                createUserDto.isActive === undefined
+                  ? true
+                  : createUserDto.isActive,
+            },
+          ];
 
       const createdCentralUser = await this.sendMultipartRequestToLoginService(
         'POST',
@@ -1167,7 +1191,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         profileImage,
       );
 
-      return this.syncCentralManagedUserToLocal(createdCentralUser);
+
+      const hasLocalAccess = createdCentralUser.accesses.some(
+        (a) => a.system === this.getModuleSystemCode(),
+      );
+      if (hasLocalAccess) {
+        return this.syncCentralManagedUserToLocal(createdCentralUser);
+      }
+      return createdCentralUser;
     } catch (error) {
       if (
         error instanceof ConflictException ||
