@@ -960,7 +960,7 @@ export class AuthController {
 
   // Endpoints de gestión de vehículos
 
-  @Post('users/:id/vehicles')
+  @Post('/users/:id/vehicles')
   @Auth(
     Role.SUPERADMIN,
     Role.ADMINISTRATIVE,
@@ -1017,7 +1017,7 @@ export class AuthController {
     return this.authService.assignVehiclesToUser(userId, dto, actingUser);
   }
 
-  @Get('users/:id/vehicles')
+  @Get('/users/:id/vehicles')
   @Auth(
     Role.SUPERADMIN,
     Role.ADMINISTRATIVE,
@@ -1052,7 +1052,7 @@ export class AuthController {
     return this.authService.getUserVehicles(userId, activeOnly ?? true);
   }
 
-  @Delete('users/:userId/vehicles/:vehicleId')
+  @Delete('/users/:userId/vehicles/:vehicleId')
   @Auth(
     Role.SUPERADMIN,
     Role.ADMINISTRATIVE,
