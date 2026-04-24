@@ -1012,8 +1012,9 @@ export class AuthController {
   assignVehiclesToUser(
     @Param('id', ParseIntPipe) userId: number,
     @Body(ValidationPipe) dto: AssignVehiclesToUserDto,
+    @GetUser() actingUser: User,
   ): Promise<UserVehicleResponseDto[]> {
-    return this.authService.assignVehiclesToUser(userId, dto);
+    return this.authService.assignVehiclesToUser(userId, dto, actingUser);
   }
 
   @Get('users/:id/vehicles')
@@ -1088,7 +1089,8 @@ export class AuthController {
   removeVehicleFromUser(
     @Param('userId', ParseIntPipe) userId: number,
     @Param('vehicleId', ParseIntPipe) vehicleId: number,
+    @GetUser() actingUser: User,
   ): Promise<{ message: string; removed: boolean }> {
-    return this.authService.removeVehicleFromUser(userId, vehicleId);
+    return this.authService.removeVehicleFromUser(userId, vehicleId, actingUser);
   }
 }
