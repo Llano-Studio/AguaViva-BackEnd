@@ -56,6 +56,12 @@ services:
       - TZ=America/Argentina/Buenos_Aires
       - PORT=${PORT:-3000}
       - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
+      - CENTRAL_AUTH_JWT_SECRET=${CENTRAL_AUTH_JWT_SECRET:-sgarav-secret-key}
+      - CENTRAL_AUTH_ISSUER=${CENTRAL_AUTH_ISSUER:-login-service}
+      - CENTRAL_AUTH_SYSTEM_CODE=${CENTRAL_AUTH_SYSTEM_CODE:-AGUAVIVA}
+      - LOGIN_SERVICE_URL=${LOGIN_SERVICE_URL:-http://login-service:3000}
+      - LOGIN_SERVICE_JWT_SECRET=${LOGIN_SERVICE_JWT_SECRET:-sgarav-secret-key}
+      - MODULE_SYSTEM_CODE=${MODULE_SYSTEM_CODE:-AGUAVIVA}
       - JWT_ACCESS_TOKEN_EXPIRATION_TIME=${JWT_ACCESS_TOKEN_EXPIRATION_TIME:-4h}
       - MAX_FILE_SIZE=${MAX_FILE_SIZE:-5242880}
     healthcheck:
@@ -66,10 +72,13 @@ services:
       start_period: 60s
     networks:
       - sgarav-network
+      - sgarav-shared
 
 networks:
   sgarav-network:
     driver: bridge
+  sgarav-shared:
+    external: true
 
 volumes:
   postgres_data:
