@@ -1339,10 +1339,29 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     dto: AssignVehiclesToUserDto,
     actingUser: User,
   ): Promise<UserVehicleResponseDto[]> {
-    // Verificar que el usuario existe
-    await this.getUserById(userId);
+    // 1. Encontrar al usuario localmente
+    let localUser = await this.user.findUnique({
+      where: { id: userId },
+    });
 
-    // Verificar que todos los vehículos existen localmente
+    // Si no se encuentra por ID local, intentar por centralUserId (flexibilidad)
+    if (!localUser) {
+      localUser = await this.user.findUnique({
+        where: { centralUserId: userId },
+      });
+    }
+
+    if (!localUser) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado.`);
+    }
+
+    if (!localUser.centralUserId) {
+      throw new BadRequestException(
+        `El usuario ${localUser.name} no tiene un ID central vinculado.`,
+      );
+    }
+
+    // 2. Verificar que todos los vehículos existen localmente
     const vehicles = await this.vehicle.findMany({
       where: { vehicle_id: { in: dto.vehicleIds } },
     });
@@ -1356,22 +1375,24 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     }
 
     try {
-      // 1. Enviar la asignación al login-service como origen de verdad
+      // 3. Enviar la asignación al login-service usando el centralUserId
       const centralAssignments = await this.forwardJsonToLoginService<any[]>(
         'POST',
-        `users/${userId}/vehicles`,
+        `users/${localUser.centralUserId}/vehicles`,
         actingUser,
         dto as unknown as Record<string, unknown>,
       );
 
-      // 2. Sincronizar la tabla local con las respuestas
+      // 4. Sincronizar la tabla local
       return await this.$transaction(async (prisma) => {
         const assignments = await Promise.all(
           centralAssignments.map(async (centralAssignment) => {
-            const existingAssignment = await prisma.user_vehicle.findFirst({
+            const existingAssignment = await prisma.user_vehicle.findUnique({
               where: {
-                user_id: centralAssignment.userId,
-                vehicle_id: centralAssignment.vehicleId,
+                unique_user_vehicle: {
+                  user_id: localUser.id,
+                  vehicle_id: centralAssignment.vehicleId,
+                },
               },
             });
 
@@ -1388,7 +1409,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             } else {
               return await prisma.user_vehicle.create({
                 data: {
-                  user_id: centralAssignment.userId,
+                  user_id: localUser.id,
                   vehicle_id: centralAssignment.vehicleId,
                   is_active: centralAssignment.isActive,
                   notes: centralAssignment.notes,
@@ -1397,7 +1418,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
                 include: { vehicle: true, user: true },
               });
             }
-          })
+          }),
         );
 
         return assignments.map(this.mapToUserVehicleResponseDto);
@@ -1408,7 +1429,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       }
       handlePrismaError(error, 'Asignación de vehículos (Proxy/Sync)');
       throw new InternalServerErrorException(
-        'Error no manejado al asignar vehículos al usuario',
+        'Error al sincronizar la asignación de vehículos.',
       );
     }
   }
@@ -1417,28 +1438,78 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     userId: number,
     activeOnly: boolean = true,
   ): Promise<UserVehicleResponseDto[]> {
-    await this.getUserById(userId);
+    // 1. Encontrar al usuario localmente
+    let localUser = await this.user.findUnique({
+      where: { id: userId },
+    });
 
-    try {
-      const userVehicles = await this.user_vehicle.findMany({
-        where: {
-          user_id: userId,
-          ...(activeOnly && { is_active: true }),
-        },
-        include: {
-          vehicle: true,
-          user: true,
-        },
-        orderBy: { assigned_at: 'desc' },
+    if (!localUser) {
+      localUser = await this.user.findUnique({
+        where: { centralUserId: userId },
       });
-
-      return userVehicles.map(this.mapToUserVehicleResponseDto);
-    } catch (error) {
-      handlePrismaError(error, 'Vehículos del usuario');
-      throw new InternalServerErrorException(
-        'Error no manejado al obtener vehículos del usuario',
-      );
     }
+
+    if (!localUser) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado.`);
+    }
+
+    // 2. Si tiene ID central, intentar sincronizar primero desde el origen de verdad
+    if (localUser.centralUserId) {
+      try {
+        const centralAssignments = await this.forwardJsonToLoginService<any[]>(
+          'GET',
+          `users/${localUser.centralUserId}/vehicles?activeOnly=${activeOnly}`,
+          null, // No necesitamos actingUser para GET
+        );
+
+        // Sincronizar tabla local en background o transacción rápida
+        await this.$transaction(async (prisma) => {
+          for (const ca of centralAssignments) {
+            await prisma.user_vehicle.upsert({
+              where: {
+                unique_user_vehicle: {
+                  user_id: localUser.id,
+                  vehicle_id: ca.vehicleId,
+                },
+              },
+              create: {
+                user_id: localUser.id,
+                vehicle_id: ca.vehicleId,
+                is_active: ca.isActive,
+                notes: ca.notes,
+                assigned_at: ca.assignedAt,
+              },
+              update: {
+                is_active: ca.isActive,
+                notes: ca.notes,
+                assigned_at: ca.assignedAt,
+              },
+            });
+          }
+        });
+      } catch (error) {
+        // Si falla el central, simplemente caemos a la consulta local
+        console.warn(
+          'Error sincronizando vehículos desde central:',
+          error.message,
+        );
+      }
+    }
+
+    // 3. Retornar datos desde la base local (que ya debería estar sincronizada)
+    const assignments = await this.user_vehicle.findMany({
+      where: {
+        user_id: localUser.id,
+        ...(activeOnly ? { is_active: true } : {}),
+      },
+      include: {
+        vehicle: true,
+        user: true,
+      },
+      orderBy: { assigned_at: 'desc' },
+    });
+
+    return assignments.map(this.mapToUserVehicleResponseDto);
   }
 
   async removeVehicleFromUser(
@@ -1446,34 +1517,48 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     vehicleId: number,
     actingUser: User,
   ): Promise<{ message: string; removed: boolean }> {
-    await this.getUserById(userId);
-
-    const existingAssignment = await this.user_vehicle.findFirst({
-      where: { user_id: userId, vehicle_id: vehicleId, is_active: true },
+    // 1. Encontrar al usuario localmente
+    let localUser = await this.user.findUnique({
+      where: { id: userId },
     });
 
-    if (!existingAssignment) {
-      throw new NotFoundException(
-        `No existe una asignación activa entre el usuario ${userId} y el vehículo ${vehicleId}`,
+    if (!localUser) {
+      localUser = await this.user.findUnique({
+        where: { centralUserId: userId },
+      });
+    }
+
+    if (!localUser) {
+      throw new NotFoundException(`Usuario con ID ${userId} no encontrado.`);
+    }
+
+    if (!localUser.centralUserId) {
+      throw new BadRequestException(
+        'El usuario no tiene un ID central vinculado.',
       );
     }
 
     try {
-      // 1. Eliminar asignación en login-service
+      // 2. Ejecutar remoción en login-service primero
       await this.forwardJsonToLoginService(
         'DELETE',
-        `users/${userId}/vehicles/${vehicleId}`,
+        `users/${localUser.centralUserId}/vehicles/${vehicleId}`,
         actingUser,
       );
 
-      // 2. Sincronizar localmente (soft delete)
+      // 3. Sincronizar localmente (soft delete / desactivar)
       await this.user_vehicle.update({
-        where: { user_vehicle_id: existingAssignment.user_vehicle_id },
+        where: {
+          unique_user_vehicle: {
+            user_id: localUser.id,
+            vehicle_id: vehicleId,
+          },
+        },
         data: { is_active: false },
       });
 
       return {
-        message: 'Vehículo removido del usuario correctamente',
+        message: 'Vehículo removido correctamente.',
         removed: true,
       };
     } catch (error) {
@@ -1482,7 +1567,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       }
       handlePrismaError(error, 'Remoción de vehículo (Proxy/Sync)');
       throw new InternalServerErrorException(
-        'Error no manejado al remover vehículo del usuario',
+        'Error al sincronizar la remoción del vehículo.',
       );
     }
   }
