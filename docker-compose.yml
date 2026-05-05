@@ -2,6 +2,11 @@ services:
   postgres:
     container_name: sgarav-postgres
     image: postgres:16.3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-sgarav_db}
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
@@ -21,6 +26,11 @@ services:
 
   pgadmin:
     container_name: sgarav-pgadmin
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,6 +48,11 @@ services:
 
   backend:
     container_name: sgarav-backend
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
     build:
       context: .
       dockerfile: Dockerfile
