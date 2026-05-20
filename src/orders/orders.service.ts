@@ -230,7 +230,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       );
     }
   }
-
   private mapPaymentMethodId(paymentMethodId: number): PaymentMethod {
     const mapById: Record<number, PaymentMethod> = {
       1: PaymentMethod.EFECTIVO,
@@ -773,7 +772,6 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
           contractPriceList = contract.price_list;
         }
-
         const processedItems: Array<{
           itemDto: (typeof items)[number];
           productDetails: Awaited<
@@ -2077,8 +2075,8 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 );
               }
 
-              if (totalCoveredQuantity > 0) {
-                if (additionalQuantity > 0) {
+              if (productQuota.covered_by_subscription > 0) {
+                if (productQuota.additional_quantity > 0) {
                   const standardPriceItem = await tx.price_list_item.findFirst({
                     where: {
                       price_list_id:
