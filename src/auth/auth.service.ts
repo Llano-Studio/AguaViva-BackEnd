@@ -85,6 +85,26 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     return buildImageUrl(profileImageUrl, 'profile-images') || undefined;
   }
 
+  private normalizeCentralProfileImageUrl(
+    profileImageUrl?: string | null,
+  ): string | null {
+    if (!profileImageUrl) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(profileImageUrl)) {
+      return profileImageUrl;
+    }
+
+    const normalizedFileName = profileImageUrl
+      .replace(/^\/+/, '')
+      .replace(/^public\/uploads\/profile-images\//, '')
+      .replace(/^uploads\/profile-images\//, '')
+      .replace(/^profile-images\//, '');
+
+    return `${this.getLoginServiceUrl()}/public/uploads/profile-images/${normalizedFileName}`;
+  }
+
   private getModuleSystemCode() {
     return this.configService.get<string>('MODULE_SYSTEM_CODE') || 'AGUAVIVA';
   }
@@ -346,7 +366,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const normalizedEmail = centralUser.email.toLowerCase().trim();
       const resolvedName = centralUser.name?.trim() || normalizedEmail;
       const resolvedRole = centralUser.role ?? Role.ADMINISTRATIVE;
+      const normalizedCentralProfileImageUrl = this.normalizeCentralProfileImageUrl(
+        centralUser.profileImageUrl,
+      );
       const user = await this.$transaction(async (prisma) => {
+        const existingByCentralId = await prisma.user.findUnique({
         const existingByCentralId = await prisma.user.findUnique({
           where: { centralUserId: centralUser.userId },
           select: { id: true },
@@ -369,7 +393,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               role: resolvedRole,
               isActive: true,
               isEmailConfirmed: true,
-              profileImageUrl: centralUser.profileImageUrl ?? null,
+              profileImageUrl: normalizedCentralProfileImageUrl,
             },
           });
         }
@@ -383,7 +407,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: resolvedRole,
             isActive: true,
             isEmailConfirmed: true,
-            profileImageUrl: centralUser.profileImageUrl ?? null,
+            profileImageUrl: normalizedCentralProfileImageUrl,
             updatedAt: new Date(),
           },
         });
@@ -408,7 +432,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: user.role,
           system: centralUser.assignedSystem,
           isActive: user.isActive,
-          profileImageUrl: centralUser.profileImageUrl,
+          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         },
         accessToken,
         refreshToken,
