@@ -102,7 +102,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       .replace(/^uploads\/profile-images\//, '')
       .replace(/^profile-images\//, '');
 
-    return `${this.getLoginServiceUrl()}/public/uploads/profile-images/${normalizedFileName}`;
+    const publicLoginServiceUrl =
+      this.configService.get<string>('PUBLIC_LOGIN_SERVICE_URL') ||
+      this.configService.get<string>('LOGIN_SERVICE_PUBLIC_URL') ||
+      this.getLoginServiceUrl();
+
+    return `${publicLoginServiceUrl.replace(/\/$/, '')}/public/uploads/profile-images/${normalizedFileName}`;
   }
 
   private getModuleSystemCode() {
@@ -370,7 +375,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         centralUser.profileImageUrl,
       );
       const user = await this.$transaction(async (prisma) => {
-        const existingByCentralId = await prisma.user.findUnique({
         const existingByCentralId = await prisma.user.findUnique({
           where: { centralUserId: centralUser.userId },
           select: { id: true },
