@@ -8,6 +8,7 @@ export interface CentralSsoPayload {
   name?: string;
   role?: Role;
   type?: string;
+  profileImageUrl?: string | null;
   iat?: number;
   exp?: number;
 }

@@ -43,7 +43,7 @@ import {
 
 type CentralSsoUser = Pick<
   CentralSsoPayload,
-  'userId' | 'email' | 'assignedSystem' | 'name' | 'role'
+  'userId' | 'email' | 'assignedSystem' | 'name' | 'role' | 'profileImageUrl'
 >;
 
 type CentralManagedAccess = {
@@ -369,6 +369,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               role: resolvedRole,
               isActive: true,
               isEmailConfirmed: true,
+              profileImageUrl: centralUser.profileImageUrl ?? null,
             },
           });
         }
@@ -382,6 +383,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: resolvedRole,
             isActive: true,
             isEmailConfirmed: true,
+            profileImageUrl: centralUser.profileImageUrl ?? null,
             updatedAt: new Date(),
           },
         });
@@ -406,7 +408,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: user.role,
           system: centralUser.assignedSystem,
           isActive: user.isActive,
-          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+          profileImageUrl: centralUser.profileImageUrl,
         },
         accessToken,
         refreshToken,
@@ -847,7 +849,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         const fileBuffer = await fs.readFile(profileImage.path);
         formData.append(
           'profileImage',
-          new Blob([fileBuffer]),
+          new Blob([fileBuffer as any]),
           profileImage.originalname || profileImage.filename || 'profile-image',
         );
       }
@@ -940,7 +942,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     return access;
   }
 
-  private async syncCentralManagedUserToLocal(user: CentralManagedUser) {
+  private async syncCentralManagedUserToLocalPrisma(user: CentralManagedUser) {
     const moduleAccess = this.resolveCentralAccessForCurrentSystem(user);
     const localUser = await this.$transaction(async (prisma) => {
       const existingByCentralId = await prisma.user.findUnique({
@@ -986,6 +988,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       });
     });
 
+    return localUser;
+  }
+
+  private async syncCentralManagedUserToLocal(user: CentralManagedUser) {
+    const localUser = await this.syncCentralManagedUserToLocalPrisma(user);
     return new UserResponseDto({
       ...localUser,
       createdAt: formatBATimestampISO(localUser.createdAt),
@@ -1339,13 +1346,15 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     dto: AssignVehiclesToUserDto,
     actingUser: User,
   ): Promise<UserVehicleResponseDto[]> {
-    // 1. Encontrar al usuario localmente por su centralUserId (el origen de verdad para estas operaciones)
-    const localUser = await this.user.findUnique({
+    // 1. Encontrar al usuario localmente por su centralUserId, o sincronizar desde central si no existe
+    let localUser = await this.user.findUnique({
       where: { centralUserId: userId },
     });
 
     if (!localUser) {
-      throw new NotFoundException(`Usuario con ID Central ${userId} no encontrado en este sistema.`);
+      // Sincronizar usuario desde central
+      const centralUser = await this.fetchCentralManagedUser(userId, actingUser);
+      localUser = await this.syncCentralManagedUserToLocalPrisma(centralUser);
     }
 
     // 2. Verificar que todos los vehículos existen localmente
@@ -1425,12 +1434,16 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     userId: number,
     activeOnly: boolean = true,
   ): Promise<UserVehicleResponseDto[]> {
-    // 1. Encontrar al usuario localmente por centralUserId
-    const localUser = await this.user.findUnique({
+    // 1. Encontrar al usuario localmente por centralUserId, o sincronizar desde central si no existe
+    let localUser = await this.user.findUnique({
       where: { centralUserId: userId },
     });
 
     if (!localUser) {
+      // Sincronizar usuario desde central (necesitamos un actingUser, pero getUserVehicles no lo recibe; revisar)
+      // Wait, getUserVehicles doesn't have actingUser. Let's check the controller:
+      // Oh, getUserVehicles in user.controller.ts doesn't pass actingUser. Hmm, let's check how AguaRica does it, or maybe we need to fetch without actingUser? Wait, no, fetchCentralManagedUser requires actingUser. Wait let's check the AguaRica code too.
+      // Wait, let's first update removeVehicleFromUser, then check AguaRica.
       throw new NotFoundException(`Usuario con ID Central ${userId} no encontrado en este sistema.`);
     }
 

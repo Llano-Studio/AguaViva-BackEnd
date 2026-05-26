@@ -238,6 +238,7 @@ export class AuthController {
       assignedSystem: req.centralUser.assignedSystem,
       name: req.centralUser.name,
       role: req.centralUser.role,
+      profileImageUrl: req.centralUser.profileImageUrl,
     });
   }
 
