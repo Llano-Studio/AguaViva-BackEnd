@@ -79,35 +79,82 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     super();
   }
 
-  private buildProfileImageUrl(
-    profileImageUrl: string | null,
-  ): string | undefined {
-    return buildImageUrl(profileImageUrl, 'profile-images') || undefined;
-  }
-
-  private normalizeCentralProfileImageUrl(
+  private sanitizeProfileImageValue(
     profileImageUrl?: string | null,
   ): string | null {
     if (!profileImageUrl) {
       return null;
     }
 
-    if (/^https?:\/\//i.test(profileImageUrl)) {
-      return profileImageUrl;
+    const sanitized = profileImageUrl
+      .trim()
+      .replace(/^['"`\s]+|['"`\s]+$/g, '')
+      .trim();
+
+    return sanitized || null;
+  }
+
+  private getPublicLoginServiceUrl(): string {
+    return (
+      this.configService.get<string>('PUBLIC_LOGIN_SERVICE_URL') ||
+      this.configService.get<string>('LOGIN_SERVICE_PUBLIC_URL') ||
+      this.getLoginServiceUrl()
+    ).replace(/\/$/, '');
+  }
+
+  private normalizeExternalProfileImageUrl(
+    profileImageUrl?: string | null,
+  ): string | null {
+    const sanitized = this.sanitizeProfileImageValue(profileImageUrl);
+    if (!sanitized) {
+      return null;
     }
 
-    const normalizedFileName = profileImageUrl
+    const publicLoginServiceUrl = this.getPublicLoginServiceUrl();
+
+    const profileImagePathMatch = sanitized.match(
+      /\/public\/uploads\/profile-images\/(.+)$/i,
+    );
+    if (profileImagePathMatch?.[1]) {
+      return `${publicLoginServiceUrl}/public/uploads/profile-images/${profileImagePathMatch[1]}`;
+    }
+
+    if (/^https?:\/\//i.test(sanitized)) {
+      return sanitized;
+    }
+
+    return sanitized;
+  }
+
+  private buildProfileImageUrl(
+    profileImageUrl: string | null,
+  ): string | undefined {
+    const normalized = this.normalizeExternalProfileImageUrl(profileImageUrl);
+    return buildImageUrl(normalized, 'profile-images') || undefined;
+  }
+
+  private normalizeCentralProfileImageUrl(
+    profileImageUrl?: string | null,
+  ): string | null {
+    const sanitized = this.sanitizeProfileImageValue(profileImageUrl);
+    if (!sanitized) {
+      return null;
+    }
+
+    const normalizedFileName = sanitized
       .replace(/^\/+/, '')
       .replace(/^public\/uploads\/profile-images\//, '')
       .replace(/^uploads\/profile-images\//, '')
       .replace(/^profile-images\//, '');
 
-    const publicLoginServiceUrl =
-      this.configService.get<string>('PUBLIC_LOGIN_SERVICE_URL') ||
-      this.configService.get<string>('LOGIN_SERVICE_PUBLIC_URL') ||
-      this.getLoginServiceUrl();
+    const normalizedAbsoluteUrl = this.normalizeExternalProfileImageUrl(
+      normalizedFileName,
+    );
+    if (normalizedAbsoluteUrl && /^https?:\/\//i.test(normalizedAbsoluteUrl)) {
+      return normalizedAbsoluteUrl;
+    }
 
-    return `${publicLoginServiceUrl.replace(/\/$/, '')}/public/uploads/profile-images/${normalizedFileName}`;
+    return `${this.getPublicLoginServiceUrl()}/public/uploads/profile-images/${normalizedFileName}`;
   }
 
   private getModuleSystemCode() {

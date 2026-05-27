@@ -5,8 +5,29 @@ export function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
 
+function sanitizeEnvValue(value?: string): string | undefined {
+  return value?.trim().replace(/^['"`\s]+|['"`\s]+$/g, '');
+}
+
+function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('es-ES', { timeZone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getAppTimeZone(): string {
-  return process.env.APP_TIMEZONE || 'America/Argentina/Buenos_Aires';
+  const candidates = [
+    sanitizeEnvValue(process.env.APP_TIMEZONE),
+    'America/Argentina/Buenos_Aires',
+    'America/Buenos_Aires',
+    'UTC',
+  ].filter((value): value is string => Boolean(value));
+
+  const validTimeZone = candidates.find(isValidTimeZone);
+  return validTimeZone || 'UTC';
 }
 
 function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
