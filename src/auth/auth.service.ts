@@ -1019,9 +1019,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
   private async syncCentralManagedUserToLocalPrisma(user: CentralManagedUser) {
     const moduleAccess = this.resolveCentralAccessForCurrentSystem(user);
-    const normalizedProfileImageUrl = this.normalizeCentralProfileImageUrl(
-      user.profileImageUrl,
-    );
     const localUser = await this.$transaction(async (prisma) => {
       const existingByCentralId = await prisma.user.findUnique({
         where: { centralUserId: user.id },
@@ -1045,7 +1042,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: moduleAccess.role,
             isActive: user.isActive,
             isEmailConfirmed: true,
-            profileImageUrl: normalizedProfileImageUrl,
+            profileImageUrl: user.profileImageUrl ?? null,
           },
         });
       }
@@ -1060,7 +1057,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: moduleAccess.role,
           isActive: user.isActive,
           isEmailConfirmed: true,
-          profileImageUrl: normalizedProfileImageUrl,
+          profileImageUrl: user.profileImageUrl ?? null,
           updatedAt: new Date(),
         },
       });
