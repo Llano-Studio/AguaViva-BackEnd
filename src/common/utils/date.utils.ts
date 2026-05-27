@@ -60,7 +60,7 @@ function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
       Number(values.minute),
       Number(values.second),
     );
-    return (asUTC - date.getTime()) / 60000;
+    return Math.round((asUTC - date.getTime()) / 60000);
   } catch {
     return BA_FIXED_OFFSET_MINUTES;
   }
