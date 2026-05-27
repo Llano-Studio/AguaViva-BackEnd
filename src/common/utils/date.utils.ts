@@ -11,14 +11,16 @@ function sanitizeEnvValue(value?: string): string | undefined {
 
 function isValidTimeZone(timeZone: string): boolean {
   try {
-    new Intl.DateTimeFormat('es-ES', { timeZone }).format(new Date());
+    new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date());
     return true;
   } catch {
     return false;
   }
 }
 
+let cachedAppTimeZone: string | null = null;
 export function getAppTimeZone(): string {
+  if (cachedAppTimeZone) return cachedAppTimeZone;
   const candidates = [
     sanitizeEnvValue(process.env.APP_TIMEZONE),
     'America/Argentina/Buenos_Aires',
@@ -27,33 +29,68 @@ export function getAppTimeZone(): string {
   ].filter((value): value is string => Boolean(value));
 
   const validTimeZone = candidates.find(isValidTimeZone);
-  return validTimeZone || 'UTC';
+  cachedAppTimeZone = validTimeZone || 'UTC';
+  return cachedAppTimeZone;
 }
 
+// Hardcoded BA offset (no DST since 2009). Used when ICU lacks tz data.
+const BA_FIXED_OFFSET_MINUTES = -180;
+
 function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(date);
-  const values: Record<string, string> = {};
-  for (const p of parts) {
-    if (p.type !== 'literal') values[p.type] = p.value;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(date);
+    const values: Record<string, string> = {};
+    for (const p of parts) {
+      if (p.type !== 'literal') values[p.type] = p.value;
+    }
+    const asUTC = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour),
+      Number(values.minute),
+      Number(values.second),
+    );
+    return (asUTC - date.getTime()) / 60000;
+  } catch {
+    return BA_FIXED_OFFSET_MINUTES;
   }
-  const asUTC = Date.UTC(
-    Number(values.year),
-    Number(values.month) - 1,
-    Number(values.day),
-    Number(values.hour),
-    Number(values.minute),
-    Number(values.second),
-  );
-  return (asUTC - date.getTime()) / 60000;
+}
+
+function formatPartsWithFallback(
+  date: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+): Record<string, string> {
+  const collect = (parts: Intl.DateTimeFormatPart[]) => {
+    const v: Record<string, string> = {};
+    for (const p of parts) if (p.type !== 'literal') v[p.type] = p.value;
+    return v;
+  };
+  try {
+    return collect(
+      new Intl.DateTimeFormat('es-AR', { timeZone, ...options }).formatToParts(date),
+    );
+  } catch {
+    const shifted = new Date(date.getTime() + BA_FIXED_OFFSET_MINUTES * 60000);
+    return {
+      year: String(shifted.getUTCFullYear()),
+      month: pad2(shifted.getUTCMonth() + 1),
+      day: pad2(shifted.getUTCDate()),
+      hour: pad2(shifted.getUTCHours()),
+      minute: pad2(shifted.getUTCMinutes()),
+      second: pad2(shifted.getUTCSeconds()),
+    };
+  }
 }
 
 function formatOffset(offsetMinutes: number): string {
@@ -152,21 +189,12 @@ export function formatBAYMD(date: Date): string {
     return `${y}-${m}-${d}`;
   }
   const timeZone = getAppTimeZone();
-  const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone,
+  const values = formatPartsWithFallback(date, timeZone, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(date);
-  const get = (t: string) =>
-    String(parts.find((p) => p.type === t)?.value || '').padStart(
-      t === 'day' || t === 'month' ? 2 : 0,
-      '0',
-    );
-  const y = get('year');
-  const m = get('month');
-  const d = get('day');
-  return `${y}-${m}-${d}`;
+  });
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function nowBAYMD(): string {
@@ -193,8 +221,7 @@ export function formatBATimestampISO(date: Date): string {
         date.getTime() - getTimeZoneOffsetMinutes(timeZone, date) * 60000,
       )
     : date;
-  const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone,
+  const values = formatPartsWithFallback(normalized, timeZone, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -202,20 +229,9 @@ export function formatBATimestampISO(date: Date): string {
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(normalized);
-  const get = (t: string) =>
-    String(parts.find((p) => p.type === t)?.value || '').padStart(
-      t === 'day' || t === 'month' ? 2 : 0,
-      '0',
-    );
-  const y = get('year');
-  const m = get('month');
-  const d = get('day');
-  const hh = get('hour');
-  const mm = get('minute');
-  const ss = get('second');
+  });
   const offset = formatOffset(getTimeZoneOffsetMinutes(timeZone, normalized));
-  return `${y}-${m}-${d}T${hh}:${mm}:${ss}${offset}`;
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${offset}`;
 }
 
 // Compare two YYYY-MM-DD strings for descending sort
@@ -227,19 +243,13 @@ export function compareYmdDesc(a: string, b: string): number {
 
 export function formatBAHMS(date: Date): string {
   const timeZone = getAppTimeZone();
-  const parts = new Intl.DateTimeFormat('es-AR', {
-    timeZone,
+  const values = formatPartsWithFallback(date, timeZone, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(date);
-  const get = (t: string) =>
-    String(parts.find((p) => p.type === t)?.value || '').padStart(2, '0');
-  const hh = get('hour');
-  const mm = get('minute');
-  const ss = get('second');
-  return `${hh}${mm}${ss}`;
+  });
+  return `${values.hour}${values.minute}${values.second}`;
 }
 
 export function formatUTCYMD(date: Date): string {
