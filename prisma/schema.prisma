@@ -22,7 +22,6 @@ model User {
   updatedAt              DateTime?
   recoveryToken          String?               @unique
   recoveryTokenExpires   DateTime?
-  profileImageUrl        String?
   refresh_tokens       RefreshToken[]
   incidents_created    delivery_incident[]   @relation("incidentCreator")
   incidents_resolved   delivery_incident[]   @relation("incidentResolver")

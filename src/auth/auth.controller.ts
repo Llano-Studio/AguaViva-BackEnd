@@ -328,7 +328,39 @@ export class AuthController {
     },
   })
   async getProfile(@GetUser() user: User): Promise<UserResponseDto> {
-    return await this.authService.getUserById(user.id);
+    return await this.authService.getProfile(user);
+  }
+
+  @Patch('profile-image')
+  @Auth(Role.SUPERADMIN, Role.ADMINISTRATIVE, Role.BOSSADMINISTRATIVE)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Actualizar foto de perfil del usuario logueado',
+  })
+  @UseInterceptors(
+    FileInterceptor('profileImage', fileUploadConfigs.profileImages),
+    CleanupFileOnErrorInterceptor,
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        profileImage: { type: 'string', format: 'binary' },
+      },
+      required: ['profileImage'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Foto de perfil actualizada',
+    type: UserResponseDto,
+  })
+  updateMyProfileImage(
+    @GetUser() user: User,
+    @UploadedFile() profileImage?: any,
+  ) {
+    return this.authService.updateMyProfileImage(user, profileImage);
   }
 
   @Get('users')

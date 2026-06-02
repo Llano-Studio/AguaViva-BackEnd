@@ -32,7 +32,6 @@ import {
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
-import { buildImageUrl } from '../common/utils/file-upload.util';
 import { CentralSsoPayload } from './interfaces/central-sso-payload.interface';
 import {
   FilterCentralUsersDto,
@@ -63,6 +62,16 @@ type CentralManagedUser = {
   accesses: CentralManagedAccess[];
 };
 
+type CentralMe = {
+  id: number;
+  email: string;
+  name: string;
+  isActive: boolean;
+  assignedSystem: string;
+  role: Role;
+  profileImageUrl?: string;
+};
+
 @Injectable()
 export class AuthService extends PrismaClient implements OnModuleInit {
   private readonly entityName = 'Usuario';
@@ -79,12 +88,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     super();
   }
 
-  private sanitizeProfileImageValue(
-    profileImageUrl?: string | null,
-  ): string | null {
-    if (!profileImageUrl) {
-      return null;
-    }
+  private sanitizeProfileImageUrl(profileImageUrl?: string | null) {
+    if (!profileImageUrl) return null;
 
     const sanitized = profileImageUrl
       .trim()
@@ -102,57 +107,19 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     ).replace(/\/$/, '');
   }
 
-  private normalizeExternalProfileImageUrl(
-    profileImageUrl?: string | null,
-  ): string | null {
-    const sanitized = this.sanitizeProfileImageValue(profileImageUrl);
-    if (!sanitized) {
-      return null;
-    }
-
-    const publicLoginServiceUrl = this.getPublicLoginServiceUrl();
-
-    const profileImagePathMatch = sanitized.match(
-      /\/public\/uploads\/profile-images\/(.+)$/i,
-    );
-    if (profileImagePathMatch?.[1]) {
-      return `${publicLoginServiceUrl}/public/uploads/profile-images/${profileImagePathMatch[1]}`;
-    }
+  private resolveCentralProfileImageUrl(profileImageUrl?: string | null) {
+    const sanitized = this.sanitizeProfileImageUrl(profileImageUrl);
+    if (!sanitized) return undefined;
 
     if (/^https?:\/\//i.test(sanitized)) {
       return sanitized;
     }
 
-    return sanitized;
-  }
-
-  private buildProfileImageUrl(
-    profileImageUrl: string | null,
-  ): string | undefined {
-    const normalized = this.normalizeExternalProfileImageUrl(profileImageUrl);
-    return buildImageUrl(normalized, 'profile-images') || undefined;
-  }
-
-  private normalizeCentralProfileImageUrl(
-    profileImageUrl?: string | null,
-  ): string | null {
-    const sanitized = this.sanitizeProfileImageValue(profileImageUrl);
-    if (!sanitized) {
-      return null;
-    }
-
     const normalizedFileName = sanitized
       .replace(/^\/+/, '')
-      .replace(/^public\/uploads\/profile-images\//, '')
-      .replace(/^uploads\/profile-images\//, '')
-      .replace(/^profile-images\//, '');
-
-    const normalizedAbsoluteUrl = this.normalizeExternalProfileImageUrl(
-      normalizedFileName,
-    );
-    if (normalizedAbsoluteUrl && /^https?:\/\//i.test(normalizedAbsoluteUrl)) {
-      return normalizedAbsoluteUrl;
-    }
+      .replace(/^public\/uploads\/profile-images\//i, '')
+      .replace(/^uploads\/profile-images\//i, '')
+      .replace(/^profile-images\//i, '');
 
     return `${this.getPublicLoginServiceUrl()}/public/uploads/profile-images/${normalizedFileName}`;
   }
@@ -182,6 +149,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       );
     }
 
+    const issuer =
+      this.configService.get<string>('CENTRAL_AUTH_ISSUER') || 'login-service';
+
     return this.jwtService.sign(
       {
         userId: actingUser.centralUserId,
@@ -189,10 +159,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         name: actingUser.name,
         role: actingUser.role,
         assignedSystem: this.getModuleSystemCode(),
+        type: 'access',
       },
       {
         secret: this.getLoginServiceJwtSecret(),
         expiresIn: '5m',
+        issuer,
       },
     );
   }
@@ -260,6 +232,13 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   async register(registerUserDto: RegisterUserDto, profileImage?: any) {
     const { email, password, name, isActive, role } = registerUserDto;
     try {
+      if (profileImage?.path) {
+        await fs.unlink(profileImage.path).catch(() => undefined);
+        throw new BadRequestException(
+          'La imagen de perfil se gestiona de forma centralizada en login-service.',
+        );
+      }
+
       const existingUser = await this.user.findUnique({ where: { email } });
       if (existingUser) {
         throw new ConflictException(
@@ -275,10 +254,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         role: role || Role.ADMINISTRATIVE,
         isActive: isActive === undefined ? true : isActive,
       };
-
-      if (profileImage?.filename) {
-        userData.profileImageUrl = profileImage.filename;
-      }
 
       const user = await this.user.create({ data: userData });
 
@@ -314,7 +289,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           updatedAt: user.updatedAt
             ? formatBATimestampISO(user.updatedAt)
             : undefined,
-          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
         }),
         accessToken,
         refreshToken,
@@ -371,7 +345,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           email: user.email,
           name: user.name,
           role: user.role,
-          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+          profileImageUrl: undefined,
         },
         accessToken,
         refreshToken,
@@ -385,6 +359,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
   async checkAuthStatus(user: User) {
     try {
+      const centralMe =
+        user.centralUserId !== null
+          ? await this.fetchCentralMe(user).catch(() => undefined)
+          : undefined;
+
       const accessTokenExpiresIn =
         this.configService.get<string>('JWT_ACCESS_TOKEN_EXPIRATION_TIME') ||
         '4h';
@@ -401,7 +380,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         name: user.name,
         role: user.role,
         isActive: user.isActive,
-        profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+        profileImageUrl: centralMe?.profileImageUrl,
         accessToken,
         refreshToken,
       };
@@ -418,7 +397,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const normalizedEmail = centralUser.email.toLowerCase().trim();
       const resolvedName = centralUser.name?.trim() || normalizedEmail;
       const resolvedRole = centralUser.role ?? Role.ADMINISTRATIVE;
-      const normalizedCentralProfileImageUrl = this.normalizeCentralProfileImageUrl(
+      const fallbackProfileImageUrl = this.resolveCentralProfileImageUrl(
         centralUser.profileImageUrl,
       );
       const user = await this.$transaction(async (prisma) => {
@@ -444,7 +423,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               role: resolvedRole,
               isActive: true,
               isEmailConfirmed: true,
-              profileImageUrl: normalizedCentralProfileImageUrl,
             },
           });
         }
@@ -458,7 +436,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: resolvedRole,
             isActive: true,
             isEmailConfirmed: true,
-            profileImageUrl: normalizedCentralProfileImageUrl,
             updatedAt: new Date(),
           },
         });
@@ -483,7 +460,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: user.role,
           system: centralUser.assignedSystem,
           isActive: user.isActive,
-          profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
+          profileImageUrl: fallbackProfileImageUrl,
         },
         accessToken,
         refreshToken,
@@ -539,7 +516,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           isActive: true,
           createdAt: true,
           updatedAt: true,
-          profileImageUrl: true,
         },
         skip,
         take: limit,
@@ -554,7 +530,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             updatedAt: user.updatedAt
               ? formatBATimestampISO(user.updatedAt)
               : undefined,
-            profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
           }),
       );
 
@@ -590,7 +565,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           isActive: true,
           createdAt: true,
           updatedAt: true,
-          profileImageUrl: true,
         },
       });
 
@@ -605,7 +579,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         updatedAt: user.updatedAt
           ? formatBATimestampISO(user.updatedAt)
           : undefined,
-        profileImageUrl: this.buildProfileImageUrl(user.profileImageUrl),
       });
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
@@ -614,6 +587,39 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         `Error obteniendo ${this.entityName.toLowerCase()} con ID ${id}.`,
       );
     }
+  }
+
+  async getProfile(actingUser: User): Promise<UserResponseDto> {
+    const localProfile = await this.getUserById(actingUser.id, true);
+    if (actingUser.centralUserId === null) {
+      return localProfile;
+    }
+
+    const centralMe = await this.fetchCentralMe(actingUser).catch(
+      () => undefined,
+    );
+    return new UserResponseDto({
+      ...localProfile,
+      profileImageUrl: centralMe?.profileImageUrl,
+    });
+  }
+
+  async updateMyProfileImage(actingUser: User, profileImage?: any) {
+    if (actingUser.centralUserId === null) {
+      throw new BadRequestException(
+        'La actualización de la foto de perfil está disponible solo para usuarios centralizados.',
+      );
+    }
+
+    await this.sendMultipartRequestToLoginService(
+      'PATCH',
+      'me/profile-image',
+      actingUser,
+      {},
+      profileImage,
+    );
+
+    return this.getProfile(actingUser);
   }
 
   async updateUser(
@@ -1003,6 +1009,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     throw new InternalServerErrorException(message);
   }
 
+  private async fetchCentralMe(actingUser: User) {
+    return this.forwardJsonToLoginService<CentralMe>('GET', 'me', actingUser);
+  }
+
   private resolveCentralAccessForCurrentSystem(user: CentralManagedUser) {
     const access = user.accesses.find(
       (item) => item.system === this.getModuleSystemCode(),
@@ -1042,7 +1052,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: moduleAccess.role,
             isActive: user.isActive,
             isEmailConfirmed: true,
-            profileImageUrl: user.profileImageUrl ?? null,
           },
         });
       }
@@ -1057,7 +1066,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: moduleAccess.role,
           isActive: user.isActive,
           isEmailConfirmed: true,
-          profileImageUrl: user.profileImageUrl ?? null,
           updatedAt: new Date(),
         },
       });
@@ -1074,7 +1082,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       updatedAt: localUser.updatedAt
         ? formatBATimestampISO(localUser.updatedAt)
         : undefined,
-      profileImageUrl: this.buildProfileImageUrl(localUser.profileImageUrl),
+      profileImageUrl: this.resolveCentralProfileImageUrl(user.profileImageUrl),
     });
   }
 
@@ -1658,7 +1666,6 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             updatedAt: uv.user.updatedAt
               ? formatBATimestampISO(uv.user.updatedAt)
               : undefined,
-            profileImageUrl: this.buildProfileImageUrl(uv.user.profileImageUrl),
           }),
       );
     } catch (error) {

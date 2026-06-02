@@ -60,14 +60,14 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${PORT:-3000}:3000"
+      - "${HOST_PORT:-3003}:3000"
     env_file:
       - ./.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-sgarav_db}
       - NODE_ENV=${NODE_ENV:-development}
       - TZ=${TZ:-America/Argentina/Buenos_Aires}
-      - PORT=${PORT:-3000}
+      - PORT=3000
       - JWT_SECRET=${JWT_SECRET:-sgarav-secret-key}
       - CENTRAL_AUTH_JWT_SECRET=${CENTRAL_AUTH_JWT_SECRET:-sgarav-secret-key}
       - CENTRAL_AUTH_ISSUER=${CENTRAL_AUTH_ISSUER:-login-service}
