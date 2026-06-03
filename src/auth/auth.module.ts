@@ -10,6 +10,7 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { MailModule } from '../mail/mail.module';
 import { RolesService } from './roles.service';
 import { CentralJwtSsoGuard } from './guards/central-jwt-sso.guard';
+import { resolveAccessTokenSecret } from './utils/jwt-secret.util';
 
 @Module({
   imports: [
@@ -20,10 +21,7 @@ import { CentralJwtSsoGuard } from './guards/central-jwt-sso.guard';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         return {
-          secret:
-            configService.get('app.jwt.secret') ||
-            configService.get('JWT_SECRET') ||
-            'sgarav-secret-key',
+          secret: resolveAccessTokenSecret(configService),
           signOptions: {
             expiresIn:
               configService.get('app.jwt.expiresIn') ||

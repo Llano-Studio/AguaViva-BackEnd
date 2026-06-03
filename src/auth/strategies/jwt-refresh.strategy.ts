@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { User as PrismaUser, Role } from '@prisma/client';
+import { resolveRefreshTokenSecret } from '../utils/jwt-secret.util';
 
 interface ValidatedUserForStrategy {
   id: number;
@@ -28,8 +29,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey:
-        configService.get<string>('JWT_SECRET') || 'sgarav-secret-key',
+      secretOrKey: resolveRefreshTokenSecret(configService),
       passReqToCallback: true,
     });
   }

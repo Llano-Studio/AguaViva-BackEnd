@@ -39,6 +39,7 @@ import {
   UpdateCentralUserStatusDto,
   UpsertCentralUserAccessDto,
 } from './dto/central-user.dto';
+import { resolveRefreshTokenSecret } from './utils/jwt-secret.util';
 
 type CentralSsoUser = Pick<
   CentralSsoPayload,
@@ -1366,7 +1367,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<JwtPayload | null> {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET'),
+        secret: resolveRefreshTokenSecret(this.configService),
       });
       return payload;
     } catch (err) {
