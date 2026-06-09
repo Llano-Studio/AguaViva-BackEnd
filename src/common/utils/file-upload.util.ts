@@ -132,7 +132,7 @@ export const buildImageUrl = (
   }
 
   if (/^https?:\/\//i.test(fileName)) {
-    return fileName;
+    return fileName.replace(/\/api\/public\//i, '/public/');
   }
 
   // Limpiar el fileName si contiene [object File] o paths problemáticos
@@ -158,14 +158,14 @@ export const buildImageUrl = (
     }
   }
 
-  // Determinar base URL desde variables de entorno
+  // Los assets estaticos se sirven desde /public y no deben heredar el prefijo /api.
   const baseUrl =
     process.env.PUBLIC_BASE_URL ||
     process.env.APP_URL ||
     'http://localhost:3000';
 
-  // Asegurar que no tenga slash final duplicado
-  const normalizedBase = baseUrl.replace(/\/$/, '');
+  // Normalizar slash final y un posible sufijo /api mal configurado en produccion.
+  const normalizedBase = baseUrl.replace(/\/$/, '').replace(/\/api$/i, '');
 
   return `${normalizedBase}/public/uploads/${folder}/${cleanFileName}`;
 };

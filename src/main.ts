@@ -72,6 +72,25 @@ async function bootstrap() {
     },
   });
 
+  app.useStaticAssets(join(process.cwd(), 'public'), {
+    prefix: '/api/public/',
+    setHeaders: (res, path) => {
+      if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      if (path.match(/\.pdf$/i)) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader(
+          'Access-Control-Allow-Headers',
+          'Content-Type, Accept, Authorization, X-Requested-With',
+        );
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+      }
+    },
+  });
+
   // 🆕 Servir archivos temporales bajo /temp para descargas efímeras
   app.useStaticAssets(join(process.cwd(), 'temp'), {
     prefix: '/temp/',

@@ -1178,12 +1178,25 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         .map((u) => [u.centralUserId as number, u.id]),
     );
 
+    const sanitizeUrl = (value: unknown) => {
+      if (typeof value !== 'string') return value;
+      const sanitized = value.trim().replace(/^['"`\s]+|['"`\s]+$/g, '').trim();
+      return sanitized || null;
+    };
+
     return {
       ...result,
       data: result.data.map((u) => ({
         ...u,
-        id: localIdByCentralId.get(u.id) ?? null,
+        profileImageUrl: sanitizeUrl((u as any).profileImageUrl) as any,
+        accesses: Array.isArray((u as any).accesses)
+          ? (u as any).accesses.map((access: any) => ({
+            ...access,
+            redirectUrl: sanitizeUrl(access?.redirectUrl),
+          }))
+          : (u as any).accesses,
         centralUserId: u.id,
+        localId: localIdByCentralId.get(u.id) ?? null,
       })),
     };
   }
