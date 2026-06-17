@@ -55,7 +55,7 @@ services:
           memory: 2G
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,8 +82,8 @@ services:
       - sgarav-network
       - sgarav-shared
     volumes:
-      - ./public:/app/public
-      - uploads_data:/app/uploads
+      - .:/app
+      - aguaviva_node_modules:/app/node_modules
 
 networks:
   sgarav-network:
@@ -94,4 +94,4 @@ networks:
 volumes:
   postgres_data:
   pgadmin_data:
-  uploads_data:
+  aguaviva_node_modules:
