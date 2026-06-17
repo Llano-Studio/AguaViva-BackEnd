@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient, ComodatoStatus } from '@prisma/client';
+import { ComodatoStatus } from '@prisma/client';
 import { CreateComodatoDto } from '../../persons/dto/create-comodato.dto';
 import { buildImageUrl } from '../../common/utils/file-upload.util';
 import { formatBAYMD, isValidYMD, parseBAYMD } from '../utils/date.utils';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 export interface FirstCycleComodatoResult {
   comodatos_created: Array<{
@@ -19,7 +22,11 @@ export interface FirstCycleComodatoResult {
 }
 
 @Injectable()
-export class FirstCycleComodatoService extends PrismaClient {
+export class FirstCycleComodatoService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
   private readonly logger = new Logger(FirstCycleComodatoService.name);
 
   private toDate(input: Date | string): Date {
@@ -53,8 +60,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         total_comodatos: 0,
         is_first_cycle: false,
         customer_id: 0,
-        subscription_id: subscriptionId,
-      };
+        subscription_id: subscriptionId };
     }
 
     this.logger.log(`✅ Es el primer ciclo para suscripción ${subscriptionId}`);
@@ -68,13 +74,7 @@ export class FirstCycleComodatoService extends PrismaClient {
           include: {
             subscription_plan_product: {
               include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
+                product: true } } } } } });
 
     if (!subscription) {
       this.logger.error(`❌ Suscripción ${subscriptionId} no encontrada`);
@@ -83,8 +83,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         total_comodatos: 0,
         is_first_cycle: true,
         customer_id: 0,
-        subscription_id: subscriptionId,
-      };
+        subscription_id: subscriptionId };
     }
 
     // Filtrar productos retornables
@@ -102,8 +101,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         total_comodatos: 0,
         is_first_cycle: true,
         customer_id: subscription.customer_id,
-        subscription_id: subscriptionId,
-      };
+        subscription_id: subscriptionId };
     }
 
     this.logger.log(
@@ -137,9 +135,7 @@ export class FirstCycleComodatoService extends PrismaClient {
             product_id: planProduct.product_id,
             subscription_id: subscriptionId,
             status: ComodatoStatus.ACTIVE,
-            is_active: true,
-          },
-        });
+            is_active: true } });
 
         if (existingComodato) {
           this.logger.log(
@@ -155,9 +151,7 @@ export class FirstCycleComodatoService extends PrismaClient {
             product_id: planProduct.product_id,
             status: ComodatoStatus.ACTIVE,
             is_active: true,
-            subscription_id: { not: subscriptionId },
-          },
-        });
+            subscription_id: { not: subscriptionId } } });
 
         if (otherComodatos.length > 0) {
           this.logger.log(
@@ -199,17 +193,14 @@ export class FirstCycleComodatoService extends PrismaClient {
             brand: comodatoDto.brand || null,
             model: comodatoDto.model || null,
             contract_image_path: comodatoDto.contract_image_path || null,
-            is_active: true,
-          },
-        });
+            is_active: true } });
 
         comodatosCreated.push({
           comodato_id: newComodato.comodato_id,
           product_id: planProduct.product_id,
           product_description: planProduct.product.description,
           quantity: planProduct.product_quantity,
-          delivery_date: formatBAYMD(deliveryDateDb),
-        });
+          delivery_date: formatBAYMD(deliveryDateDb) });
 
         this.logger.log(
           `✅ Comodato creado: ${planProduct.product.description} (ID: ${newComodato.comodato_id})`,
@@ -231,8 +222,7 @@ export class FirstCycleComodatoService extends PrismaClient {
       total_comodatos: comodatosCreated.length,
       is_first_cycle: true,
       customer_id: subscription.customer_id,
-      subscription_id: subscriptionId,
-    };
+      subscription_id: subscriptionId };
   }
 
   /**
@@ -246,9 +236,7 @@ export class FirstCycleComodatoService extends PrismaClient {
       where: {
         subscription_id: subscriptionId,
         status: ComodatoStatus.ACTIVE,
-        is_active: true,
-      },
-    });
+        is_active: true } });
 
     // Si no hay comodatos activos para esta suscripción, es el "primer ciclo" para comodatos
     return existingComodatos === 0;
@@ -262,21 +250,15 @@ export class FirstCycleComodatoService extends PrismaClient {
       where: {
         person_id: customerId,
         status: ComodatoStatus.ACTIVE,
-        is_active: true,
-      },
+        is_active: true },
       include: {
         product: {
           select: {
             product_id: true,
             description: true,
-            is_returnable: true,
-          },
-        },
-      },
+            is_returnable: true } } },
       orderBy: {
-        delivery_date: 'desc',
-      },
-    });
+        delivery_date: 'desc' } });
 
     // Mapear los resultados al formato esperado
     const mappedComodatos = await Promise.all(
@@ -294,16 +276,11 @@ export class FirstCycleComodatoService extends PrismaClient {
                 include: {
                   subscription_plan: {
                     select: {
-                      name: true,
-                    },
-                  },
-                },
-              });
+                      name: true } } } });
             if (subscriptionData) {
               subscription = {
                 subscription_id: subscriptionId,
-                subscription_name: subscriptionData.subscription_plan.name,
-              };
+                subscription_name: subscriptionData.subscription_plan.name };
             }
           }
         }
@@ -333,10 +310,8 @@ export class FirstCycleComodatoService extends PrismaClient {
           product: {
             product_id: comodato.product.product_id,
             description: comodato.product.description,
-            is_returnable: comodato.product.is_returnable,
-          },
-          subscription: subscription,
-        };
+            is_returnable: comodato.product.is_returnable },
+          subscription: subscription };
       }),
     );
 
@@ -355,9 +330,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         person_id: customerId,
         product_id: productId,
         status: ComodatoStatus.ACTIVE,
-        is_active: true,
-      },
-    });
+        is_active: true } });
 
     return !!existingComodato;
   }
@@ -394,23 +367,17 @@ export class FirstCycleComodatoService extends PrismaClient {
             product_id: productId,
             subscription_id: subscriptionId,
             status: ComodatoStatus.ACTIVE,
-            is_active: true,
-          },
+            is_active: true },
           include: {
             product: {
               select: {
-                description: true,
-              },
-            },
-          },
-        });
+                description: true } } } });
 
         if (existingComodato) {
           conflicts.push({
             product_id: productId,
             existing_comodato_id: existingComodato.comodato_id,
-            product_description: existingComodato.product?.description,
-          });
+            product_description: existingComodato.product?.description });
 
           this.logger.warn(
             `⚠️ Conflicto detectado: Cliente ${customerId} ya tiene comodato activo (ID: ${existingComodato.comodato_id}) para producto ${productId} (${existingComodato.product?.description}) en suscripción ${subscriptionId}`,
@@ -433,8 +400,7 @@ export class FirstCycleComodatoService extends PrismaClient {
 
     return {
       hasConflicts,
-      conflicts,
-    };
+      conflicts };
   }
 
   /**
@@ -447,11 +413,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         person: {
           select: {
             name: true,
-            owns_returnable_containers: true,
-          },
-        },
-      },
-    });
+            owns_returnable_containers: true } } } });
 
     if (!subscription) {
       return null;
@@ -476,9 +438,7 @@ export class FirstCycleComodatoService extends PrismaClient {
         expected_return_date: comodato.expected_return_date
           ? formatBAYMD(comodato.expected_return_date)
           : null,
-        notes: comodato.notes,
-      })),
-      total_active_comodatos: activeComodatos.length,
-    };
+        notes: comodato.notes })),
+      total_active_comodatos: activeComodatos.length };
   }
 }

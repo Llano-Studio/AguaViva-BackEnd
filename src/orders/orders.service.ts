@@ -1,15 +1,12 @@
 import {
   Injectable,
   NotFoundException,
-  OnModuleInit,
   InternalServerErrorException,
   ConflictException,
   BadRequestException,
   ForbiddenException,
-  Logger,
-} from '@nestjs/common';
+  Logger } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   order_header as PrismaOrderHeader,
   order_item as PrismaOrderItem,
@@ -19,8 +16,7 @@ import {
   person as PrismaPerson,
   sale_channel as PrismaSaleChannel,
   client_contract as PrismaClientContract,
-  Role,
-} from '@prisma/client';
+  Role } from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
@@ -37,21 +33,21 @@ import {
   OrderItemCoverageMode as AppOrderItemCoverageMode,
   OrderStatus as AppOrderStatus,
   OrderType as AppOrderType,
-  PaymentMethod,
-} from '../common/constants/enums';
+  PaymentMethod } from '../common/constants/enums';
 import { CreateStockMovementDto } from '../inventory/dto/create-stock-movement.dto';
 import {
   parseSortByString,
-  mapOrderSortFields,
-} from '../common/utils/query-parser.utils';
+  mapOrderSortFields } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import {
   formatBATimestampISO,
   parseBAYMD,
-  parseUTCYMD,
-} from '../common/utils/date.utils';
+  parseUTCYMD } from '../common/utils/date.utils';
 import { CyclePaymentsService } from '../cycle-payments/cycle-payments.service';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 // Definición del tipo para el payload del customer con sus relaciones anidadas
 type CustomerPayload =
@@ -75,23 +71,19 @@ type ItemCoverageResolution = {
 };
 
 @Injectable()
-export class OrdersService extends PrismaClient implements OnModuleInit {
+export class OrdersService extends PrismaBackedService {
   private readonly entityName = 'Pedido';
   private readonly logger = new Logger(OrdersService.name);
   private readonly itemCoverageMetaPrefix = '§§COVERAGE_META§§';
-
   constructor(
+    prisma: PrismaService,
     private readonly inventoryService: InventoryService,
     private readonly scheduleService: ScheduleService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
     private readonly auditService: AuditService,
     private readonly cyclePaymentsService: CyclePaymentsService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   /**
@@ -154,8 +146,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         subscriptionId:
           typeof parsed.subscription_id === 'number'
             ? parsed.subscription_id
-            : undefined,
-      };
+            : undefined };
     } catch (_) {
       const trimmed = notes.trim();
       return { cleanNotes: trimmed.length > 0 ? trimmed : undefined };
@@ -173,8 +164,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     }
     const metaPayload = {
       coverage_mode: coverageMode,
-      subscription_id: subscriptionId,
-    };
+      subscription_id: subscriptionId };
     const metaPart = `${this.itemCoverageMetaPrefix}${JSON.stringify(metaPayload)}`;
     if (!cleanNotes || cleanNotes.length === 0) {
       return metaPart;
@@ -194,8 +184,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         coverageMode: AppOrderItemCoverageMode.EXTRA,
         effectiveSubscriptionId: undefined,
         isSubscriptionAware: false,
-        isStrictSubscription: false,
-      };
+        isStrictSubscription: false };
     }
 
     const effectiveSubscriptionId = item.subscription_id ?? orderSubscriptionId;
@@ -207,8 +196,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       coverageMode: item.coverage_mode,
       effectiveSubscriptionId,
       isSubscriptionAware,
-      isStrictSubscription,
-    };
+      isStrictSubscription };
   }
 
   private async ensureSubscriptionBelongsToCustomer(
@@ -217,8 +205,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     prisma: Prisma.TransactionClient | OrdersService,
   ): Promise<void> {
     const subscription = await prisma.customer_subscription.findUnique({
-      where: { subscription_id: subscriptionId },
-    });
+      where: { subscription_id: subscriptionId } });
     if (!subscription) {
       throw new NotFoundException(
         `Suscripción con ID ${subscriptionId} no encontrada.`,
@@ -237,8 +224,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       3: PaymentMethod.TARJETA_DEBITO,
       4: PaymentMethod.TARJETA_CREDITO,
       5: PaymentMethod.CHEQUE,
-      6: PaymentMethod.MOBILE_PAYMENT,
-    };
+      6: PaymentMethod.MOBILE_PAYMENT };
     return mapById[paymentMethodId] ?? PaymentMethod.EFECTIVO;
   }
 
@@ -261,8 +247,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     const cycles = await this.subscription_cycle.findMany({
       where: { cycle_id: { in: cycleIds } },
-      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }],
-    });
+      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }] });
     if (cycles.length === 0) return;
 
     let remaining = Number(amount);
@@ -288,8 +273,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           payment_method: this.mapPaymentMethodId(paymentMethodId),
           payment_date: paymentDate,
           reference,
-          notes: combinedNotes,
-        },
+          notes: combinedNotes },
         userId,
       );
 
@@ -352,9 +336,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             product_id: item.product.product_id,
             description: item.product.description,
             price: item.product.price.toString(),
-            is_returnable: item.product.is_returnable,
-          },
-        };
+            is_returnable: item.product.is_returnable } };
       }) || [];
 
     const customerPayload: CustomerPayload = order.customer;
@@ -369,24 +351,20 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         locality: customerPayload.locality
           ? {
               locality_id: customerPayload.locality.locality_id,
-              name: customerPayload.locality.name || '',
-            }
+              name: customerPayload.locality.name || '' }
           : undefined,
         zone: customerPayload.zone
           ? {
               zone_id: customerPayload.zone.zone_id,
-              name: customerPayload.zone.name || '',
-            }
-          : undefined,
-      };
+              name: customerPayload.zone.name || '' }
+          : undefined };
     }
 
     let saleChannelResponsePart: any = { sale_channel_id: 0, name: '' };
     if (saleChannelPayload) {
       saleChannelResponsePart = {
         sale_channel_id: saleChannelPayload.sale_channel_id,
-        name: saleChannelPayload.description || '',
-      };
+        name: saleChannelPayload.description || '' };
     }
 
     // Calcular información de pagos
@@ -454,8 +432,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         payment_method:
           payment.payment_method?.description || 'No especificado',
         transaction_reference: payment.receipt_number || undefined,
-        notes: payment.notes || undefined,
-      })) || [];
+        notes: payment.notes || undefined })) || [];
 
     return {
       order_id: order.order_id,
@@ -488,14 +465,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       zone: order.zone
         ? {
             zone_id: order.zone.zone_id,
-            name: order.zone.name || '',
-          }
+            name: order.zone.name || '' }
         : undefined,
       payment_status: paymentStatus,
       remaining_amount: remainingAmount.toString(),
       traffic_light_status: trafficLightStatus,
-      payments: payments,
-    };
+      payments: payments };
   }
 
   private normalizeDateForBA(date: Date | string | null | undefined) {
@@ -517,19 +492,17 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     tx: Prisma.TransactionClient,
     user?: any,
   ) {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
     const allowPastDates = user?.role === Role.SUPERADMIN;
     const customer = await prisma.person.findUnique({
-      where: { person_id: createOrderDto.customer_id },
-    });
+      where: { person_id: createOrderDto.customer_id } });
     if (!customer)
       throw new NotFoundException(
         `Cliente con ID ${createOrderDto.customer_id} no encontrado.`,
       );
 
     const saleChannel = await prisma.sale_channel.findUnique({
-      where: { sale_channel_id: createOrderDto.sale_channel_id },
-    });
+      where: { sale_channel_id: createOrderDto.sale_channel_id } });
     if (!saleChannel)
       throw new NotFoundException(
         `Canal de venta con ID ${createOrderDto.sale_channel_id} no encontrado.`,
@@ -537,8 +510,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     if (createOrderDto.contract_id) {
       const contract = await prisma.client_contract.findUnique({
-        where: { contract_id: createOrderDto.contract_id },
-      });
+        where: { contract_id: createOrderDto.contract_id } });
       if (!contract)
         throw new NotFoundException(
           `Contrato con ID ${createOrderDto.contract_id} no encontrado.`,
@@ -562,8 +534,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const resolution = this.resolveItemCoverage(
         {
           coverage_mode: item.coverage_mode,
-          subscription_id: item.subscription_id,
-        },
+          subscription_id: item.subscription_id },
         createOrderDto.subscription_id,
       );
 
@@ -758,11 +729,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             include: {
               price_list: {
                 include: {
-                  price_list_item: true,
-                },
-              },
-            },
-          });
+                  price_list_item: true } } } });
 
           if (!contract) {
             throw new NotFoundException(
@@ -786,8 +753,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         for (const itemDto of items) {
           const productDetails = await prismaTx.product
             .findUniqueOrThrow({
-              where: { product_id: itemDto.product_id },
-            })
+              where: { product_id: itemDto.product_id } })
             .catch(() => {
               throw new NotFoundException(
                 `Producto con ID ${itemDto.product_id} no encontrado.`,
@@ -797,8 +763,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           const coverageResolution = this.resolveItemCoverage(
             {
               coverage_mode: itemDto.coverage_mode,
-              subscription_id: itemDto.subscription_id,
-            },
+              subscription_id: itemDto.subscription_id },
             subscription_id,
           );
 
@@ -838,8 +803,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 [
                   {
                     product_id: itemDto.product_id,
-                    quantity: itemDto.quantity,
-                  },
+                    quantity: itemDto.quantity },
                 ],
                 prismaTx,
               );
@@ -871,9 +835,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: {
                       price_list_id:
                         BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                      product_id: itemDto.product_id,
-                    },
-                  });
+                      product_id: itemDto.product_id } });
 
                 if (standardPriceItem) {
                   additionalPrice = new Decimal(standardPriceItem.unit_price);
@@ -893,9 +855,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   await prismaTx.price_list_item.findFirst({
                     where: {
                       price_list_id: itemDto.price_list_id,
-                      product_id: itemDto.product_id,
-                    },
-                  });
+                      product_id: itemDto.product_id } });
 
                 if (customPriceItem) {
                   itemPrice = new Decimal(customPriceItem.unit_price);
@@ -911,9 +871,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: {
                       price_list_id:
                         BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                      product_id: itemDto.product_id,
-                    },
-                  });
+                      product_id: itemDto.product_id } });
 
                 if (standardPriceItem) {
                   itemPrice = new Decimal(standardPriceItem.unit_price);
@@ -927,9 +885,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const customPriceItem = await prismaTx.price_list_item.findFirst({
               where: {
                 price_list_id: itemDto.price_list_id,
-                product_id: itemDto.product_id,
-              },
-            });
+                product_id: itemDto.product_id } });
 
             if (customPriceItem) {
               itemPrice = new Decimal(customPriceItem.unit_price);
@@ -961,9 +917,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const standardPriceItem = await prismaTx.price_list_item.findFirst({
               where: {
                 price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                product_id: itemDto.product_id,
-              },
-            });
+                product_id: itemDto.product_id } });
 
             if (standardPriceItem) {
               itemPrice = new Decimal(standardPriceItem.unit_price);
@@ -985,8 +939,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             unit_price: itemPrice.toString(),
             subtotal: itemSubtotal.toString(),
             price_list_id: usedPriceListId,
-            notes: itemNotes,
-          });
+            notes: itemNotes });
 
           processedItems.push({
             itemDto,
@@ -994,8 +947,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             quotaCovered,
             quotaAdditional,
             isSubscriptionAware: coverageResolution.isSubscriptionAware,
-            effectiveSubscriptionId: coverageResolution.effectiveSubscriptionId,
-          });
+            effectiveSubscriptionId: coverageResolution.effectiveSubscriptionId });
         }
 
         let finalPaidAmount: Decimal;
@@ -1120,20 +1072,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             order_type: restOfDto.order_type as PrismaOrderType,
             ...(headerSubscriptionId && {
               customer_subscription: {
-                connect: { subscription_id: headerSubscriptionId },
-              },
-            }),
+                connect: { subscription_id: headerSubscriptionId } } }),
             ...(contract_id && {
-              client_contract: { connect: { contract_id } },
-            }),
+              client_contract: { connect: { contract_id } } }),
             ...(orderItemsDataForCreation.length > 0 && {
               order_item: {
                 createMany: {
-                  data: orderItemsDataForCreation,
-                },
-              },
-            }),
-          },
+                  data: orderItemsDataForCreation } } }) },
           include: {
             order_item: { include: { product: true } },
             customer: { include: { locality: true, zone: true } },
@@ -1143,11 +1088,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             zone: true,
             payment_transaction: {
               include: {
-                payment_method: true,
-              },
-            },
-          },
-        });
+                payment_method: true } } } });
 
         for (const processedItem of processedItems) {
           const productDesc =
@@ -1163,8 +1104,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               destination_warehouse_id: null,
               movement_date: new Date(),
-              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${processedItem.itemDto.product_id}) - Abono: $${finalPaidAmount.toString()}`,
-            };
+              remarks: `${this.entityName} #${newOrderHeader.order_id} - Producto ${productDesc} (ID ${processedItem.itemDto.product_id}) - Abono: $${finalPaidAmount.toString()}` };
             await this.inventoryService.createStockMovement(
               stockMovementDto,
               prismaTx,
@@ -1181,9 +1121,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 subscription_id: processedItem.effectiveSubscriptionId,
                 product_id: processedItem.itemDto.product_id,
                 status: 'ACTIVE',
-                is_active: true,
-              },
-            });
+                is_active: true } });
 
             if (comodato) {
               const updatedQuantity =
@@ -1192,9 +1130,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               await prismaTx.comodato.update({
                 where: { comodato_id: comodato.comodato_id },
                 data: {
-                  quantity: updatedQuantity,
-                },
-              });
+                  quantity: updatedQuantity } });
             }
           }
         }
@@ -1235,8 +1171,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             deliveredProductsMap.entries(),
           ).map(([product_id, quantity]) => ({
             product_id,
-            quantity,
-          }));
+            quantity }));
           if (deliveredProducts.length > 0) {
             await this.subscriptionQuotaService.updateDeliveredQuantities(
               deliveredSubscriptionId,
@@ -1269,8 +1204,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
   async validateCustomerExists(customerId: number): Promise<void> {
     try {
       const customer = await this.person.findUniqueOrThrow({
-        where: { person_id: customerId },
-      });
+        where: { person_id: customerId } });
     } catch (error) {
       handlePrismaError(error, 'Cliente');
       throw new NotFoundException(
@@ -1303,8 +1237,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       vehicleIds,
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
-      sortBy,
-    } = filterDto;
+      sortBy } = filterDto;
 
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
@@ -1347,8 +1280,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         OR: [
           { name: { contains: customerName, mode: 'insensitive' } },
           { alias: { contains: customerName, mode: 'insensitive' } },
-        ],
-      });
+        ] });
     }
 
     // Manejar filtrado por zonas del cliente (múltiples o única)
@@ -1364,8 +1296,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.customer = {
         OR: customerConditions.length > 1 ? customerConditions : undefined,
         AND:
-          customerConditions.length === 1 ? customerConditions[0] : undefined,
-      };
+          customerConditions.length === 1 ? customerConditions[0] : undefined };
     }
 
     // Manejar filtrado por vehículos (múltiples o único)
@@ -1374,19 +1305,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where.route_sheet_detail = {
         some: {
           route_sheet: {
-            vehicle_id: { in: vehicleIds },
-          },
-        },
-      };
+            vehicle_id: { in: vehicleIds } } } };
     } else if (vehicleId) {
       // Si solo se proporciona un vehículo (compatibilidad), usar equality
       where.route_sheet_detail = {
         some: {
           route_sheet: {
-            vehicle_id: vehicleId,
-          },
-        },
-      };
+            vehicle_id: vehicleId } } };
     }
 
     if (search) {
@@ -1399,9 +1324,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           OR: [
             { name: { contains: search, mode: 'insensitive' } },
             { alias: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-      });
+          ] } });
       if (searchAsNumber) {
         orConditions.push({ order_id: searchAsNumber });
       }
@@ -1474,23 +1397,17 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           customer: {
             include: {
               locality: true,
-              zone: true,
-            },
-          },
+              zone: true } },
           sale_channel: true,
           customer_subscription: { include: { subscription_plan: true } },
           client_contract: true,
           zone: true,
           payment_transaction: {
             include: {
-              payment_method: true,
-            },
-          },
-        },
+              payment_method: true } } },
         orderBy: orderByClause,
         skip,
-        take,
-      });
+        take });
 
       return {
         data: orders.map((order) => this.mapToOrderResponseDto(order)),
@@ -1498,9 +1415,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           total: totalOrders,
           page,
           limit: take,
-          totalPages: Math.ceil(totalOrders / take),
-        },
-      };
+          totalPages: Math.ceil(totalOrders / take) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -1517,8 +1432,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const order = await this.order_header.findFirstOrThrow({
         where: {
           order_id: id,
-          ...(includeInactive ? {} : { is_active: true }),
-        },
+          ...(includeInactive ? {} : { is_active: true }) },
         include: {
           order_item: { include: { product: true } },
           customer: { include: { locality: true, zone: true } },
@@ -1528,14 +1442,9 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           zone: true,
           payment_transaction: {
             include: {
-              payment_method: true,
-            },
+              payment_method: true },
             orderBy: {
-              transaction_date: 'desc',
-            },
-          },
-        },
-      });
+              transaction_date: 'desc' } } } });
       return this.mapToOrderResponseDto(order);
     } catch (error) {
       handlePrismaError(error, this.entityName);
@@ -1608,13 +1517,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     if (orderHeaderDataToUpdateInput.order_type) {
       dataToUpdate.order_type = {
-        set: orderHeaderDataToUpdateInput.order_type as PrismaOrderType,
-      };
+        set: orderHeaderDataToUpdateInput.order_type as PrismaOrderType };
     }
     if (orderHeaderDataToUpdateInput.status) {
       dataToUpdate.status = {
-        set: orderHeaderDataToUpdateInput.status as PrismaOrderStatus,
-      };
+        set: orderHeaderDataToUpdateInput.status as PrismaOrderStatus };
     }
 
     try {
@@ -1622,8 +1529,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const existingOrder = await tx.order_header
           .findUniqueOrThrow({
             where: { order_id: id },
-            include: { order_item: { include: { product: true } } },
-          })
+            include: { order_item: { include: { product: true } } } })
           .catch(() => {
             throw new NotFoundException(
               `${this.entityName} con ID ${id} no encontrado.`,
@@ -1664,8 +1570,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const coverageResolution = this.resolveItemCoverage(
               {
                 coverage_mode: coverageMeta.coverageMode,
-                subscription_id: coverageMeta.subscriptionId,
-              },
+                subscription_id: coverageMeta.subscriptionId },
               effectiveOrderSubscriptionId,
             );
 
@@ -1692,13 +1597,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
           // Eliminar todos los items existentes y crear los nuevos
           await tx.order_item.deleteMany({
-            where: { order_id: id },
-          });
+            where: { order_id: id } });
 
           for (const itemDto of items) {
             const productDetails = await tx.product.findUniqueOrThrow({
-              where: { product_id: itemDto.product_id },
-            });
+              where: { product_id: itemDto.product_id } });
             productDescriptions.set(
               itemDto.product_id,
               productDetails.description,
@@ -1707,8 +1610,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const coverageResolution = this.resolveItemCoverage(
               {
                 coverage_mode: itemDto.coverage_mode,
-                subscription_id: itemDto.subscription_id,
-              },
+                subscription_id: itemDto.subscription_id },
               effectiveOrderSubscriptionId,
             );
 
@@ -1772,8 +1674,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     [
                       {
                         product_id: itemDto.product_id,
-                        quantity: requestedQuantityDelta,
-                      },
+                        quantity: requestedQuantityDelta },
                     ],
                     tx,
                   );
@@ -1808,9 +1709,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: {
                       price_list_id:
                         BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                      product_id: itemDto.product_id,
-                    },
-                  });
+                      product_id: itemDto.product_id } });
                   itemPrice = standardPriceItem
                     ? new Decimal(standardPriceItem.unit_price)
                     : new Decimal(productDetails.price);
@@ -1828,9 +1727,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               const priceItem = await tx.price_list_item.findFirst({
                 where: {
                   price_list_id: itemDto.price_list_id,
-                  product_id: itemDto.product_id,
-                },
-              });
+                  product_id: itemDto.product_id } });
               if (priceItem) {
                 itemPrice = new Decimal(priceItem.unit_price);
               }
@@ -1851,9 +1748,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   itemDto.notes,
                   coverageResolution.coverageMode,
                   coverageResolution.effectiveSubscriptionId,
-                ),
-              },
-            });
+                ) } });
           }
 
           const saleMovementTypeId =
@@ -1910,8 +1805,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID
                     : null,
                 movement_date: new Date(),
-                remarks: `${this.entityName} #${id} - Ajuste por edición de pedido para ${productDescriptions.get(productId) || `producto ${productId}`}, diferencia: ${quantityDiff}`,
-              },
+                remarks: `${this.entityName} #${id} - Ajuste por edición de pedido para ${productDescriptions.get(productId) || `producto ${productId}`}, diferencia: ${quantityDiff}` },
               tx,
             );
           }
@@ -1934,27 +1828,16 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   include: {
                     price_list: {
                       include: {
-                        price_list_item: true,
-                      },
-                    },
-                  },
-                },
+                        price_list_item: true } } } },
                 customer_subscription: {
                   include: {
                     subscription_plan: {
                       include: {
-                        subscription_plan_product: true,
-                      },
-                    },
-                  },
-                },
-              },
-            });
+                        subscription_plan_product: true } } } } } });
 
           for (const itemDto of items_to_update_or_create) {
             const productDetails = await tx.product.findUniqueOrThrow({
-              where: { product_id: itemDto.product_id },
-            });
+              where: { product_id: itemDto.product_id } });
             const existingItemForUpdate = existingOrder.order_item.find(
               (item) => item.order_item_id === itemDto.order_item_id,
             );
@@ -1966,8 +1849,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             const coverageResolution = this.resolveItemCoverage(
               {
                 coverage_mode: itemDto.coverage_mode,
-                subscription_id: itemDto.subscription_id,
-              },
+                subscription_id: itemDto.subscription_id },
               effectiveOrderSubscriptionId,
             );
 
@@ -2021,8 +1903,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               const previousCoverageResolution = this.resolveItemCoverage(
                 {
                   coverage_mode: previousCoverageMeta.coverageMode,
-                  subscription_id: previousCoverageMeta.subscriptionId,
-                },
+                  subscription_id: previousCoverageMeta.subscriptionId },
                 effectiveOrderSubscriptionId,
               );
               const originalCoveredQuantity =
@@ -2047,8 +1928,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     [
                       {
                         product_id: itemDto.product_id,
-                        quantity: requestedQuantityDelta,
-                      },
+                        quantity: requestedQuantityDelta },
                     ],
                     tx,
                   );
@@ -2082,9 +1962,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     where: {
                       price_list_id:
                         BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                      product_id: itemDto.product_id,
-                    },
-                  });
+                      product_id: itemDto.product_id } });
                   itemPrice = standardPriceItem
                     ? new Decimal(standardPriceItem.unit_price)
                     : new Decimal(productDetails.price);
@@ -2145,9 +2023,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   where: {
                     price_list_id:
                       BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                    product_id: itemDto.product_id,
-                  },
-                });
+                    product_id: itemDto.product_id } });
 
                 if (standardPriceItem) {
                   itemPrice = new Decimal(standardPriceItem.unit_price);
@@ -2158,9 +2034,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               const standardPriceItem = await tx.price_list_item.findFirst({
                 where: {
                   price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-                  product_id: itemDto.product_id,
-                },
-              });
+                  product_id: itemDto.product_id } });
 
               if (standardPriceItem) {
                 itemPrice = new Decimal(standardPriceItem.unit_price);
@@ -2201,9 +2075,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     itemDto.notes,
                     coverageResolution.coverageMode,
                     coverageResolution.effectiveSubscriptionId,
-                  ),
-                },
-              });
+                  ) } });
             } else {
               quantityChange = itemDto.quantity;
               await tx.order_item.create({
@@ -2217,9 +2089,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                     itemDto.notes,
                     coverageResolution.coverageMode,
                     coverageResolution.effectiveSubscriptionId,
-                  ),
-                },
-              });
+                  ) } });
             }
 
             if (quantityChange !== 0) {
@@ -2244,8 +2114,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                       ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID
                       : null,
                   movement_date: new Date(),
-                  remarks: `${this.entityName} #${id} - Ajuste producto ${itemDto.product_id} (${productDetails.description}), cantidad: ${quantityChange}`,
-                },
+                  remarks: `${this.entityName} #${id} - Ajuste producto ${itemDto.product_id} (${productDetails.description}), cantidad: ${quantityChange}` },
                 tx,
               );
             }
@@ -2260,8 +2129,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (Object.keys(dataToUpdate).length > 0) {
           await tx.order_header.update({
             where: { order_id: id },
-            data: dataToUpdate,
-          });
+            data: dataToUpdate });
         }
 
         if (
@@ -2281,14 +2149,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               is_active: true,
               ...(existingOrder.subscription_id
                 ? { subscription_id: existingOrder.subscription_id }
-                : {}),
-            },
+                : {}) },
             data: {
               status: 'RETURNED',
               return_date: new Date(),
-              is_active: false,
-            },
-          });
+              is_active: false } });
         }
 
         if (item_ids_to_delete && item_ids_to_delete.length > 0) {
@@ -2312,15 +2177,13 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                   destination_warehouse_id:
                     BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                   movement_date: new Date(),
-                  remarks: `${this.entityName} #${id} - Devolución por eliminación de ítem ${itemToDelete.product_id} (${itemToDelete.product.description})`,
-                },
+                  remarks: `${this.entityName} #${id} - Devolución por eliminación de ítem ${itemToDelete.product_id} (${itemToDelete.product.description})` },
                 tx,
               );
             }
           }
           await tx.order_item.deleteMany({
-            where: { order_item_id: { in: item_ids_to_delete }, order_id: id },
-          });
+            where: { order_item_id: { in: item_ids_to_delete }, order_id: id } });
         }
 
         await this.handleCreditIntegrityForOrderEdit(
@@ -2331,8 +2194,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
         if (shouldRecalculateTotals) {
           const updatedOrderItems = await tx.order_item.findMany({
-            where: { order_id: id },
-          });
+            where: { order_id: id } });
           const newOrderTotalAmount = updatedOrderItems.reduce(
             (sum, item) => sum.plus(new Decimal(item.subtotal)),
             new Decimal(0),
@@ -2344,9 +2206,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               total_amount: newOrderTotalAmount.toString(),
               paid_amount: newOrderTotalAmount.lessThan(currentPaidAmount)
                 ? newOrderTotalAmount.toString()
-                : currentPaidAmount.toString(),
-            },
-          });
+                : currentPaidAmount.toString() } });
         }
 
         const finalOrder = await tx.order_header.findUniqueOrThrow({
@@ -2360,11 +2220,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             zone: true,
             payment_transaction: {
               include: {
-                payment_method: true,
-              },
-            },
-          },
-        });
+                payment_method: true } } } });
         return this.mapToOrderResponseDto(finalOrder);
       });
       return order;
@@ -2395,9 +2251,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           where: { order_id: id },
           include: {
             order_item: { include: { product: true } },
-            customer_subscription: { include: { subscription_plan: true } },
-          },
-        });
+            customer_subscription: { include: { subscription_plan: true } } } });
 
         if (!orderToDelete) {
           throw new NotFoundException(
@@ -2424,16 +2278,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           const subscription = await tx.customer_subscription.findUnique({
             where: {
               subscription_id:
-                orderToDelete.customer_subscription.subscription_id,
-            },
+                orderToDelete.customer_subscription.subscription_id },
             include: {
               subscription_plan: {
                 include: {
-                  subscription_plan_product: true,
-                },
-              },
-            },
-          });
+                  subscription_plan_product: true } } } });
 
           if (subscription) {
             const planProductIds =
@@ -2450,8 +2299,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             if (subscriptionItems.length > 0) {
               const itemsForCreditReset = subscriptionItems.map((item) => ({
                 product_id: item.product_id,
-                quantity: item.quantity,
-              }));
+                quantity: item.quantity }));
 
               await this.subscriptionQuotaService.resetCreditsForDeletedOrder(
                 orderToDelete.customer_subscription.subscription_id,
@@ -2490,8 +2338,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
                 destination_warehouse_id:
                   BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                 movement_date: new Date(),
-                remarks: `${this.entityName} #${id} CANCELADO - Devolución producto ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}`,
-              },
+                remarks: `${this.entityName} #${id} CANCELADO - Devolución producto ${item.product.description} (ID ${item.product_id}) - Abono original: $${orderToDelete.paid_amount}` },
               tx,
             );
           }
@@ -2500,13 +2347,11 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
         await tx.order_header.update({
           where: { order_id: id },
-          data: { is_active: false },
-        });
+          data: { is_active: false } });
       });
       return {
         message: `${this.entityName} con ID ${id} ha sido desactivado correctamente. El stock de productos ha sido restaurado. Los créditos de suscripción han sido reiniciados si corresponde.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -2568,18 +2413,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           .findUnique({
             where: { purchase_id: orderId },
             include: {
-              person: true,
-            },
-          })
+              person: true } })
           .catch(() => null),
         // Buscar en estructura nueva
         this.one_off_purchase_header
           .findUnique({
             where: { purchase_header_id: orderId },
             include: {
-              person: true,
-            },
-          })
+              person: true } })
           .catch(() => null),
       ]);
 
@@ -2599,8 +2440,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
       // Validar método de pago
       const paymentMethod = await this.payment_method.findUnique({
-        where: { payment_method_id: processPaymentDto.payment_method_id },
-      });
+        where: { payment_method_id: processPaymentDto.payment_method_id } });
 
       if (!paymentMethod) {
         throw new BadRequestException(
@@ -2648,9 +2488,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             total: paymentAmount.toString(),
             payment_method_id: processPaymentDto.payment_method_id,
             user_id: userId,
-            notes: processPaymentDto.notes,
-          },
-        });
+            notes: processPaymentDto.notes } });
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
 
@@ -2667,18 +2505,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           await tx.one_off_purchase.update({
             where: { purchase_id: order.purchase_id },
             data: {
-              paid_amount: newPaidAmount.toString(),
-            },
-          });
+              paid_amount: newPaidAmount.toString() } });
         } else {
           // La estructura nueva sí tiene payment_status
           await tx.one_off_purchase_header.update({
             where: { purchase_header_id: order.purchase_header_id },
             data: {
               paid_amount: newPaidAmount.toString(),
-              payment_status: newPaymentStatus,
-            },
-          });
+              payment_status: newPaymentStatus } });
         }
 
         return paymentTransaction;
@@ -2716,9 +2550,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const order = await this.order_header.findUnique({
         where: { order_id: orderId },
         include: {
-          customer: true,
-        },
-      });
+          customer: true } });
 
       if (!order) {
         throw new NotFoundException(`Orden con ID ${orderId} no encontrada.`);
@@ -2733,8 +2565,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
       // Validar método de pago
       const paymentMethod = await this.payment_method.findUnique({
-        where: { payment_method_id: processPaymentDto.payment_method_id },
-      });
+        where: { payment_method_id: processPaymentDto.payment_method_id } });
 
       if (!paymentMethod) {
         throw new BadRequestException(
@@ -2775,9 +2606,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             total: paymentAmount.toString(),
             payment_method_id: processPaymentDto.payment_method_id,
             user_id: userId,
-            notes: processPaymentDto.notes,
-          },
-        });
+            notes: processPaymentDto.notes } });
 
         const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
         const newOrderStatus = order.status;
@@ -2799,9 +2628,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           data: {
             paid_amount: newPaidAmount.toString(),
             status: newOrderStatus,
-            payment_status: newPaymentStatus,
-          },
-        });
+            payment_status: newPaymentStatus } });
 
         return paymentTransaction;
       });
@@ -2867,11 +2694,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           customer_subscription: {
             include: {
               person: true,
-              subscription_plan: true,
-            },
-          },
-        },
-      });
+              subscription_plan: true } } } });
 
       if (!cycle) {
         throw new NotFoundException(
@@ -2887,8 +2710,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         where: {
           customer_id: person.person_id,
           notes: {
-            contains: `Ciclo: ${cycleId}`,
-          },
+            contains: `Ciclo: ${cycleId}` },
           order_type: 'ONE_OFF',
           status: {
             in: [
@@ -2897,10 +2719,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               'IN_PREPARATION',
               'READY_FOR_DELIVERY',
               'IN_DELIVERY',
-            ],
-          },
-        },
-      });
+            ] } } });
 
       if (existingCollectionOrder) {
         throw new BadRequestException(
@@ -2955,8 +2774,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         order_id: newOrder.order_id,
         cycle_id: cycleId,
         collection_amount: pendingBalance.toString(),
-        collection_date: collectionDateStr,
-      };
+        collection_date: collectionDateStr };
     } catch (error) {
       this.logger.error(
         `Error generando orden de cobranza para ciclo ${cycleId}:`,
@@ -3015,8 +2833,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const resolution = this.resolveItemCoverage(
           {
             coverage_mode: item.coverage_mode,
-            subscription_id: item.subscription_id,
-          },
+            subscription_id: item.subscription_id },
           effectiveOrderSubscriptionId,
         );
         if (
@@ -3046,8 +2863,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         subscription_id:
           coverageMeta.subscriptionId ||
           existingOrder.subscription_id ||
-          undefined,
-      };
+          undefined };
     });
 
     let nextItemsForDiff: Array<{
@@ -3063,8 +2879,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         product_id: item.product_id,
         quantity: item.quantity,
         coverage_mode: item.coverage_mode,
-        subscription_id: item.subscription_id,
-      }));
+        subscription_id: item.subscription_id }));
     } else {
       const nextMap = new Map<
         string,
@@ -3093,16 +2908,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               product_id: item.product_id,
               quantity: item.quantity,
               coverage_mode: item.coverage_mode,
-              subscription_id: item.subscription_id,
-            });
+              subscription_id: item.subscription_id });
           } else {
             const syntheticId = `new-${newItemIndex++}`;
             nextMap.set(syntheticId, {
               product_id: item.product_id,
               quantity: item.quantity,
               coverage_mode: item.coverage_mode,
-              subscription_id: item.subscription_id,
-            });
+              subscription_id: item.subscription_id });
           }
         }
       }
@@ -3148,8 +2961,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     const products = await tx.product.findMany({
       where: { product_id: { in: Array.from(productIds) } },
-      select: { product_id: true, is_returnable: true, description: true },
-    });
+      select: { product_id: true, is_returnable: true, description: true } });
     const productsMap = new Map(
       products.map((product) => [product.product_id, product]),
     );
@@ -3158,13 +2970,10 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       const currentCycle = await tx.subscription_cycle.findFirst({
         where: {
           subscription_id: subscriptionId,
-          cycle_end: { gte: new Date() },
-        },
+          cycle_end: { gte: new Date() } },
         include: {
-          subscription_cycle_detail: true,
-        },
-        orderBy: { cycle_start: 'desc' },
-      });
+          subscription_cycle_detail: true },
+        orderBy: { cycle_start: 'desc' } });
 
       if (!currentCycle) {
         throw new BadRequestException(
@@ -3208,9 +3017,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
             delivered_quantity: nextDelivered,
-            remaining_balance: nextRemaining,
-          },
-        });
+            remaining_balance: nextRemaining } });
 
         const product = productsMap.get(productId);
         if (!product?.is_returnable) continue;
@@ -3221,9 +3028,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
             subscription_id: subscriptionId,
             product_id: productId,
             status: 'ACTIVE',
-            is_active: true,
-          },
-        });
+            is_active: true } });
 
         if (!comodato) {
           if (diff > 0) {
@@ -3237,8 +3042,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const updatedQuantity = Math.max(0, (comodato.quantity || 0) + diff);
         await tx.comodato.update({
           where: { comodato_id: comodato.comodato_id },
-          data: { quantity: updatedQuantity },
-        });
+          data: { quantity: updatedQuantity } });
       }
     }
   }
@@ -3261,9 +3065,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const currentTransaction = await tx.payment_transaction.findUnique({
           where: { transaction_id: transactionId },
           include: {
-            payment_method: true,
-          },
-        });
+            payment_method: true } });
 
         if (!currentTransaction) {
           throw new NotFoundException(
@@ -3284,18 +3086,15 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               currentTransaction.transaction_date,
             ),
             receipt_number: currentTransaction.receipt_number,
-            notes: currentTransaction.notes,
-          },
+            notes: currentTransaction.notes },
           newValues: {
             transaction_amount: updateDto.amount?.toString(),
             payment_method_id: updateDto.payment_method,
             transaction_date: updateDto.transaction_date,
             receipt_number: updateDto.reference,
-            notes: updateDto.notes,
-          },
+            notes: updateDto.notes },
           userId,
-          reason: `Actualización de transacción de pago`,
-        });
+          reason: `Actualización de transacción de pago` });
 
         // Preparar datos de actualización
         const updateData: any = {};
@@ -3311,8 +3110,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         if (updateDto.payment_method !== undefined) {
           // Validar método de pago
           const paymentMethod = await tx.payment_method.findUnique({
-            where: { code: updateDto.payment_method },
-          });
+            where: { code: updateDto.payment_method } });
           if (!paymentMethod) {
             throw new BadRequestException(
               `Método de pago con código ${updateDto.payment_method} no válido.`,
@@ -3336,8 +3134,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         // Actualizar la transacción
         const updatedTransaction = await tx.payment_transaction.update({
           where: { transaction_id: transactionId },
-          data: updateData,
-        });
+          data: updateData });
 
         // Si se cambió el monto, recalcular el balance de la orden o ONE-OFF
         if (updateDto.amount !== undefined) {
@@ -3372,9 +3169,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               updatedTransaction.transaction_date,
             ),
             reference: updatedTransaction.receipt_number,
-            notes: updatedTransaction.notes,
-          },
-        };
+            notes: updatedTransaction.notes } };
       });
 
       return result;
@@ -3413,9 +3208,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         const currentTransaction = await tx.payment_transaction.findUnique({
           where: { transaction_id: transactionId },
           include: {
-            payment_method: true,
-          },
-        });
+            payment_method: true } });
 
         if (!currentTransaction) {
           throw new NotFoundException(
@@ -3436,17 +3229,14 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
               currentTransaction.transaction_date,
             ),
             receipt_number: currentTransaction.receipt_number,
-            notes: currentTransaction.notes,
-          },
+            notes: currentTransaction.notes },
           newValues: null,
           userId,
-          reason,
-        });
+          reason });
 
         // Eliminar la transacción
         await tx.payment_transaction.delete({
-          where: { transaction_id: transactionId },
-        });
+          where: { transaction_id: transactionId } });
 
         // Recalcular el balance de la orden o ONE-OFF
         if (currentTransaction.order_id) {
@@ -3473,9 +3263,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
           metadata: {
             operation_type: 'DELETE' as const,
             timestamp: formatBATimestampISO(new Date()),
-            affected_records: 1,
-          },
-        };
+            affected_records: 1 } };
       });
 
       return result;
@@ -3507,9 +3295,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     const transaction = await this.payment_transaction.findUnique({
       where: { transaction_id: transactionId },
       include: {
-        order_header: true,
-      },
-    });
+        order_header: true } });
 
     if (!transaction) {
       throw new NotFoundException(
@@ -3560,9 +3346,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     const transaction = await this.payment_transaction.findUnique({
       where: { transaction_id: transactionId },
       include: {
-        order_header: true,
-      },
-    });
+        order_header: true } });
 
     if (!transaction) {
       throw new NotFoundException(
@@ -3594,8 +3378,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
     // Verificar que no sea la única transacción de una orden pagada
     if (transaction.order_id) {
       const orderTransactions = await this.payment_transaction.count({
-        where: { order_id: transaction.order_id },
-      });
+        where: { order_id: transaction.order_id } });
 
       if (
         orderTransactions === 1 &&
@@ -3620,8 +3403,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Obtener todas las transacciones de la orden
     const transactions = await tx.payment_transaction.findMany({
-      where: { order_id: orderId },
-    });
+      where: { order_id: orderId } });
 
     // Calcular el total pagado
     const totalPaid = transactions.reduce(
@@ -3632,8 +3414,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
 
     // Obtener la orden para conocer el monto total
     const order = await tx.order_header.findUnique({
-      where: { order_id: orderId },
-    });
+      where: { order_id: orderId } });
 
     if (!order) return;
 
@@ -3654,9 +3435,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       where: { order_id: orderId },
       data: {
         paid_amount: totalPaid.toString(),
-        payment_status: paymentStatus,
-      },
-    });
+        payment_status: paymentStatus } });
   }
 
   /**
@@ -3668,14 +3447,12 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
   ): Promise<void> {
     // Buscar primero en estructura nueva (header)
     const header = await tx.one_off_purchase_header.findUnique({
-      where: { purchase_header_id: purchaseId },
-    });
+      where: { purchase_header_id: purchaseId } });
 
     // Si existe header, recalcular usando transacciones con document_number ONE-OFF-<id>
     if (header) {
       const transactions = await tx.payment_transaction.findMany({
-        where: { document_number: `ONE-OFF-${purchaseId}` },
-      });
+        where: { document_number: `ONE-OFF-${purchaseId}` } });
 
       const totalPaid = transactions.reduce(
         (sum, t) => sum.plus(new Decimal(t.transaction_amount)),
@@ -3693,22 +3470,18 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
         where: { purchase_header_id: purchaseId },
         data: {
           paid_amount: totalPaid.toString(),
-          payment_status: paymentStatus,
-        },
-      });
+          payment_status: paymentStatus } });
 
       return;
     }
 
     // De lo contrario, estructura legacy: solo actualizar paid_amount
     const legacy = await tx.one_off_purchase.findUnique({
-      where: { purchase_id: purchaseId },
-    });
+      where: { purchase_id: purchaseId } });
 
     if (legacy) {
       const transactions = await tx.payment_transaction.findMany({
-        where: { document_number: `ONE-OFF-${purchaseId}` },
-      });
+        where: { document_number: `ONE-OFF-${purchaseId}` } });
 
       const totalPaid = transactions.reduce(
         (sum, t) => sum.plus(new Decimal(t.transaction_amount)),
@@ -3718,9 +3491,7 @@ export class OrdersService extends PrismaClient implements OnModuleInit {
       await tx.one_off_purchase.update({
         where: { purchase_id: purchaseId },
         data: {
-          paid_amount: totalPaid.toString(),
-        },
-      });
+          paid_amount: totalPaid.toString() } });
     }
   }
 }

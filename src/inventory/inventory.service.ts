@@ -2,16 +2,12 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  OnModuleInit,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   stock_movement as PrismaStockMovement,
   movement_type as MovementTypePrisma,
-  inventory as PrismaInventory,
-} from '@prisma/client';
+  inventory as PrismaInventory } from '@prisma/client';
 import { CreateStockMovementDto } from './dto/create-stock-movement.dto';
 import { CreateInventoryDto } from './dto/create-inventory.dto';
 import { InventoryResponseDto } from './dto/inventory-response.dto';
@@ -19,15 +15,17 @@ import { Decimal } from '@prisma/client/runtime/library';
 import {
   FilterInventoryDto,
   PaginatedInventoryResponseDto,
-  InventoryDetailDto,
-} from './dto/filter-inventory.dto';
+  InventoryDetailDto } from './dto/filter-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { formatBATimestampISO } from '../common/utils/date.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class InventoryService extends PrismaClient implements OnModuleInit {
+export class InventoryService extends PrismaBackedService {
   private readonly entityNameInventory = 'Inventario';
   private readonly entityNameStockMovement = 'Movimiento de Stock';
   private readonly entityNameMovementType = 'Tipo de Movimiento';
@@ -57,9 +55,8 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
   ];
   // Códigos de transferencia
   private transferMovementTypeCodes = ['TRANSFERENCIA'];
-
-  constructor() {
-    super();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   async onModuleInit() {
@@ -78,11 +75,10 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     code: string,
     tx?: Prisma.TransactionClient,
   ): Promise<number> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
     try {
       const movementType = await prisma.movement_type.findUnique({
-        where: { code },
-      });
+        where: { code } });
       if (!movementType) {
         throw new NotFoundException(
           `${this.entityNameMovementType} con código '${code}' no encontrado.`,
@@ -110,11 +106,10 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     warehouseId?: number,
     tx?: Prisma.TransactionClient,
   ): Promise<number> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
     try {
       const product = await prisma.product.findUnique({
-        where: { product_id: productId },
-      });
+        where: { product_id: productId } });
       if (!product) {
         throw new NotFoundException(
           `${this.entityNameProduct} con ID ${productId} no encontrado.`,
@@ -126,15 +121,11 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
           where: {
             warehouse_id_product_id: {
               warehouse_id: warehouseId,
-              product_id: productId,
-            },
-          },
-        });
+              product_id: productId } } });
         return inventoryRecord ? inventoryRecord.quantity : 0;
       } else {
         const inventoryRecords = await prisma.inventory.findMany({
-          where: { product_id: productId },
-        });
+          where: { product_id: productId } });
         if (!inventoryRecords || inventoryRecords.length === 0) {
           return 0;
         }
@@ -165,8 +156,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         source_warehouse_id,
         destination_warehouse_id,
         movement_date,
-        remarks,
-      } = createStockMovementDto;
+        remarks } = createStockMovementDto;
 
       if (quantity <= 0) {
         throw new BadRequestException(
@@ -176,8 +166,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
 
       // 1. Validar Product y MovementType
       const product = await prismaClient.product.findUnique({
-        where: { product_id },
-      });
+        where: { product_id } });
       if (!product) {
         throw new NotFoundException(
           `${this.entityNameProduct} con ID ${product_id} no encontrado.`,
@@ -185,8 +174,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
       }
 
       const movementType = await prismaClient.movement_type.findUnique({
-        where: { movement_type_id },
-      });
+        where: { movement_type_id } });
       if (!movementType) {
         throw new NotFoundException(
           `${this.entityNameMovementType} con ID ${movement_type_id} no encontrado.`,
@@ -236,8 +224,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
 
       if (effectiveSourceWarehouseId) {
         const sourceWarehouse = await prismaClient.warehouse.findUnique({
-          where: { warehouse_id: effectiveSourceWarehouseId },
-        });
+          where: { warehouse_id: effectiveSourceWarehouseId } });
         if (!sourceWarehouse)
           throw new NotFoundException(
             `${this.entityNameWarehouse} de origen con ID ${effectiveSourceWarehouseId} no encontrado.`,
@@ -245,8 +232,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
       }
       if (effectiveDestinationWarehouseId) {
         const destWarehouse = await prismaClient.warehouse.findUnique({
-          where: { warehouse_id: effectiveDestinationWarehouseId },
-        });
+          where: { warehouse_id: effectiveDestinationWarehouseId } });
         if (!destWarehouse)
           throw new NotFoundException(
             `${this.entityNameWarehouse} de destino con ID ${effectiveDestinationWarehouseId} no encontrado.`,
@@ -263,9 +249,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             quantity,
             source_warehouse_id: effectiveSourceWarehouseId,
             destination_warehouse_id: effectiveDestinationWarehouseId,
-            remarks: remarks || null,
-          },
-        });
+            remarks: remarks || null } });
       } catch (error) {
         handlePrismaError(error, this.entityNameStockMovement);
         throw new InternalServerErrorException(
@@ -283,10 +267,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
               where: {
                 warehouse_id_product_id: {
                   warehouse_id: effectiveSourceWarehouseId,
-                  product_id,
-                },
-              },
-            });
+                  product_id } } });
           const newQuantitySourceCalc = new Decimal(
             currentInventorySource?.quantity || 0,
           ).minus(quantity);
@@ -300,11 +281,8 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
               where: {
                 warehouse_id_product_id: {
                   warehouse_id: effectiveSourceWarehouseId,
-                  product_id,
-                },
-              },
-              data: { quantity: newQuantitySourceCalc.toNumber() },
-            });
+                  product_id } },
+              data: { quantity: newQuantitySourceCalc.toNumber() } });
           } else {
             if (newQuantitySourceCalc.isNegative() && !product.is_returnable) {
               throw new BadRequestException(
@@ -315,9 +293,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
               data: {
                 product_id,
                 warehouse_id: effectiveSourceWarehouseId,
-                quantity: newQuantitySourceCalc.toNumber(),
-              },
-            });
+                quantity: newQuantitySourceCalc.toNumber() } });
           }
         }
 
@@ -329,10 +305,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
             where: {
               warehouse_id_product_id: {
                 warehouse_id: effectiveDestinationWarehouseId,
-                product_id,
-              },
-            },
-          });
+                product_id } } });
           const newQuantityDestCalc = new Decimal(
             currentInventoryDest?.quantity || 0,
           ).plus(quantity);
@@ -341,19 +314,14 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
               where: {
                 warehouse_id_product_id: {
                   warehouse_id: effectiveDestinationWarehouseId,
-                  product_id,
-                },
-              },
-              data: { quantity: newQuantityDestCalc.toNumber() },
-            });
+                  product_id } },
+              data: { quantity: newQuantityDestCalc.toNumber() } });
           } else {
             await prismaClient.inventory.create({
               data: {
                 product_id,
                 warehouse_id: effectiveDestinationWarehouseId,
-                quantity: newQuantityDestCalc.toNumber(),
-              },
-            });
+                quantity: newQuantityDestCalc.toNumber() } });
           }
         }
       } catch (error) {
@@ -399,8 +367,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
       category_id,
       category_ids,
       min_quantity,
-      max_quantity,
-    } = filters;
+      max_quantity } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
@@ -424,8 +391,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
     if (product_description) {
       productWhere.description = {
         contains: product_description,
-        mode: 'insensitive',
-      };
+        mode: 'insensitive' };
     }
 
     // Filtro por category_id (múltiples o único)
@@ -460,12 +426,10 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         where,
         include: {
           product: { include: { product_category: true } },
-          warehouse: { include: { locality: true } },
-        },
+          warehouse: { include: { locality: true } } },
         orderBy,
         skip,
-        take,
-      });
+        take });
 
       const data: InventoryDetailDto[] = inventoryItems.map((item) => ({
         warehouse_id: item.warehouse_id,
@@ -474,16 +438,14 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         product_description: item.product.description,
         product_category: item.product.product_category.name,
         warehouse_name: item.warehouse.name,
-        warehouse_locality: item.warehouse.locality?.name || 'N/A',
-      }));
+        warehouse_locality: item.warehouse.locality?.name || 'N/A' }));
 
       return {
         data,
         total: totalItems,
         page,
         limit: take,
-        totalPages: Math.ceil(totalItems / take),
-      };
+        totalPages: Math.ceil(totalItems / take) };
     } catch (error) {
       handlePrismaError(error, this.entityNameInventory);
       throw new InternalServerErrorException(
@@ -507,14 +469,10 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         where: {
           warehouse_id_product_id: {
             warehouse_id: warehouseId,
-            product_id: productId,
-          },
-        },
+            product_id: productId } },
         include: {
           product: true,
-          warehouse: true,
-        },
-      });
+          warehouse: true } });
 
       if (!inventoryItem) {
         throw new NotFoundException(
@@ -527,8 +485,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         warehouseId: inventoryItem.warehouse_id,
         quantity: inventoryItem.quantity,
         productDescription: inventoryItem.product.description,
-        warehouseName: inventoryItem.warehouse.name,
-      };
+        warehouseName: inventoryItem.warehouse.name };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, this.entityNameInventory);
@@ -555,8 +512,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
       // 1. Validar que el producto existe
       const product = await prismaClient.product.findUnique({
         where: { product_id },
-        include: { product_category: true },
-      });
+        include: { product_category: true } });
       if (!product) {
         throw new NotFoundException(
           `${this.entityNameProduct} con ID ${product_id} no encontrado.`,
@@ -566,8 +522,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
       // 2. Validar que el almacén existe
       const warehouse = await prismaClient.warehouse.findUnique({
         where: { warehouse_id: warehouse_id },
-        include: { locality: true },
-      });
+        include: { locality: true } });
       if (!warehouse) {
         throw new NotFoundException(
           `${this.entityNameWarehouse} con ID ${warehouse_id} no encontrado.`,
@@ -579,10 +534,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         where: {
           warehouse_id_product_id: {
             warehouse_id: warehouse_id,
-            product_id: product_id,
-          },
-        },
-      });
+            product_id: product_id } } });
 
       if (existingInventory) {
         throw new BadRequestException(
@@ -597,9 +549,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
           data: {
             product_id,
             warehouse_id,
-            quantity,
-          },
-        });
+            quantity } });
       } catch (error) {
         handlePrismaError(error, this.entityNameInventory);
         throw new InternalServerErrorException(
@@ -617,9 +567,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                 { code: 'INVENTARIO_INICIAL' },
                 { code: BUSINESS_CONFIG.MOVEMENT_TYPES.AJUSTE_POSITIVO },
                 { code: BUSINESS_CONFIG.MOVEMENT_TYPES.INGRESO_PRODUCCION },
-              ],
-            },
-          });
+              ] } });
 
           if (movementType) {
             await prismaClient.stock_movement.create({
@@ -630,9 +578,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
                 destination_warehouse_id: warehouse_id,
                 quantity,
                 remarks:
-                  remarks || `Inventario inicial - ${product.description}`,
-              },
-            });
+                  remarks || `Inventario inicial - ${product.description}` } });
           }
         } catch (error) {
           // No fallar si no se puede crear el movimiento, solo logear
@@ -649,8 +595,7 @@ export class InventoryService extends PrismaClient implements OnModuleInit {
         quantity: inventoryRecord.quantity,
         product_description: product.description,
         warehouse_name: warehouse.name,
-        created_at: formatBATimestampISO(new Date()),
-      };
+        created_at: formatBATimestampISO(new Date()) };
     };
 
     try {

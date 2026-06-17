@@ -1,20 +1,22 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, SubscriptionStatus } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
+import { SubscriptionStatus } from '@prisma/client';
 import { SubscriptionCycleNumberingService } from './subscription-cycle-numbering.service';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 @Injectable()
 export class SubscriptionCycleRenewalService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private readonly logger = new Logger(SubscriptionCycleRenewalService.name);
-
   constructor(
+    prisma: PrismaService,
     private readonly cycleNumberingService: SubscriptionCycleNumberingService,
     private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
   ) {
-    super();
+    super(prisma);
   }
 
   async onModuleInit() {
@@ -53,9 +55,7 @@ export class SubscriptionCycleRenewalService
             lt: today, // Ciclos que terminaron antes de hoy
           },
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE,
-          },
-        },
+            status: SubscriptionStatus.ACTIVE } },
         distinct: ['subscription_id'],
         orderBy: { cycle_end: 'desc' },
         include: {
@@ -63,13 +63,7 @@ export class SubscriptionCycleRenewalService
             include: {
               subscription_plan: {
                 include: {
-                  subscription_plan_product: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  subscription_plan_product: true } } } } } });
 
       this.logger.log(
         `📊 Encontrados ${expiredCycles.length} ciclos expirados para renovar`,
@@ -114,11 +108,9 @@ export class SubscriptionCycleRenewalService
       const existingFutureCycle = await this.subscription_cycle.findFirst({
         where: {
           subscription_id: subscription.subscription_id,
-          cycle_start: { gte: cycleStartDate },
-        },
+          cycle_start: { gte: cycleStartDate } },
         orderBy: { cycle_start: 'asc' },
-        select: { cycle_id: true, cycle_start: true, cycle_end: true },
-      });
+        select: { cycle_id: true, cycle_start: true, cycle_end: true } });
       if (existingFutureCycle) {
         this.logger.log(
           `⏭️ Se omite creación de ciclo: ya existe ciclo ${existingFutureCycle.cycle_id} para suscripción ${subscription.subscription_id}`,
@@ -155,9 +147,7 @@ export class SubscriptionCycleRenewalService
             product_id: planProduct.product_id,
             planned_quantity: planProduct.product_quantity,
             delivered_quantity: 0,
-            remaining_balance: planProduct.product_quantity,
-          },
-        });
+            remaining_balance: planProduct.product_quantity } });
       }
 
       // Calcular el total_amount del ciclo basado en los productos del plan
@@ -209,17 +199,11 @@ export class SubscriptionCycleRenewalService
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE,
-          },
-        },
+            status: SubscriptionStatus.ACTIVE } },
         include: {
           customer_subscription: {
             include: {
-              subscription_plan: true,
-            },
-          },
-        },
-      });
+              subscription_plan: true } } } });
 
       this.logger.log(
         `📋 Encontrados ${overdueCycles.length} ciclos vencidos sin recargo aplicado`,
@@ -258,9 +242,7 @@ export class SubscriptionCycleRenewalService
               late_fee_percentage: lateFeePercentage,
               total_amount: newTotal,
               pending_balance: newPending,
-              payment_status: newPaymentStatus,
-            },
-          });
+              payment_status: newPaymentStatus } });
 
           this.logger.log(
             `✅ Recargo del 20% aplicado al ciclo ${cycle.cycle_id} de la suscripción ${cycle.subscription_id}`,
@@ -321,17 +303,11 @@ export class SubscriptionCycleRenewalService
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE,
-          },
-        },
+            status: SubscriptionStatus.ACTIVE } },
         include: {
           customer_subscription: {
             include: {
-              subscription_plan: true,
-            },
-          },
-        },
-      });
+              subscription_plan: true } } } });
 
       if (overdueCycles.length === 0) {
         this.logger.log(
@@ -376,9 +352,7 @@ export class SubscriptionCycleRenewalService
               late_fee_percentage: lateFeePercentage,
               total_amount: newTotal,
               pending_balance: newPending,
-              payment_status: newPending > 0 ? 'OVERDUE' : 'PAID',
-            },
-          });
+              payment_status: newPending > 0 ? 'OVERDUE' : 'PAID' } });
 
           this.logger.log(
             `✅ Recargo aplicado al ciclo ${cycle.cycle_id} de suscripción ${subscriptionId}: +$${surcharge} (20% de $${baseAmount})`,

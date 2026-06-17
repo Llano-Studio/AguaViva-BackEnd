@@ -30,10 +30,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DebugCronService } from './common/services/debug-cron.service';
 import environmentConfig from './common/config/environment.config';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    PrismaModule,
     ServicesModule,
     CommonModule,
     PersonsModule,

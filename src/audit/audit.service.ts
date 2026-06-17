@@ -1,8 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { formatBATimestampISO, formatBAYMD } from '../common/utils/date.utils';
 import { PrismaClient } from '@prisma/client';
 import { AuditRecordDto } from '../cycle-payments/dto';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 export interface CreateAuditRecordParams {
   tableName: string;
@@ -17,15 +20,10 @@ export interface CreateAuditRecordParams {
 }
 
 @Injectable()
-export class AuditService extends PrismaClient implements OnModuleInit {
+export class AuditService extends PrismaBackedService {
   private readonly logger = new Logger(AuditService.name);
-
-  constructor() {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   /**
@@ -48,9 +46,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           reason: params.reason,
           ip_address: params.ipAddress,
           user_agent: params.userAgent,
-          created_at: new Date(),
-        },
-      });
+          created_at: new Date() } });
 
       this.logger.log(
         `Audit record created: ${auditRecord.audit_id} for ${params.tableName}:${params.recordId}`,
@@ -75,23 +71,17 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       const auditRecords = await this.payment_audit.findMany({
         where: {
           table_name: tableName,
-          record_id: recordId,
-        },
+          record_id: recordId },
         include: {
           created_by_user: {
             select: {
               id: true,
               name: true,
               email: true,
-              role: true,
-            },
-          },
-        },
+              role: true } } },
         orderBy: {
-          created_at: 'desc',
-        },
-        take: limit,
-      });
+          created_at: 'desc' },
+        take: limit });
 
       return auditRecords.map((record) => ({
         audit_id: record.audit_id,
@@ -114,10 +104,8 @@ export class AuditService extends PrismaClient implements OnModuleInit {
               user_id: record.created_by_user.id,
               username: record.created_by_user.name,
               email: record.created_by_user.email,
-              role: record.created_by_user.role,
-            }
-          : undefined,
-      }));
+              role: record.created_by_user.role }
+          : undefined }));
     } catch (error) {
       this.logger.error('Error fetching audit history:', error);
       throw new Error('Failed to fetch audit history');
@@ -172,16 +160,11 @@ export class AuditService extends PrismaClient implements OnModuleInit {
                 id: true,
                 name: true,
                 email: true,
-                role: true,
-              },
-            },
-          },
+                role: true } } },
           orderBy: {
-            created_at: 'desc',
-          },
+            created_at: 'desc' },
           take: limit,
-          skip: offset,
-        }),
+          skip: offset }),
         this.payment_audit.count({ where }),
       ]);
 
@@ -206,10 +189,8 @@ export class AuditService extends PrismaClient implements OnModuleInit {
               user_id: record.created_by_user.id,
               username: record.created_by_user.name,
               email: record.created_by_user.email,
-              role: record.created_by_user.role,
-            }
-          : undefined,
-      }));
+              role: record.created_by_user.role }
+          : undefined }));
 
       return { records, total };
     } catch (error) {
@@ -228,8 +209,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
     try {
       const user = await this.user.findUnique({
         where: { id: userId },
-        select: { role: true },
-      });
+        select: { role: true } });
 
       if (!user) {
         return false;
@@ -316,16 +296,11 @@ export class AuditService extends PrismaClient implements OnModuleInit {
                 id: true,
                 name: true,
                 email: true,
-                role: true,
-              },
-            },
-          },
+                role: true } } },
           orderBy: {
-            created_at: 'desc',
-          },
+            created_at: 'desc' },
           take: limit,
-          skip: offset,
-        }),
+          skip: offset }),
         this.payment_audit.count({ where }),
       ]);
 
@@ -347,8 +322,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
         user_agent: record.user_agent,
         user_name: record.created_by_user?.name || 'Usuario desconocido',
         user_email: record.created_by_user?.email,
-        user_role: record.created_by_user?.role,
-      }));
+        user_role: record.created_by_user?.role }));
 
       return { records, total };
     } catch (error) {
@@ -403,10 +377,7 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           where: {
             created_at: {
               gte: startDate,
-              lte: now,
-            },
-          },
-        }),
+              lte: now } } }),
 
         // Operaciones por tipo
         this.payment_audit.groupBy({
@@ -414,13 +385,9 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           where: {
             created_at: {
               gte: startDate,
-              lte: now,
-            },
-          },
+              lte: now } },
           _count: {
-            operation_type: true,
-          },
-        }),
+            operation_type: true } }),
 
         // Operaciones por tabla
         this.payment_audit.groupBy({
@@ -428,13 +395,9 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           where: {
             created_at: {
               gte: startDate,
-              lte: now,
-            },
-          },
+              lte: now } },
           _count: {
-            table_name: true,
-          },
-        }),
+            table_name: true } }),
 
         // Usuarios más activos
         this.payment_audit.groupBy({
@@ -442,19 +405,13 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           where: {
             created_at: {
               gte: startDate,
-              lte: now,
-            },
-          },
+              lte: now } },
           _count: {
-            created_by: true,
-          },
+            created_by: true },
           orderBy: {
             _count: {
-              created_by: 'desc',
-            },
-          },
-          take: 5,
-        }),
+              created_by: 'desc' } },
+          take: 5 }),
 
         // Actividad diaria
         this.$queryRaw`
@@ -474,14 +431,10 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       const users = await this.user.findMany({
         where: {
           id: {
-            in: userIds,
-          },
-        },
+            in: userIds } },
         select: {
           id: true,
-          name: true,
-        },
-      });
+          name: true } });
 
       const userMap = new Map(users.map((u) => [u.id, u.name]));
 
@@ -505,13 +458,11 @@ export class AuditService extends PrismaClient implements OnModuleInit {
       const topUsersFormatted = topUsers.map((user) => ({
         user_id: user.created_by,
         user_name: userMap.get(user.created_by) || 'Usuario desconocido',
-        operation_count: user._count.created_by,
-      }));
+        operation_count: user._count.created_by }));
 
       const dailyActivityFormatted = (dailyActivity as any[]).map((day) => ({
         date: formatBAYMD(new Date(day.date)),
-        operation_count: Number(day.operation_count),
-      }));
+        operation_count: Number(day.operation_count) }));
 
       return {
         summary: {
@@ -519,22 +470,17 @@ export class AuditService extends PrismaClient implements OnModuleInit {
           operations_by_type: {
             CREATE: operationsByTypeFormatted.CREATE || 0,
             UPDATE: operationsByTypeFormatted.UPDATE || 0,
-            DELETE: operationsByTypeFormatted.DELETE || 0,
-          },
+            DELETE: operationsByTypeFormatted.DELETE || 0 },
           operations_by_table: {
             cycle_payment: operationsByTableFormatted.cycle_payment || 0,
             payment_transaction:
-              operationsByTableFormatted.payment_transaction || 0,
-          },
-        },
+              operationsByTableFormatted.payment_transaction || 0 } },
         top_users: topUsersFormatted,
         daily_activity: dailyActivityFormatted,
         period_info: {
           period,
           start_date: formatBATimestampISO(startDate as any),
-          end_date: formatBATimestampISO(now as any),
-        },
-      };
+          end_date: formatBATimestampISO(now as any) } };
     } catch (error) {
       this.logger.error('Error fetching audit statistics:', error);
       throw new Error('Failed to fetch audit statistics');

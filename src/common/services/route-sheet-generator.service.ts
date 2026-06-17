@@ -1,23 +1,23 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TempFileManagerService } from './temp-file-manager.service';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 import {
   PdfGeneratorService,
-  CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData,
-} from './pdf-generator.service';
+  CollectionRouteSheetPdfData as PdfCollectionRouteSheetPdfData } from './pdf-generator.service';
 import {
   GenerateRouteSheetDto,
-  RouteSheetResponseDto,
-} from '../../orders/dto/generate-route-sheet.dto';
+  RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
 import {
   isValidYMD,
   parseBAYMD,
   formatBAYMD,
   formatBATimestampISO,
-  formatBAHMS,
-} from '../utils/date.utils';
+  formatBAHMS } from '../utils/date.utils';
 
 export interface RouteSheetZone {
   zone_id: number;
@@ -78,7 +78,7 @@ export interface CollectionRouteSheetPdfData
   extends PdfCollectionRouteSheetPdfData {}
 
 @Injectable()
-export class RouteSheetGeneratorService extends PrismaClient {
+export class RouteSheetGeneratorService extends PrismaBackedService {
   private readonly logger = new Logger(RouteSheetGeneratorService.name);
 
   // Configuración de colores para impresión en blanco y negro
@@ -96,12 +96,12 @@ export class RouteSheetGeneratorService extends PrismaClient {
     errorColor: '#999999', // Gris medio (reemplaza rojo)
     warningColor: '#BBBBBB', // Gris claro (reemplaza amarillo)
   };
-
   constructor(
+    prisma: PrismaService,
     private readonly tempFileManager: TempFileManagerService,
     private readonly pdfGeneratorService: PdfGeneratorService,
   ) {
-    super();
+    super(prisma);
   }
 
   private buildCollectionExtraNotes(
@@ -187,8 +187,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         zones,
         driver,
         vehicle,
-        notes: filters.notes,
-      });
+        notes: filters.notes });
 
       // Verificación básica del archivo generado
       try {
@@ -217,9 +216,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           vehicle,
           zones,
           summary,
-          notes: filters.notes,
-        },
-      };
+          notes: filters.notes } };
     } catch (error) {
       this.logger.error('Error generando hoja de ruta:', error);
       throw new Error(`Error generando hoja de ruta: ${error.message}`);
@@ -283,8 +280,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       if (zoneIds.length > 0) {
         const zoneList = await this.zone.findMany({
           where: { zone_id: { in: zoneIds } },
-          select: { zone_id: true, name: true },
-        });
+          select: { zone_id: true, name: true } });
         const zoneNameById = new Map<number, string>(
           zoneList.map((z) => [z.zone_id, z.name]),
         );
@@ -317,8 +313,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         zones,
         driver,
         vehicle,
-        notes: filters.notes,
-      });
+        notes: filters.notes });
 
       const downloadUrl = `/public/pdfs/collections/${baseName}`;
       const summary = this.calculateSummary(zones);
@@ -334,9 +329,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           vehicle,
           zones,
           summary,
-          notes: filters.notes,
-        },
-      };
+          notes: filters.notes } };
     } catch (error) {
       this.logger.error('Error generando y persistiendo hoja de ruta:', error);
       throw new Error(
@@ -416,24 +409,20 @@ export class RouteSheetGeneratorService extends PrismaClient {
               AND: [
                 { scheduled_delivery_date: { lt: dayStart } },
                 { payment_status: { in: ['PENDING', 'OVERDUE'] } },
-              ],
-            },
+              ] },
             {
               AND: [
                 { order_date: { lt: dayStart } },
                 { payment_status: { in: ['PENDING', 'OVERDUE'] } },
-              ],
-            },
-          ],
-        },
+              ] },
+          ] },
       ],
       OR: [
         { es_automatica: true },
         { notes: { contains: 'COBRANZA AUTOMÁTICA', mode: 'insensitive' } },
         { notes: { contains: 'ORDEN DE COBRANZA', mode: 'insensitive' } },
         { notes: { contains: 'Ciclo:', mode: 'insensitive' } },
-      ],
-    };
+      ] };
 
     // Filtro por zonas: aceptar tanto el zone_id del pedido como el del cliente
     if (filters.zoneIds && filters.zoneIds.length > 0) {
@@ -441,20 +430,17 @@ export class RouteSheetGeneratorService extends PrismaClient {
         OR: [
           { zone_id: { in: filters.zoneIds } },
           { customer: { is: { zone_id: { in: filters.zoneIds } } } },
-        ],
-      });
+        ] });
     }
 
     if (filters.overdueOnly === 'true') {
       (whereClause.AND as any[]).push({
-        payment_status: { in: ['PENDING', 'OVERDUE'] },
-      });
+        payment_status: { in: ['PENDING', 'OVERDUE'] } });
     }
 
     if (filters.minAmount) {
       (whereClause.AND as any[]).push({
-        total_amount: { gte: new Prisma.Decimal(filters.minAmount) },
-      });
+        total_amount: { gte: new Prisma.Decimal(filters.minAmount) } });
     }
 
     const orderBy = this.getOrderBy(filters.sortBy);
@@ -469,26 +455,15 @@ export class RouteSheetGeneratorService extends PrismaClient {
             customer_subscription: {
               include: {
                 subscription_cycle: {
-                  orderBy: { payment_due_date: 'desc' },
-                },
-              },
-            },
-          },
-        },
+                  orderBy: { payment_due_date: 'desc' } } } } } },
         customer_subscription: {
           include: {
             subscription_plan: {
-              select: { name: true },
-            },
+              select: { name: true } },
             subscription_cycle: {
               orderBy: { payment_due_date: 'desc' },
-              take: 1,
-            },
-          },
-        },
-      },
-      orderBy,
-    });
+              take: 1 } } } },
+      orderBy });
   }
 
   /**
@@ -529,9 +504,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
             total_collections: 0,
             total_amount: '0.00',
             overdue_collections: 0,
-            overdue_amount: '0.00',
-          },
-        });
+            overdue_amount: '0.00' } });
       }
 
       const zoneData = zoneGroups.get(zoneKey);
@@ -755,8 +728,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         address: collection.customer.address || 'Sin dirección',
         phone: collection.customer.phone,
         zone_name: zoneName,
-        locality_name: collection.customer?.locality?.name,
-      },
+        locality_name: collection.customer?.locality?.name },
       amount: pendingFromCycle.toString(),
       due_dates: (collection.customer?.customer_subscription || [])
         .flatMap((cs: any) =>
@@ -771,8 +743,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       payment_status: resolvedPaymentStatus,
       is_backlog: isBacklog,
       backlog_type: backlogType,
-      subscription_plan_name: planName,
-    };
+      subscription_plan_name: planName };
   }
 
   /**
@@ -892,8 +863,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         address: collection.customer.address || 'Sin dirección',
         phone: collection.customer.phone,
         zone_name: zoneName,
-        locality_name: collection.customer?.locality?.name,
-      },
+        locality_name: collection.customer?.locality?.name },
       amount: pendingBalance.toString(),
       due_dates: dueDate ? [formatBAYMD(dueDate)] : [],
       days_overdue: daysOverdue,
@@ -903,8 +873,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       payment_status: resolvedPaymentStatus,
       is_backlog: isBacklog,
       backlog_type: backlogType,
-      subscription_plan_name: planName,
-    };
+      subscription_plan_name: planName };
   }
 
   /**
@@ -978,8 +947,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     // Fuente de verdad para choferes: User (usuarios del sistema)
     const user = await this.user.findUnique({
       where: { id: driverId },
-      select: { id: true, name: true },
-    });
+      select: { id: true, name: true } });
 
     if (!user) return undefined;
 
@@ -987,8 +955,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
       driver_id: user.id,
       name: user.name,
       license_number: 'N/A',
-      phone: '',
-    };
+      phone: '' };
   }
 
   /**
@@ -1000,8 +967,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
     if (!vehicleId) return undefined;
 
     const vehicle = await this.vehicle.findUnique({
-      where: { vehicle_id: vehicleId },
-    });
+      where: { vehicle_id: vehicleId } });
 
     if (!vehicle) return undefined;
 
@@ -1024,12 +990,9 @@ export class RouteSheetGeneratorService extends PrismaClient {
     const vehicleZones = await this.vehicle_zone.findMany({
       where: {
         vehicle_id: vehicleId,
-        is_active: true,
-      },
+        is_active: true },
       select: {
-        zone_id: true,
-      },
-    });
+        zone_id: true } });
 
     const assignedZoneIds = vehicleZones.map((vz) => vz.zone_id);
     const missingZones = zoneIds.filter(
@@ -1040,13 +1003,10 @@ export class RouteSheetGeneratorService extends PrismaClient {
       // Obtener los nombres de las zonas faltantes para un mensaje más descriptivo
       const missingZoneDetails = await this.zone.findMany({
         where: {
-          zone_id: { in: missingZones },
-        },
+          zone_id: { in: missingZones } },
         select: {
           zone_id: true,
-          name: true,
-        },
-      });
+          name: true } });
 
       const missingZoneNames = missingZoneDetails
         .map((z) => `${z.name} (ID: ${z.zone_id})`)
@@ -1086,14 +1046,11 @@ export class RouteSheetGeneratorService extends PrismaClient {
           zone: {
             zone_id: zone.zone_id,
             code: String(zone.zone_id),
-            name: zone.name,
-          },
+            name: zone.name },
           locality: {
             locality_id: 0,
             code: collection.customer.locality_name || 'N/A',
-            name: collection.customer.locality_name || 'N/A',
-          },
-        },
+            name: collection.customer.locality_name || 'N/A' } },
         amount: parseFloat(collection.amount),
         payment_due_date:
           collection.due_dates && collection.due_dates[0]
@@ -1115,8 +1072,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
           planned_quantity: number;
           delivered_quantity: number;
           remaining_balance: number;
-        }[],
-      })),
+        }[] })),
     );
 
     const collectionData: PdfCollectionRouteSheetPdfData = {
@@ -1124,16 +1080,13 @@ export class RouteSheetGeneratorService extends PrismaClient {
       delivery_date: formatBAYMD(targetDate),
       driver: {
         name: driver?.name || 'No asignado',
-        email: '',
-      },
+        email: '' },
       vehicle: {
         code: vehicle?.license_plate || 'N/A',
-        name: vehicle?.model || 'No asignado',
-      },
+        name: vehicle?.model || 'No asignado' },
       route_notes: notes || '',
       zone_identifiers: zones.map((z) => z.name),
-      collections,
-    };
+      collections };
 
     // Usar PdfGeneratorService para generar el PDF
     const result =
@@ -1199,8 +1152,7 @@ export class RouteSheetGeneratorService extends PrismaClient {
         testData,
         {
           includeSignatureField: true,
-          includeProductDetails: true,
-        },
+          includeProductDetails: true },
       );
 
       // Crear el write stream y finalizar el documento

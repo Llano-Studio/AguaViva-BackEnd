@@ -1,10 +1,12 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient, SubscriptionStatus } from '@prisma/client';
+import { SubscriptionStatus } from '@prisma/client';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 import {
   BUSINESS_CONFIG,
-  PaymentSemaphoreStatus,
-} from '../config/business.config';
+  PaymentSemaphoreStatus } from '../config/business.config';
 
 interface PaymentSemaphoreCache {
   [personId: number]: {
@@ -16,16 +18,17 @@ interface PaymentSemaphoreCache {
 
 @Injectable()
 export class PaymentSemaphoreService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private cache: PaymentSemaphoreCache = {};
   private readonly cacheTtlMinutes: number;
   private readonly yellowThresholdDays: number;
   private readonly redThresholdDays: number;
 
-  constructor(private readonly configService: ConfigService) {
-    super();
+  constructor(
+    prisma: PrismaService,
+    private readonly configService: ConfigService) {
+    super(prisma);
     // Usar configuración centralizada con fallback a BUSINESS_CONFIG
     this.cacheTtlMinutes =
       this.configService.get('app.paymentSemaphore.cacheTtlMinutes') || 30;
@@ -35,10 +38,6 @@ export class PaymentSemaphoreService
     this.redThresholdDays =
       this.configService.get('app.paymentSemaphore.redThresholdDays') ||
       BUSINESS_CONFIG.PAYMENT_SEMAPHORE.RED_THRESHOLD_DAYS;
-  }
-
-  async onModuleInit() {
-    await this.$connect();
   }
 
   /**
@@ -61,9 +60,7 @@ export class PaymentSemaphoreService
             customer_id: personId,
             // Incluir suscripciones ACTIVAS y CANCELADAS que todavía tengan ciclos con deuda
             status: {
-              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED],
-            },
-          },
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED] } },
           // Incluir ciclos que:
           // 1. No han terminado (cycle_end >= today), O
           // 2. Han terminado pero tienen pagos pendientes (pending_balance > 0)
@@ -71,22 +68,15 @@ export class PaymentSemaphoreService
             { cycle_end: { gte: today } }, // Ciclos activos
             {
               cycle_end: { lt: today },
-              pending_balance: { gt: 0 },
-            }, // Ciclos terminados con deuda
-          ],
-        },
+              pending_balance: { gt: 0 } }, // Ciclos terminados con deuda
+          ] },
         include: {
           customer_subscription: {
             select: {
               subscription_id: true,
-              start_date: true,
-            },
-          },
-        },
+              start_date: true } } },
         orderBy: {
-          cycle_end: 'desc',
-        },
-      });
+          cycle_end: 'desc' } });
 
       // Si no hay ciclos activos, retornar NONE
       if (!activeCycles || activeCycles.length === 0) return 'NONE';
@@ -301,8 +291,7 @@ export class PaymentSemaphoreService
     this.cache[personId] = {
       status,
       lastUpdated: now,
-      expiresAt,
-    };
+      expiresAt };
   }
 
   /**

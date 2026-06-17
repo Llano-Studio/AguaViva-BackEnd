@@ -3,10 +3,8 @@ import {
   NotFoundException,
   ConflictException,
   InternalServerErrorException,
-  OnModuleInit,
-  BadRequestException,
-} from '@nestjs/common';
-import { Prisma, PrismaClient, vehicle as VehiclePrisma } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { Prisma, vehicle as VehiclePrisma } from '@prisma/client';
 import {
   CreateVehicleDto,
   UpdateVehicleDto,
@@ -14,26 +12,26 @@ import {
   VehicleResponseDto,
   PaginatedVehicleResponseDto,
   AssignZonesToVehicleDto,
-  VehicleZoneResponseDto,
-} from './dto';
+  VehicleZoneResponseDto } from './dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class VehicleService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Vehículo';
-
-  async onModuleInit() {
-    await this.$connect();
+export class VehicleService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Vehículo';
 
   private toVehicleResponseDto(vehicle: VehiclePrisma): VehicleResponseDto {
     return {
       vehicle_id: vehicle.vehicle_id,
       code: vehicle.code,
       name: vehicle.name,
-      description: vehicle.description || undefined,
-    };
+      description: vehicle.description || undefined };
   }
 
   async createVehicle(dto: CreateVehicleDto): Promise<VehicleResponseDto> {
@@ -42,9 +40,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         data: {
           code: dto.code,
           name: dto.name,
-          description: dto.description,
-        },
-      });
+          description: dto.description } });
       return this.toVehicleResponseDto(newVehicle);
     } catch (error) {
       if (
@@ -95,8 +91,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         where,
         orderBy,
         skip,
-        take,
-      });
+        take });
       const totalVehicles = await this.vehicle.count({ where });
 
       return {
@@ -104,8 +99,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         total: totalVehicles,
         page,
         limit,
-        totalPages: Math.ceil(totalVehicles / limit),
-      };
+        totalPages: Math.ceil(totalVehicles / limit) };
     } catch (error) {
       handlePrismaError(error, this.entityName + 's');
       throw new InternalServerErrorException(
@@ -121,9 +115,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     const vehicle = await this.vehicle.findFirst({
       where: {
         vehicle_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
-    });
+        ...(includeInactive ? {} : { is_active: true }) } });
     if (!vehicle) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrado`,
@@ -134,8 +126,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
 
   async getVehicleByCode(code: string): Promise<VehicleResponseDto> {
     const vehicle = await this.vehicle.findUnique({
-      where: { code },
-    });
+      where: { code } });
     if (!vehicle) {
       throw new NotFoundException(
         `${this.entityName} con código '${code}' no encontrado`,
@@ -149,8 +140,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     dto: UpdateVehicleDto,
   ): Promise<VehicleResponseDto> {
     const existingVehicle = await this.vehicle.findUnique({
-      where: { vehicle_id: id },
-    });
+      where: { vehicle_id: id } });
     if (!existingVehicle) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrado para actualizar.`,
@@ -162,9 +152,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
         data: {
           code: dto.code,
           name: dto.name,
-          description: dto.description,
-        },
-      });
+          description: dto.description } });
       return this.toVehicleResponseDto(updatedVehicle);
     } catch (error) {
       if (
@@ -192,12 +180,10 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.vehicle.update({
         where: { vehicle_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
       return {
         message: `${this.entityName} desactivado correctamente`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -217,8 +203,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
 
     // Verificar que todas las zonas existen
     const zones = await this.zone.findMany({
-      where: { zone_id: { in: dto.zoneIds } },
-    });
+      where: { zone_id: { in: dto.zoneIds } } });
 
     if (zones.length !== dto.zoneIds.length) {
       const foundIds = zones.map((z) => z.zone_id);
@@ -235,8 +220,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
           dto.zoneIds.map(async (zoneId) => {
             // Verificar si ya existe la relación
             const existingAssignment = await prisma.vehicle_zone.findFirst({
-              where: { vehicle_id: vehicleId, zone_id: zoneId },
-            });
+              where: { vehicle_id: vehicleId, zone_id: zoneId } });
 
             if (existingAssignment) {
               // Actualizar la existente
@@ -245,8 +229,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
                 data: {
                   is_active: dto.isActive ?? true,
                   notes: dto.notes,
-                  assigned_at: new Date(),
-                },
+                  assigned_at: new Date() },
                 include: {
                   zone: {
                     include: {
@@ -254,15 +237,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
                         include: {
                           province: {
                             include: {
-                              country: true,
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              });
+                              country: true } } } } } } } });
             } else {
               // Crear nueva
               return await prisma.vehicle_zone.create({
@@ -270,8 +245,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
                   vehicle_id: vehicleId,
                   zone_id: zoneId,
                   is_active: dto.isActive ?? true,
-                  notes: dto.notes,
-                },
+                  notes: dto.notes },
                 include: {
                   zone: {
                     include: {
@@ -279,15 +253,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
                         include: {
                           province: {
                             include: {
-                              country: true,
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              });
+                              country: true } } } } } } } });
             }
           }),
         );
@@ -312,8 +278,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       const vehicleZones = await this.vehicle_zone.findMany({
         where: {
           vehicle_id: vehicleId,
-          ...(activeOnly && { is_active: true }),
-        },
+          ...(activeOnly && { is_active: true }) },
         include: {
           zone: {
             include: {
@@ -321,16 +286,8 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
                 include: {
                   province: {
                     include: {
-                      country: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        orderBy: { assigned_at: 'desc' },
-      });
+                      country: true } } } } } } },
+        orderBy: { assigned_at: 'desc' } });
 
       return vehicleZones.map(this.mapToVehicleZoneResponseDto);
     } catch (error) {
@@ -348,8 +305,7 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     await this.getVehicleById(vehicleId);
 
     const existingAssignment = await this.vehicle_zone.findFirst({
-      where: { vehicle_id: vehicleId, zone_id: zoneId, is_active: true },
-    });
+      where: { vehicle_id: vehicleId, zone_id: zoneId, is_active: true } });
 
     if (!existingAssignment) {
       throw new NotFoundException(
@@ -360,13 +316,11 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
     try {
       await this.vehicle_zone.update({
         where: { vehicle_zone_id: existingAssignment.vehicle_zone_id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
 
       return {
         message: 'Zona removida del vehículo correctamente',
-        removed: true,
-      };
+        removed: true };
     } catch (error) {
       handlePrismaError(error, 'Remoción de zona');
       throw new InternalServerErrorException(
@@ -389,13 +343,10 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       const vehicleZones = await this.vehicle_zone.findMany({
         where: {
           zone_id: zoneId,
-          ...(activeOnly && { is_active: true }),
-        },
+          ...(activeOnly && { is_active: true }) },
         include: {
-          vehicle: true,
-        },
-        orderBy: { assigned_at: 'desc' },
-      });
+          vehicle: true },
+        orderBy: { assigned_at: 'desc' } });
 
       return vehicleZones.map((vz) => this.toVehicleResponseDto(vz.vehicle));
     } catch (error) {
@@ -414,13 +365,10 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
       const userVehicles = await this.user_vehicle.findMany({
         where: {
           vehicle_id: vehicleId,
-          ...(activeOnly && { is_active: true }),
-        },
+          ...(activeOnly && { is_active: true }) },
         include: {
-          user: true,
-        },
-        orderBy: { assigned_at: 'desc' },
-      });
+          user: true },
+        orderBy: { assigned_at: 'desc' } });
 
       return userVehicles.map((uv) => ({
         id: uv.user.id,
@@ -467,12 +415,8 @@ export class VehicleService extends PrismaClient implements OnModuleInit {
             country: {
               country_id: vehicleZone.zone.locality.province.country.country_id,
               code: vehicleZone.zone.locality.province.country.code,
-              name: vehicleZone.zone.locality.province.country.name,
-            },
-          },
-        },
-      },
-    };
+              name: vehicleZone.zone.locality.province.country.name } } } } };
   }
 }
 import { formatBATimestampISO } from '../common/utils/date.utils';
+

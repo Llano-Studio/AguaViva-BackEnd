@@ -1,11 +1,12 @@
 import {
   Injectable,
-  OnModuleInit,
   NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { Prisma, SubscriptionStatus } from '@prisma/client';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 export interface ProductQuotaInfo {
   product_id: number;
@@ -33,17 +34,13 @@ export interface SubscriptionQuotaValidation {
 
 @Injectable()
 export class SubscriptionQuotaService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   constructor(
+    prisma: PrismaService,
     private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   /**
@@ -53,24 +50,19 @@ export class SubscriptionQuotaService
     subscriptionId: number,
     tx?: Prisma.TransactionClient,
   ) {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
     const today = new Date();
 
     return await prisma.subscription_cycle.findFirst({
       where: {
         subscription_id: subscriptionId,
         cycle_start: { lte: today },
-        cycle_end: { gte: today },
-      },
+        cycle_end: { gte: today } },
       include: {
         subscription_cycle_detail: {
           include: {
-            product: true,
-          },
-        },
-      },
-      orderBy: { cycle_start: 'desc' },
-    });
+            product: true } } },
+      orderBy: { cycle_start: 'desc' } });
   }
 
   /**
@@ -80,7 +72,7 @@ export class SubscriptionQuotaService
     subscriptionId: number,
     tx?: Prisma.TransactionClient,
   ) {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     // Obtener suscripción con su plan
     const subscription = await prisma.customer_subscription.findUnique({
@@ -89,12 +81,7 @@ export class SubscriptionQuotaService
         subscription_plan: {
           include: {
             subscription_plan_product: {
-              include: { product: true },
-            },
-          },
-        },
-      },
-    });
+              include: { product: true } } } } } });
 
     if (!subscription) {
       throw new NotFoundException(
@@ -123,8 +110,7 @@ export class SubscriptionQuotaService
     // Obtener el siguiente número de ciclo
     const lastCycle = await prisma.subscription_cycle.findFirst({
       where: { subscription_id: subscriptionId },
-      orderBy: { cycle_number: 'desc' },
-    });
+      orderBy: { cycle_number: 'desc' } });
     const nextCycleNumber = (lastCycle?.cycle_number || 0) + 1;
 
     // Crear el nuevo ciclo
@@ -138,9 +124,7 @@ export class SubscriptionQuotaService
         payment_due_date: new Date(
           cycleEnd.getTime() + 10 * 24 * 60 * 60 * 1000,
         ), // 10 días después del final del ciclo
-        notes: 'Ciclo creado automáticamente por sistema de cuotas',
-      },
-    });
+        notes: 'Ciclo creado automáticamente por sistema de cuotas' } });
 
     // Crear los detalles del ciclo con las cantidades planificadas
     for (const planProduct of subscription.subscription_plan
@@ -151,9 +135,7 @@ export class SubscriptionQuotaService
           product_id: planProduct.product_id,
           planned_quantity: planProduct.product_quantity,
           delivered_quantity: 0,
-          remaining_balance: planProduct.product_quantity,
-        },
-      });
+          remaining_balance: planProduct.product_quantity } });
     }
 
     // Calcular el total_amount del ciclo basado en los productos del plan
@@ -174,11 +156,7 @@ export class SubscriptionQuotaService
       include: {
         subscription_cycle_detail: {
           include: {
-            product: true,
-          },
-        },
-      },
-    });
+            product: true } } } });
 
     return reloadedCycle;
   }
@@ -191,7 +169,7 @@ export class SubscriptionQuotaService
     requestedProducts: { product_id: number; quantity: number }[],
     tx?: Prisma.TransactionClient,
   ): Promise<SubscriptionQuotaValidation> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     // Obtener o crear ciclo actual
     let currentCycle = await this.getCurrentActiveCycle(subscriptionId, prisma);
@@ -244,13 +222,11 @@ export class SubscriptionQuotaService
           remaining_balance: cycleDetail.remaining_balance,
           requested_quantity: requestedProduct.quantity,
           covered_by_subscription: coveredBySubscription,
-          additional_quantity: additionalQuantity,
-        });
+          additional_quantity: additionalQuantity });
       } else {
         // Producto NO está en el plan → todo es adicional
         const product = await prisma.product.findUnique({
-          where: { product_id: requestedProduct.product_id },
-        });
+          where: { product_id: requestedProduct.product_id } });
 
         productQuotas.push({
           product_id: requestedProduct.product_id,
@@ -260,8 +236,7 @@ export class SubscriptionQuotaService
           remaining_balance: 0,
           requested_quantity: requestedProduct.quantity,
           covered_by_subscription: 0,
-          additional_quantity: requestedProduct.quantity,
-        });
+          additional_quantity: requestedProduct.quantity });
 
         hasAdditionalCharges = true;
       }
@@ -274,16 +249,14 @@ export class SubscriptionQuotaService
         ? parseFloat(currentCycle.late_fee_percentage.toString())
         : 0,
       late_fee_applied: currentCycle.late_fee_applied || false,
-      payment_due_date: currentCycle.payment_due_date || undefined,
-    };
+      payment_due_date: currentCycle.payment_due_date || undefined };
 
     return {
       subscription_id: subscriptionId,
       current_cycle_id: currentCycle.cycle_id,
       products: productQuotas,
       has_additional_charges: hasAdditionalCharges,
-      late_fee_info: lateFeeInfo,
-    };
+      late_fee_info: lateFeeInfo };
   }
 
   /**
@@ -294,7 +267,7 @@ export class SubscriptionQuotaService
     deliveredProducts: { product_id: number; quantity: number }[],
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     const currentCycle = await this.getCurrentActiveCycle(
       subscriptionId,
@@ -324,9 +297,7 @@ export class SubscriptionQuotaService
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
             delivered_quantity: newDeliveredQuantity,
-            remaining_balance: newRemainingBalance,
-          },
-        });
+            remaining_balance: newRemainingBalance } });
       }
     }
   }
@@ -360,8 +331,7 @@ export class SubscriptionQuotaService
       remaining_balance: detail.remaining_balance,
       requested_quantity: 0,
       covered_by_subscription: 0,
-      additional_quantity: 0,
-    }));
+      additional_quantity: 0 }));
   }
 
   /**
@@ -373,7 +343,7 @@ export class SubscriptionQuotaService
     orderItems: { product_id: number; quantity: number }[],
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     const currentCycle = await this.getCurrentActiveCycle(
       subscriptionId,
@@ -404,9 +374,7 @@ export class SubscriptionQuotaService
           where: { cycle_detail_id: cycleDetail.cycle_detail_id },
           data: {
             delivered_quantity: newDeliveredQuantity,
-            remaining_balance: newRemainingBalance,
-          },
-        });
+            remaining_balance: newRemainingBalance } });
       } else {
       }
     }

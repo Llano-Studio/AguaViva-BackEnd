@@ -2,28 +2,27 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import {
   CreateDeliveryEvidenceDto,
   DeliveryEvidenceResponseDto,
-  EvidenceType,
-} from '../../route-sheet/dto/delivery-evidence.dto';
+  EvidenceType } from '../../route-sheet/dto/delivery-evidence.dto';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
-export class DeliveryEvidenceService extends PrismaClient {
+export class DeliveryEvidenceService extends PrismaBackedService {
   private readonly uploadsPath = path.join(
     process.cwd(),
     'public',
     'uploads',
     'evidence',
   );
-
-  constructor() {
-    super();
+  constructor(prisma: PrismaService) {
+    super(prisma);
     this.initUploadDirectory();
   }
 
@@ -45,9 +44,7 @@ export class DeliveryEvidenceService extends PrismaClient {
       const routeDetail = await this.route_sheet_detail.findUnique({
         where: { route_sheet_detail_id },
         include: {
-          route_sheet: true,
-        },
-      });
+          route_sheet: true } });
 
       if (!routeDetail) {
         throw new NotFoundException(
@@ -78,18 +75,14 @@ export class DeliveryEvidenceService extends PrismaClient {
           created_by: created_by || routeDetail.route_sheet.driver_id, // default al conductor asignado
         },
         include: {
-          route_sheet_detail: true,
-        },
-      });
+          route_sheet_detail: true } });
 
       // 5. Si es una firma, actualizar el campo en el detalle de la entrega
       if (evidence_type === EvidenceType.SIGNATURE) {
         await this.route_sheet_detail.update({
           where: { route_sheet_detail_id },
           data: {
-            digital_signature_id: fileName,
-          },
-        });
+            digital_signature_id: fileName } });
       }
 
       // 6. Si el detalle no tenía hora de entrega, actualizarla
@@ -99,9 +92,7 @@ export class DeliveryEvidenceService extends PrismaClient {
           data: {
             delivery_time: new Date().toTimeString().slice(0, 5), // Formato HH:MM
             delivery_status: 'DELIVERED',
-            actual_arrival_time: new Date(),
-          },
-        });
+            actual_arrival_time: new Date() } });
       }
 
       return {
@@ -110,8 +101,7 @@ export class DeliveryEvidenceService extends PrismaClient {
         evidence_type: evidence.evidence_type as EvidenceType,
         file_path: `/uploads/evidence/${fileName}`,
         created_at: formatBATimestampISO(evidence.created_at),
-        created_by: evidence.created_by,
-      };
+        created_by: evidence.created_by };
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -132,8 +122,7 @@ export class DeliveryEvidenceService extends PrismaClient {
   ): Promise<DeliveryEvidenceResponseDto[]> {
     // Verificar que el detalle existe
     const routeDetail = await this.route_sheet_detail.findUnique({
-      where: { route_sheet_detail_id },
-    });
+      where: { route_sheet_detail_id } });
 
     if (!routeDetail) {
       throw new NotFoundException(
@@ -143,8 +132,7 @@ export class DeliveryEvidenceService extends PrismaClient {
 
     // Obtener las evidencias
     const evidences = await this.delivery_evidence.findMany({
-      where: { route_sheet_detail_id },
-    });
+      where: { route_sheet_detail_id } });
 
     return evidences.map((evidence) => ({
       evidence_id: evidence.evidence_id,
@@ -152,8 +140,7 @@ export class DeliveryEvidenceService extends PrismaClient {
       evidence_type: evidence.evidence_type as EvidenceType,
       file_path: `/uploads/evidence/${evidence.file_path}`,
       created_at: formatBATimestampISO(evidence.created_at),
-      created_by: evidence.created_by,
-    }));
+      created_by: evidence.created_by }));
   }
 
   /**
@@ -211,10 +198,10 @@ export class DeliveryEvidenceService extends PrismaClient {
       'image/jpg': 'jpg',
       'image/png': 'png',
       'image/svg+xml': 'svg',
-      'application/pdf': 'pdf',
-    };
+      'application/pdf': 'pdf' };
 
     return mimeMap[mimeType] || 'dat';
   }
 }
 import { formatBATimestampISO } from '../utils/date.utils';
+

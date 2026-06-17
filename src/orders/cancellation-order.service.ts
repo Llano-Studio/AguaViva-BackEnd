@@ -2,9 +2,8 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient, CancellationOrderStatus, Prisma } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { CancellationOrderStatus, Prisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { parseBAYMD } from '../common/utils/date.utils';
@@ -13,8 +12,9 @@ import { UpdateCancellationOrderDto } from './dto/update-cancellation-order.dto'
 import {
   CancellationOrderWithProductsDto,
   CancellationOrderCustomerDto,
-  CancellationOrderProductDto,
-} from './dto/cancellation-order-with-products.dto';
+  CancellationOrderProductDto } from './dto/cancellation-order-with-products.dto';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface CancellationOrderResponseDto {
   cancellation_order_id: number;
@@ -41,11 +41,13 @@ export interface CancellationOrderResponseDto {
 }
 
 @Injectable()
-export class CancellationOrderService extends PrismaClient {
+export class CancellationOrderService extends PrismaBackedService {
   private readonly logger = new Logger(CancellationOrderService.name);
 
-  constructor(private readonly inventoryService: InventoryService) {
-    super();
+  constructor(
+    prisma: PrismaService,
+    private readonly inventoryService: InventoryService) {
+    super(prisma);
   }
 
   async onModuleInit() {
@@ -57,7 +59,7 @@ export class CancellationOrderService extends PrismaClient {
     dto: CreateCancellationOrderDto,
     tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     this.logger.log(
       `Creating cancellation order for subscription ${dto.subscription_id}`,
@@ -71,13 +73,7 @@ export class CancellationOrderService extends PrismaClient {
           include: {
             subscription_plan_product: {
               include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
+                product: true } } } } } });
 
     if (!subscription) {
       throw new NotFoundException(
@@ -100,10 +96,7 @@ export class CancellationOrderService extends PrismaClient {
             CancellationOrderStatus.PENDING,
             CancellationOrderStatus.SCHEDULED,
             CancellationOrderStatus.IN_PROGRESS,
-          ],
-        },
-      },
-    });
+          ] } } });
 
     if (existingOrder) {
       throw new BadRequestException(
@@ -140,18 +133,13 @@ export class CancellationOrderService extends PrismaClient {
         scheduled_collection_date: scheduledDate,
         status: CancellationOrderStatus.PENDING,
         notes: dto.notes,
-        rescheduled_count: 0,
-      },
+        rescheduled_count: 0 },
       include: {
         customer_subscription: {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true,
-          },
-        },
-      },
-    });
+            status: true } } } });
 
     this.logger.log(
       `Created cancellation order ${cancellationOrder.cancellation_order_id} for subscription ${dto.subscription_id}`,
@@ -196,22 +184,15 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true,
-          },
-        },
+            status: true } },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true,
-          },
-        },
-      },
+            vehicle_id: true } } },
       orderBy: {
-        scheduled_collection_date: 'asc',
-      },
-    });
+        scheduled_collection_date: 'asc' } });
 
     return orders.map((order) => this.mapToResponseDto(order));
   }
@@ -227,19 +208,13 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true,
-          },
-        },
+            status: true } },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true,
-          },
-        },
-      },
-    });
+            vehicle_id: true } } } });
 
     if (!order) {
       throw new NotFoundException(
@@ -258,7 +233,7 @@ export class CancellationOrderService extends PrismaClient {
     dto: UpdateCancellationOrderDto,
     tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     const existingOrder = await this.findOne(id);
 
@@ -287,19 +262,13 @@ export class CancellationOrderService extends PrismaClient {
           select: {
             customer_id: true,
             subscription_plan_id: true,
-            status: true,
-          },
-        },
+            status: true } },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true,
-          },
-        },
-      },
-    });
+            vehicle_id: true } } } });
 
     // Eliminar comodatos asociados a la suscripción cuando la orden se marca como completada
     if (isChangingToCompleted) {
@@ -320,7 +289,7 @@ export class CancellationOrderService extends PrismaClient {
     subscriptionId: number,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     try {
       // Buscar todos los comodatos activos de la suscripción
@@ -328,21 +297,14 @@ export class CancellationOrderService extends PrismaClient {
         where: {
           subscription_id: subscriptionId,
           status: 'ACTIVE',
-          is_active: true,
-        },
+          is_active: true },
         include: {
           product: {
             select: {
-              description: true,
-            },
-          },
+              description: true } },
           person: {
             select: {
-              name: true,
-            },
-          },
-        },
-      });
+              name: true } } } });
 
       if (activeComodatos.length > 0) {
         // Marcar comodatos como devueltos y desactivarlos
@@ -351,17 +313,13 @@ export class CancellationOrderService extends PrismaClient {
         await prisma.comodato.updateMany({
           where: {
             comodato_id: {
-              in: comodatoIds,
-            },
-          },
+              in: comodatoIds } },
           data: {
             status: 'RETURNED',
             return_date: new Date(),
             is_active: false,
             notes:
-              'Comodato eliminado automáticamente por orden de cancelación completada',
-          },
-        });
+              'Comodato eliminado automáticamente por orden de cancelación completada' } });
 
         this.logger.log(
           `Eliminados ${activeComodatos.length} comodatos para la suscripción ${subscriptionId}: ${activeComodatos.map((c) => `${c.product.description} (Cliente: ${c.person.name})`).join(', ')}`,
@@ -387,12 +345,11 @@ export class CancellationOrderService extends PrismaClient {
     routeSheetId: number,
     tx?: Prisma.TransactionClient,
   ): Promise<CancellationOrderResponseDto> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     // Verificar que la hoja de ruta existe
     const routeSheet = await prisma.route_sheet.findUnique({
-      where: { route_sheet_id: routeSheetId },
-    });
+      where: { route_sheet_id: routeSheetId } });
 
     if (!routeSheet) {
       throw new NotFoundException(
@@ -404,8 +361,7 @@ export class CancellationOrderService extends PrismaClient {
       id,
       {
         route_sheet_id: routeSheetId,
-        status: CancellationOrderStatus.SCHEDULED,
-      },
+        status: CancellationOrderStatus.SCHEDULED },
       tx,
     );
   }
@@ -418,7 +374,7 @@ export class CancellationOrderService extends PrismaClient {
     actualCollectionDate: Date,
     tx?: Prisma.TransactionClient,
   ): Promise<{ order: CancellationOrderResponseDto; stockMovements: any[] }> {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     const order = await this.findOne(id);
 
@@ -436,13 +392,7 @@ export class CancellationOrderService extends PrismaClient {
           include: {
             subscription_plan_product: {
               include: {
-                product: true,
-              },
-            },
-          },
-        },
-      },
-    });
+                product: true } } } } } });
 
     if (!subscription) {
       throw new NotFoundException(
@@ -475,8 +425,7 @@ export class CancellationOrderService extends PrismaClient {
             destination_warehouse_id:
               BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
             movement_date: actualCollectionDate,
-            remarks: `Devolución por cancelación de suscripción ${order.subscription_id} - Producto: ${product.description} - Orden de cancelación: ${id}`,
-          },
+            remarks: `Devolución por cancelación de suscripción ${order.subscription_id} - Producto: ${product.description} - Orden de cancelación: ${id}` },
           prisma,
         );
 
@@ -497,9 +446,7 @@ export class CancellationOrderService extends PrismaClient {
     const activeComodatos = await prisma.comodato.findMany({
       where: {
         subscription_id: order.subscription_id,
-        status: 'ACTIVE',
-      },
-    });
+        status: 'ACTIVE' } });
 
     if (activeComodatos.length > 0) {
       this.logger.log(
@@ -510,14 +457,11 @@ export class CancellationOrderService extends PrismaClient {
       await prisma.comodato.updateMany({
         where: {
           subscription_id: order.subscription_id,
-          status: 'ACTIVE',
-        },
+          status: 'ACTIVE' },
         data: {
           status: 'RETURNED',
           return_date: actualCollectionDate,
-          notes: `Devolución automática por cancelación de suscripción - Orden de cancelación: ${id}`,
-        },
-      });
+          notes: `Devolución automática por cancelación de suscripción - Orden de cancelación: ${id}` } });
 
       this.logger.log(
         `✅ ${activeComodatos.length} comodatos marcados como devueltos automáticamente`,
@@ -533,8 +477,7 @@ export class CancellationOrderService extends PrismaClient {
       id,
       {
         actual_collection_date: actualCollectionDate,
-        status: CancellationOrderStatus.COMPLETED,
-      },
+        status: CancellationOrderStatus.COMPLETED },
       prisma,
     );
 
@@ -543,9 +486,7 @@ export class CancellationOrderService extends PrismaClient {
       where: { subscription_id: order.subscription_id },
       data: {
         collection_completed: true,
-        collection_day: actualCollectionDate.getDate(),
-      },
-    });
+        collection_day: actualCollectionDate.getDate() } });
 
     this.logger.log(
       `Completed cancellation order ${id} with ${stockMovements.length} stock movements`,
@@ -553,8 +494,7 @@ export class CancellationOrderService extends PrismaClient {
 
     return {
       order: updatedOrder,
-      stockMovements,
-    };
+      stockMovements };
   }
 
   /**
@@ -562,8 +502,7 @@ export class CancellationOrderService extends PrismaClient {
    */
   async getPendingOrders(): Promise<CancellationOrderResponseDto[]> {
     return this.findAll({
-      status: CancellationOrderStatus.PENDING,
-    });
+      status: CancellationOrderStatus.PENDING });
   }
 
   /**
@@ -578,8 +517,7 @@ export class CancellationOrderService extends PrismaClient {
 
     return this.findAll({
       scheduled_date_from: startOfDay,
-      scheduled_date_to: endOfDay,
-    });
+      scheduled_date_to: endOfDay });
   }
 
   /**
@@ -621,9 +559,7 @@ export class CancellationOrderService extends PrismaClient {
                 person_id: true,
                 name: true,
                 phone: true,
-                address: true,
-              },
-            },
+                address: true } },
             subscription_plan: {
               include: {
                 subscription_plan_product: {
@@ -633,28 +569,15 @@ export class CancellationOrderService extends PrismaClient {
                         product_id: true,
                         description: true,
                         is_returnable: true,
-                        price: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
+                        price: true } } } } } } } },
         route_sheet: {
           select: {
             route_sheet_id: true,
             delivery_date: true,
             driver_id: true,
-            vehicle_id: true,
-          },
-        },
-      },
+            vehicle_id: true } } },
       orderBy: {
-        scheduled_collection_date: 'asc',
-      },
-    });
+        scheduled_collection_date: 'asc' } });
 
     return orders.map((order) => this.mapToResponseWithProductsDto(order));
   }
@@ -669,8 +592,7 @@ export class CancellationOrderService extends PrismaClient {
       customer_id: order.customer_subscription.person.person_id,
       full_name: order.customer_subscription.person.name || 'Sin nombre',
       phone: order.customer_subscription.person.phone || '',
-      address: order.customer_subscription.person.address || '',
-    };
+      address: order.customer_subscription.person.address || '' };
 
     const products: CancellationOrderProductDto[] =
       order.customer_subscription.subscription_plan.subscription_plan_product.map(
@@ -680,8 +602,7 @@ export class CancellationOrderService extends PrismaClient {
           description: planProduct.product.description,
           quantity: planProduct.product_quantity,
           is_returnable: planProduct.product.is_returnable,
-          unit_price: planProduct.product.price,
-        }),
+          unit_price: planProduct.product.price }),
       );
 
     return {
@@ -702,10 +623,8 @@ export class CancellationOrderService extends PrismaClient {
             route_sheet_id: order.route_sheet.route_sheet_id,
             delivery_date: order.route_sheet.delivery_date,
             driver_id: order.route_sheet.driver_id,
-            vehicle_id: order.route_sheet.vehicle_id,
-          }
-        : undefined,
-    };
+            vehicle_id: order.route_sheet.vehicle_id }
+        : undefined };
   }
 
   /**
@@ -728,18 +647,16 @@ export class CancellationOrderService extends PrismaClient {
             customer_id: order.customer_subscription.customer_id,
             subscription_plan_id:
               order.customer_subscription.subscription_plan_id,
-            status: order.customer_subscription.status,
-          }
+            status: order.customer_subscription.status }
         : undefined,
       route_sheet: order.route_sheet
         ? {
             route_sheet_id: order.route_sheet.route_sheet_id,
             delivery_date: order.route_sheet.delivery_date,
             driver_id: order.route_sheet.driver_id,
-            vehicle_id: order.route_sheet.vehicle_id,
-          }
-        : undefined,
-    };
+            vehicle_id: order.route_sheet.vehicle_id }
+        : undefined };
   }
 }
 import { parseYMD } from '../common/utils/date.utils';
+

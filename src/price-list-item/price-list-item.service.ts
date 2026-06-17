@@ -1,28 +1,26 @@
 import {
   Injectable,
-  OnModuleInit,
   InternalServerErrorException,
   NotFoundException,
   BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+  ConflictException } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   price_list_item as PriceListItemPrisma,
   product as ProductPrisma,
-  price_list as PriceListPrisma,
-} from '@prisma/client';
+  price_list as PriceListPrisma } from '@prisma/client';
 import {
   CreatePriceListItemDto,
   UpdatePriceListItemDto,
   PriceListItemResponseDto,
-  FilterPriceListItemDto,
-} from './dto';
+  FilterPriceListItemDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 interface PriceListItemWithRelations extends PriceListItemPrisma {
   product?: ProductPrisma;
@@ -30,17 +28,16 @@ interface PriceListItemWithRelations extends PriceListItemPrisma {
 }
 
 @Injectable()
-export class PriceListItemService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Ítem de Lista de Precios';
-
-  async onModuleInit() {
-    await this.$connect();
+export class PriceListItemService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Ítem de Lista de Precios';
 
   private async validatePriceListExists(priceListId: number): Promise<void> {
     const priceList = await this.price_list.findUnique({
-      where: { price_list_id: priceListId },
-    });
+      where: { price_list_id: priceListId } });
     if (!priceList)
       throw new BadRequestException(
         `La lista de precios con ID ${priceListId} no existe.`,
@@ -49,8 +46,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
   private async validateProductExists(productId: number): Promise<void> {
     const product = await this.product.findUnique({
-      where: { product_id: productId },
-    });
+      where: { product_id: productId } });
     if (!product)
       throw new BadRequestException(
         `El producto con ID ${productId} no existe.`,
@@ -68,11 +64,10 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
   ): Promise<void> {
     // Solo actualizar el precio del producto si es la lista general
     if (priceListId === BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID) {
-      const prismaClient = tx || this;
+      const prismaClient = tx || this.prisma;
       await prismaClient.product.update({
         where: { product_id: productId },
-        data: { price: newPrice },
-      });
+        data: { price: newPrice } });
     }
   }
 
@@ -86,8 +81,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
       price_list: item.price_list
         ? {
             price_list_id: item.price_list.price_list_id,
-            name: item.price_list.name,
-          }
+            name: item.price_list.name }
         : undefined,
       product_id: item.product_id,
       product: item.product
@@ -99,8 +93,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
             // code: item.product.code
           }
         : undefined,
-      unit_price: parseFloat(item.unit_price.toString()),
-    };
+      unit_price: parseFloat(item.unit_price.toString()) };
   }
 
   async create(
@@ -116,16 +109,13 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
         const dataToCreate: Prisma.price_list_itemUncheckedCreateInput = {
           price_list_id: createPriceListItemDto.price_list_id,
           product_id: createPriceListItemDto.product_id,
-          unit_price: unitPriceDecimal,
-        };
+          unit_price: unitPriceDecimal };
 
         const newItem = await tx.price_list_item.create({
           data: dataToCreate,
           include: {
             product: true,
-            price_list: true,
-          },
-        });
+            price_list: true } });
 
         // Actualizar el precio del producto individual si es la lista general
         await this.updateProductPriceIfGeneralList(
@@ -164,8 +154,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       price_list_id,
-      product_id,
-    } = filterDto;
+      product_id } = filterDto;
     try {
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
       const take = Math.max(1, limit);
@@ -175,8 +164,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
       const where: Prisma.price_list_itemWhereInput = {
         price_list: { is_active: true },
-        product: { is_active: true },
-      };
+        product: { is_active: true } };
       if (price_list_id) where.price_list_id = price_list_id;
       if (product_id) where.product_id = product_id;
 
@@ -186,8 +174,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
           include: { product: true, price_list: true },
           orderBy: orderByClause,
           skip,
-          take,
-        }),
+          take }),
         this.price_list_item.count({ where }),
       ]);
 
@@ -199,9 +186,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
           total: totalItems,
           page,
           limit,
-          totalPages: Math.ceil(totalItems / take),
-        },
-      };
+          totalPages: Math.ceil(totalItems / take) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -221,8 +206,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
-      product_id,
-    } = filterDto;
+      product_id } = filterDto;
     await this.validatePriceListExists(paramPriceListId);
     try {
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -233,8 +217,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
 
       const where: Prisma.price_list_itemWhereInput = {
         price_list_id: paramPriceListId,
-        product: { is_active: true },
-      };
+        product: { is_active: true } };
       if (product_id) where.product_id = product_id;
 
       const [items, totalItems] = await this.$transaction([
@@ -243,8 +226,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
           include: { product: true, price_list: true },
           orderBy: orderByClause,
           skip,
-          take,
-        }),
+          take }),
         this.price_list_item.count({ where }),
       ]);
 
@@ -256,9 +238,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
           total: totalItems,
           page,
           limit,
-          totalPages: Math.ceil(totalItems / take),
-        },
-      };
+          totalPages: Math.ceil(totalItems / take) } };
     } catch (error) {
       handlePrismaError(
         error,
@@ -275,9 +255,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
       where: { price_list_item_id: id },
       include: {
         product: true,
-        price_list: true,
-      },
-    });
+        price_list: true } });
     if (!item) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrado.`,
@@ -292,8 +270,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
   ): Promise<PriceListItemResponseDto> {
     const existingItem = await this.price_list_item
       .findUniqueOrThrow({
-        where: { price_list_item_id: id },
-      })
+        where: { price_list_item_id: id } })
       .catch(() => {
         throw new NotFoundException(
           `${this.entityName} con ID ${id} no encontrado para actualizar.`,
@@ -326,8 +303,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     if (!changesMade) {
       const currentItem = await this.price_list_item.findUniqueOrThrow({
         where: { price_list_item_id: id },
-        include: { product: true, price_list: true },
-      });
+        include: { product: true, price_list: true } });
       return this.toPriceListItemResponseDto(
         currentItem as PriceListItemWithRelations,
       );
@@ -340,9 +316,7 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
           data: dataToUpdate,
           include: {
             product: true,
-            price_list: true,
-          },
-        });
+            price_list: true } });
 
         // Actualizar el precio del producto individual si es la lista general y el precio cambió
         if (newUnitPrice) {
@@ -370,12 +344,10 @@ export class PriceListItemService extends PrismaClient implements OnModuleInit {
     await this.findOne(id);
     try {
       await this.price_list_item.delete({
-        where: { price_list_item_id: id },
-      });
+        where: { price_list_item_id: id } });
       return {
         message: `${this.entityName} eliminado correctamente.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(

@@ -1,31 +1,29 @@
 import {
   Injectable,
   NotFoundException,
-  InternalServerErrorException,
-  OnModuleInit,
-} from '@nestjs/common';
-import { PrismaClient, province } from '@prisma/client';
+  InternalServerErrorException } from '@nestjs/common';
+import { province } from '@prisma/client';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class ProvincesService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Provincia';
-
-  async onModuleInit() {
-    await this.$connect();
+export class ProvincesService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Provincia';
 
   async findAll(): Promise<province[]> {
     try {
       return await this.province.findMany({
         include: {
           country: true,
-          locality: true,
-        },
+          locality: true },
         orderBy: {
-          name: 'asc',
-        },
-      });
+          name: 'asc' } });
     } catch (error) {
       handlePrismaError(error, this.entityName + 's');
       throw new InternalServerErrorException(
@@ -40,9 +38,7 @@ export class ProvincesService extends PrismaClient implements OnModuleInit {
         where: { province_id: id },
         include: {
           country: true,
-          locality: true,
-        },
-      });
+          locality: true } });
 
       if (!record) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);

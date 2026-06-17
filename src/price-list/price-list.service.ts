@@ -1,26 +1,21 @@
 import {
   Injectable,
-  OnModuleInit,
   InternalServerErrorException,
   NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   price_list as PrismaPriceList,
   product as ProductPrisma,
   price_list_item as PriceListItemPrisma,
-  price_list_history as PriceListHistoryPrisma,
-} from '@prisma/client';
+  price_list_history as PriceListHistoryPrisma } from '@prisma/client';
 import {
   CreatePriceListDto,
   UpdatePriceListDto,
   ApplyPercentageWithReasonDto,
   PriceHistoryResponseDto,
   FilterPriceListDto,
-  UndoPriceUpdateDto,
-} from './dto';
+  UndoPriceUpdateDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
@@ -28,6 +23,9 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { formatBATimestampISO } from '../common/utils/date.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 type PriceListWithRelations = Prisma.price_listGetPayload<{
   include: {
@@ -64,12 +62,12 @@ interface PriceListHistoryWithProduct extends PriceListHistoryPrisma {
 }
 
 @Injectable()
-export class PriceListService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Lista de Precios';
-
-  async onModuleInit() {
-    await this.$connect();
+export class PriceListService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Lista de Precios';
 
   async create(
     createPriceListDto: CreatePriceListDto,
@@ -79,8 +77,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       if (createPriceListDto.is_default) {
         await this.price_list.updateMany({
           where: { is_default: true },
-          data: { is_default: false },
-        });
+          data: { is_default: false } });
       }
 
       const data: Prisma.price_listCreateInput = {
@@ -88,11 +85,9 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
         description: createPriceListDto.description,
         effective_date: new Date(createPriceListDto.effective_date),
         is_default: createPriceListDto.is_default ?? false,
-        active: createPriceListDto.active ?? true,
-      };
+        active: createPriceListDto.active ?? true };
       return await this.price_list.create({
-        data,
-      });
+        data });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -111,8 +106,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       search,
       name,
       active,
-      is_default,
-    } = filterDto;
+      is_default } = filterDto;
     try {
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
       const take = Math.max(1, limit);
@@ -150,14 +144,10 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           include: {
             price_list_item: {
               include: {
-                product: true,
-              },
-            },
-          },
+                product: true } } },
           orderBy: orderByClause,
           skip,
-          take,
-        }),
+          take }),
         this.price_list.count({ where }),
       ]);
 
@@ -167,9 +157,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           total: totalItems,
           page,
           limit,
-          totalPages: Math.ceil(totalItems / take),
-        },
-      };
+          totalPages: Math.ceil(totalItems / take) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -185,19 +173,14 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     const priceList = await this.price_list.findFirst({
       where: {
         price_list_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
+        ...(includeInactive ? {} : { is_active: true }) },
       include: {
         price_list_item: {
           include: {
-            product: true,
-          },
+            product: true },
           orderBy: {
             price_list_item_id: 'asc', // 🆕 CORRECCIÓN: Ordenar por price_list_item_id ascendente
-          },
-        },
-      },
-    });
+          } } } });
     if (!priceList) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada.`,
@@ -210,10 +193,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
         ...item,
         product: {
           ...item.product,
-          image_url: buildImageUrl(item.product.image_url, 'products'),
-        },
-      })),
-    };
+          image_url: buildImageUrl(item.product.image_url, 'products') } })) };
     return transformedPriceList;
   }
 
@@ -230,8 +210,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           is_default: true,
           price_list_id: { not: id }, // Excluir la actual
         },
-        data: { is_default: false },
-      });
+        data: { is_default: false } });
     }
 
     const data: Prisma.price_listUpdateInput = {};
@@ -247,14 +226,12 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
     if (Object.keys(data).length === 0) {
       return this.price_list.findUniqueOrThrow({
-        where: { price_list_id: id },
-      });
+        where: { price_list_id: id } });
     }
     try {
       return await this.price_list.update({
         where: { price_list_id: id },
-        data,
-      });
+        data });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -269,12 +246,10 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.price_list.update({
         where: { price_list_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
       return {
         message: `${this.entityName} desactivada correctamente`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -331,22 +306,18 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
               new_price: newPrice,
               change_percentage: new Decimal(percentage),
               change_reason: reason || `Cambio por ${percentage}%`,
-              created_by: createdBy,
-            },
-          });
+              created_by: createdBy } });
 
           // Actualizar precio en la lista
           await prisma.price_list_item.update({
             where: { price_list_item_id: item.price_list_item_id },
-            data: { unit_price: newPrice },
-          });
+            data: { unit_price: newPrice } });
 
           // Si es la lista general, actualizar también el precio del producto individual
           if (isGeneralPriceList) {
             await prisma.product.update({
               where: { product_id: item.product_id },
-              data: { price: newPrice },
-            });
+              data: { price: newPrice } });
           }
 
           updatedCount++;
@@ -359,8 +330,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
       return {
         updated_count: updatedCount,
-        message: message,
-      };
+        message: message };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
@@ -377,15 +347,13 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     const {
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
-      sortBy,
-    } = paginationDto;
+      sortBy } = paginationDto;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     const orderBy = parseSortByString(sortBy, [{ change_date: 'desc' }]);
     try {
       const item = await this.price_list_item.findUnique({
-        where: { price_list_item_id: priceListItemId },
-      });
+        where: { price_list_item_id: priceListItemId } });
       if (!item)
         throw new NotFoundException(
           `Ítem de lista de precios con ID ${priceListItemId} no encontrado.`,
@@ -398,8 +366,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           orderBy,
           skip,
           take,
-          include: { price_list_item: { include: { product: true } } },
-        }),
+          include: { price_list_item: { include: { product: true } } } }),
         this.price_list_history.count({ where: whereCondition }),
       ]);
       return {
@@ -410,9 +377,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           total: totalItems,
           page,
           limit,
-          totalPages: Math.ceil(totalItems / take),
-        },
-      };
+          totalPages: Math.ceil(totalItems / take) } };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, `historial del ítem ID ${priceListItemId}`);
@@ -429,8 +394,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
     const {
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
-      sortBy,
-    } = paginationDto;
+      sortBy } = paginationDto;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     const orderBy = parseSortByString(sortBy, [{ change_date: 'desc' }]);
@@ -438,8 +402,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       await this.findOne(priceListId); // Verifica existencia
       const itemsInList = await this.price_list_item.findMany({
         where: { price_list_id: priceListId },
-        select: { price_list_item_id: true },
-      });
+        select: { price_list_item_id: true } });
       if (itemsInList.length === 0)
         return {
           data: [],
@@ -447,9 +410,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             total: 0,
             page,
             limit,
-            totalPages: 0,
-          },
-        };
+            totalPages: 0 } };
       const itemIds = itemsInList.map((item) => item.price_list_item_id);
 
       const whereCondition = { price_list_item_id: { in: itemIds } };
@@ -459,8 +420,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           orderBy,
           skip,
           take,
-          include: { price_list_item: { include: { product: true } } },
-        }),
+          include: { price_list_item: { include: { product: true } } } }),
         this.price_list_history.count({ where: whereCondition }),
       ]);
       return {
@@ -471,9 +431,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
           total: totalItems,
           page,
           limit,
-          totalPages: Math.ceil(totalItems / take),
-        },
-      };
+          totalPages: Math.ceil(totalItems / take) } };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, `historial de la lista ID ${priceListId}`);
@@ -507,10 +465,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
             price_list_item: {
               include: {
                 product: true,
-                price_list: true,
-              },
-            },
-          },
+                price_list: true } } },
           orderBy: { change_date: 'desc' }, // Más recientes primero
         });
 
@@ -549,22 +504,18 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
               change_reason:
                 reason ||
                 `Reversión de cambio: ${historyRecord.change_reason || 'Sin razón especificada'}`,
-              created_by: created_by,
-            },
-          });
+              created_by: created_by } });
 
           // Actualizar precio en la lista
           await prisma.price_list_item.update({
             where: { price_list_item_id: priceListItem.price_list_item_id },
-            data: { unit_price: previousPrice },
-          });
+            data: { unit_price: previousPrice } });
 
           // Si es la lista general, actualizar también el precio del producto individual
           if (isGeneralPriceList(priceListItem.price_list_id)) {
             await prisma.product.update({
               where: { product_id: priceListItem.product_id },
-              data: { price: previousPrice },
-            });
+              data: { price: previousPrice } });
           }
 
           revertedCount++;
@@ -573,8 +524,7 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
 
       return {
         reverted_count: revertedCount,
-        message: `Se deshicieron ${revertedCount} cambios de precios exitosamente.`,
-      };
+        message: `Se deshicieron ${revertedCount} cambios de precios exitosamente.` };
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -601,7 +551,6 @@ export class PriceListService extends PrismaClient implements OnModuleInit {
       change_date: formatBATimestampISO(historyItem.change_date as any),
       change_percentage: historyItem.change_percentage?.toString(), // Convertir a string si existe
       change_reason: historyItem.change_reason || undefined,
-      created_by: historyItem.created_by || undefined,
-    };
+      created_by: historyItem.created_by || undefined };
   }
 }

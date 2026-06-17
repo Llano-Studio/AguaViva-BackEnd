@@ -1,13 +1,11 @@
 import {
   Injectable,
   NotFoundException,
-  OnModuleInit,
   InternalServerErrorException,
   ConflictException,
   BadRequestException,
-  Logger,
-} from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+  Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { OrderType, PersonType } from '../common/constants/enums';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
 import { UpdateOneOffPurchaseDto } from './dto/update-one-off-purchase.dto';
@@ -20,29 +18,27 @@ import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import {
   parseSortByString,
   mapOneOffSortFields,
-  mapOneOffHeaderSortFields,
-} from '../common/utils/query-parser.utils';
+  mapOneOffHeaderSortFields } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseBAYMD,
-} from '../common/utils/date.utils';
+  parseBAYMD } from '../common/utils/date.utils';
 
 @Injectable()
 export class OneOffPurchaseService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
-  constructor(private readonly inventoryService: InventoryService) {
-    super();
+  constructor(
+    prisma: PrismaService,
+    private readonly inventoryService: InventoryService) {
+    super(prisma);
   }
 
   private readonly logger = new Logger(OneOffPurchaseService.name);
-
-  async onModuleInit() {
-    await this.$connect();
-  }
 
   /**
    * Carga las transacciones de pago relacionadas con una orden one-off
@@ -62,15 +58,11 @@ export class OneOffPurchaseService
       where: {
         customer_id: customerId,
         document_number: documentNumberPattern,
-        is_active: true,
-      },
+        is_active: true },
       include: {
-        payment_method: true,
-      },
+        payment_method: true },
       orderBy: {
-        transaction_date: 'desc',
-      },
-    });
+        transaction_date: 'desc' } });
 
     this.logger.log(
       `✅ Encontrados ${payments.length} pagos para la orden ONE-OFF ${orderIdValue}`,
@@ -88,10 +80,8 @@ export class OneOffPurchaseService
           sale_channel: true,
           locality: true,
           zone: true,
-          price_list: true,
-        },
-        orderBy: { purchase_date: 'desc' },
-      });
+          price_list: true },
+        orderBy: { purchase_date: 'desc' } });
 
       return purchases.map((purchase) => ({
         purchase_id: purchase.purchase_id,
@@ -105,8 +95,7 @@ export class OneOffPurchaseService
           person_id: purchase.person.person_id,
           name: purchase.person.name || 'Nombre no disponible',
           phone: purchase.person.phone || '',
-          address: purchase.person.address || undefined,
-        },
+          address: purchase.person.address || undefined },
         products: [
           {
             product_id: purchase.product_id,
@@ -114,26 +103,21 @@ export class OneOffPurchaseService
             quantity: purchase.quantity,
             unit_price: purchase.total_amount.div(purchase.quantity).toString(),
             subtotal: purchase.total_amount.toString(),
-            price_list_id: purchase.price_list?.price_list_id || null,
-          },
+            price_list_id: purchase.price_list?.price_list_id || null },
         ],
         sale_channel: {
           sale_channel_id: purchase.sale_channel.sale_channel_id,
-          name: purchase.sale_channel.description || 'Canal no disponible',
-        },
+          name: purchase.sale_channel.description || 'Canal no disponible' },
         locality: purchase.locality
           ? {
               locality_id: purchase.locality.locality_id,
-              name: purchase.locality.name,
-            }
+              name: purchase.locality.name }
           : null,
         zone: purchase.zone
           ? {
               zone_id: purchase.zone.zone_id,
-              name: purchase.zone.name,
-            }
-          : null,
-      }));
+              name: purchase.zone.name }
+          : null }));
     } catch (error) {
       handlePrismaError(error, 'Compra de Única Vez');
       if (
@@ -167,8 +151,7 @@ export class OneOffPurchaseService
         // Tomar el primer item (limitación actual del sistema)
         const firstItem = createDto.items[0];
         const product = await prismaTx.product.findUniqueOrThrow({
-          where: { product_id: firstItem.product_id },
-        });
+          where: { product_id: firstItem.product_id } });
 
         // Determinar qué lista de precios usar
         const priceListId =
@@ -181,9 +164,7 @@ export class OneOffPurchaseService
         const priceItem = await prismaTx.price_list_item.findFirst({
           where: {
             price_list_id: priceListId,
-            product_id: firstItem.product_id,
-          },
-        });
+            product_id: firstItem.product_id } });
 
         if (priceItem) {
           itemPrice = new Decimal(priceItem.unit_price);
@@ -256,9 +237,7 @@ export class OneOffPurchaseService
             sale_channel: true,
             locality: true,
             zone: true,
-            price_list: true,
-          },
-        });
+            price_list: true } });
 
         // Crear movimiento de stock para productos no retornables
         if (!product.is_returnable) {
@@ -274,8 +253,7 @@ export class OneOffPurchaseService
             quantity: firstItem.quantity,
             source_warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
             movement_date: new Date(),
-            remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}`,
-          };
+            remarks: `Compra One-Off #${newPurchase.purchase_id} - ${product.description}` };
           await this.inventoryService.createStockMovement(
             stockMovement,
             prismaTx,
@@ -317,8 +295,7 @@ export class OneOffPurchaseService
         // Buscar o crear el cliente
 
         let person = await prismaTx.person.findFirst({
-          where: { phone: createDto.customer.phone },
-        });
+          where: { phone: createDto.customer.phone } });
 
         if (!person) {
           // Validar que se proporcionen los campos obligatorios para cliente nuevo
@@ -349,15 +326,10 @@ export class OneOffPurchaseService
               tax_id: createDto.customer.taxId,
               ...(createDto.customer.localityId && {
                 locality: {
-                  connect: { locality_id: createDto.customer.localityId },
-                },
-              }),
+                  connect: { locality_id: createDto.customer.localityId } } }),
               ...(createDto.customer.zoneId && {
-                zone: { connect: { zone_id: createDto.customer.zoneId } },
-              }),
-              type: (createDto.customer.type || 'INDIVIDUAL') as PersonType,
-            },
-          });
+                zone: { connect: { zone_id: createDto.customer.zoneId } } }),
+              type: (createDto.customer.type || 'INDIVIDUAL') as PersonType } });
         } else {
         }
 
@@ -367,8 +339,7 @@ export class OneOffPurchaseService
 
         for (const item of createDto.items) {
           const product = await prismaTx.product.findUnique({
-            where: { product_id: item.product_id },
-          });
+            where: { product_id: item.product_id } });
           if (!product) {
             throw new BadRequestException(
               `Producto con ID ${item.product_id} no encontrado. Verifique que el producto existe antes de crear la compra.`,
@@ -382,9 +353,7 @@ export class OneOffPurchaseService
           const priceItem = await prismaTx.price_list_item.findFirst({
             where: {
               price_list_id: itemPriceListId,
-              product_id: item.product_id,
-            },
-          });
+              product_id: item.product_id } });
 
           if (priceItem) {
             itemPrice = new Decimal(priceItem.unit_price);
@@ -410,8 +379,7 @@ export class OneOffPurchaseService
 
           // Verificar que existe la price_list
           const priceListExists = await prismaTx.price_list.findUnique({
-            where: { price_list_id: itemPriceListId },
-          });
+            where: { price_list_id: itemPriceListId } });
 
           if (!priceListExists) {
             throw new BadRequestException(
@@ -425,8 +393,7 @@ export class OneOffPurchaseService
             unit_price: itemPrice.toString(),
             subtotal: itemSubtotal.toString(),
             price_list_id: itemPriceListId,
-            notes: item.notes || null,
-          });
+            notes: item.notes || null });
         }
 
         // Determinar total_amount y paid_amount correctamente
@@ -517,10 +484,7 @@ export class OneOffPurchaseService
                   : null,
               purchase_items: {
                 createMany: {
-                  data: purchaseItems,
-                },
-              },
-            },
+                  data: purchaseItems } } },
             include: {
               person: true,
               sale_channel: true,
@@ -529,11 +493,7 @@ export class OneOffPurchaseService
               purchase_items: {
                 include: {
                   product: true,
-                  price_list: true,
-                },
-              },
-            },
-          },
+                  price_list: true } } } },
         );
 
         // Compra creada exitosamente
@@ -543,8 +503,7 @@ export class OneOffPurchaseService
           // Obtener información del producto para verificar si es retornable
           const product = await prismaTx.product.findUnique({
             where: { product_id: item.product_id },
-            select: { is_returnable: true, description: true },
-          });
+            select: { is_returnable: true, description: true } });
 
           // Solo crear movimiento de stock para productos NO retornables
           if (product && !product.is_returnable) {
@@ -561,8 +520,7 @@ export class OneOffPurchaseService
               source_warehouse_id:
                 BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               movement_date: new Date(),
-              remarks: `Compra One-Off Header #${newPurchaseHeader.purchase_header_id} - ${product.description} (NO retornable)`,
-            };
+              remarks: `Compra One-Off Header #${newPurchaseHeader.purchase_header_id} - ${product.description} (NO retornable)` };
             await this.inventoryService.createStockMovement(
               stockMovement,
               prismaTx,
@@ -581,8 +539,7 @@ export class OneOffPurchaseService
         message: error.message,
         code: error.code,
         meta: error.meta,
-        stack: error.stack,
-      });
+        stack: error.stack });
       handlePrismaError(error, 'Compra One-Off con Cliente');
       if (
         !(
@@ -619,8 +576,7 @@ export class OneOffPurchaseService
       // Aplicar paginación al resultado combinado
       const {
         page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
-        limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
-      } = filters;
+        limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT } = filters;
       const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
       const take = Math.max(1, limit);
       const paginatedData = allOrders.slice(skip, skip + take);
@@ -631,9 +587,7 @@ export class OneOffPurchaseService
           total: allOrders.length,
           page: Math.max(1, page),
           limit: take,
-          totalPages: Math.ceil(allOrders.length / take),
-        },
-      };
+          totalPages: Math.ceil(allOrders.length / take) } };
     } catch (error) {
       handlePrismaError(error, 'Compras One-Off');
       if (
@@ -673,8 +627,7 @@ export class OneOffPurchaseService
       statuses,
       requires_delivery,
       vehicleId,
-      vehicleIds,
-    } = filters;
+      vehicleIds } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
     const where: Prisma.one_off_purchaseWhereInput = {
@@ -696,10 +649,7 @@ export class OneOffPurchaseService
       where.route_sheet_detail = {
         some: {
           route_sheet: {
-            vehicle_id: vehicleFilter,
-          },
-        },
-      };
+            vehicle_id: vehicleFilter } } };
     }
 
     // Manejar filtrado por estados (múltiples o único)
@@ -726,8 +676,7 @@ export class OneOffPurchaseService
     if (productName) {
       productFilter.description = {
         contains: productName,
-        mode: 'insensitive',
-      };
+        mode: 'insensitive' };
     }
     if (Object.keys(productFilter).length > 0) {
       where.product = productFilter;
@@ -748,14 +697,10 @@ export class OneOffPurchaseService
         { person: { phone: { contains: search, mode: 'insensitive' } } },
         {
           person: {
-            secondary_phone: { contains: search, mode: 'insensitive' },
-          },
-        },
+            secondary_phone: { contains: search, mode: 'insensitive' } } },
         {
           person: {
-            additional_phones: { contains: search, mode: 'insensitive' },
-          },
-        },
+            additional_phones: { contains: search, mode: 'insensitive' } } },
       ];
       if (!isNaN(searchNum)) {
         orConditions.push({ purchase_id: searchNum });
@@ -869,12 +814,10 @@ export class OneOffPurchaseService
           sale_channel: true,
           locality: true,
           zone: true,
-          price_list: true,
-        },
+          price_list: true },
         orderBy,
         skip,
-        take,
-      });
+        take });
       // Agrupar compras por orden (person_id + fecha)
       const groupedPurchases = this.groupPurchasesByOrder(purchases);
 
@@ -891,8 +834,7 @@ export class OneOffPurchaseService
 
           const purchasesWithPayments = group.map((purchase) => ({
             ...purchase,
-            payment_transaction: payments,
-          }));
+            payment_transaction: payments }));
 
           return this.mapToConsolidatedOneOffPurchaseResponseDto(
             purchasesWithPayments,
@@ -906,9 +848,7 @@ export class OneOffPurchaseService
           total: groupedPurchases.size, // Total de órdenes consolidadas
           page,
           limit: take,
-          totalPages: Math.ceil(groupedPurchases.size / take),
-        },
-      };
+          totalPages: Math.ceil(groupedPurchases.size / take) } };
     } catch (error) {
       handlePrismaError(error, 'Compras One-Off');
       if (
@@ -943,8 +883,7 @@ export class OneOffPurchaseService
               zone: true,
               price_list: true,
               // Removed payment_transaction include - not available for one_off_purchase
-            },
-          })
+            } })
           .catch(() => null), // No lanzar error, solo retornar null
 
         // Buscar en estructura header
@@ -959,12 +898,9 @@ export class OneOffPurchaseService
               purchase_items: {
                 include: {
                   product: true,
-                  price_list: true,
-                },
-              },
+                  price_list: true } },
               // Las transacciones de pago se cargarán por separado basándose en customer_id y document_number
-            },
-          })
+            } })
           .catch(() => null), // No lanzar error, solo retornar null
       ]);
 
@@ -981,9 +917,7 @@ export class OneOffPurchaseService
             person_id: legacyPurchase.person_id,
             purchase_date: {
               gte: startOfDay,
-              lte: endOfDay,
-            },
-          },
+              lte: endOfDay } },
           include: {
             product: true,
             person: true,
@@ -993,8 +927,7 @@ export class OneOffPurchaseService
             price_list: true,
             // Removed payment_transaction include - not available for one_off_purchase
           },
-          orderBy: { purchase_id: 'asc' },
-        });
+          orderBy: { purchase_id: 'asc' } });
 
         // Cargar pagos para las compras relacionadas
         const payments = await this.loadPaymentTransactions(
@@ -1005,8 +938,7 @@ export class OneOffPurchaseService
 
         const purchasesWithPayments = relatedPurchases.map((purchase) => ({
           ...purchase,
-          payment_transaction: payments,
-        }));
+          payment_transaction: payments }));
 
         return this.mapToConsolidatedOneOffPurchaseResponseDto(
           purchasesWithPayments,
@@ -1052,8 +984,7 @@ export class OneOffPurchaseService
           prismaTx.one_off_purchase
             .findUnique({
               where: { purchase_id: id },
-              include: { product: true },
-            })
+              include: { product: true } })
             .catch(() => null),
 
           // Buscar en estructura header
@@ -1063,11 +994,7 @@ export class OneOffPurchaseService
               include: {
                 purchase_items: {
                   include: {
-                    product: true,
-                  },
-                },
-              },
-            })
+                    product: true } } } })
             .catch(() => null),
         ]);
 
@@ -1089,8 +1016,7 @@ export class OneOffPurchaseService
           let existingPerson = null;
           if (updateDto.customer.phone) {
             existingPerson = await prismaTx.person.findFirst({
-              where: { phone: updateDto.customer.phone },
-            });
+              where: { phone: updateDto.customer.phone } });
           }
 
           if (existingPerson) {
@@ -1099,23 +1025,17 @@ export class OneOffPurchaseService
               where: { person_id: existingPerson.person_id },
               data: {
                 ...(updateDto.customer.name && {
-                  name: updateDto.customer.name,
-                }),
+                  name: updateDto.customer.name }),
                 ...(updateDto.customer.alias && {
-                  alias: updateDto.customer.alias,
-                }),
+                  alias: updateDto.customer.alias }),
                 ...(updateDto.customer.address && {
-                  address: updateDto.customer.address,
-                }),
+                  address: updateDto.customer.address }),
                 ...(updateDto.customer.taxId && {
-                  tax_id: updateDto.customer.taxId,
-                }),
+                  tax_id: updateDto.customer.taxId }),
                 ...(updateDto.customer.type && {
-                  type: updateDto.customer.type as PersonType,
-                }),
+                  type: updateDto.customer.type as PersonType }),
                 ...(updateDto.customer.additionalPhones && {
-                  additional_phones: updateDto.customer.additionalPhones,
-                }),
+                  additional_phones: updateDto.customer.additionalPhones }),
                 ...(updateDto.customer.localityId !== undefined && {
                   locality:
                     updateDto.customer.localityId === null ||
@@ -1123,19 +1043,13 @@ export class OneOffPurchaseService
                       ? { disconnect: true }
                       : {
                           connect: {
-                            locality_id: updateDto.customer.localityId,
-                          },
-                        },
-                }),
+                            locality_id: updateDto.customer.localityId } } }),
                 ...(updateDto.customer.zoneId !== undefined && {
                   zone:
                     updateDto.customer.zoneId === null ||
                     updateDto.customer.zoneId === 0
                       ? { disconnect: true }
-                      : { connect: { zone_id: updateDto.customer.zoneId } },
-                }),
-              },
-            });
+                      : { connect: { zone_id: updateDto.customer.zoneId } } }) } });
             updatedPersonId = updatedPerson.person_id;
           } else if (updateDto.customer.phone && updateDto.customer.name) {
             // Crear nuevo cliente
@@ -1152,14 +1066,9 @@ export class OneOffPurchaseService
                 additional_phones: updateDto.customer.additionalPhones || '',
                 ...(updateDto.customer.localityId && {
                   locality: {
-                    connect: { locality_id: updateDto.customer.localityId },
-                  },
-                }),
+                    connect: { locality_id: updateDto.customer.localityId } } }),
                 ...(updateDto.customer.zoneId && {
-                  zone: { connect: { zone_id: updateDto.customer.zoneId } },
-                }),
-              },
-            });
+                  zone: { connect: { zone_id: updateDto.customer.zoneId } } }) } });
             updatedPersonId = newPerson.person_id;
           }
         }
@@ -1196,8 +1105,7 @@ export class OneOffPurchaseService
         ) {
           const firstItem = updateDto.items[0];
           legacyProductForUpdate = await prismaTx.product.findUniqueOrThrow({
-            where: { product_id: firstItem.product_id },
-          });
+            where: { product_id: firstItem.product_id } });
           newLegacyQuantity = firstItem.quantity;
           legacyQuantityChange = newLegacyQuantity - currentLegacyQuantity;
           legacyPriceListId =
@@ -1209,9 +1117,7 @@ export class OneOffPurchaseService
           const priceItem = await prismaTx.price_list_item.findFirst({
             where: {
               price_list_id: legacyPriceListId,
-              product_id: legacyProductForUpdate.product_id,
-            },
-          });
+              product_id: legacyProductForUpdate.product_id } });
           if (priceItem) {
             itemPrice = new Decimal(priceItem.unit_price);
           }
@@ -1250,12 +1156,10 @@ export class OneOffPurchaseService
 
           for (const itemDto of updateDto.items) {
             const product = await prismaTx.product.findUniqueOrThrow({
-              where: { product_id: itemDto.product_id },
-            });
+              where: { product_id: itemDto.product_id } });
             productInfoById.set(product.product_id, {
               description: product.description,
-              is_returnable: product.is_returnable,
-            });
+              is_returnable: product.is_returnable });
 
             const itemPriceListId =
               itemDto.price_list_id ||
@@ -1264,9 +1168,7 @@ export class OneOffPurchaseService
             const priceItem = await prismaTx.price_list_item.findFirst({
               where: {
                 price_list_id: itemPriceListId,
-                product_id: product.product_id,
-              },
-            });
+                product_id: product.product_id } });
             if (priceItem) {
               unitPrice = new Decimal(priceItem.unit_price);
             }
@@ -1285,8 +1187,7 @@ export class OneOffPurchaseService
               quantity: itemDto.quantity,
               unit_price: unitPrice.toString(),
               subtotal: subtotal.toString(),
-              price_list_id: itemPriceListId,
-            });
+              price_list_id: itemPriceListId });
           }
 
           const allProductIds = new Set<number>([
@@ -1311,8 +1212,7 @@ export class OneOffPurchaseService
                 is_returnable:
                   headerPurchase.purchase_items.find(
                     (item) => item.product_id === productId,
-                  )?.product.is_returnable || false,
-              } as { description: string; is_returnable: boolean });
+                  )?.product.is_returnable || false } as { description: string; is_returnable: boolean });
 
             if (!productInfo.is_returnable && quantityChange > 0) {
               const stockDisponible =
@@ -1332,8 +1232,7 @@ export class OneOffPurchaseService
               stockAdjustments.push({
                 product_id: productId,
                 description: productInfo.description,
-                quantityChange,
-              });
+                quantityChange });
             }
           }
 
@@ -1366,39 +1265,29 @@ export class OneOffPurchaseService
         const dataToUpdate: Prisma.one_off_purchaseUpdateInput = {
           ...(legacyProductForUpdate && {
             product: {
-              connect: { product_id: legacyProductForUpdate.product_id },
-            },
-          }),
+              connect: { product_id: legacyProductForUpdate.product_id } } }),
           quantity: newLegacyQuantity,
           ...(legacyPriceListId && {
-            price_list: { connect: { price_list_id: legacyPriceListId } },
-          }),
+            price_list: { connect: { price_list_id: legacyPriceListId } } }),
           ...(updatedPersonId !== existingPurchase.person_id && {
-            person: { connect: { person_id: updatedPersonId } },
-          }),
+            person: { connect: { person_id: updatedPersonId } } }),
           ...(updateDto.requires_delivery !== undefined && {
-            requires_delivery: updateDto.requires_delivery,
-          }),
+            requires_delivery: updateDto.requires_delivery }),
           ...(updateDto.delivery_address !== undefined && {
-            delivery_address: updateDto.delivery_address,
-          }),
+            delivery_address: updateDto.delivery_address }),
           ...(updateDto.sale_channel_id && {
             sale_channel: {
-              connect: { sale_channel_id: updateDto.sale_channel_id },
-            },
-          }),
+              connect: { sale_channel_id: updateDto.sale_channel_id } } }),
           ...(updateDto.locality_id !== undefined && {
             locality:
               updateDto.locality_id === null || updateDto.locality_id === 0
                 ? { disconnect: true }
-                : { connect: { locality_id: updateDto.locality_id } },
-          }),
+                : { connect: { locality_id: updateDto.locality_id } } }),
           ...(updateDto.zone_id !== undefined && {
             zone:
               updateDto.zone_id === null || updateDto.zone_id === 0
                 ? { disconnect: true }
-                : { connect: { zone_id: updateDto.zone_id } },
-          }),
+                : { connect: { zone_id: updateDto.zone_id } } }),
           purchase_date: updateDto.purchase_date
             ? /^\d{4}-\d{2}-\d{2}$/.test(updateDto.purchase_date.trim())
               ? parseBAYMD(updateDto.purchase_date.trim())
@@ -1413,28 +1302,22 @@ export class OneOffPurchaseService
                   )
                   ? parseBAYMD(updateDto.scheduled_delivery_date.trim())
                   : new Date(updateDto.scheduled_delivery_date)
-                : null,
-          }),
+                : null }),
           ...(shouldClearDeliveryWindow &&
             updateDto.scheduled_delivery_date === undefined && {
-              scheduled_delivery_date: null,
-            }),
+              scheduled_delivery_date: null }),
           ...(updateDto.delivery_time !== undefined && {
-            delivery_time: updateDto.delivery_time,
-          }),
+            delivery_time: updateDto.delivery_time }),
           ...(shouldClearDeliveryWindow &&
             updateDto.delivery_time === undefined && {
-              delivery_time: null,
-            }),
+              delivery_time: null }),
           ...(updateDto.paid_amount !== undefined && {
             paid_amount: updateDto.paid_amount
               ? new Decimal(updateDto.paid_amount)
-              : new Decimal(0),
-          }),
+              : new Decimal(0) }),
           ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
           ...(normalizedStatus !== undefined && { status: normalizedStatus }),
-          total_amount: newTotalAmount,
-        };
+          total_amount: newTotalAmount };
 
         // Filtrar undefined para no sobreescribir con null innecesariamente
         Object.keys(dataToUpdate).forEach(
@@ -1456,41 +1339,32 @@ export class OneOffPurchaseService
               sale_channel: true,
               locality: true,
               zone: true,
-              price_list: true,
-            },
-          });
+              price_list: true } });
         } else if (isHeaderStructure) {
           // Para estructura header, necesitamos actualizar tanto el header como los items
           // Primero actualizar el header
           const headerDataToUpdate: Prisma.one_off_purchase_headerUpdateInput =
             {
               ...(updatedPersonId !== headerPurchase.person_id && {
-                person: { connect: { person_id: updatedPersonId } },
-              }),
+                person: { connect: { person_id: updatedPersonId } } }),
               ...(updateDto.delivery_address !== undefined && {
-                delivery_address: updateDto.delivery_address,
-              }),
+                delivery_address: updateDto.delivery_address }),
               ...(shouldClearDeliveryWindow &&
                 updateDto.delivery_address === undefined && {
-                  delivery_address: null,
-                }),
+                  delivery_address: null }),
               ...(updateDto.sale_channel_id && {
                 sale_channel: {
-                  connect: { sale_channel_id: updateDto.sale_channel_id },
-                },
-              }),
+                  connect: { sale_channel_id: updateDto.sale_channel_id } } }),
               ...(updateDto.locality_id !== undefined && {
                 locality:
                   updateDto.locality_id === null || updateDto.locality_id === 0
                     ? { disconnect: true }
-                    : { connect: { locality_id: updateDto.locality_id } },
-              }),
+                    : { connect: { locality_id: updateDto.locality_id } } }),
               ...(updateDto.zone_id !== undefined && {
                 zone:
                   updateDto.zone_id === null || updateDto.zone_id === 0
                     ? { disconnect: true }
-                    : { connect: { zone_id: updateDto.zone_id } },
-              }),
+                    : { connect: { zone_id: updateDto.zone_id } } }),
               purchase_date: updateDto.purchase_date
                 ? /^\d{4}-\d{2}-\d{2}$/.test(updateDto.purchase_date.trim())
                   ? parseBAYMD(updateDto.purchase_date.trim())
@@ -1505,40 +1379,31 @@ export class OneOffPurchaseService
                       )
                       ? parseBAYMD(updateDto.scheduled_delivery_date.trim())
                       : new Date(updateDto.scheduled_delivery_date)
-                    : null,
-              }),
+                    : null }),
               ...(shouldClearDeliveryWindow &&
                 updateDto.scheduled_delivery_date === undefined && {
-                  scheduled_delivery_date: null,
-                }),
+                  scheduled_delivery_date: null }),
               ...(updateDto.delivery_time !== undefined && {
-                delivery_time: updateDto.delivery_time,
-              }),
+                delivery_time: updateDto.delivery_time }),
               ...(shouldClearDeliveryWindow &&
                 updateDto.delivery_time === undefined && {
-                  delivery_time: null,
-                }),
+                  delivery_time: null }),
               ...(updateDto.paid_amount !== undefined && {
                 paid_amount: updateDto.paid_amount
                   ? new Decimal(updateDto.paid_amount)
-                  : new Decimal(0),
-              }),
+                  : new Decimal(0) }),
               ...(updateDto.notes !== undefined && { notes: updateDto.notes }),
               ...(normalizedStatus !== undefined && {
-                status: normalizedStatus,
-              }),
-              total_amount: newTotalAmount,
-            };
+                status: normalizedStatus }),
+              total_amount: newTotalAmount };
 
           await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
-            data: headerDataToUpdate,
-          });
+            data: headerDataToUpdate });
 
           if (updateDto.items && updateDto.items.length > 0) {
             await prismaTx.one_off_purchase_item.deleteMany({
-              where: { purchase_header_id: id },
-            });
+              where: { purchase_header_id: id } });
             await prismaTx.one_off_purchase_item.createMany({
               data: headerItemsForCreate.map((item) => ({
                 purchase_header_id: id,
@@ -1546,9 +1411,7 @@ export class OneOffPurchaseService
                 quantity: item.quantity,
                 unit_price: item.unit_price,
                 subtotal: item.subtotal,
-                price_list_id: item.price_list_id,
-              })),
-            });
+                price_list_id: item.price_list_id })) });
           }
 
           updatedPurchase =
@@ -1558,15 +1421,11 @@ export class OneOffPurchaseService
                 purchase_items: {
                   include: {
                     product: true,
-                    price_list: true,
-                  },
-                },
+                    price_list: true } },
                 person: true,
                 sale_channel: true,
                 locality: true,
-                zone: true,
-              },
-            });
+                zone: true } });
         }
 
         // Crear movimientos de stock para estructura legacy
@@ -1594,15 +1453,12 @@ export class OneOffPurchaseService
             ...(legacyQuantityChange > 0
               ? {
                   source_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                }
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID }
               : {
                   destination_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                }),
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID }),
             movement_date: new Date(),
-            remarks: `Compra One-Off #${id} ACTUALIZADA - ${legacyProductForUpdate.description} (${legacyQuantityChange > 0 ? 'Venta' : 'Devolución'})`,
-          };
+            remarks: `Compra One-Off #${id} ACTUALIZADA - ${legacyProductForUpdate.description} (${legacyQuantityChange > 0 ? 'Venta' : 'Devolución'})` };
           await this.inventoryService.createStockMovement(
             stockMovement,
             prismaTx,
@@ -1633,15 +1489,12 @@ export class OneOffPurchaseService
             ...(stockAdjustment.quantityChange > 0
               ? {
                   source_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                }
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID }
               : {
                   destination_warehouse_id:
-                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-                }),
+                    BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID }),
             movement_date: new Date(),
-            remarks: `Compra One-Off #${id} ACTUALIZADA - ${stockAdjustment.description} (${stockAdjustment.quantityChange > 0 ? 'Venta' : 'Devolución'})`,
-          };
+            remarks: `Compra One-Off #${id} ACTUALIZADA - ${stockAdjustment.description} (${stockAdjustment.quantityChange > 0 ? 'Venta' : 'Devolución'})` };
 
           await this.inventoryService.createStockMovement(
             stockMovement,
@@ -1686,8 +1539,7 @@ export class OneOffPurchaseService
         this.one_off_purchase
           .findUnique({
             where: { purchase_id: id },
-            include: { product: true },
-          })
+            include: { product: true } })
           .catch(() => null),
 
         // Buscar en estructura header
@@ -1696,10 +1548,7 @@ export class OneOffPurchaseService
             where: { purchase_header_id: id },
             include: {
               purchase_items: {
-                include: { product: true },
-              },
-            },
-          })
+                include: { product: true } } } })
           .catch(() => null),
       ]);
 
@@ -1718,17 +1567,12 @@ export class OneOffPurchaseService
           OR: [
             { one_off_purchase_id: id }, // Estructura legacy
             { one_off_purchase_header_id: id }, // Estructura header
-          ],
-        },
+          ] },
         include: {
           route_sheet: {
             include: {
               driver: { select: { name: true } },
-              vehicle: { select: { name: true } },
-            },
-          },
-        },
-      });
+              vehicle: { select: { name: true } } } } } });
 
       if (routeSheetReferences.length > 0) {
         // Construir un mensaje más informativo con detalles de las hojas de ruta
@@ -1759,8 +1603,7 @@ export class OneOffPurchaseService
               {
                 product_id: legacyPurchase.product_id,
                 quantity: legacyPurchase.quantity,
-                product: legacyPurchase.product,
-              },
+                product: legacyPurchase.product },
             ],
             `Compra One-Off Legacy #${id}`,
             prismaTx,
@@ -1769,15 +1612,13 @@ export class OneOffPurchaseService
           // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
           await prismaTx.one_off_purchase.update({
             where: { purchase_id: id },
-            data: { is_active: false },
-          });
+            data: { is_active: false } });
         } else if (headerPurchase) {
           // Renovar stock para estructura header (múltiples items)
           const items = headerPurchase.purchase_items.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,
-            product: item.product,
-          }));
+            product: item.product }));
 
           await this.renewStockForNonReturnableProducts(
             items,
@@ -1788,16 +1629,14 @@ export class OneOffPurchaseService
           // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
           await prismaTx.one_off_purchase_header.update({
             where: { purchase_header_id: id },
-            data: { is_active: false },
-          });
+            data: { is_active: false } });
         }
       });
 
       const structureType = legacyPurchase ? 'legacy' : 'header';
       return {
         message: `Compra One-Off con ID ${id} (estructura ${structureType}) desactivada exitosamente. El stock de productos no retornables ha sido renovado.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, 'Compra One-Off');
       if (
@@ -1843,8 +1682,7 @@ export class OneOffPurchaseService
             destination_warehouse_id:
               BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
             movement_date: new Date(),
-            remarks: `${purchaseReference} CANCELADA - Devolución producto no retornable ${item.product.description} (ID ${item.product_id})`,
-          },
+            remarks: `${purchaseReference} CANCELADA - Devolución producto no retornable ${item.product.description} (ID ${item.product_id})` },
           prismaTx,
         );
       }
@@ -1915,8 +1753,7 @@ export class OneOffPurchaseService
           'No especificado',
         transaction_reference:
           payment.receipt_number || payment.reference || undefined,
-        notes: payment.notes || undefined,
-      })),
+        notes: payment.notes || undefined })),
     );
 
     // Consolidar todos los productos
@@ -1930,8 +1767,7 @@ export class OneOffPurchaseService
         quantity: purchase.quantity,
         unit_price: unitPrice.toString(),
         subtotal: subtotal.toString(),
-        price_list_id: purchase.price_list?.price_list_id || null,
-      };
+        price_list_id: purchase.price_list?.price_list_id || null };
     });
 
     return {
@@ -1958,29 +1794,24 @@ export class OneOffPurchaseService
         person_id: basePurchase.person.person_id,
         name: basePurchase.person.name || 'Nombre no disponible',
         phone: basePurchase.person.phone || '',
-        address: basePurchase.person.address || undefined,
-      },
+        address: basePurchase.person.address || undefined },
       products: products,
       sale_channel: {
         sale_channel_id: basePurchase.sale_channel.sale_channel_id,
-        name: basePurchase.sale_channel.description || 'Canal no disponible',
-      },
+        name: basePurchase.sale_channel.description || 'Canal no disponible' },
       locality:
         basePurchase.requires_delivery && basePurchase.locality
           ? {
               locality_id: basePurchase.locality.locality_id,
-              name: basePurchase.locality.name,
-            }
+              name: basePurchase.locality.name }
           : undefined,
       zone:
         basePurchase.requires_delivery && basePurchase.zone
           ? {
               zone_id: basePurchase.zone.zone_id,
-              name: basePurchase.zone.name,
-            }
+              name: basePurchase.zone.name }
           : undefined,
-      order_type: OrderType.ONE_OFF,
-    };
+      order_type: OrderType.ONE_OFF };
   }
 
   /**
@@ -2061,8 +1892,7 @@ export class OneOffPurchaseService
         payment.transaction_reference ||
         payment.reference ||
         undefined,
-      notes: payment.notes || undefined,
-    }));
+      notes: payment.notes || undefined }));
 
     return {
       purchase_id: purchase.purchase_id,
@@ -2091,8 +1921,7 @@ export class OneOffPurchaseService
         person_id: purchase.person.person_id,
         name: purchase.person.name || 'Nombre no disponible',
         phone: purchase.person.phone || '',
-        address: purchase.person.address || undefined,
-      },
+        address: purchase.person.address || undefined },
       products: [
         {
           product_id: purchase.product.product_id,
@@ -2100,28 +1929,23 @@ export class OneOffPurchaseService
           quantity: purchase.quantity,
           unit_price: purchase.total_amount.div(purchase.quantity).toString(),
           subtotal: purchase.total_amount.toString(),
-          price_list_id: purchase.price_list?.price_list_id || null,
-        },
+          price_list_id: purchase.price_list?.price_list_id || null },
       ],
       sale_channel: {
         sale_channel_id: purchase.sale_channel.sale_channel_id,
-        name: purchase.sale_channel.description || 'Canal no disponible',
-      },
+        name: purchase.sale_channel.description || 'Canal no disponible' },
       locality:
         purchase.requires_delivery && purchase.locality
           ? {
               locality_id: purchase.locality.locality_id,
-              name: purchase.locality.name,
-            }
+              name: purchase.locality.name }
           : undefined,
       zone:
         purchase.requires_delivery && purchase.zone
           ? {
               zone_id: purchase.zone.zone_id,
-              name: purchase.zone.name,
-            }
-          : undefined,
-    };
+              name: purchase.zone.name }
+          : undefined };
   }
 
   private async mapToHeaderItemsOneOffPurchaseResponseDto(
@@ -2167,8 +1991,7 @@ export class OneOffPurchaseService
           payment.receipt_number ||
           payment.reference ||
           undefined,
-        notes: payment.notes || undefined,
-      }));
+        notes: payment.notes || undefined }));
     } else {
       // Cargar pagos manualmente si no están incluidos en la query
       try {
@@ -2194,8 +2017,7 @@ export class OneOffPurchaseService
             'No especificado',
           transaction_reference:
             payment.receipt_number || payment.reference || undefined,
-          notes: payment.notes || undefined,
-        }));
+          notes: payment.notes || undefined }));
       } catch (error) {
         this.logger.error(
           `Error cargando pagos para header ${purchaseHeader.purchase_header_id}:`,
@@ -2232,40 +2054,34 @@ export class OneOffPurchaseService
         person_id: purchaseHeader.person.person_id,
         name: purchaseHeader.person.name || 'Nombre no disponible',
         phone: purchaseHeader.person.phone || '',
-        address: purchaseHeader.person.address || undefined,
-      },
+        address: purchaseHeader.person.address || undefined },
       products: purchaseHeader.purchase_items.map((item: any) => ({
         product_id: item.product.product_id,
         description: item.product.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.subtotal,
-        price_list_id: item.price_list?.price_list_id || null,
-      })),
+        price_list_id: item.price_list?.price_list_id || null })),
       sale_channel: {
         sale_channel_id: purchaseHeader.sale_channel.sale_channel_id,
-        name: purchaseHeader.sale_channel.description || 'Canal no disponible',
-      },
+        name: purchaseHeader.sale_channel.description || 'Canal no disponible' },
       locality: purchaseHeader.locality
         ? {
             locality_id: purchaseHeader.locality.locality_id,
-            name: purchaseHeader.locality.name,
-          }
+            name: purchaseHeader.locality.name }
         : undefined,
       zone: purchaseHeader.zone
         ? {
             zone_id: purchaseHeader.zone.zone_id,
-            name: purchaseHeader.zone.name,
-          }
-        : undefined,
-    };
+            name: purchaseHeader.zone.name }
+        : undefined };
   }
 
   private async validateOneOffPurchaseData(
     dto: CreateOneOffPurchaseDto | UpdateOneOffPurchaseDto,
     tx?: Prisma.TransactionClient,
   ) {
-    const prisma = tx || this;
+    const prisma = tx || this.prisma;
 
     // Para actualizaciones, permitir validaciones parciales
     const isUpdate =
@@ -2288,8 +2104,7 @@ export class OneOffPurchaseService
     if (dto.items && dto.items.length > 0) {
       for (const item of dto.items) {
         const product = await prisma.product.findUnique({
-          where: { product_id: item.product_id },
-        });
+          where: { product_id: item.product_id } });
         if (!product)
           throw new NotFoundException(
             `Producto con ID ${item.product_id} no encontrado.`,
@@ -2300,8 +2115,7 @@ export class OneOffPurchaseService
     // Validar canal de venta (solo si se especifica)
     if (dto.sale_channel_id) {
       const saleChannel = await prisma.sale_channel.findUnique({
-        where: { sale_channel_id: dto.sale_channel_id },
-      });
+        where: { sale_channel_id: dto.sale_channel_id } });
       if (!saleChannel)
         throw new NotFoundException(
           `Canal de venta con ID ${dto.sale_channel_id} no encontrado.`,
@@ -2311,8 +2125,7 @@ export class OneOffPurchaseService
     // Validar localidad si se especifica
     if (dto.locality_id) {
       const locality = await prisma.locality.findUnique({
-        where: { locality_id: dto.locality_id },
-      });
+        where: { locality_id: dto.locality_id } });
       if (!locality)
         throw new NotFoundException(
           `Localidad con ID ${dto.locality_id} no encontrada.`,
@@ -2322,8 +2135,7 @@ export class OneOffPurchaseService
     // Validar zona si se especifica
     if (dto.zone_id) {
       const zone = await prisma.zone.findUnique({
-        where: { zone_id: dto.zone_id },
-      });
+        where: { zone_id: dto.zone_id } });
       if (!zone)
         throw new NotFoundException(
           `Zona con ID ${dto.zone_id} no encontrada.`,
@@ -2351,8 +2163,7 @@ export class OneOffPurchaseService
         statuses,
         requires_delivery,
         vehicleId,
-        vehicleIds,
-      } = filters;
+        vehicleIds } = filters;
 
       const where: Prisma.one_off_purchase_headerWhereInput = {
         is_active: true, // Solo mostrar compras activas
@@ -2372,10 +2183,7 @@ export class OneOffPurchaseService
         where.route_sheet_detail = {
           some: {
             route_sheet: {
-              vehicle_id: vehicleFilter,
-            },
-          },
-        };
+              vehicle_id: vehicleFilter } } };
       }
 
       // Manejar filtrado por estados (múltiples o único)
@@ -2408,14 +2216,10 @@ export class OneOffPurchaseService
           { person: { phone: { contains: search, mode: 'insensitive' } } },
           {
             person: {
-              secondary_phone: { contains: search, mode: 'insensitive' },
-            },
-          },
+              secondary_phone: { contains: search, mode: 'insensitive' } } },
           {
             person: {
-              additional_phones: { contains: search, mode: 'insensitive' },
-            },
-          },
+              additional_phones: { contains: search, mode: 'insensitive' } } },
           { notes: { contains: search, mode: 'insensitive' } },
         ];
 
@@ -2435,13 +2239,11 @@ export class OneOffPurchaseService
             AND: [
               { delivery_address: { not: null } },
               { delivery_address: { not: '' } },
-            ],
-          };
+            ] };
         } else {
           // Si no requiere entrega, delivery_address debe ser null o vacío
           deliveryConditions = {
-            OR: [{ delivery_address: null }, { delivery_address: '' }],
-          };
+            OR: [{ delivery_address: null }, { delivery_address: '' }] };
         }
       }
 
@@ -2526,12 +2328,8 @@ export class OneOffPurchaseService
           purchase_items: {
             include: {
               product: true,
-              price_list: true,
-            },
-          },
-        },
-        orderBy,
-      });
+              price_list: true } } },
+        orderBy });
 
       // Convertir header/items al formato esperado con pagos cargados
       const convertedOrders = await Promise.all(
@@ -2545,8 +2343,7 @@ export class OneOffPurchaseService
 
           const headerWithPayments = {
             ...header,
-            payment_transaction: payments,
-          };
+            payment_transaction: payments };
 
           return this.mapToHeaderItemsOneOffPurchaseResponseDto(
             headerWithPayments,
@@ -2560,9 +2357,7 @@ export class OneOffPurchaseService
           total: convertedOrders.length,
           page,
           limit,
-          totalPages: Math.ceil(convertedOrders.length / limit),
-        },
-      };
+          totalPages: Math.ceil(convertedOrders.length / limit) } };
     } catch (error) {
       handlePrismaError(error, 'Compras One-Off Header');
       if (

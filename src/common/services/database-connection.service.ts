@@ -1,13 +1,14 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import { PrismaClientInitializationError } from '@prisma/client/runtime/library';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class DatabaseConnectionService implements OnModuleInit {
   private readonly logger = new Logger(DatabaseConnectionService.name);
-  private readonly prisma = new PrismaClient();
   private readonly MAX_RETRIES = 5;
   private readonly RETRY_DELAY_MS = 5000; // 5 segundos
+
+  constructor(private readonly prisma: PrismaService) {}
 
   async onModuleInit() {
     await this.connectWithRetry(1);

@@ -1,17 +1,21 @@
 import {
   Injectable,
   NotFoundException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+  InternalServerErrorException } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import {
   CreateRouteOptimizationDto,
   RouteOptimizationResponseDto,
-  WaypointDto,
-} from '../../route-sheet/dto/route-optimization.dto';
+  WaypointDto } from '../../route-sheet/dto/route-optimization.dto';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
-export class RouteOptimizationService extends PrismaClient {
+export class RouteOptimizationService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
   /**
    * Optimiza una ruta calculando el orden óptimo de entrega
    */
@@ -29,23 +33,13 @@ export class RouteOptimizationService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                },
-              },
+                  customer: true } },
               one_off_purchase: {
                 include: {
-                  person: true,
-                },
-              },
+                  person: true } },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  person: true } } } } } });
 
       if (!routeSheet) {
         throw new NotFoundException(
@@ -64,8 +58,7 @@ export class RouteOptimizationService extends PrismaClient {
         waypoints.push({
           lat: -34.603722, // Estos valores serían la ubicación de la empresa
           lng: -58.381592,
-          address: 'Depósito Central',
-        });
+          address: 'Depósito Central' });
       }
 
       // Agregar los puntos de entrega
@@ -97,8 +90,7 @@ export class RouteOptimizationService extends PrismaClient {
           lat: detail.lat ? Number(detail.lat) : randomLat,
           lng: detail.lng ? Number(detail.lng) : randomLng,
           route_sheet_detail_id: detail.route_sheet_detail_id,
-          address: customerAddress,
-        });
+          address: customerAddress });
       }
 
       // Agregar punto final si se proporciona (o usar el mismo que el inicio)
@@ -111,8 +103,7 @@ export class RouteOptimizationService extends PrismaClient {
         waypoints.push({
           lat: -34.603722,
           lng: -58.381592,
-          address: 'Depósito Central',
-        });
+          address: 'Depósito Central' });
       }
 
       // 3. En un sistema real, aquí llamaríamos a un servicio externo de optimización de rutas
@@ -139,9 +130,7 @@ export class RouteOptimizationService extends PrismaClient {
           estimated_duration: estimatedDuration,
           estimated_distance: estimatedDistance,
           optimization_status: 'COMPLETED',
-          waypoints: optimizedWaypoints as any,
-        },
-      });
+          waypoints: optimizedWaypoints as any } });
 
       // 6. Actualizar los detalles de la hoja de ruta con el orden optimizado
       await this.updateRouteSheetDetailsWithOptimizedSequence(
@@ -156,8 +145,7 @@ export class RouteOptimizationService extends PrismaClient {
         estimated_distance: Number(optimization.estimated_distance),
         optimization_status: optimization.optimization_status,
         waypoints: optimizedWaypoints,
-        created_at: formatBATimestampISO(optimization.created_at),
-      });
+        created_at: formatBATimestampISO(optimization.created_at) });
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -175,8 +163,7 @@ export class RouteOptimizationService extends PrismaClient {
   ): Promise<RouteOptimizationResponseDto> {
     const optimization = await this.route_optimization.findFirst({
       where: { route_sheet_id },
-      orderBy: { created_at: 'desc' },
-    });
+      orderBy: { created_at: 'desc' } });
 
     if (!optimization) {
       throw new NotFoundException(
@@ -191,8 +178,7 @@ export class RouteOptimizationService extends PrismaClient {
       estimated_distance: Number(optimization.estimated_distance),
       optimization_status: optimization.optimization_status,
       waypoints: this.parseWaypoints(optimization.waypoints),
-      created_at: formatBATimestampISO(optimization.created_at),
-    });
+      created_at: formatBATimestampISO(optimization.created_at) });
   }
 
   private parseWaypoints(value: unknown): WaypointDto[] {
@@ -230,8 +216,7 @@ export class RouteOptimizationService extends PrismaClient {
             lng: wp.lng as any,
             // Aquí calcularíamos el tiempo estimado de llegada basado en la hora de inicio
             // y la duración acumulada hasta este punto
-          },
-        });
+          } });
       }
     }
   }
@@ -349,3 +334,4 @@ export class RouteOptimizationService extends PrismaClient {
   }
 }
 import { formatBATimestampISO } from '../utils/date.utils';
+

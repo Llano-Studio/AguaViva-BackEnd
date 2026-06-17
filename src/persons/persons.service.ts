@@ -2,13 +2,10 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-  OnModuleInit,
   ConflictException,
   InternalServerErrorException,
-  ForbiddenException,
-} from '@nestjs/common';
+  ForbiddenException } from '@nestjs/common';
 import {
-  PrismaClient,
   Prisma,
   SubscriptionStatus,
   OrderStatus as PrismaOrderStatus,
@@ -22,15 +19,13 @@ import {
   ComodatoStatus,
   comodato,
   customer_subscription,
-  subscription_plan,
-} from '@prisma/client';
+  subscription_plan } from '@prisma/client';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import {
   LoanedProductDetailDto,
-  PersonResponseDto,
-} from './dto/person-response.dto';
+  PersonResponseDto } from './dto/person-response.dto';
 import { ChangeSubscriptionPlanDto } from './dto/change-subscription-plan.dto';
 import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
@@ -40,16 +35,14 @@ import {
   UpdateComodatoDto,
   FilterComodatosDto,
   ComodatoResponseDto,
-  CreateSubscriptionWithComodatoDto,
-} from './dto';
+  CreateSubscriptionWithComodatoDto } from './dto';
 import { WithdrawComodatoDto } from './dto/withdraw-comodato.dto';
 import { WithdrawComodatoResponseDto } from './dto/withdraw-comodato-response.dto';
 import { CustomerSubscriptionService } from '../customer-subscription/customer-subscription.service';
 import { CreateCustomerSubscriptionDto } from '../customer-subscription/dto';
 import {
   parseSortByString,
-  mapPersonSortFields,
-} from '../common/utils/query-parser.utils';
+  mapPersonSortFields } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { PaymentSemaphoreStatus } from '../common/config/business.config';
@@ -63,15 +56,17 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseBAYMD,
-} from '../common/utils/date.utils';
+  parseBAYMD } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class PersonsService extends PrismaClient implements OnModuleInit {
+export class PersonsService extends PrismaBackedService {
   private readonly entityName = 'Persona';
-
   constructor(
+    prisma: PrismaService,
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
     private readonly customerSubscriptionService: CustomerSubscriptionService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
@@ -80,11 +75,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
     private readonly recoveryOrderService: RecoveryOrderService,
     private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   private async getPaymentSemaphoreStatus(
@@ -106,14 +97,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           { order_header: { customer_id: personId } },
           { one_off_purchase: { person_id: personId } },
           { one_off_purchase_header: { person_id: personId } },
-        ],
-      },
+        ] },
       select: {
         actual_arrival_time: true,
-        route_sheet: { select: { delivery_date: true } },
-      },
-      orderBy: { route_sheet: { delivery_date: 'desc' } },
-    });
+        route_sheet: { select: { delivery_date: true } } },
+      orderBy: { route_sheet: { delivery_date: 'desc' } } });
 
     if (!lastDeliveredDetail) return 'NONE';
 
@@ -153,16 +141,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const activeSubscriptions = await this.customer_subscription.findMany({
         where: {
           customer_id: personId,
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         include: {
           subscription_plan: {
             select: {
-              name: true,
-            },
-          },
-        },
-      });
+              name: true } } } });
 
       if (activeSubscriptions.length === 0) {
         return [];
@@ -192,8 +175,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             remaining_balance: credit.remaining_balance,
             subscription_id: subscription.subscription_id,
             abono_name:
-              subscription.subscription_plan?.name || 'Plan sin nombre',
-          })),
+              subscription.subscription_plan?.name || 'Plan sin nombre' })),
         );
       }
 
@@ -248,8 +230,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
       delivery_semaphore_status: deliverySemaphoreStatus,
-      available_credits: availableCredits,
-    };
+      available_credits: availableCredits };
   }
 
   async createPerson(dto: CreatePersonDto): Promise<PersonResponseDto> {
@@ -268,8 +249,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`Localidad inválida: ${dto.localityId}`);
       }
       const localityExists = await this.locality.findFirst({
-        where: { locality_id: localityId, is_active: true },
-      });
+        where: { locality_id: localityId, is_active: true } });
       if (!localityExists) {
         throw new BadRequestException(
           `Localidad con ID ${localityId} no encontrada.`,
@@ -282,8 +262,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`Zona inválida: ${dto.zoneId}`);
       }
       const zoneExists = await this.zone.findFirst({
-        where: { zone_id: zoneId, is_active: true },
-      });
+        where: { zone_id: zoneId, is_active: true } });
       if (!zoneExists) {
         throw new BadRequestException(`Zona con ID ${zoneId} no encontrada.`);
       }
@@ -314,8 +293,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       owns_returnable_containers:
         dto.owns_returnable_containers !== undefined
           ? dto.owns_returnable_containers
-          : false,
-    };
+          : false };
     if (typeof localityId === 'number') {
       data.locality = { connect: { locality_id: localityId } };
     }
@@ -331,14 +309,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             include: {
               province: {
                 include: {
-                  country: true,
-                },
-              },
-            },
-          },
-          zone: true,
-        },
-      });
+                  country: true } } } },
+          zone: true } });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         newPerson.person_id,
       );
@@ -399,8 +371,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       payment_semaphore_status,
       payment_semaphore_statuses,
       is_active,
-      sortBy,
-    } = filters;
+      sortBy } = filters;
 
     const where: Prisma.personWhereInput = {};
 
@@ -522,15 +493,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               include: {
                 province: {
                   include: {
-                    country: true,
-                  },
-                },
-              },
-            },
-            zone: true,
-          },
-          orderBy: orderByClause,
-        });
+                    country: true } } } },
+            zone: true },
+          orderBy: orderByClause });
 
         // Pre-calcular semáforos en lotes para mejor rendimiento
         const personIds = allPersonsFromDb.map((p) => p.person_id);
@@ -608,9 +573,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             total: totalFiltered,
             page,
             limit: take,
-            totalPages: Math.ceil(totalFiltered / take),
-          },
-        };
+            totalPages: Math.ceil(totalFiltered / take) } };
       } else {
         // Sin filtro de semáforo ni ordenamiento por semáforo, podemos aplicar paginación directamente en la BD
         const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
@@ -625,17 +588,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 include: {
                   province: {
                     include: {
-                      country: true,
-                    },
-                  },
-                },
-              },
-              zone: true,
-            },
+                      country: true } } } },
+              zone: true },
             orderBy: orderByClause,
             skip,
-            take,
-          }),
+            take }),
         ]);
 
         // Pre-calcular semáforos en lotes para mejor rendimiento
@@ -675,9 +632,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             total: totalCount,
             page,
             limit: take,
-            totalPages: Math.ceil(totalCount / take),
-          },
-        };
+            totalPages: Math.ceil(totalCount / take) } };
       }
     } catch (error) {
       handlePrismaError(error, this.entityName);
@@ -698,14 +653,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           include: {
             province: {
               include: {
-                country: true,
-              },
-            },
-          },
-        },
-        zone: true,
-      },
-    });
+                country: true } } } },
+        zone: true } });
     if (!person)
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada.`,
@@ -735,9 +684,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   ): Promise<PersonResponseDto> {
     const existingPerson = await this.person.findUnique({
       where: {
-        person_id: id,
-      },
-    });
+        person_id: id } });
     if (!existingPerson)
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada.`,
@@ -765,8 +712,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`Localidad inválida: ${rawLocalityId}`);
       }
       const localityExists = await this.locality.findFirst({
-        where: { locality_id: localityId, is_active: true },
-      });
+        where: { locality_id: localityId, is_active: true } });
       if (!localityExists) {
         throw new BadRequestException(
           `Localidad con ID ${localityId} no encontrada.`,
@@ -778,8 +724,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         throw new BadRequestException(`Zona inválida: ${rawZoneId}`);
       }
       const zoneExists = await this.zone.findFirst({
-        where: { zone_id: zoneId, is_active: true },
-      });
+        where: { zone_id: zoneId, is_active: true } });
       if (!zoneExists) {
         throw new BadRequestException(`Zona con ID ${zoneId} no encontrada.`);
       }
@@ -834,14 +779,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             include: {
               province: {
                 include: {
-                  country: true,
-                },
-              },
-            },
-          },
-          zone: true,
-        },
-      });
+                  country: true } } } },
+          zone: true } });
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         updatedPerson.person_id,
       );
@@ -883,8 +822,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   ): Promise<{ message: string; deleted: boolean }> {
     const existingPerson = await this.person.findUnique({
       where: { person_id: id },
-      select: { person_id: true, is_active: true },
-    });
+      select: { person_id: true, is_active: true } });
     if (!existingPerson) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada.`,
@@ -894,18 +832,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (!existingPerson.is_active) {
         return {
           message: `${this.entityName} con ID ${id} ya estaba desactivada (borrado lógico).`,
-          deleted: true,
-        };
+          deleted: true };
       }
       // Implementar borrado lógico en lugar de físico
       await this.person.update({
         where: { person_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
       return {
         message: `${this.entityName} con ID ${id} desactivada correctamente (borrado lógico).`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -925,19 +860,12 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         include: {
           subscription_cycle: {
             orderBy: { cycle_end: 'desc' },
-            take: 1,
-          },
+            take: 1 },
           subscription_plan: {
             include: {
               subscription_plan_product: {
                 include: {
-                  product: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  product: true } } } } } });
 
       if (!subscription) {
         throw new NotFoundException(
@@ -979,9 +907,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { subscription_id: subscriptionId },
         data: {
           status: SubscriptionStatus.CANCELLED,
-          cancellation_date: effectiveEndDate,
-        },
-      });
+          cancellation_date: effectiveEndDate } });
 
       await tx.order_header.updateMany({
         where: {
@@ -994,13 +920,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               PrismaOrderStatus.IN_PREPARATION,
               PrismaOrderStatus.READY_FOR_DELIVERY,
               PrismaOrderStatus.IN_DELIVERY,
-            ],
-          },
-        },
+            ] } },
         data: {
-          status: PrismaOrderStatus.CANCELLED,
-        },
-      });
+          status: PrismaOrderStatus.CANCELLED } });
 
       // Verificar si hay productos retornables en la suscripción
       const hasReturnableProducts =
@@ -1020,8 +942,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 scheduledCollectionDate as any,
               ),
               notes:
-                `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim(),
-            },
+                `Orden de cancelación generada automáticamente para suscripción "${subscription.subscription_plan?.name || 'Plan sin nombre'}" (ID: ${subscriptionId}). ${cancelDto.notes || ''}`.trim() },
             tx,
           );
         } catch (error) {
@@ -1058,8 +979,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                   destination_warehouse_id:
                     BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
                   movement_date: new Date(),
-                  remarks: `Devolución por cancelación de suscripción ${subscriptionId} - Producto no retornable: ${planItem.product?.description} (ID ${planItem.product_id})`,
-                },
+                  remarks: `Devolución por cancelación de suscripción ${subscriptionId} - Producto no retornable: ${planItem.product?.description} (ID ${planItem.product_id})` },
                 tx,
               );
             }
@@ -1079,12 +999,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           where: {
             person_id: personId,
             subscription_id: subscriptionId,
-            status: ComodatoStatus.ACTIVE,
-          },
+            status: ComodatoStatus.ACTIVE },
           include: {
-            product: true,
-          },
-        });
+            product: true } });
 
         if (activeComodatos.length > 0) {
           // 1. Crear órdenes de recuperación individuales (como antes)
@@ -1110,8 +1027,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             quantity: comodato.quantity,
             unit_price: 0, // Sin precio para retiro
             subtotal: 0, // Sin subtotal para retiro
-            notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description} (Plan: "${subscription.subscription_plan?.name || 'Plan sin nombre'}")`,
-          }));
+            notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description} (Plan: "${subscription.subscription_plan?.name || 'Plan sin nombre'}")` }));
 
           const withdrawalOrder = await tx.order_header.create({
             data: {
@@ -1128,10 +1044,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               subscription_id: subscriptionId, // Asociar con la suscripción cancelada
               // Crear todos los items de orden en una sola transacción
               order_item: {
-                create: orderItems,
-              },
-            },
-          });
+                create: orderItems } } });
         }
       } catch (error) {
         console.error(
@@ -1153,9 +1066,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const currentSubscription = await tx.customer_subscription.findUnique({
         where: { subscription_id: dto.current_subscription_id },
         include: {
-          subscription_cycle: { orderBy: { cycle_end: 'desc' }, take: 1 },
-        },
-      });
+          subscription_cycle: { orderBy: { cycle_end: 'desc' }, take: 1 } } });
 
       if (!currentSubscription) {
         throw new NotFoundException(
@@ -1179,9 +1090,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const newPlan = await tx.subscription_plan.findUnique({
         where: { subscription_plan_id: dto.new_plan_id },
         include: {
-          subscription_plan_product: true,
-        },
-      });
+          subscription_plan_product: true } });
       if (!newPlan) {
         throw new NotFoundException(
           `Nuevo plan de suscripción con ID ${dto.new_plan_id} no encontrado.`,
@@ -1209,9 +1118,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           status: SubscriptionStatus.CANCELLED,
           cancellation_date: oldSubscriptionEndDate,
           notes:
-            `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${formatBATimestampISO(new Date())}`.trim(),
-        },
-      });
+            `${currentSubscription.notes || ''} - Reemplazada por plan ${dto.new_plan_id} el ${formatBATimestampISO(new Date())}`.trim() } });
 
       await tx.order_header.updateMany({
         where: {
@@ -1224,11 +1131,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               PrismaOrderStatus.IN_PREPARATION,
               PrismaOrderStatus.READY_FOR_DELIVERY,
               PrismaOrderStatus.IN_DELIVERY,
-            ],
-          },
-        },
-        data: { status: PrismaOrderStatus.CANCELLED },
-      });
+            ] } },
+        data: { status: PrismaOrderStatus.CANCELLED } });
 
       const newSubscription = await tx.customer_subscription.create({
         data: {
@@ -1236,29 +1140,24 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           subscription_plan_id: dto.new_plan_id,
           start_date: newSubscriptionStartDate,
           status: SubscriptionStatus.ACTIVE,
-          notes: `Iniciada por cambio desde suscripción ID ${dto.current_subscription_id}`,
-        },
-      });
+          notes: `Iniciada por cambio desde suscripción ID ${dto.current_subscription_id}` } });
 
       // Verificar y actualizar el tipo de cliente si es INDIVIDUAL
       const customer = await tx.person.findUnique({
         where: { person_id: personId },
-        select: { type: true },
-      });
+        select: { type: true } });
 
       if (customer && customer.type === PrismaPersonType.INDIVIDUAL) {
         // Actualizar el tipo de cliente de INDIVIDUAL a PLAN
         await tx.person.update({
           where: { person_id: personId },
-          data: { type: PrismaPersonType.PLAN },
-        });
+          data: { type: PrismaPersonType.PLAN } });
 
         // Actualizar el tipo de plan de suscripción a PLAN (si no lo está ya)
         if (newPlan.type !== PrismaPersonType.PLAN) {
           await tx.subscription_plan.update({
             where: { subscription_plan_id: dto.new_plan_id },
-            data: { type: PrismaPersonType.PLAN },
-          });
+            data: { type: PrismaPersonType.PLAN } });
         }
       }
 
@@ -1278,9 +1177,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           payment_due_date: new Date(
             firstCycleEndDate.getTime() + 10 * 24 * 60 * 60 * 1000,
           ), // 10 días después del final del ciclo
-          notes: 'Primer ciclo post cambio de plan.',
-        },
-      });
+          notes: 'Primer ciclo post cambio de plan.' } });
 
       // Crear los detalles del ciclo basados en el nuevo plan
       for (const planProduct of newPlan.subscription_plan_product) {
@@ -1290,9 +1187,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: planProduct.product_id,
             planned_quantity: planProduct.product_quantity,
             delivered_quantity: 0,
-            remaining_balance: planProduct.product_quantity,
-          },
-        });
+            remaining_balance: planProduct.product_quantity } });
       }
 
       return newSubscription;
@@ -1303,9 +1198,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const createdCycle = await this.subscription_cycle.findFirst({
         where: {
           subscription_id: newSubscription.subscription_id,
-          cycle_number: 1,
-        },
-      });
+          cycle_number: 1 } });
 
       if (createdCycle) {
         await this.cycleCalculatorService.calculateAndUpdateCycleAmount(
@@ -1328,8 +1221,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   ): Promise<Prisma.client_contractGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const contract = await tx.client_contract.findUnique({
-        where: { contract_id: contractId },
-      });
+        where: { contract_id: contractId } });
 
       if (!contract) {
         throw new NotFoundException(
@@ -1364,9 +1256,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: { contract_id: contractId },
         data: {
           status: ContractStatus.CANCELLED,
-          end_date: effectiveEndDate,
-        },
-      });
+          end_date: effectiveEndDate } });
 
       await tx.order_header.updateMany({
         where: {
@@ -1379,13 +1269,9 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               PrismaOrderStatus.IN_PREPARATION,
               PrismaOrderStatus.READY_FOR_DELIVERY,
               PrismaOrderStatus.IN_DELIVERY,
-            ],
-          },
-        },
+            ] } },
         data: {
-          status: PrismaOrderStatus.CANCELLED,
-        },
-      });
+          status: PrismaOrderStatus.CANCELLED } });
       return updatedContract;
     });
   }
@@ -1396,8 +1282,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
   ): Promise<Prisma.client_contractGetPayload<{}>> {
     return this.$transaction(async (tx) => {
       const currentContract = await tx.client_contract.findUnique({
-        where: { contract_id: dto.current_contract_id },
-      });
+        where: { contract_id: dto.current_contract_id } });
 
       if (!currentContract) {
         throw new NotFoundException(
@@ -1416,8 +1301,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       }
 
       const newPriceList = await tx.price_list.findUnique({
-        where: { price_list_id: dto.new_price_list_id },
-      });
+        where: { price_list_id: dto.new_price_list_id } });
       if (!newPriceList) {
         throw new NotFoundException(
           `Nueva lista de precios con ID ${dto.new_price_list_id} no encontrada.`,
@@ -1447,9 +1331,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           status: ContractStatus.CANCELLED,
           end_date: oldContractEffectiveEndDate,
           notes:
-            `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${formatBATimestampISO(new Date())}`.trim(),
-        },
-      });
+            `${currentContract.notes || ''} - Reemplazado por lista de precios ${dto.new_price_list_id} el ${formatBATimestampISO(new Date())}`.trim() } });
 
       await tx.order_header.updateMany({
         where: {
@@ -1462,11 +1344,8 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               PrismaOrderStatus.IN_PREPARATION,
               PrismaOrderStatus.READY_FOR_DELIVERY,
               PrismaOrderStatus.IN_DELIVERY,
-            ],
-          },
-        },
-        data: { status: PrismaOrderStatus.CANCELLED },
-      });
+            ] } },
+        data: { status: PrismaOrderStatus.CANCELLED } });
 
       const newContract = await tx.client_contract.create({
         data: {
@@ -1475,9 +1354,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           start_date: newContractStartDate,
           end_date: newContractEndDate,
           status: ContractStatus.ACTIVE,
-          notes: `Iniciado por cambio desde contrato ID ${dto.current_contract_id}`,
-        },
-      });
+          notes: `Iniciado por cambio desde contrato ID ${dto.current_contract_id}` } });
       return newContract;
     });
   }
@@ -1495,25 +1372,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             PrismaOrderStatus.DELIVERED,
             PrismaOrderStatus.RETIRADO,
             PrismaOrderStatus.REFUNDED,
-          ],
-        },
-      },
+          ] } },
       include: {
         order_item: {
           where: {
             product: {
-              is_returnable: true,
-            },
-          },
+              is_returnable: true } },
           include: {
-            product: true,
-          },
-        },
-      },
+            product: true } } },
       orderBy: {
-        order_date: 'desc',
-      },
-    });
+        order_date: 'desc' } });
 
     const loanedProductsDetail: LoanedProductDetailDto[] = [];
 
@@ -1531,8 +1399,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             loaned_quantity: netLoanedForItem,
             acquisition_date: formatBAYMD(order.order_date),
             order_id: order.order_id,
-            order_status: order.status,
-          });
+            order_status: order.status });
         }
       }
     }
@@ -1603,23 +1470,19 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             name: comodatoEntity.person.name || '',
             phone: comodatoEntity.person.phone,
             address: comodatoEntity.person.address || undefined,
-            zone: comodatoEntity.person.zone || undefined,
-          }
+            zone: comodatoEntity.person.zone || undefined }
         : undefined,
       product: comodatoEntity.product
         ? {
             product_id: comodatoEntity.product.product_id,
             name: comodatoEntity.product.description,
-            description: comodatoEntity.product.description,
-          }
+            description: comodatoEntity.product.description }
         : undefined,
       subscription: firstSubscription
         ? {
             subscription_id: firstSubscription.subscription_id,
-            name: firstSubscription.subscription_plan?.name || '',
-          }
-        : undefined,
-    };
+            name: firstSubscription.subscription_plan?.name || '' }
+        : undefined };
   }
 
   async createComodato(dto: CreateComodatoDto): Promise<ComodatoResponseDto> {
@@ -1629,8 +1492,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         where: {
           person_id: dto.person_id,
           is_active: true, // Solo permitir comodatos para personas activas
-        },
-      });
+        } });
       if (!person) {
         throw new NotFoundException(
           `Persona con ID ${dto.person_id} no encontrada`,
@@ -1639,8 +1501,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       // Verificar que el producto existe
       const product = await this.product.findUnique({
-        where: { product_id: dto.product_id },
-      });
+        where: { product_id: dto.product_id } });
       if (!product) {
         throw new NotFoundException(
           `Producto con ID ${dto.product_id} no encontrado`,
@@ -1687,8 +1548,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           article_description: dto.article_description,
           brand: dto.brand,
           model: dto.model,
-          contract_image_path: dto.contract_image_path,
-        },
+          contract_image_path: dto.contract_image_path },
         include: {
           person: {
             select: {
@@ -1699,31 +1559,19 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               zone: {
                 select: {
                   zone_id: true,
-                  name: true,
-                },
-              },
+                  name: true } },
               customer_subscription: {
                 where: {
-                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
-                },
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }] },
                 include: {
-                  subscription_plan: true,
-                },
+                  subscription_plan: true },
                 orderBy: {
-                  start_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
+                  start_date: 'desc' },
+                take: 1 } } },
           product: {
             select: {
               product_id: true,
-              description: true,
-            },
-          },
-        },
-      });
+              description: true } } } });
 
       return this.mapToComodatoResponseDto(comodato);
     } catch (error) {
@@ -1742,16 +1590,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Verificar que la persona existe
       const person = await this.person.findUnique({
         where: {
-          person_id: personId,
-        },
-      });
+          person_id: personId } });
       if (!person) {
         throw new NotFoundException(`Persona con ID ${personId} no encontrada`);
       }
 
       const whereConditions: Prisma.comodatoWhereInput = {
-        person_id: personId,
-      };
+        person_id: personId };
 
       // Aplicar filtros
       if (filters.product_id) {
@@ -1806,36 +1651,23 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               zone: {
                 select: {
                   zone_id: true,
-                  name: true,
-                },
-              },
+                  name: true } },
               customer_subscription: {
                 where: {
-                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
-                },
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }] },
                 include: {
-                  subscription_plan: true,
-                },
+                  subscription_plan: true },
                 orderBy: {
-                  start_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
+                  start_date: 'desc' },
+                take: 1 } } },
           product: {
             select: {
               product_id: true,
-              description: true,
-            },
-          },
-        },
+              description: true } } },
         orderBy: {
-          created_at: 'desc',
-        },
+          created_at: 'desc' },
         skip: skip,
-        take: limit,
-      });
+        take: limit });
 
       if (!comodatos || comodatos.length === 0) {
         return [];
@@ -1881,8 +1713,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (filters.customer_name) {
         personFilters.name = {
           contains: filters.customer_name,
-          mode: 'insensitive',
-        };
+          mode: 'insensitive' };
       }
       // Siempre aplicar el filtro de persona (al menos is_active)
       whereConditions.person = personFilters;
@@ -1891,9 +1722,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         whereConditions.product = {
           description: {
             contains: filters.product_name,
-            mode: 'insensitive',
-          },
-        };
+            mode: 'insensitive' } };
       }
 
       if (filters.search) {
@@ -1902,24 +1731,16 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             person: {
               name: {
                 contains: filters.search,
-                mode: 'insensitive',
-              },
-            },
-          },
+                mode: 'insensitive' } } },
           {
             product: {
               description: {
                 contains: filters.search,
-                mode: 'insensitive',
-              },
-            },
-          },
+                mode: 'insensitive' } } },
           {
             notes: {
               contains: filters.search,
-              mode: 'insensitive',
-            },
-          },
+              mode: 'insensitive' } },
         ];
       }
 
@@ -1980,25 +1801,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                     in: [
                       SubscriptionStatus.ACTIVE,
                       SubscriptionStatus.CANCELLED,
-                    ],
-                  },
-                },
+                    ] } },
                 include: {
-                  subscription_plan: true,
-                },
+                  subscription_plan: true },
                 orderBy: {
-                  start_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
-          product: true,
-        },
+                  start_date: 'desc' },
+                take: 1 } } },
+          product: true },
         orderBy: {
-          created_at: 'desc',
-        },
-      });
+          created_at: 'desc' } });
 
       return comodatos.map((comodato) =>
         this.mapToComodatoResponseDto(comodato),
@@ -2019,8 +1830,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           person_id: personId,
           person: {
             is_active: true, // Solo buscar comodatos de personas activas
-          },
-        },
+          } },
         include: {
           person: {
             select: {
@@ -2031,31 +1841,19 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               zone: {
                 select: {
                   zone_id: true,
-                  name: true,
-                },
-              },
+                  name: true } },
               customer_subscription: {
                 where: {
-                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
-                },
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }] },
                 include: {
-                  subscription_plan: true,
-                },
+                  subscription_plan: true },
                 orderBy: {
-                  start_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
+                  start_date: 'desc' },
+                take: 1 } } },
           product: {
             select: {
               product_id: true,
-              description: true,
-            },
-          },
-        },
-      });
+              description: true } } } });
 
       if (!comodato) {
         throw new NotFoundException(
@@ -2085,9 +1883,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           person_id: personId,
           person: {
             is_active: true, // Solo permitir actualizar comodatos de personas activas
-          },
-        },
-      });
+          } } });
 
       if (!existingComodato) {
         throw new NotFoundException(
@@ -2100,8 +1896,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       if (dto.product_id !== undefined) {
         // Verificar que el nuevo producto existe
         const product = await this.product.findUnique({
-          where: { product_id: dto.product_id },
-        });
+          where: { product_id: dto.product_id } });
 
         if (!product) {
           throw new NotFoundException(
@@ -2110,8 +1905,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         }
 
         updateData.product = {
-          connect: { product_id: dto.product_id },
-        };
+          connect: { product_id: dto.product_id } };
       }
 
       if (dto.quantity !== undefined) {
@@ -2176,8 +1970,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
 
       const updatedComodato = await this.comodato.update({
         where: {
-          comodato_id: comodatoId,
-        },
+          comodato_id: comodatoId },
         data: updateData,
         include: {
           person: {
@@ -2189,31 +1982,19 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
               zone: {
                 select: {
                   zone_id: true,
-                  name: true,
-                },
-              },
+                  name: true } },
               customer_subscription: {
                 where: {
-                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }],
-                },
+                  OR: [{ status: 'ACTIVE' }, { status: 'CANCELLED' }] },
                 include: {
-                  subscription_plan: true,
-                },
+                  subscription_plan: true },
                 orderBy: {
-                  start_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
+                  start_date: 'desc' },
+                take: 1 } } },
           product: {
             select: {
               product_id: true,
-              description: true,
-            },
-          },
-        },
-      });
+              description: true } } } });
 
       return this.mapToComodatoResponseDto(updatedComodato);
     } catch (error) {
@@ -2233,9 +2014,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const existingComodato = await this.comodato.findFirst({
         where: {
           comodato_id: comodatoId,
-          person_id: personId,
-        },
-      });
+          person_id: personId } });
 
       if (!existingComodato) {
         throw new NotFoundException(
@@ -2246,19 +2025,15 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Soft delete: desactivar y marcar estado del comodato como INACTIVE
       await this.comodato.update({
         where: {
-          comodato_id: comodatoId,
-        },
+          comodato_id: comodatoId },
         data: {
           is_active: false,
           status: ComodatoStatus.INACTIVE,
-          return_date: new Date(),
-        },
-      });
+          return_date: new Date() } });
 
       return {
         message: 'Comodato desactivado exitosamente',
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -2275,9 +2050,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       const person = await this.person.findUnique({
         where: {
           person_id: dto.customer_id,
-          is_active: true,
-        },
-      });
+          is_active: true } });
 
       if (!person) {
         throw new NotFoundException(
@@ -2288,8 +2061,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
       // Verificar que el producto para el comodato existe
       if (dto.comodato_product_id) {
         const product = await this.product.findUnique({
-          where: { product_id: dto.comodato_product_id },
-        });
+          where: { product_id: dto.comodato_product_id } });
 
         if (!product) {
           throw new NotFoundException(
@@ -2308,8 +2080,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
         payment_due_day: dto.payment_due_day,
         status: dto.status,
         notes: dto.notes,
-        delivery_preferences: dto.delivery_preferences,
-      };
+        delivery_preferences: dto.delivery_preferences };
 
       // Crear la suscripción usando el servicio de suscripciones
       const subscription =
@@ -2325,16 +2096,11 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: dto.comodato_product_id,
             subscription_id: subscription.subscription_id,
             status: ComodatoStatus.ACTIVE,
-            is_active: true,
-          },
+            is_active: true },
           include: {
             product: {
               select: {
-                description: true,
-              },
-            },
-          },
-        });
+                description: true } } } });
 
         if (existingComodato) {
           throw new ConflictException(
@@ -2348,9 +2114,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             product_id: dto.comodato_product_id,
             status: ComodatoStatus.ACTIVE,
             is_active: true,
-            subscription_id: { not: subscription.subscription_id },
-          },
-        });
+            subscription_id: { not: subscription.subscription_id } } });
 
         if (otherComodatos.length > 0) {
         }
@@ -2372,16 +2136,14 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           article_description: dto.comodato_article_description,
           brand: dto.comodato_brand,
           model: dto.comodato_model,
-          contract_image_path: dto.comodato_contract_image_path,
-        };
+          contract_image_path: dto.comodato_contract_image_path };
 
         comodato = await this.createComodato(comodatoDto);
       }
 
       return {
         subscription,
-        comodato: comodato,
-      };
+        comodato: comodato };
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -2415,18 +2177,13 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           where: {
             comodato_id: dto.comodato_id,
             person_id: personId,
-            status: ComodatoStatus.ACTIVE,
-          },
+            status: ComodatoStatus.ACTIVE },
           include: {
             product: true,
             subscription: {
               include: {
-                subscription_plan: true,
-              },
-            },
-            person: true,
-          },
-        });
+                subscription_plan: true } },
+            person: true } });
 
         if (!comodato) {
           throw new NotFoundException(
@@ -2492,11 +2249,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
                 quantity: comodato.quantity,
                 unit_price: 0, // Sin precio para retiro
                 subtotal: 0, // Sin subtotal para retiro
-                notes: `Retiro independiente de comodato ${dto.comodato_id} - ${comodato.product.description}`,
-              },
-            },
-          },
-        });
+                notes: `Retiro independiente de comodato ${dto.comodato_id} - ${comodato.product.description}` } } } });
 
         // 6. Actualizar estado del comodato a "PENDING_WITHDRAWAL" (estado personalizado)
         // Nota: Si este estado no existe en el enum, se puede usar ACTIVE y agregar una nota
@@ -2505,9 +2258,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           data: {
             expected_return_date: scheduledDate,
             notes:
-              `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${formatBAYMD(scheduledDate)}`.trim(),
-          },
-        });
+              `${comodato.notes || ''} | RETIRO PROGRAMADO: ${dto.withdrawal_reason || 'Retiro independiente'} - Fecha: ${formatBAYMD(scheduledDate)}`.trim() } });
 
         // 7. Preparar respuesta
         const response: WithdrawComodatoResponseDto = {
@@ -2521,9 +2272,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
           product_info: {
             product_id: comodato.product_id,
             product_name: comodato.product.description,
-            quantity: comodato.quantity,
-          },
-        };
+            quantity: comodato.quantity } };
 
         // 8. Agregar información de suscripción si existe
         if (comodato.subscription) {
@@ -2532,8 +2281,7 @@ export class PersonsService extends PrismaClient implements OnModuleInit {
             subscription_status: comodato.subscription.status,
             plan_name:
               comodato.subscription.subscription_plan?.name ||
-              'Plan sin nombre',
-          };
+              'Plan sin nombre' };
         }
 
         return response;

@@ -1,16 +1,14 @@
 import {
   Injectable,
   NotFoundException,
-  OnModuleInit,
   InternalServerErrorException,
   ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { Prisma, PrismaClient, product as ProductPrisma } from '@prisma/client';
+import { Prisma, product as ProductPrisma } from '@prisma/client';
 import { InventoryService } from '../inventory/inventory.service';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { FilterProductsDto } from './dto/filter-products.dto';
@@ -18,23 +16,23 @@ import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class ProductService extends PrismaClient implements OnModuleInit {
+export class ProductService extends PrismaBackedService {
   private readonly entityName = 'Producto';
 
-  constructor(private readonly inventoryService: InventoryService) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(
+    prisma: PrismaService,
+    private readonly inventoryService: InventoryService) {
+    super(prisma);
   }
 
   private async validateCategoryExists(categoryId: number): Promise<void> {
     const category = await this.product_category.findUnique({
-      where: { category_id: categoryId },
-    });
+      where: { category_id: categoryId } });
     if (!category) {
       throw new BadRequestException(
         `La categoría con ID ${categoryId} no existe.`,
@@ -45,8 +43,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
   private async validateDefaultPriceListExists(): Promise<void> {
     // Verificar si existe una lista marcada como por defecto
     const defaultPriceList = await this.price_list.findFirst({
-      where: { is_default: true },
-    });
+      where: { is_default: true } });
 
     if (!defaultPriceList) {
       throw new BadRequestException(
@@ -64,8 +61,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     // También verificar que la lista configurada existe (para retrocompatibilidad)
     const configuredPriceList = await this.price_list.findUnique({
-      where: { price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID },
-    });
+      where: { price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID } });
     if (!configuredPriceList) {
       throw new BadRequestException(
         `No se puede crear el producto. La lista de precios configurada (ID: ${BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID}) no existe. ` +
@@ -89,8 +85,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           whereClause.OR = [
             { description: { contains: filters.search, mode: 'insensitive' } },
             {
-              serial_number: { contains: filters.search, mode: 'insensitive' },
-            },
+              serial_number: { contains: filters.search, mode: 'insensitive' } },
             { notes: { contains: filters.search, mode: 'insensitive' } },
           ];
         }
@@ -100,8 +95,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           // Validar que todas las categorías existan
           for (const categoryId of filters.categoryIds) {
             const category = await this.product_category.findUnique({
-              where: { category_id: categoryId },
-            });
+              where: { category_id: categoryId } });
             if (!category) {
               throw new NotFoundException(
                 `Categoría con ID ${categoryId} no encontrada.`,
@@ -113,8 +107,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         } else if (filters.categoryId) {
           // Si solo se proporciona una categoría (compatibilidad), usar equality
           const category = await this.product_category.findUnique({
-            where: { category_id: filters.categoryId },
-          });
+            where: { category_id: filters.categoryId } });
           if (!category) {
             throw new NotFoundException(
               `Categoría con ID ${filters.categoryId} no encontrada.`,
@@ -126,8 +119,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         if (filters.description) {
           whereClause.description = {
             contains: filters.description,
-            mode: 'insensitive',
-          };
+            mode: 'insensitive' };
         }
 
         if (filters.isReturnable !== undefined) {
@@ -137,8 +129,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         if (filters.serialNumber) {
           whereClause.serial_number = {
             contains: filters.serialNumber,
-            mode: 'insensitive',
-          };
+            mode: 'insensitive' };
         }
       }
 
@@ -148,8 +139,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       const take = Math.max(1, limit);
 
       const totalProducts = await this.product.count({
-        where: whereClause,
-      });
+        where: whereClause });
 
       const orderByClause = parseSortByString(filters?.sortBy, [
         { description: 'asc' },
@@ -166,17 +156,10 @@ export class ProductService extends PrismaClient implements OnModuleInit {
               include: {
                 warehouse: {
                   include: {
-                    locality: true,
-                  },
-                },
-              },
-            },
-          }),
-        },
+                    locality: true } } } } }) },
         skip,
         take: take,
-        orderBy: orderByClause,
-      });
+        orderBy: orderByClause });
 
       const productsWithStock = await Promise.all(
         products.map(async (product) => {
@@ -189,8 +172,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             volume_liters: this.toNullableNumber(product.volume_liters),
             total_stock: stock,
             inventory: includeInventory ? product.inventory : undefined,
-            image_url: buildImageUrl(product.image_url, 'products'),
-          });
+            image_url: buildImageUrl(product.image_url, 'products') });
         }),
       );
 
@@ -200,9 +182,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           total: totalProducts,
           page: page,
           limit: limit,
-          totalPages: Math.ceil(totalProducts / take),
-        },
-      };
+          totalPages: Math.ceil(totalProducts / take) } };
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -225,8 +205,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
     const productEntity = await this.product.findFirst({
       where: {
         product_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
+        ...(includeInactive ? {} : { is_active: true }) },
       include: {
         product_category: true,
         ...(includeInventory && {
@@ -234,14 +213,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             include: {
               warehouse: {
                 include: {
-                  locality: true,
-                },
-              },
-            },
-          },
-        }),
-      },
-    });
+                  locality: true } } } } }) } });
     if (!productEntity) {
       throw new NotFoundException(
         `${this.entityName} con ID: ${id} no encontrado`,
@@ -256,8 +228,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       volume_liters: this.toNullableNumber(productEntity.volume_liters),
       total_stock: stock,
       inventory: includeInventory ? productEntity.inventory : undefined,
-      image_url: buildImageUrl(productEntity.image_url, 'products'),
-    });
+      image_url: buildImageUrl(productEntity.image_url, 'products') });
   }
 
   async createProduct(
@@ -274,18 +245,14 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         name: BUSINESS_CONFIG.PRICING.STANDARD_PRICE_LIST_NAME,
         effective_date: new Date(),
         is_default: true,
-        active: true,
-      },
-    });
+        active: true } });
     const defaultWarehouseId = BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID;
     await this.warehouse.upsert({
       where: { warehouse_id: defaultWarehouseId },
       update: {},
       create: {
         warehouse_id: defaultWarehouseId,
-        name: 'Almacén Principal',
-      },
-    });
+        name: 'Almacén Principal' } });
     await this.validateCategoryExists(dto.category_id);
     await this.validateDefaultPriceListExists();
     const { category_id, total_stock, productImage: _, ...productData } = dto;
@@ -296,9 +263,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       const dataToCreate: any = {
         ...productData,
         product_category: {
-          connect: { category_id: category_id },
-        },
-      };
+          connect: { category_id: category_id } } };
 
       // Si se subió una imagen, guardar la URL
       if (productImage?.filename) {
@@ -314,22 +279,14 @@ export class ProductService extends PrismaClient implements OnModuleInit {
               include: {
                 warehouse: {
                   include: {
-                    locality: true,
-                  },
-                },
-              },
-            },
-          },
-        });
+                    locality: true } } } } } });
 
         // Automáticamente agregar el producto a la lista de precios estándar
         await prismaTx.price_list_item.create({
           data: {
             price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
             product_id: product.product_id,
-            unit_price: product.price,
-          },
-        });
+            unit_price: product.price } });
 
         // Crear inventario inicial si se especifica total_stock
         if (total_stock !== undefined && total_stock > 0) {
@@ -338,8 +295,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
               product_id: product.product_id,
               warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
               quantity: total_stock,
-              remarks: `Stock inicial - ${product.description}`,
-            },
+              remarks: `Stock inicial - ${product.description}` },
             prismaTx,
           );
         }
@@ -356,8 +312,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           volume_liters: this.toNullableNumber(product.volume_liters),
           total_stock: stock,
           inventory: product.inventory,
-          image_url: buildImageUrl(product.image_url, 'products'),
-        });
+          image_url: buildImageUrl(product.image_url, 'products') });
       });
     } catch (error) {
       if (
@@ -398,8 +353,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     if (category_id) {
       dataToUpdate.product_category = {
-        connect: { category_id: category_id },
-      };
+        connect: { category_id: category_id } };
     }
 
     // Si se subió una nueva imagen, actualizar la URL
@@ -418,23 +372,15 @@ export class ProductService extends PrismaClient implements OnModuleInit {
               include: {
                 warehouse: {
                   include: {
-                    locality: true,
-                  },
-                },
-              },
-            },
-          },
-        });
+                    locality: true } } } } } });
 
         // Actualizar precio unitario en la lista general si se modificó el precio del producto
         if (dto.price !== undefined) {
           await prismaTx.price_list_item.updateMany({
             where: {
               product_id: id,
-              price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-            },
-            data: { unit_price: updatedProduct.price },
-          });
+              price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID },
+            data: { unit_price: updatedProduct.price } });
         }
 
         // Manejar ajuste de stock si se proporciona total_stock
@@ -459,8 +405,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           volume_liters: this.toNullableNumber(updatedProduct.volume_liters),
           total_stock: stock,
           inventory: updatedProduct.inventory,
-          image_url: buildImageUrl(updatedProduct.image_url, 'products'),
-        });
+          image_url: buildImageUrl(updatedProduct.image_url, 'products') });
       });
     } catch (error) {
       if (
@@ -487,20 +432,17 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       await this.$transaction(async (tx) => {
         // Primero eliminar todos los price_list_items asociados al producto
         await tx.price_list_item.deleteMany({
-          where: { product_id: id },
-        });
+          where: { product_id: id } });
 
         // Luego hacer soft delete del producto: cambiar is_active a false
         await tx.product.update({
           where: { product_id: id },
-          data: { is_active: false },
-        });
+          data: { is_active: false } });
       });
 
       return {
         message: `${this.entityName} desactivado correctamente y eliminado de todas las listas de precios`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -544,13 +486,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             include: {
               warehouse: {
                 include: {
-                  locality: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  locality: true } } } } } });
 
       const stock = await this.inventoryService.getProductStock(id);
 
@@ -560,8 +496,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
         volume_liters: this.toNullableNumber(updatedProduct.volume_liters),
         total_stock: stock,
         inventory: updatedProduct.inventory,
-        image_url: null,
-      });
+        image_url: null });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -577,8 +512,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
 
     return {
       product_id: id,
-      image_url: product.image_url || null,
-    };
+      image_url: product.image_url || null };
   }
 
   /**
@@ -608,10 +542,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
       where: {
         warehouse_id_product_id: {
           warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
-          product_id: productId,
-        },
-      },
-    });
+          product_id: productId } } });
 
     if (!existingInventory && newTotalStock > 0) {
       // No existe inventario, crear uno nuevo con stock inicial
@@ -620,8 +551,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
           product_id: productId,
           warehouse_id: BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID,
           quantity: newTotalStock,
-          remarks: `Stock inicial - ${productDescription}`,
-        },
+          remarks: `Stock inicial - ${productDescription}` },
         tx,
       );
     } else if (stockDifference !== 0) {
@@ -649,8 +579,7 @@ export class ProductService extends PrismaClient implements OnModuleInit {
             ? BUSINESS_CONFIG.INVENTORY.DEFAULT_WAREHOUSE_ID
             : null,
           movement_date: new Date(),
-          remarks: `Ajuste de stock - ${productDescription}. Stock anterior: ${currentStock}, Stock nuevo: ${newTotalStock}`,
-        },
+          remarks: `Ajuste de stock - ${productDescription}. Stock anterior: ${currentStock}, Stock nuevo: ${newTotalStock}` },
         tx,
       );
     }

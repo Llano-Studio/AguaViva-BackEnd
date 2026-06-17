@@ -2,11 +2,12 @@ import {
   Injectable,
   Logger,
   BadRequestException,
-  NotFoundException,
-  OnModuleInit,
-} from '@nestjs/common';
-import { PrismaClient, OrderStatus, Prisma } from '@prisma/client';
+  NotFoundException } from '@nestjs/common';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { OrdersService } from '../../orders/orders.service';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 export interface CollectionItemDto {
   cycle_id: number;
@@ -27,17 +28,14 @@ export interface AddCollectionResult {
 
 @Injectable()
 export class OrderCollectionEditService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private readonly logger = new Logger(OrderCollectionEditService.name);
 
-  constructor(private readonly ordersService: OrdersService) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(
+    prisma: PrismaService,
+    private readonly ordersService: OrdersService) {
+    super(prisma);
   }
 
   /**
@@ -58,30 +56,21 @@ export class OrderCollectionEditService
         customer_id: customerId,
         order_date: {
           gte: startOfDay,
-          lte: endOfDay,
-        },
+          lte: endOfDay },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
+          ] } },
       include: {
         order_item: {
           include: {
-            product: true,
-          },
-        },
+            product: true } },
         customer: {
           select: {
             person_id: true,
-            name: true,
-          },
-        },
-      },
-    });
+            name: true } } } });
   }
 
   /**
@@ -97,9 +86,7 @@ export class OrderCollectionEditService
         where: { order_id: orderId },
         include: {
           order_item: true,
-          customer: true,
-        },
-      });
+          customer: true } });
 
       if (!existingOrder) {
         throw new NotFoundException(`Pedido con ID ${orderId} no encontrado`);
@@ -137,8 +124,7 @@ export class OrderCollectionEditService
           order_id: orderId,
           collection_added: false,
           collection_amount: 0,
-          message: `El pedido ya tiene registrada la cobranza del ciclo ${collectionData.cycle_id}`,
-        };
+          message: `El pedido ya tiene registrada la cobranza del ciclo ${collectionData.cycle_id}` };
       }
 
       // Crear nota de cobranza
@@ -168,9 +154,7 @@ export class OrderCollectionEditService
         await this.order_header.update({
           where: { order_id: orderId },
           data: {
-            notes: updatedNotes,
-          },
-        });
+            notes: updatedNotes } });
       } else {
         // Calcular nuevo total sumando la cobranza al total actual
         const currentTotal = new Prisma.Decimal(existingOrder.total_amount);
@@ -184,9 +168,7 @@ export class OrderCollectionEditService
           where: { order_id: orderId },
           data: {
             notes: updatedNotes,
-            total_amount: newTotal,
-          },
-        });
+            total_amount: newTotal } });
       }
 
       this.logger.log(
@@ -197,8 +179,7 @@ export class OrderCollectionEditService
         order_id: orderId,
         collection_added: true,
         collection_amount: collectionData.pending_balance,
-        message: `Cobranza de $${collectionData.pending_balance} agregada al pedido ${orderId}`,
-      };
+        message: `Cobranza de $${collectionData.pending_balance} agregada al pedido ${orderId}` };
     } catch (error) {
       this.logger.error(
         `❌ Error agregando cobranza al pedido ${orderId}:`,
@@ -222,38 +203,26 @@ export class OrderCollectionEditService
       where: {
         order_date: {
           gte: startOfDay,
-          lte: endOfDay,
-        },
+          lte: endOfDay },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
+          ] } },
       include: {
         customer: {
           select: {
             person_id: true,
-            name: true,
-          },
-        },
+            name: true } },
         order_item: {
           include: {
             product: {
               select: {
                 product_id: true,
-                description: true,
-              },
-            },
-          },
-        },
-      },
+                description: true } } } } },
       orderBy: {
-        customer_id: 'asc',
-      },
-    });
+        customer_id: 'asc' } });
   }
 
   /**
@@ -276,9 +245,7 @@ export class OrderCollectionEditService
         customer_id: order.customer_id,
         customer_name: `${order.customer.first_name} ${order.customer.last_name}`,
         order_id: order.order_id,
-        order_total: order.total_amount.toString(),
-      })),
-    };
+        order_total: order.total_amount.toString() })) };
   }
 
   /**
@@ -290,8 +257,7 @@ export class OrderCollectionEditService
   ): Promise<boolean> {
     const order = await this.order_header.findUnique({
       where: { order_id: orderId },
-      select: { notes: true },
-    });
+      select: { notes: true } });
 
     if (!order || !order.notes) {
       return false;

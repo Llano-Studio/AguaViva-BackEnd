@@ -2,39 +2,34 @@ import {
   Injectable,
   NotFoundException,
   Logger,
-  OnModuleInit,
   ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
-import { PaymentStatus, PrismaClient, Role } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { PaymentStatus, Role } from '@prisma/client';
 import { CreateCyclePaymentDto } from './dto/create-cycle-payment.dto';
 import {
   CyclePaymentResponseDto,
-  CyclePaymentSummaryDto,
-} from './dto/cycle-payment-response.dto';
+  CyclePaymentSummaryDto } from './dto/cycle-payment-response.dto';
 import {
   UpdateCyclePaymentDto,
   DeletePaymentDto,
-  PaymentOperationResponseDto,
-} from './dto';
+  PaymentOperationResponseDto } from './dto';
 import { PaymentSemaphoreService } from '../common/services/payment-semaphore.service';
 import { AuditService } from '../audit/audit.service';
 import { PaymentMethod } from '../common/constants/enums';
 import { formatBATimestampISO, formatBAYMD } from '../common/utils/date.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
+export class CyclePaymentsService extends PrismaBackedService {
   private readonly logger = new Logger(CyclePaymentsService.name);
-
   constructor(
+    prisma: PrismaService,
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
     private readonly auditService: AuditService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   /**
@@ -56,11 +51,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         customer_subscription: {
           include: {
             person: true,
-            subscription_plan: true,
-          },
-        },
-      },
-    });
+            subscription_plan: true } } } });
 
     if (!cycle) {
       throw new NotFoundException(
@@ -119,9 +110,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_method,
           reference,
           notes,
-          created_by: userId,
-        },
-      });
+          created_by: userId } });
 
       // Calcular nuevos balances considerando créditos acumulados
       let remainingPayment = amount;
@@ -180,9 +169,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           total_amount: newTotalAmount,
           late_fee_applied: surchargeAmount > 0 ? true : cycle.late_fee_applied,
           late_fee_percentage:
-            surchargeAmount > 0 ? 0.2 : cycle.late_fee_percentage,
-        },
-      });
+            surchargeAmount > 0 ? 0.2 : cycle.late_fee_percentage } });
 
       // Si se aplicó recargo, registrarlo como un ajuste
       if (surchargeAmount > 0) {
@@ -194,9 +181,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             payment_method: PaymentMethod.RECARGO_MORA,
             reference: `AUTO-SURCHARGE-${cycle_id}`,
             notes: `Recargo automático por mora aplicado el ${formatBATimestampISO(new Date())}`,
-            created_by: userId,
-          },
-        });
+            created_by: userId } });
       }
 
       return payment;
@@ -219,8 +204,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       payment_method: result.payment_method as PaymentMethod,
       reference: result.reference,
       notes: result.notes,
-      created_by: result.created_by,
-    };
+      created_by: result.created_by };
   }
 
   /**
@@ -233,10 +217,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       where: { cycle_id: cycleId },
       include: {
         cycle_payments: {
-          orderBy: { payment_date: 'desc' },
-        },
-      },
-    });
+          orderBy: { payment_date: 'desc' } } } });
 
     if (!cycle) {
       throw new NotFoundException(
@@ -253,8 +234,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         payment_method: payment.payment_method as PaymentMethod,
         reference: payment.reference,
         notes: payment.notes,
-        created_by: payment.created_by,
-      }),
+        created_by: payment.created_by }),
     );
 
     return {
@@ -265,8 +245,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
       payment_status: cycle.payment_status,
       payment_due_date: formatBAYMD(cycle.payment_due_date),
-      payments,
-    };
+      payments };
   }
 
   /**
@@ -276,27 +255,19 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     personId: number,
   ): Promise<CyclePaymentSummaryDto[]> {
     const subscriptions = await this.customer_subscription.findMany({
-      where: { customer_id: personId },
-    });
+      where: { customer_id: personId } });
 
     const cycles = await this.subscription_cycle.findMany({
       where: {
         subscription_id: {
-          in: subscriptions.map((sub) => sub.subscription_id),
-        },
-      },
+          in: subscriptions.map((sub) => sub.subscription_id) } },
       include: {
         cycle_payments: {
-          orderBy: { payment_date: 'desc' },
-        },
+          orderBy: { payment_date: 'desc' } },
         customer_subscription: {
           include: {
-            subscription_plan: true,
-          },
-        },
-      },
-      orderBy: { cycle_start: 'desc' },
-    });
+            subscription_plan: true } } },
+      orderBy: { cycle_start: 'desc' } });
 
     const paymentSummaries: CyclePaymentSummaryDto[] = [];
 
@@ -310,8 +281,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
-          created_by: payment.created_by,
-        }),
+          created_by: payment.created_by }),
       );
 
       paymentSummaries.push({
@@ -322,8 +292,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
         payment_due_date: formatBAYMD(cycle.payment_due_date),
-        payments,
-      });
+        payments });
     }
 
     return paymentSummaries;
@@ -348,8 +317,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     // 🔧 CORRECCIÓN: Usar configuración consistente con el sistema automático
     const lateFeeConfig = {
       feeRate: 0.2,
-      gracePeriod: 10,
-    };
+      gracePeriod: 10 };
 
     if (daysLate <= lateFeeConfig.gracePeriod) {
       return 0;
@@ -377,10 +345,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       where: {
         subscription_id: subscriptionId,
         cycle_id: { not: newCycleId },
-        credit_balance: { gt: 0 },
-      },
-      orderBy: { cycle_end: 'desc' },
-    });
+        credit_balance: { gt: 0 } },
+      orderBy: { cycle_end: 'desc' } });
 
     if (
       !previousCycle ||
@@ -394,17 +360,13 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       await tx.subscription_cycle.update({
         where: { cycle_id: newCycleId },
         data: {
-          credit_balance: previousCycle.credit_balance,
-        },
-      });
+          credit_balance: previousCycle.credit_balance } });
 
       // Limpiar créditos del ciclo anterior
       await tx.subscription_cycle.update({
         where: { cycle_id: previousCycle.cycle_id },
         data: {
-          credit_balance: 0,
-        },
-      });
+          credit_balance: 0 } });
 
       // Registrar la transferencia como un movimiento
       await tx.cycle_payment.create({
@@ -415,9 +377,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_method: PaymentMethod.TRANSFERENCIA_CREDITO,
           reference: `TRANSFER-FROM-CYCLE-${previousCycle.cycle_id}`,
           notes: `Crédito transferido desde ciclo anterior ${previousCycle.cycle_id}`,
-          created_by: null,
-        },
-      });
+          created_by: null } });
     });
 
     this.logger.log(
@@ -433,10 +393,8 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const cycles = await this.subscription_cycle.findMany({
       where: {
         subscription_id: subscriptionId,
-        OR: [{ credit_balance: { gt: 0 } }, { pending_balance: { gt: 0 } }],
-      },
-      orderBy: { cycle_start: 'asc' },
-    });
+        OR: [{ credit_balance: { gt: 0 } }, { pending_balance: { gt: 0 } }] },
+      orderBy: { cycle_start: 'asc' } });
 
     let availableCredits = 0;
     const cyclesWithDebt = [];
@@ -489,9 +447,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           data: {
             pending_balance: newPendingBalance,
             paid_amount: newPaidAmount,
-            payment_status: newPaymentStatus,
-          },
-        });
+            payment_status: newPaymentStatus } });
 
         // Registrar el pago aplicado desde créditos
         await tx.cycle_payment.create({
@@ -502,9 +458,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             payment_method: PaymentMethod.APLICACION_CREDITO,
             reference: `CREDIT-APPLICATION-${debtCycle.cycle_id}`,
             notes: `Crédito aplicado automáticamente a deuda pendiente`,
-            created_by: null,
-          },
-        });
+            created_by: null } });
 
         remainingCredits -= appliedAmount;
       }
@@ -516,8 +470,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           // Limpiar todos los créditos restantes
           await tx.subscription_cycle.update({
             where: { cycle_id: creditCycle.cycle_id },
-            data: { credit_balance: 0 },
-          });
+            data: { credit_balance: 0 } });
         } else {
           const newCreditBalance = Math.min(
             creditsToDistribute,
@@ -525,8 +478,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           );
           await tx.subscription_cycle.update({
             where: { cycle_id: creditCycle.cycle_id },
-            data: { credit_balance: newCreditBalance },
-          });
+            data: { credit_balance: newCreditBalance } });
           creditsToDistribute -= creditCycle.credit_balance;
         }
       }
@@ -544,17 +496,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const cycles = await this.subscription_cycle.findMany({
       include: {
         cycle_payments: {
-          orderBy: { payment_date: 'desc' },
-        },
+          orderBy: { payment_date: 'desc' } },
         customer_subscription: {
           include: {
             person: true,
-            subscription_plan: true,
-          },
-        },
-      },
-      orderBy: { payment_due_date: 'asc' },
-    });
+            subscription_plan: true } } },
+      orderBy: { payment_due_date: 'asc' } });
 
     return cycles.map((cycle) => {
       const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
@@ -566,8 +513,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
-          created_by: payment.created_by,
-        }),
+          created_by: payment.created_by }),
       );
 
       return {
@@ -578,8 +524,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
         payment_due_date: formatBAYMD(cycle.payment_due_date),
-        payments,
-      };
+        payments };
     });
   }
 
@@ -594,25 +539,17 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             PaymentStatus.PENDING,
             PaymentStatus.PARTIAL,
             PaymentStatus.OVERDUE,
-          ],
-        },
+          ] },
         pending_balance: {
-          gt: 0,
-        },
-      },
+          gt: 0 } },
       include: {
         cycle_payments: {
-          orderBy: { payment_date: 'desc' },
-        },
+          orderBy: { payment_date: 'desc' } },
         customer_subscription: {
           include: {
             person: true,
-            subscription_plan: true,
-          },
-        },
-      },
-      orderBy: { payment_due_date: 'asc' },
-    });
+            subscription_plan: true } } },
+      orderBy: { payment_due_date: 'asc' } });
 
     return cycles.map((cycle) => {
       const payments: CyclePaymentResponseDto[] = cycle.cycle_payments.map(
@@ -624,8 +561,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
           payment_method: payment.payment_method as PaymentMethod,
           reference: payment.reference,
           notes: payment.notes,
-          created_by: payment.created_by,
-        }),
+          created_by: payment.created_by }),
       );
 
       return {
@@ -636,8 +572,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         credit_balance: parseFloat(cycle.credit_balance?.toString() || '0'),
         payment_status: cycle.payment_status,
         payment_due_date: formatBAYMD(cycle.payment_due_date),
-        payments,
-      };
+        payments };
     });
   }
 
@@ -657,11 +592,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       include: {
         subscription_cycle: {
           include: {
-            customer_subscription: true,
-          },
-        },
-      },
-    });
+            customer_subscription: true } } } });
 
     if (!existingPayment) {
       throw new NotFoundException(`Pago con ID ${paymentId} no encontrado`);
@@ -676,8 +607,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       payment_method: existingPayment.payment_method,
       payment_date: existingPayment.payment_date,
       reference: existingPayment.reference,
-      notes: existingPayment.notes,
-    };
+      notes: existingPayment.notes };
 
     const result = await this.$transaction(async (tx) => {
       // Actualizar el pago
@@ -693,9 +623,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
             updateCyclePaymentDto.reference ?? existingPayment.reference,
           notes: updateCyclePaymentDto.notes ?? existingPayment.notes,
           updated_at: new Date(),
-          updated_by: userId,
-        },
-      });
+          updated_by: userId } });
 
       // Recalcular balances del ciclo si cambió el monto
       if (updateCyclePaymentDto.amount !== oldValues.amount) {
@@ -716,13 +644,11 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         payment_method: updateCyclePaymentDto.payment_method,
         payment_date: updateCyclePaymentDto.payment_date,
         reference: updateCyclePaymentDto.reference,
-        notes: updateCyclePaymentDto.notes,
-      },
+        notes: updateCyclePaymentDto.notes },
       userId,
       reason: 'Actualización de pago de ciclo',
       ipAddress,
-      userAgent,
-    });
+      userAgent });
 
     // Invalidar cache del semáforo de pago
     this.paymentSemaphoreService.invalidateCache(
@@ -744,14 +670,11 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         amount: parseFloat(result.amount?.toString() || '0'),
         payment_method: result.payment_method,
         reference: result.reference,
-        notes: result.notes,
-      },
+        notes: result.notes },
       metadata: {
         operation_type: 'UPDATE',
         timestamp: formatBATimestampISO(new Date()),
-        affected_records: 1,
-      },
-    };
+        affected_records: 1 } };
   }
 
   /**
@@ -770,11 +693,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       include: {
         subscription_cycle: {
           include: {
-            customer_subscription: true,
-          },
-        },
-      },
-    });
+            customer_subscription: true } } } });
 
     if (!existingPayment) {
       throw new NotFoundException(`Pago con ID ${paymentId} no encontrado`);
@@ -802,14 +721,12 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       payment_date: existingPayment.payment_date,
       reference: existingPayment.reference,
       notes: existingPayment.notes,
-      created_by: existingPayment.created_by,
-    };
+      created_by: existingPayment.created_by };
 
     await this.$transaction(async (tx) => {
       // Eliminar el pago
       await tx.cycle_payment.delete({
-        where: { payment_id: paymentId },
-      });
+        where: { payment_id: paymentId } });
 
       // Recalcular balances del ciclo
       await this.recalculateCycleBalances(existingPayment.cycle_id, tx);
@@ -824,8 +741,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       userId,
       reason: deletePaymentDto.reason || 'Eliminación sin motivo especificado',
       ipAddress,
-      userAgent,
-    });
+      userAgent });
 
     // Invalidar cache del semáforo de pago
     this.paymentSemaphoreService.invalidateCache(
@@ -843,9 +759,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
       metadata: {
         operation_type: 'DELETE',
         timestamp: formatBATimestampISO(new Date()),
-        affected_records: 1,
-      },
-    };
+        affected_records: 1 } };
   }
 
   /**
@@ -888,8 +802,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     // Verificar permisos del usuario (administradores y jefes administrativos pueden eliminar)
     const user = await this.user.findUnique({
       where: { id: userId },
-      select: { role: true },
-    });
+      select: { role: true } });
 
     if (
       !user ||
@@ -902,8 +815,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
 
     // Verificar que no sea el único pago del ciclo si el ciclo está marcado como pagado
     const cyclePayments = await this.cycle_payment.count({
-      where: { cycle_id: payment.cycle_id },
-    });
+      where: { cycle_id: payment.cycle_id } });
 
     if (
       cyclePayments === 1 &&
@@ -926,9 +838,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
     const cycle = await tx.subscription_cycle.findUnique({
       where: { cycle_id: cycleId },
       include: {
-        cycle_payments: true,
-      },
-    });
+        cycle_payments: true } });
 
     if (!cycle) {
       throw new NotFoundException(`Ciclo ${cycleId} no encontrado`);
@@ -963,9 +873,7 @@ export class CyclePaymentsService extends PrismaClient implements OnModuleInit {
         paid_amount: totalPayments,
         pending_balance: pendingBalance,
         credit_balance: creditBalance,
-        payment_status: paymentStatus,
-      },
-    });
+        payment_status: paymentStatus } });
 
     this.logger.log(
       `Balances recalculados para ciclo ${cycleId}: Pagado ${totalPayments}, Pendiente ${pendingBalance}, Crédito ${creditBalance}`,

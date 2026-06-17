@@ -3,10 +3,11 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { formatBATimestampISO } from '../utils/date.utils';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface CreateIncidentDto {
   route_sheet_detail_id: number;
@@ -42,7 +43,11 @@ interface IncidentResponseDto {
 }
 
 @Injectable()
-export class IncidentService extends PrismaClient {
+export class IncidentService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
   /**
    * Registra una nueva incidencia durante una entrega
    */
@@ -59,11 +64,7 @@ export class IncidentService extends PrismaClient {
         include: {
           order_header: {
             include: {
-              customer: true,
-            },
-          },
-        },
-      });
+              customer: true } } } });
 
       if (!detail) {
         throw new NotFoundException(
@@ -73,8 +74,7 @@ export class IncidentService extends PrismaClient {
 
       // 2. Verificar que el usuario existe
       const user = await this.user.findUnique({
-        where: { id: created_by },
-      });
+        where: { id: created_by } });
 
       if (!user) {
         throw new NotFoundException(
@@ -89,31 +89,20 @@ export class IncidentService extends PrismaClient {
           incident_type,
           description,
           created_by,
-          status: 'PENDING',
-        },
+          status: 'PENDING' },
         include: {
           creator: true,
           route_sheet_detail: {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                },
-              },
+                  customer: true } },
               one_off_purchase: {
                 include: {
-                  person: true,
-                },
-              },
+                  person: true } },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  person: true } } } } } });
 
       // 4. Actualizar el estado del detalle si es necesario
       if (
@@ -124,9 +113,7 @@ export class IncidentService extends PrismaClient {
           where: { route_sheet_detail_id },
           data: {
             delivery_status: 'FAILED',
-            comments: description,
-          },
-        });
+            comments: description } });
       }
 
       // 5. Retornar la respuesta
@@ -156,9 +143,7 @@ export class IncidentService extends PrismaClient {
             incident.route_sheet_detail.one_off_purchase?.person?.address ||
             incident.route_sheet_detail.one_off_purchase_header?.person
               ?.address ||
-            'Sin dirección',
-        },
-      };
+            'Sin dirección' } };
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -184,9 +169,7 @@ export class IncidentService extends PrismaClient {
       const incident = await this.delivery_incident.findUnique({
         where: { incident_id },
         include: {
-          route_sheet_detail: true,
-        },
-      });
+          route_sheet_detail: true } });
 
       if (!incident) {
         throw new NotFoundException(
@@ -203,8 +186,7 @@ export class IncidentService extends PrismaClient {
 
       // 3. Verificar que el usuario resolutor existe
       const user = await this.user.findUnique({
-        where: { id: resolved_by },
-      });
+        where: { id: resolved_by } });
 
       if (!user) {
         throw new NotFoundException(
@@ -219,8 +201,7 @@ export class IncidentService extends PrismaClient {
           status: 'RESOLVED',
           resolution,
           resolved_by,
-          resolved_at: new Date(),
-        },
+          resolved_at: new Date() },
         include: {
           creator: true,
           resolver: true,
@@ -228,23 +209,13 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                },
-              },
+                  customer: true } },
               one_off_purchase: {
                 include: {
-                  person: true,
-                },
-              },
+                  person: true } },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  person: true } } } } } });
 
       // 5. Extraer información del pedido
       const detail = updatedIncident.route_sheet_detail;
@@ -297,9 +268,7 @@ export class IncidentService extends PrismaClient {
         order_info: {
           order_id: orderId,
           customer_name: customerName,
-          customer_address: customerAddress,
-        },
-      };
+          customer_address: customerAddress } };
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -355,24 +324,14 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                },
-              },
+                  customer: true } },
               one_off_purchase: {
                 include: {
-                  person: true,
-                },
-              },
+                  person: true } },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { created_at: 'desc' },
-      });
+                  person: true } } } } },
+        orderBy: { created_at: 'desc' } });
 
       return incidents.map((incident) => {
         const detail = incident.route_sheet_detail;
@@ -419,9 +378,7 @@ export class IncidentService extends PrismaClient {
           order_info: {
             order_id: orderId,
             customer_name: customerName,
-            customer_address: customerAddress,
-          },
-        };
+            customer_address: customerAddress } };
       });
     } catch (error) {
       console.error('Error al obtener incidencias pendientes:', error);
@@ -474,26 +431,16 @@ export class IncidentService extends PrismaClient {
             {
               route_sheet_detail: {
                 order_header: {
-                  customer_id: clientId,
-                },
-              },
-            },
+                  customer_id: clientId } } },
             {
               route_sheet_detail: {
                 one_off_purchase: {
-                  person_id: clientId,
-                },
-              },
-            },
+                  person_id: clientId } } },
             {
               route_sheet_detail: {
                 one_off_purchase_header: {
-                  person_id: clientId,
-                },
-              },
-            },
-          ],
-        },
+                  person_id: clientId } } },
+          ] },
         include: {
           creator: true,
           resolver: true,
@@ -501,24 +448,14 @@ export class IncidentService extends PrismaClient {
             include: {
               order_header: {
                 include: {
-                  customer: true,
-                },
-              },
+                  customer: true } },
               one_off_purchase: {
                 include: {
-                  person: true,
-                },
-              },
+                  person: true } },
               one_off_purchase_header: {
                 include: {
-                  person: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { created_at: 'desc' },
-      });
+                  person: true } } } } },
+        orderBy: { created_at: 'desc' } });
 
       return incidents.map((incident) => {
         const detail = incident.route_sheet_detail;
@@ -570,9 +507,7 @@ export class IncidentService extends PrismaClient {
           order_info: {
             order_id: orderId,
             customer_name: customerName,
-            customer_address: customerAddress,
-          },
-        };
+            customer_address: customerAddress } };
       });
     } catch (error) {
       console.error(
@@ -594,29 +529,22 @@ export class IncidentService extends PrismaClient {
       const incidentsByType = await this.delivery_incident.groupBy({
         by: ['incident_type'],
         _count: {
-          incident_id: true,
-        },
-      });
+          incident_id: true } });
 
       // Contar incidencias por estado
       const incidentsByStatus = await this.delivery_incident.groupBy({
         by: ['status'],
         _count: {
-          incident_id: true,
-        },
-      });
+          incident_id: true } });
 
       // Obtener tiempo promedio de resolución para incidencias resueltas
       const resolvedIncidents = await this.delivery_incident.findMany({
         where: {
           status: 'RESOLVED',
-          resolved_at: { not: null },
-        },
+          resolved_at: { not: null } },
         select: {
           created_at: true,
-          resolved_at: true,
-        },
-      });
+          resolved_at: true } });
 
       let avgResolutionTimeHours = 0;
 
@@ -638,21 +566,16 @@ export class IncidentService extends PrismaClient {
       return {
         total_incidents: await this.delivery_incident.count(),
         pending_incidents: await this.delivery_incident.count({
-          where: { status: 'PENDING' },
-        }),
+          where: { status: 'PENDING' } }),
         resolved_incidents: await this.delivery_incident.count({
-          where: { status: 'RESOLVED' },
-        }),
+          where: { status: 'RESOLVED' } }),
         by_type: incidentsByType.map((it) => ({
           type: it.incident_type,
-          count: it._count.incident_id,
-        })),
+          count: it._count.incident_id })),
         by_status: incidentsByStatus.map((it) => ({
           status: it.status,
-          count: it._count.incident_id,
-        })),
-        avg_resolution_time_hours: avgResolutionTimeHours.toFixed(2),
-      };
+          count: it._count.incident_id })),
+        avg_resolution_time_hours: avgResolutionTimeHours.toFixed(2) };
     } catch (error) {
       console.error('Error al obtener estadísticas de incidencias:', error);
       throw new InternalServerErrorException(
@@ -661,4 +584,3 @@ export class IncidentService extends PrismaClient {
     }
   }
 }
-import { formatBATimestampISO } from '../utils/date.utils';

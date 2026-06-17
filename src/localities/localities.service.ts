@@ -2,20 +2,21 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  OnModuleInit,
-  ConflictException,
-} from '@nestjs/common';
-import { PrismaClient, locality } from '@prisma/client';
+  ConflictException } from '@nestjs/common';
+import { locality } from '@prisma/client';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import { CreateLocalityDto, UpdateLocalityDto } from './dto';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class LocalitiesService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Localidad';
-
-  async onModuleInit() {
-    await this.$connect();
+export class LocalitiesService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Localidad';
 
   async findAll(): Promise<locality[]> {
     try {
@@ -26,15 +27,10 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         include: {
           province: {
             include: {
-              country: true,
-            },
-          },
-          zones: true,
-        },
+              country: true } },
+          zones: true },
         orderBy: {
-          name: 'asc',
-        },
-      });
+          name: 'asc' } });
     } catch (error) {
       handlePrismaError(error, this.entityName + 'es');
       throw new InternalServerErrorException(
@@ -51,17 +47,12 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       const record = await this.locality.findFirst({
         where: {
           locality_id: id,
-          ...(includeInactive ? {} : { is_active: true }),
-        },
+          ...(includeInactive ? {} : { is_active: true }) },
         include: {
           province: {
             include: {
-              country: true,
-            },
-          },
-          zones: true,
-        },
-      });
+              country: true } },
+          zones: true } });
 
       if (!record) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
@@ -83,8 +74,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     try {
       // Verificar que la provincia existe
       const province = await this.province.findUnique({
-        where: { province_id: dto.provinceId },
-      });
+        where: { province_id: dto.provinceId } });
 
       if (!province) {
         throw new NotFoundException('Provincia no encontrada.');
@@ -92,8 +82,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
 
       // Verificar que no existe otra localidad con el mismo código
       const existingLocality = await this.locality.findFirst({
-        where: { code: dto.code },
-      });
+        where: { code: dto.code } });
 
       if (existingLocality) {
         throw new ConflictException(
@@ -105,17 +94,12 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         data: {
           code: dto.code,
           name: dto.name,
-          province_id: dto.provinceId,
-        },
+          province_id: dto.provinceId },
         include: {
           province: {
             include: {
-              country: true,
-            },
-          },
-          zones: true,
-        },
-      });
+              country: true } },
+          zones: true } });
 
       return newLocality;
     } catch (error) {
@@ -136,8 +120,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     try {
       // Verificar que la localidad existe
       const existingLocality = await this.locality.findUnique({
-        where: { locality_id: id },
-      });
+        where: { locality_id: id } });
 
       if (!existingLocality) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
@@ -146,8 +129,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Si se está actualizando la provincia, verificar que existe
       if (dto.provinceId) {
         const province = await this.province.findUnique({
-          where: { province_id: dto.provinceId },
-        });
+          where: { province_id: dto.provinceId } });
 
         if (!province) {
           throw new NotFoundException('Provincia no encontrada.');
@@ -159,9 +141,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         const duplicateLocality = await this.locality.findFirst({
           where: {
             code: dto.code,
-            locality_id: { not: id },
-          },
-        });
+            locality_id: { not: id } } });
 
         if (duplicateLocality) {
           throw new ConflictException(
@@ -175,17 +155,12 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
         data: {
           ...(dto.code && { code: dto.code }),
           ...(dto.name && { name: dto.name }),
-          ...(dto.provinceId && { province_id: dto.provinceId }),
-        },
+          ...(dto.provinceId && { province_id: dto.provinceId }) },
         include: {
           province: {
             include: {
-              country: true,
-            },
-          },
-          zones: true,
-        },
-      });
+              country: true } },
+          zones: true } });
 
       return updatedLocality;
     } catch (error) {
@@ -206,8 +181,7 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
     try {
       // Verificar que la localidad existe
       const existingLocality = await this.locality.findUnique({
-        where: { locality_id: id },
-      });
+        where: { locality_id: id } });
 
       if (!existingLocality) {
         throw new NotFoundException(`${this.entityName} no encontrada.`);
@@ -216,13 +190,11 @@ export class LocalitiesService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.locality.update({
         where: { locality_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
 
       return {
         message: `${this.entityName} desactivada correctamente`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       if (
         error instanceof NotFoundException ||

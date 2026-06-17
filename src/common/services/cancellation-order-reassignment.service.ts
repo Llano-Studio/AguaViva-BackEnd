@@ -1,19 +1,20 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, CancellationOrderStatus } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
+import { CancellationOrderStatus } from '@prisma/client';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { formatBAYMD } from '../utils/date.utils';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 @Injectable()
 export class CancellationOrderReassignmentService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private readonly logger = new Logger(
     CancellationOrderReassignmentService.name,
   );
-
-  constructor() {
-    super();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   async onModuleInit() {
@@ -44,35 +45,22 @@ export class CancellationOrderReassignmentService
           },
           rescheduled_count: {
             lt: 3, // Máximo 3 intentos de reprogramación
-          },
-        },
+          } },
         include: {
           customer_subscription: {
             include: {
               person: {
                 include: {
-                  zone: true,
-                },
-              },
+                  zone: true } },
               subscription_plan: {
                 include: {
                   subscription_plan_product: {
                     include: {
-                      product: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
+                      product: true } } } } } },
           route_sheet: {
             include: {
               driver: true,
-              vehicle: true,
-            },
-          },
-        },
-      });
+              vehicle: true } } } });
 
       this.logger.log(
         `📊 Encontradas ${failedCancellationOrders.length} órdenes de cancelación fallidas para reasignar`,
@@ -156,8 +144,7 @@ export class CancellationOrderReassignmentService
    */
   private async findAvailableRouteSheet(deliveryDate: Date, zoneId?: number) {
     const whereClause: any = {
-      delivery_date: deliveryDate,
-    };
+      delivery_date: deliveryDate };
 
     // Si se especifica una zona, buscar vehículos que operen en esa zona
     if (zoneId) {
@@ -165,10 +152,7 @@ export class CancellationOrderReassignmentService
         vehicle_zone: {
           some: {
             zone_id: zoneId,
-            is_active: true,
-          },
-        },
-      };
+            is_active: true } } };
     }
 
     return await this.route_sheet.findFirst({
@@ -176,9 +160,7 @@ export class CancellationOrderReassignmentService
       include: {
         driver: true,
         vehicle: true,
-        route_sheet_detail: true,
-      },
-    });
+        route_sheet_detail: true } });
   }
 
   /**
@@ -194,20 +176,14 @@ export class CancellationOrderReassignmentService
       isActive: true,
       user_vehicle: {
         some: {
-          is_active: true,
-        },
-      },
-    };
+          is_active: true } } };
 
     if (zoneId) {
       whereClause.user_vehicle.some.vehicle = {
         vehicle_zone: {
           some: {
             zone_id: zoneId,
-            is_active: true,
-          },
-        },
-      };
+            is_active: true } } };
     }
 
     const availableDriver = await this.user.findFirst({
@@ -221,15 +197,7 @@ export class CancellationOrderReassignmentService
                 vehicle_zone: {
                   where: { is_active: true },
                   include: {
-                    zone: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+                    zone: true } } } } } } } });
 
     if (!availableDriver || !availableDriver.user_vehicle[0]) {
       throw new Error(
@@ -245,14 +213,11 @@ export class CancellationOrderReassignmentService
         driver_id: availableDriver.id,
         vehicle_id: vehicle.vehicle_id,
         route_notes:
-          'Hoja de ruta creada automáticamente para reasignación de órdenes de cancelación fallidas',
-      },
+          'Hoja de ruta creada automáticamente para reasignación de órdenes de cancelación fallidas' },
       include: {
         driver: true,
         vehicle: true,
-        route_sheet_detail: true,
-      },
-    });
+        route_sheet_detail: true } });
   }
 
   /**
@@ -274,9 +239,7 @@ export class CancellationOrderReassignmentService
           rescheduled_count: (failedOrder.rescheduled_count || 0) + 1,
           notes:
             (failedOrder.notes || '') +
-            ` | Reprogramado automáticamente el ${formatBAYMD(new Date())}`,
-        },
-      });
+            ` | Reprogramado automáticamente el ${formatBAYMD(new Date())}` } });
 
       // Las órdenes de cancelación se relacionan directamente con route_sheet
       // No necesitan entrada en route_sheet_detail ya que no tienen ese campo
@@ -319,40 +282,28 @@ export class CancellationOrderReassignmentService
       where: {
         status: CancellationOrderStatus.CANCELLED,
         scheduled_collection_date: {
-          lt: today,
-        },
+          lt: today },
         rescheduled_count: {
-          lt: 3,
-        },
-      },
-    });
+          lt: 3 } } });
 
     const maxRetriesReached = await this.cancellation_order.count({
       where: {
         status: CancellationOrderStatus.CANCELLED,
         rescheduled_count: {
-          gte: 3,
-        },
-      },
-    });
+          gte: 3 } } });
 
     const rescheduledToday = await this.cancellation_order.count({
       where: {
         rescheduled_count: {
-          gt: 0,
-        },
+          gt: 0 },
         updated_at: {
-          gte: today,
-        },
-      },
-    });
+          gte: today } } });
 
     return {
       pending_reassignment: failedCount,
       max_retries_reached: maxRetriesReached,
       rescheduled_today: rescheduledToday,
-      total_failed: failedCount + maxRetriesReached,
-    };
+      total_failed: failedCount + maxRetriesReached };
   }
 
   /**
@@ -370,11 +321,8 @@ export class CancellationOrderReassignmentService
           (
             await this.cancellation_order.findUnique({
               where: { cancellation_order_id: cancellationOrderId },
-              select: { notes: true },
-            })
+              select: { notes: true } })
           )?.notes +
-          ` | Marcado como fallido: ${reason || 'Sin razón especificada'}`,
-      },
-    });
+          ` | Marcado como fallido: ${reason || 'Sin razón especificada'}` } });
   }
 }

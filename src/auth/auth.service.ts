@@ -3,12 +3,10 @@ import {
   ForbiddenException,
   HttpException,
   Injectable,
-  OnModuleInit,
   UnauthorizedException,
   InternalServerErrorException,
   ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+  NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -17,7 +15,7 @@ import * as fs from 'fs/promises';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
-import { PrismaClient, Role, User, Prisma } from '@prisma/client';
+import { Role, User, Prisma } from '@prisma/client';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { RecoverPasswordDto } from './dto/recover-password.dto';
@@ -27,8 +25,7 @@ import { FilterUsersDto } from './dto/filter-users.dto';
 import { UserResponseDto } from './dto/user-response.dto';
 import {
   AssignVehiclesToUserDto,
-  UserVehicleResponseDto,
-} from './dto/assign-vehicles.dto';
+  UserVehicleResponseDto } from './dto/assign-vehicles.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { formatBATimestampISO } from '../common/utils/date.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
@@ -37,9 +34,11 @@ import {
   FilterCentralUsersDto,
   ResetCentralPasswordDto,
   UpdateCentralUserStatusDto,
-  UpsertCentralUserAccessDto,
-} from './dto/central-user.dto';
+  UpsertCentralUserAccessDto } from './dto/central-user.dto';
 import { resolveRefreshTokenSecret } from './utils/jwt-secret.util';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 type CentralSsoUser = Pick<
   CentralSsoPayload,
@@ -74,19 +73,15 @@ type CentralMe = {
 };
 
 @Injectable()
-export class AuthService extends PrismaClient implements OnModuleInit {
+export class AuthService extends PrismaBackedService {
   private readonly entityName = 'Usuario';
-
-  async onModuleInit() {
-    await this.$connect();
-  }
-
   constructor(
+    prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
   ) {
-    super();
+    super(prisma);
   }
 
   private sanitizeProfileImageUrl(profileImageUrl?: string | null) {
@@ -160,13 +155,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         name: actingUser.name,
         role: actingUser.role,
         assignedSystem: this.getModuleSystemCode(),
-        type: 'access',
-      },
+        type: 'access' },
       {
         secret: this.getLoginServiceJwtSecret(),
         expiresIn: '5m',
-        issuer,
-      },
+        issuer },
     );
   }
 
@@ -218,9 +211,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         data: {
           token: refreshToken,
           userId: userId,
-          expiresAt: expiresAt,
-        },
-      });
+          expiresAt: expiresAt } });
     } catch (error) {
       handlePrismaError(error, 'Token de refresco');
       throw new InternalServerErrorException(
@@ -253,8 +244,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         password: hashedPassword,
         name,
         role: role || Role.ADMINISTRATIVE,
-        isActive: isActive === undefined ? true : isActive,
-      };
+        isActive: isActive === undefined ? true : isActive };
 
       const user = await this.user.create({ data: userData });
 
@@ -289,13 +279,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           createdAt: formatBATimestampISO(user.createdAt),
           updatedAt: user.updatedAt
             ? formatBATimestampISO(user.updatedAt)
-            : undefined,
-        }),
+            : undefined }),
         accessToken,
         refreshToken,
         message:
-          'Usuario registrado exitosamente. Se ha enviado un email de confirmación.',
-      };
+          'Usuario registrado exitosamente. Se ha enviado un email de confirmación.' };
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -346,11 +334,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           email: user.email,
           name: user.name,
           role: user.role,
-          profileImageUrl: undefined,
-        },
+          profileImageUrl: undefined },
         accessToken,
-        refreshToken,
-      };
+        refreshToken };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       handlePrismaError(error, this.entityName);
@@ -383,8 +369,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         isActive: user.isActive,
         profileImageUrl: centralMe?.profileImageUrl,
         accessToken,
-        refreshToken,
-      };
+        refreshToken };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -404,14 +389,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const user = await this.$transaction(async (prisma) => {
         const existingByCentralId = await prisma.user.findUnique({
           where: { centralUserId: centralUser.userId },
-          select: { id: true },
-        });
+          select: { id: true } });
         const existingByEmail = existingByCentralId
           ? null
           : await prisma.user.findUnique({
             where: { email: normalizedEmail },
-            select: { id: true },
-          });
+            select: { id: true } });
         const userToSync = existingByCentralId ?? existingByEmail;
 
         if (!userToSync) {
@@ -423,9 +406,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               name: resolvedName,
               role: resolvedRole,
               isActive: true,
-              isEmailConfirmed: true,
-            },
-          });
+              isEmailConfirmed: true } });
         }
 
         return prisma.user.update({
@@ -437,9 +418,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             role: resolvedRole,
             isActive: true,
             isEmailConfirmed: true,
-            updatedAt: new Date(),
-          },
-        });
+            updatedAt: new Date() } });
       });
 
       const accessTokenExpiresIn =
@@ -461,11 +440,9 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: user.role,
           system: centralUser.assignedSystem,
           isActive: user.isActive,
-          profileImageUrl: fallbackProfileImageUrl,
-        },
+          profileImageUrl: fallbackProfileImageUrl },
         accessToken,
-        refreshToken,
-      };
+        refreshToken };
     } catch (error) {
       handlePrismaError(error, 'Sesión SSO');
       throw new InternalServerErrorException(
@@ -478,8 +455,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     try {
       const whereClause: Prisma.UserWhereInput = {
         // Por defecto solo mostrar usuarios activos, a menos que se especifique lo contrario
-        isActive: filters?.isActive !== undefined ? filters.isActive : true,
-      };
+        isActive: filters?.isActive !== undefined ? filters.isActive : true };
       if (filters) {
         if (filters.search) {
           whereClause.OR = [
@@ -516,12 +492,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: true,
           isActive: true,
           createdAt: true,
-          updatedAt: true,
-        },
+          updatedAt: true },
         skip,
         take: limit,
-        orderBy: orderByClause,
-      });
+        orderBy: orderByClause });
 
       const userDtos = users.map(
         (user) =>
@@ -530,8 +504,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             createdAt: formatBATimestampISO(user.createdAt),
             updatedAt: user.updatedAt
               ? formatBATimestampISO(user.updatedAt)
-              : undefined,
-          }),
+              : undefined }),
       );
 
       return {
@@ -540,9 +513,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           total: totalUsers,
           page: page,
           limit: limit,
-          totalPages: Math.ceil(totalUsers / limit),
-        },
-      };
+          totalPages: Math.ceil(totalUsers / limit) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -556,8 +527,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const user = await this.user.findFirst({
         where: {
           id,
-          ...(includeInactive ? {} : { isActive: true }),
-        },
+          ...(includeInactive ? {} : { isActive: true }) },
         select: {
           id: true,
           email: true,
@@ -565,9 +535,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: true,
           isActive: true,
           createdAt: true,
-          updatedAt: true,
-        },
-      });
+          updatedAt: true } });
 
       if (!user) {
         throw new NotFoundException(
@@ -579,8 +547,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         createdAt: formatBATimestampISO(user.createdAt),
         updatedAt: user.updatedAt
           ? formatBATimestampISO(user.updatedAt)
-          : undefined,
-      });
+          : undefined });
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, this.entityName);
@@ -601,8 +568,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     );
     return new UserResponseDto({
       ...localProfile,
-      profileImageUrl: centralMe?.profileImageUrl,
-    });
+      profileImageUrl: centralMe?.profileImageUrl });
   }
 
   async updateMyProfileImage(actingUser: User, profileImage?: any) {
@@ -655,8 +621,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             isActive:
               updateUserDto.isActive === undefined
                 ? access.isActive
-                : updateUserDto.isActive,
-          }
+                : updateUserDto.isActive }
           : access,
       );
       if (!mergedAccesses.some((access) => access.system === currentSystem)) {
@@ -664,8 +629,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           system: currentSystem,
           role: updateUserDto.role ?? Role.ADMINISTRATIVE,
           isActive:
-            updateUserDto.isActive === undefined ? true : updateUserDto.isActive,
-        });
+            updateUserDto.isActive === undefined ? true : updateUserDto.isActive });
       }
 
       const updatedCentralUser = await this.sendMultipartRequestToLoginService(
@@ -676,8 +640,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           email: updateUserDto.email,
           name: updateUserDto.name,
           isActive: updateUserDto.isActive,
-          accesses: mergedAccesses,
-        },
+          accesses: mergedAccesses },
         profileImage,
       );
 
@@ -757,8 +720,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const hashedNewPassword = await bcrypt.hash(newPassword, 10);
       await this.user.update({
         where: { id: userId },
-        data: { password: hashedNewPassword, updatedAt: new Date() },
-      });
+        data: { password: hashedNewPassword, updatedAt: new Date() } });
 
       return { message: 'Contraseña actualizada correctamente.' };
     } catch (error) {
@@ -789,8 +751,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       await this.user.update({
         where: { email },
-        data: { recoveryToken, recoveryTokenExpires, updatedAt: new Date() },
-      });
+        data: { recoveryToken, recoveryTokenExpires, updatedAt: new Date() } });
 
       await this.mailService.sendPasswordRecoveryEmail(
         user.email,
@@ -799,8 +760,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       return {
         success: true,
         message:
-          'Si el email está registrado, recibirás un correo para recuperar tu contraseña.',
-      };
+          'Si el email está registrado, recibirás un correo para recuperar tu contraseña.' };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       handlePrismaError(error, this.entityName);
@@ -815,9 +775,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const user = await this.user.findFirst({
         where: {
           recoveryToken: token,
-          recoveryTokenExpires: { gt: new Date() },
-        },
-      });
+          recoveryTokenExpires: { gt: new Date() } } });
 
       if (!user || user.centralUserId !== null) {
         return this.forwardPasswordResetToLoginService(token, newPassword);
@@ -830,14 +788,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           password: hashedNewPassword,
           recoveryToken: null,
           recoveryTokenExpires: null,
-          updatedAt: new Date(),
-        },
-      });
+          updatedAt: new Date() } });
 
       return {
         success: true,
-        message: 'Contraseña restablecida correctamente.',
-      };
+        message: 'Contraseña restablecida correctamente.' };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
@@ -858,8 +813,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     recoverPasswordDto: RecoverPasswordDto,
   ) {
     return this.forwardLoginServiceRequest('forgot-password', {
-      email: recoverPasswordDto.email,
-    });
+      email: recoverPasswordDto.email });
   }
 
   private async forwardPasswordResetToLoginService(
@@ -868,8 +822,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ) {
     return this.forwardLoginServiceRequest('reset-password', {
       token,
-      newPassword,
-    });
+      newPassword });
   }
 
   private async forwardLoginServiceRequest(
@@ -879,10 +832,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const response = await fetch(`${this.getLoginServiceUrl()}/${path}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+        'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) });
     const text = await response.text();
     const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
 
@@ -939,10 +890,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const response = await fetch(`${this.getLoginServiceUrl()}/${path}`, {
         method,
         headers: {
-          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
-        },
-        body: formData,
-      });
+          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}` },
+        body: formData });
       const text = await response.text();
       const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
 
@@ -984,9 +933,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       `${this.getLoginServiceUrl()}/users/${centralUserId}`,
       {
         headers: {
-          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
-        },
-      },
+          Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}` } },
     );
     const text = await response.text();
     const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
@@ -1033,14 +980,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const localUser = await this.$transaction(async (prisma) => {
       const existingByCentralId = await prisma.user.findUnique({
         where: { centralUserId: user.id },
-        select: { id: true },
-      });
+        select: { id: true } });
       const existingByEmail = existingByCentralId
         ? null
         : await prisma.user.findUnique({
           where: { email: user.email.toLowerCase().trim() },
-          select: { id: true },
-        });
+          select: { id: true } });
       const userToSync = existingByCentralId ?? existingByEmail;
 
       if (!userToSync) {
@@ -1052,9 +997,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             name: user.name,
             role: moduleAccess.role,
             isActive: user.isActive,
-            isEmailConfirmed: true,
-          },
-        });
+            isEmailConfirmed: true } });
       }
 
       return prisma.user.update({
@@ -1067,9 +1010,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           role: moduleAccess.role,
           isActive: user.isActive,
           isEmailConfirmed: true,
-          updatedAt: new Date(),
-        },
-      });
+          updatedAt: new Date() } });
     });
 
     return localUser;
@@ -1083,8 +1024,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       updatedAt: localUser.updatedAt
         ? formatBATimestampISO(localUser.updatedAt)
         : undefined,
-      profileImageUrl: this.resolveCentralProfileImageUrl(user.profileImageUrl),
-    });
+      profileImageUrl: this.resolveCentralProfileImageUrl(user.profileImageUrl) });
   }
 
   private async forwardJsonToLoginService<T>(
@@ -1118,10 +1058,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         method,
         headers: {
           Authorization: `Bearer ${this.buildLoginServiceToken(actingUser)}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      },
+          ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}) },
     );
 
     const text = await response.text();
@@ -1160,16 +1098,14 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       isActive: filters.isActive,
       page: filters.page,
       limit: filters.limit,
-      system: this.getModuleSystemCode(),
-    });
+      system: this.getModuleSystemCode() });
 
     const centralIds = result.data.map((u) => u.id);
     const localUsers =
       centralIds.length > 0
         ? await this.user.findMany({
           where: { centralUserId: { in: centralIds } },
-          select: { id: true, centralUserId: true },
-        })
+          select: { id: true, centralUserId: true } })
         : [];
 
     const localIdByCentralId = new Map(
@@ -1192,13 +1128,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         accesses: Array.isArray((u as any).accesses)
           ? (u as any).accesses.map((access: any) => ({
             ...access,
-            redirectUrl: sanitizeUrl(access?.redirectUrl),
-          }))
+            redirectUrl: sanitizeUrl(access?.redirectUrl) }))
           : (u as any).accesses,
         centralUserId: u.id,
-        localId: localIdByCentralId.get(u.id) ?? null,
-      })),
-    };
+        localId: localIdByCentralId.get(u.id) ?? null })) };
   }
 
   async getCentralUserById(actingUser: User, id: number) {
@@ -1252,8 +1185,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       actingUser,
       {
         currentPassword: dto.currentPassword,
-        newPassword: dto.newPassword,
-      },
+        newPassword: dto.newPassword },
     );
   }
 
@@ -1268,8 +1200,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           ? createUserDto.accesses.map((a) => ({
             system: a.system,
             role: a.role,
-            isActive: a.isActive === undefined ? true : a.isActive,
-          }))
+            isActive: a.isActive === undefined ? true : a.isActive }))
           : [
             {
               system: this.getModuleSystemCode(),
@@ -1277,8 +1208,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               isActive:
                 createUserDto.isActive === undefined
                   ? true
-                  : createUserDto.isActive,
-            },
+                  : createUserDto.isActive },
           ];
 
       const createdCentralUser = await this.sendMultipartRequestToLoginService(
@@ -1290,8 +1220,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
           name: createUserDto.name,
           password: createUserDto.password,
           isActive: createUserDto.isActive,
-          accesses,
-        },
+          accesses },
         profileImage,
       );
 
@@ -1336,8 +1265,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         payload.accesses = updateUserDto.accesses.map((a) => ({
           system: a.system,
           role: a.role,
-          isActive: a.isActive === undefined ? true : a.isActive,
-        }));
+          isActive: a.isActive === undefined ? true : a.isActive }));
       } else if (updateUserDto.role) {
         payload.accesses = [
           {
@@ -1346,8 +1274,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             isActive:
               updateUserDto.isActive === undefined
                 ? true
-                : updateUserDto.isActive,
-          },
+                : updateUserDto.isActive },
         ];
       }
 
@@ -1380,8 +1307,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<JwtPayload | null> {
     try {
       const payload = this.jwtService.verify(token, {
-        secret: resolveRefreshTokenSecret(this.configService),
-      });
+        secret: resolveRefreshTokenSecret(this.configService) });
       return payload;
     } catch (err) {
       return null;
@@ -1394,14 +1320,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     try {
       const storedRefreshToken = await this.refreshToken.findUnique({
         where: { token: oldRefreshTokenString },
-        include: { user: true },
-      });
+        include: { user: true } });
 
       if (!storedRefreshToken || storedRefreshToken.expiresAt < new Date()) {
         if (storedRefreshToken) {
           await this.refreshToken.delete({
-            where: { id: storedRefreshToken.id },
-          });
+            where: { id: storedRefreshToken.id } });
         }
         throw new UnauthorizedException(
           'Token de refresco inválido o expirado.',
@@ -1425,8 +1349,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
       return {
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
-      };
+        refreshToken: newRefreshToken };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
       handlePrismaError(error, 'Token de refresco');
@@ -1445,8 +1368,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<UserVehicleResponseDto[]> {
     // 1. Encontrar al usuario localmente por su centralUserId, o sincronizar desde central si no existe
     let localUser = await this.user.findUnique({
-      where: { centralUserId: userId },
-    });
+      where: { centralUserId: userId } });
 
     if (!localUser) {
       // Sincronizar usuario desde central
@@ -1456,8 +1378,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
 
     // 2. Verificar que todos los vehículos existen localmente
     const vehicles = await this.vehicle.findMany({
-      where: { vehicle_id: { in: dto.vehicleIds } },
-    });
+      where: { vehicle_id: { in: dto.vehicleIds } } });
 
     if (vehicles.length !== dto.vehicleIds.length) {
       const foundIds = vehicles.map((v) => v.vehicle_id);
@@ -1484,10 +1405,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
               where: {
                 unique_user_vehicle: {
                   user_id: localUser.id,
-                  vehicle_id: centralAssignment.vehicleId,
-                },
-              },
-            });
+                  vehicle_id: centralAssignment.vehicleId } } });
 
             if (existingAssignment) {
               return await prisma.user_vehicle.update({
@@ -1495,10 +1413,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
                 data: {
                   is_active: centralAssignment.isActive,
                   notes: centralAssignment.notes,
-                  assigned_at: centralAssignment.assignedAt,
-                },
-                include: { vehicle: true, user: true },
-              });
+                  assigned_at: centralAssignment.assignedAt },
+                include: { vehicle: true, user: true } });
             } else {
               return await prisma.user_vehicle.create({
                 data: {
@@ -1506,10 +1422,8 @@ export class AuthService extends PrismaClient implements OnModuleInit {
                   vehicle_id: centralAssignment.vehicleId,
                   is_active: centralAssignment.isActive,
                   notes: centralAssignment.notes,
-                  assigned_at: centralAssignment.assignedAt,
-                },
-                include: { vehicle: true, user: true },
-              });
+                  assigned_at: centralAssignment.assignedAt },
+                include: { vehicle: true, user: true } });
             }
           }),
         );
@@ -1533,8 +1447,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<UserVehicleResponseDto[]> {
     // 1. Encontrar al usuario localmente por centralUserId, o sincronizar desde central si no existe
     let localUser = await this.user.findUnique({
-      where: { centralUserId: userId },
-    });
+      where: { centralUserId: userId } });
 
     if (!localUser) {
       // Sincronizar usuario desde central (necesitamos un actingUser, pero getUserVehicles no lo recibe; revisar)
@@ -1558,22 +1471,17 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             where: {
               unique_user_vehicle: {
                 user_id: localUser.id,
-                vehicle_id: ca.vehicleId,
-              },
-            },
+                vehicle_id: ca.vehicleId } },
             create: {
               user_id: localUser.id,
               vehicle_id: ca.vehicleId,
               is_active: ca.isActive,
               notes: ca.notes,
-              assigned_at: ca.assignedAt,
-            },
+              assigned_at: ca.assignedAt },
             update: {
               is_active: ca.isActive,
               notes: ca.notes,
-              assigned_at: ca.assignedAt,
-            },
-          });
+              assigned_at: ca.assignedAt } });
         }
       });
     } catch (error) {
@@ -1584,14 +1492,11 @@ export class AuthService extends PrismaClient implements OnModuleInit {
     const assignments = await this.user_vehicle.findMany({
       where: {
         user_id: localUser.id,
-        ...(activeOnly ? { is_active: true } : {}),
-      },
+        ...(activeOnly ? { is_active: true } : {}) },
       include: {
         vehicle: true,
-        user: true,
-      },
-      orderBy: { assigned_at: 'desc' },
-    });
+        user: true },
+      orderBy: { assigned_at: 'desc' } });
 
     return assignments.map(this.mapToUserVehicleResponseDto);
   }
@@ -1603,8 +1508,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<{ message: string; removed: boolean }> {
     // 1. Encontrar al usuario localmente por centralUserId
     const localUser = await this.user.findUnique({
-      where: { centralUserId: userId },
-    });
+      where: { centralUserId: userId } });
 
     if (!localUser) {
       throw new NotFoundException(`Usuario con ID Central ${userId} no encontrado.`);
@@ -1623,16 +1527,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         where: {
           unique_user_vehicle: {
             user_id: localUser.id,
-            vehicle_id: vehicleId,
-          },
-        },
-        data: { is_active: false },
-      });
+            vehicle_id: vehicleId } },
+        data: { is_active: false } });
 
       return {
         message: 'Vehículo removido correctamente.',
-        removed: true,
-      };
+        removed: true };
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
@@ -1650,8 +1550,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   ): Promise<UserResponseDto[]> {
     // Verificar que el vehículo existe
     const vehicle = await this.vehicle.findUnique({
-      where: { vehicle_id: vehicleId },
-    });
+      where: { vehicle_id: vehicleId } });
     if (!vehicle) {
       throw new NotFoundException(`Vehículo con ID ${vehicleId} no encontrado`);
     }
@@ -1660,13 +1559,10 @@ export class AuthService extends PrismaClient implements OnModuleInit {
       const userVehicles = await this.user_vehicle.findMany({
         where: {
           vehicle_id: vehicleId,
-          ...(activeOnly && { is_active: true }),
-        },
+          ...(activeOnly && { is_active: true }) },
         include: {
-          user: true,
-        },
-        orderBy: { assigned_at: 'desc' },
-      });
+          user: true },
+        orderBy: { assigned_at: 'desc' } });
 
       return userVehicles.map(
         (uv) =>
@@ -1679,8 +1575,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
             createdAt: formatBATimestampISO(uv.user.createdAt),
             updatedAt: uv.user.updatedAt
               ? formatBATimestampISO(uv.user.updatedAt)
-              : undefined,
-          }),
+              : undefined }),
       );
     } catch (error) {
       handlePrismaError(error, 'Usuarios del vehículo');
@@ -1704,15 +1599,12 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         vehicle_id: userVehicle.vehicle.vehicle_id,
         code: userVehicle.vehicle.code,
         name: userVehicle.vehicle.name,
-        description: userVehicle.vehicle.description || undefined,
-      },
+        description: userVehicle.vehicle.description || undefined },
       user: {
         id: userVehicle.user.id,
         name: userVehicle.user.name,
         email: userVehicle.user.email,
-        role: userVehicle.user.role,
-      },
-    };
+        role: userVehicle.user.role } };
   }
 
   private generateEmailConfirmationToken(): string {
@@ -1738,9 +1630,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         where: { id: userId },
         data: {
           emailConfirmationToken: confirmationToken,
-          emailTokenExpires: tokenExpires,
-        },
-      });
+          emailTokenExpires: tokenExpires } });
 
       const frontendUrl =
         this.configService.get<string>('FRONTEND_URL') ||
@@ -1767,8 +1657,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
   async confirmEmail(token: string): Promise<{ message: string }> {
     try {
       const user = await this.user.findUnique({
-        where: { emailConfirmationToken: token },
-      });
+        where: { emailConfirmationToken: token } });
 
       if (!user) {
         throw new BadRequestException('Token de confirmación inválido.');
@@ -1787,9 +1676,7 @@ export class AuthService extends PrismaClient implements OnModuleInit {
         data: {
           isEmailConfirmed: true,
           emailConfirmationToken: null,
-          emailTokenExpires: null,
-        },
-      });
+          emailTokenExpires: null } });
 
       // Enviar email de bienvenida
       await this.mailService.sendWelcomeEmail(user.email, user.name);

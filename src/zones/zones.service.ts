@@ -3,24 +3,25 @@ import {
   NotFoundException,
   ConflictException,
   InternalServerErrorException,
-  OnModuleInit,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient, zone, Prisma } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { zone, Prisma } from '@prisma/client';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
 import { FilterZonesDto } from './dto/filter-zones.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
-export class ZonesService extends PrismaClient implements OnModuleInit {
-  private readonly entityName = 'Zona';
-
-  async onModuleInit() {
-    await this.$connect();
+export class ZonesService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Zona';
 
   async getAllZones(filters: FilterZonesDto): Promise<{
     data: zone[];
@@ -34,8 +35,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
       name,
       locality_id,
       locality_ids,
-      locality_name,
-    } = filters;
+      locality_name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
@@ -56,8 +56,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     if (name) {
       where.name = {
         contains: name,
-        mode: 'insensitive',
-      };
+        mode: 'insensitive' };
     }
 
     // Filtros de localidad (múltiples o única)
@@ -73,9 +72,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
       where.locality = {
         name: {
           contains: locality_name,
-          mode: 'insensitive',
-        },
-      };
+          mode: 'insensitive' } };
     }
 
     const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);
@@ -88,16 +85,10 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
             include: {
               province: {
                 include: {
-                  country: true,
-                },
-              },
-            },
-          },
-        },
+                  country: true } } } } },
         orderBy: orderByClause,
         skip,
-        take,
-      });
+        take });
       const totalZones = await this.zone.count({ where });
       return {
         data: zones,
@@ -105,9 +96,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
           total: totalZones,
           page,
           limit,
-          totalPages: Math.ceil(totalZones / limit),
-        },
-      };
+          totalPages: Math.ceil(totalZones / limit) } };
     } catch (error) {
       handlePrismaError(error, this.entityName + 's');
       throw new InternalServerErrorException(
@@ -123,20 +112,13 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     const record = await this.zone.findFirst({
       where: {
         zone_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
+        ...(includeInactive ? {} : { is_active: true }) },
       include: {
         locality: {
           include: {
             province: {
               include: {
-                country: true,
-              },
-            },
-          },
-        },
-      },
-    });
+                country: true } } } } } });
     if (!record)
       throw new NotFoundException(`${this.entityName} no encontrada.`);
     return record;
@@ -147,8 +129,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
 
     // Validar que la localidad exista
     const locality = await this.locality.findUnique({
-      where: { locality_id: localityId },
-    });
+      where: { locality_id: localityId } });
 
     if (!locality) {
       throw new BadRequestException(
@@ -161,21 +142,13 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
         data: {
           ...zoneData,
           locality: {
-            connect: { locality_id: localityId },
-          },
-        },
+            connect: { locality_id: localityId } } },
         include: {
           locality: {
             include: {
               province: {
                 include: {
-                  country: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  country: true } } } } } });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -199,8 +172,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     // Validar que la localidad exista si se proporciona
     if (localityId) {
       const locality = await this.locality.findUnique({
-        where: { locality_id: localityId },
-      });
+        where: { locality_id: localityId } });
 
       if (!locality) {
         throw new BadRequestException(
@@ -212,8 +184,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
     const updateData: any = { ...zoneData };
     if (localityId) {
       updateData.locality = {
-        connect: { locality_id: localityId },
-      };
+        connect: { locality_id: localityId } };
     }
 
     try {
@@ -225,13 +196,7 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
             include: {
               province: {
                 include: {
-                  country: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  country: true } } } } } });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -258,12 +223,10 @@ export class ZonesService extends PrismaClient implements OnModuleInit {
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.zone.update({
         where: { zone_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
       return {
         message: 'Zona desactivada correctamente',
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(

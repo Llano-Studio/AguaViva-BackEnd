@@ -1,13 +1,19 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { formatBAYMD } from '../utils/date.utils';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 @Injectable()
 export class FailedOrderReassignmentService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
   private readonly logger = new Logger(FailedOrderReassignmentService.name);
 
   async onModuleInit() {
@@ -37,38 +43,24 @@ export class FailedOrderReassignmentService
           route_sheet: {
             delivery_date: {
               lt: today, // Entregas fallidas de días anteriores
-            },
-          },
-        },
+            } } },
         include: {
           route_sheet: {
             include: {
               driver: true,
-              vehicle: true,
-            },
-          },
+              vehicle: true } },
           order_header: {
             include: {
               customer: true,
               order_item: {
                 include: {
-                  product: true,
-                },
-              },
-            },
-          },
+                  product: true } } } },
           one_off_purchase: {
             include: {
-              product: true,
-            },
-          },
+              product: true } },
           one_off_purchase_header: {
             include: {
-              person: true,
-            },
-          },
-        },
-      });
+              person: true } } } });
 
       this.logger.log(
         `📊 Encontradas ${failedDeliveries.length} entregas fallidas para reasignar`,
@@ -105,17 +97,11 @@ export class FailedOrderReassignmentService
           vehicle: {
             vehicle_zone: {
               some: {
-                is_active: true,
-              },
-            },
-          },
-        },
+                is_active: true } } } },
         include: {
           driver: true,
           vehicle: true,
-          route_sheet_detail: true,
-        },
-      });
+          route_sheet_detail: true } });
 
       // Si no existe una hoja de ruta para esa fecha, crear una nueva
       if (!targetRouteSheet) {
@@ -156,19 +142,12 @@ export class FailedOrderReassignmentService
         isActive: true,
         user_vehicle: {
           some: {
-            is_active: true,
-          },
-        },
-      },
+            is_active: true } } },
       include: {
         user_vehicle: {
           where: { is_active: true },
           include: {
-            vehicle: true,
-          },
-        },
-      },
-    });
+            vehicle: true } } } });
 
     if (!availableDriver || !availableDriver.user_vehicle[0]) {
       throw new Error(
@@ -184,14 +163,11 @@ export class FailedOrderReassignmentService
         driver_id: availableDriver.id,
         vehicle_id: vehicle.vehicle_id,
         route_notes:
-          'Hoja de ruta creada automáticamente para reasignación de pedidos fallidos',
-      },
+          'Hoja de ruta creada automáticamente para reasignación de pedidos fallidos' },
       include: {
         driver: true,
         vehicle: true,
-        route_sheet_detail: true,
-      },
-    });
+        route_sheet_detail: true } });
   }
 
   /**
@@ -210,9 +186,7 @@ export class FailedOrderReassignmentService
           reschedule_date: newDeliveryDate,
           comments:
             (failedDelivery.comments || '') +
-            ' | Reprogramado automáticamente por falla en entrega',
-        },
-      });
+            ' | Reprogramado automáticamente por falla en entrega' } });
 
       // Crear nueva entrada en la hoja de ruta destino
       await tx.route_sheet_detail.create({
@@ -222,18 +196,14 @@ export class FailedOrderReassignmentService
           one_off_purchase_id: failedDelivery.one_off_purchase_id,
           one_off_purchase_header_id: failedDelivery.one_off_purchase_header_id,
           delivery_status: 'PENDING',
-          comments: 'Reasignado automáticamente desde entrega fallida',
-        },
-      });
+          comments: 'Reasignado automáticamente desde entrega fallida' } });
 
       // Actualizar la fecha de entrega programada del pedido si es un pedido de suscripción
       if (failedDelivery.order_id) {
         await tx.order_header.update({
           where: { order_id: failedDelivery.order_id },
           data: {
-            scheduled_delivery_date: newDeliveryDate,
-          },
-        });
+            scheduled_delivery_date: newDeliveryDate } });
       }
     });
   }
@@ -289,11 +259,7 @@ export class FailedOrderReassignmentService
         reschedule_date: null,
         route_sheet: {
           delivery_date: {
-            lt: today,
-          },
-        },
-      },
-    });
+            lt: today } } } });
 
     const rescheduledCount = await this.route_sheet_detail.count({
       where: {
@@ -301,16 +267,11 @@ export class FailedOrderReassignmentService
         reschedule_date: { not: null },
         route_sheet: {
           delivery_date: {
-            lt: today,
-          },
-        },
-      },
-    });
+            lt: today } } } });
 
     return {
       pending_reassignment: failedCount,
       already_rescheduled: rescheduledCount,
-      total_failed: failedCount + rescheduledCount,
-    };
+      total_failed: failedCount + rescheduledCount };
   }
 }

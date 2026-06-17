@@ -1,21 +1,18 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus, Role } from '@prisma/client';
+import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, SubscriptionStatus, Role } from '@prisma/client';
 import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
 import { FilterAutomatedCollectionsDto } from '../../orders/dto/filter-automated-collections.dto';
 import {
   AutomatedCollectionResponseDto,
-  AutomatedCollectionListResponseDto,
-} from '../../orders/dto/automated-collection-response.dto';
+  AutomatedCollectionListResponseDto } from '../../orders/dto/automated-collection-response.dto';
 import {
   GeneratePdfCollectionsDto,
-  PdfGenerationResponseDto,
-} from '../../orders/dto/generate-pdf-collections.dto';
+  PdfGenerationResponseDto } from '../../orders/dto/generate-pdf-collections.dto';
 import {
   GenerateRouteSheetDto,
-  RouteSheetResponseDto,
-} from '../../orders/dto/generate-route-sheet.dto';
+  RouteSheetResponseDto } from '../../orders/dto/generate-route-sheet.dto';
 import { GenerateDailyRouteSheetsDto } from '../../orders/dto/generate-daily-route-sheets.dto';
 import { DeleteAutomatedCollectionResponseDto } from '../../orders/dto/delete-automated-collection.dto';
 import { PdfGeneratorService } from './pdf-generator.service';
@@ -27,10 +24,12 @@ import {
   formatBAYMD,
   startOfDayBA,
   formatBATimestampISO,
-  formatLocalYMD,
-} from '../utils/date.utils';
+  formatLocalYMD } from '../utils/date.utils';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 export interface CollectionOrderSummaryDto {
   cycle_id: number;
@@ -47,18 +46,17 @@ export interface CollectionOrderSummaryDto {
 
 @Injectable()
 export class AutomatedCollectionService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private readonly logger = new Logger(AutomatedCollectionService.name);
-
   constructor(
+    prisma: PrismaService,
     private readonly ordersService: OrdersService,
     private readonly pdfGeneratorService: PdfGeneratorService,
     private readonly routeSheetGeneratorService: RouteSheetGeneratorService,
     private readonly auditService: AuditService,
   ) {
-    super();
+    super(prisma);
   }
 
   /**
@@ -74,22 +72,15 @@ export class AutomatedCollectionService
       const overdueCycles = await this.subscription_cycle.findMany({
         where: {
           payment_due_date: {
-            lte: thresholdDate,
-          },
+            lte: thresholdDate },
           late_fee_applied: false,
           pending_balance: { gt: 0 },
           customer_subscription: {
-            status: SubscriptionStatus.ACTIVE,
-          },
-        },
+            status: SubscriptionStatus.ACTIVE } },
         include: {
           customer_subscription: {
             include: {
-              subscription_plan: true,
-            },
-          },
-        },
-      });
+              subscription_plan: true } } } });
 
       this.logger.log(
         `📋 Encontrados ${overdueCycles.length} ciclos vencidos para aplicar recargos`,
@@ -127,9 +118,7 @@ export class AutomatedCollectionService
               late_fee_percentage: lateFeePercentage,
               total_amount: newTotal,
               pending_balance: newPending,
-              payment_status: newPending > 0 ? 'OVERDUE' : 'PAID',
-            },
-          });
+              payment_status: newPending > 0 ? 'OVERDUE' : 'PAID' } });
 
           this.logger.log(
             `✅ Recargo aplicado al ciclo ${cycle.cycle_id}: +$${surcharge} (20% de $${baseAmount})`,
@@ -209,8 +198,7 @@ export class AutomatedCollectionService
               pending_balance: Number(cycle.pending_balance),
               order_created: false,
               notes:
-                'Ciclo ya tiene orden de cobranza manual - no se genera automática',
-            });
+                'Ciclo ya tiene orden de cobranza manual - no se genera automática' });
             continue;
           }
 
@@ -235,8 +223,7 @@ export class AutomatedCollectionService
             payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
             pending_balance: Number(cycle.pending_balance),
             order_created: false,
-            notes: `Error: ${error.message}`,
-          });
+            notes: `Error: ${error.message}` });
         }
       }
 
@@ -299,10 +286,7 @@ export class AutomatedCollectionService
         include: {
           vehicle_zone: {
             where: { is_active: true },
-            select: { zone_id: true },
-          },
-        },
-      });
+            select: { zone_id: true } } } });
 
       let generatedCount = 0;
 
@@ -322,8 +306,7 @@ export class AutomatedCollectionService
               where: { vehicle_id: vehicle.vehicle_id, is_active: true },
               include: { user: true },
               orderBy: { assigned_at: 'desc' },
-              take: 1,
-            });
+              take: 1 });
             assignedDriverId = userVehicles?.[0]?.user?.id || undefined;
           } catch (_) {}
 
@@ -335,8 +318,7 @@ export class AutomatedCollectionService
             overdueOnly: 'false',
             sortBy: 'zone',
             format: 'compact',
-            notes: `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}`,
-          } as any;
+            notes: `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}` } as any;
 
           // Generar y persistir PDF en /public/pdfs/collections
           const result =
@@ -461,9 +443,7 @@ export class AutomatedCollectionService
         ? { vehicle_id: dto.vehicleId, is_active: true }
         : { is_active: true },
       include: {
-        vehicle_zone: { where: { is_active: true }, select: { zone_id: true } },
-      },
-    });
+        vehicle_zone: { where: { is_active: true }, select: { zone_id: true } } } });
 
     let generatedCount = 0;
     const results: Array<{
@@ -497,8 +477,7 @@ export class AutomatedCollectionService
         // Obtener nombres de zonas
         const zones = await this.zone.findMany({
           where: { zone_id: { in: zoneIds } },
-          select: { zone_id: true, name: true },
-        });
+          select: { zone_id: true, name: true } });
         const zoneNames = zones.map((z) => z.name);
 
         // Obtener drivers asignados al vehículo
@@ -507,8 +486,7 @@ export class AutomatedCollectionService
           const userVehicles = await this.user_vehicle.findMany({
             where: { vehicle_id: vehicle.vehicle_id, is_active: true },
             include: { user: true },
-            orderBy: { assigned_at: 'desc' },
-          });
+            orderBy: { assigned_at: 'desc' } });
           drivers = userVehicles
             .filter(
               (uv) =>
@@ -527,14 +505,12 @@ export class AutomatedCollectionService
           try {
             const user = await this.user.findUnique({
               where: { id: effectiveDriverId },
-              select: { name: true },
-            });
+              select: { name: true } });
             assignedDriverName = user?.name ?? null;
             if (!assignedDriverName) {
               const person = await this.person.findUnique({
                 where: { person_id: effectiveDriverId },
-                select: { name: true },
-              });
+                select: { name: true } });
               assignedDriverName = person?.name ?? null;
             }
           } catch (_) {
@@ -552,8 +528,7 @@ export class AutomatedCollectionService
           format: dto.format ?? 'compact',
           notes:
             dto.notes ??
-            `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}`,
-        } as any;
+            `Hoja de ruta automática de cobranzas - Vehículo ${vehicle.code || vehicle.name}` } as any;
 
         const result =
           await this.routeSheetGeneratorService.generateRouteSheetAndPersist(
@@ -571,8 +546,7 @@ export class AutomatedCollectionService
           drivers,
           assignedDriverId: effectiveDriverId ?? null,
           assignedDriverName,
-          downloadUrl: result.downloadUrl,
-        });
+          downloadUrl: result.downloadUrl });
         this.logger.log(
           `✅ Hoja de ruta generada para vehículo ${vehicle.vehicle_id} (${zoneIds.length} zonas) → ${result.downloadUrl}`,
         );
@@ -587,8 +561,7 @@ export class AutomatedCollectionService
           if (zoneIds.length > 0) {
             const zs = await this.zone.findMany({
               where: { zone_id: { in: zoneIds } },
-              select: { name: true },
-            });
+              select: { name: true } });
             zoneNames = zs.map((z) => z.name).filter(Boolean);
           }
         } catch (_) {
@@ -601,8 +574,7 @@ export class AutomatedCollectionService
           zoneIds,
           zoneNames,
           zones: zoneNames,
-          error: error.message,
-        });
+          error: error.message });
       }
     }
 
@@ -612,8 +584,7 @@ export class AutomatedCollectionService
       date: dateIso,
       generated: generatedCount,
       totalVehicles: vehicles.length,
-      results,
-    };
+      results };
   }
 
   /**
@@ -643,15 +614,12 @@ export class AutomatedCollectionService
           gte: startOfDayBA(targetDate),
           lt: new Date(
             startOfDayBA(targetDate).getTime() + 24 * 60 * 60 * 1000,
-          ),
-        },
+          ) },
         pending_balance: {
           gt: 0, // Solo ciclos con saldo pendiente
         },
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE,
-        },
-      },
+          status: SubscriptionStatus.ACTIVE } },
       include: {
         customer_subscription: {
           include: {
@@ -660,22 +628,11 @@ export class AutomatedCollectionService
               include: {
                 subscription_plan_product: {
                   include: {
-                    product: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+                    product: true } } } } } } },
       orderBy: {
         customer_subscription: {
           person: {
-            name: 'asc',
-          },
-        },
-      },
-    });
+            name: 'asc' } } } });
   }
 
   /**
@@ -698,20 +655,15 @@ export class AutomatedCollectionService
         customer_id: person.person_id,
         subscription_id: subscription.subscription_id,
         notes: {
-          contains: `Ciclo: ${cycle.cycle_id}`,
-        },
+          contains: `Ciclo: ${cycle.cycle_id}` },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
+          ] } },
       include: {
-        collection_order_items: true,
-      },
-    });
+        collection_order_items: true } });
 
     let collectionOrderId: number;
     let orderCreated = false;
@@ -750,8 +702,7 @@ export class AutomatedCollectionService
             zone_id: person.zone_id,
             is_active: true,
             es_automatica: isAutomatic, // Campo clave para distinguir automáticas de manuales
-          },
-        });
+          } });
 
         collectionOrderId = newCollectionOrder.collection_order_id;
         orderCreated = true;
@@ -780,8 +731,7 @@ export class AutomatedCollectionService
       order_id: collectionOrderId,
       notes: existingCollectionOrder
         ? 'Orden de cobranza ya existente'
-        : `Nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} creada`,
-    };
+        : `Nueva orden de cobranza ${isAutomatic ? 'automática' : 'manual'} creada` };
   }
 
   /**
@@ -823,8 +773,7 @@ export class AutomatedCollectionService
             pending_balance: Number(cycle.pending_balance),
             order_created: false,
             notes:
-              'Ciclo ya tiene orden de cobranza manual - no se genera automática',
-          });
+              'Ciclo ya tiene orden de cobranza manual - no se genera automática' });
           continue;
         }
 
@@ -849,8 +798,7 @@ export class AutomatedCollectionService
           payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
           pending_balance: Number(cycle.pending_balance),
           order_created: false,
-          notes: `Error: ${error.message}`,
-        });
+          notes: `Error: ${error.message}` });
       }
     }
 
@@ -897,15 +845,11 @@ export class AutomatedCollectionService
       where: {
         payment_due_date: { lte: startOfDayBA(adjustedDate) },
         pending_balance: { gt: 0 },
-        customer_subscription: { status: SubscriptionStatus.ACTIVE },
-      },
+        customer_subscription: { status: SubscriptionStatus.ACTIVE } },
       include: {
         customer_subscription: {
-          include: { person: true, subscription_plan: true },
-        },
-      },
-      orderBy: { payment_due_date: 'asc' },
-    });
+          include: { person: true, subscription_plan: true } } },
+      orderBy: { payment_due_date: 'asc' } });
 
     const results: CollectionOrderSummaryDto[] = [];
     const createdCount = 0;
@@ -923,8 +867,7 @@ export class AutomatedCollectionService
           payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
           pending_balance: Number(cycle.pending_balance),
           order_created: false,
-          notes: 'Orden existente, no se duplica',
-        });
+          notes: 'Orden existente, no se duplica' });
         continue;
       }
 
@@ -943,8 +886,7 @@ export class AutomatedCollectionService
       date: formatBAYMD(adjustedDate),
       generated: createdCount,
       checked: cycles.length,
-      details: results,
-    };
+      details: results };
   }
 
   async prepareConsolidatedRouteSheetForCollections(
@@ -965,8 +907,7 @@ export class AutomatedCollectionService
       zoneIds: opts?.zoneIds,
       vehicleId: opts?.vehicleId,
       driverId: opts?.driverId,
-      notes: opts?.notes,
-    } as any;
+      notes: opts?.notes } as any;
     return await this.routeSheetGeneratorService.generateRouteSheet(dto);
   }
 
@@ -988,11 +929,7 @@ export class AutomatedCollectionService
         customer_subscription: {
           include: {
             person: true,
-            subscription_plan: true,
-          },
-        },
-      },
-    });
+            subscription_plan: true } } } });
 
     if (!cycle) {
       throw new Error(`Ciclo de suscripción con ID ${cycleId} no encontrado`);
@@ -1066,13 +1003,11 @@ export class AutomatedCollectionService
       order_type: 'HYBRID' as any,
       status: 'PENDING' as any,
       notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
-      items: [],
-    };
+      items: [] };
 
     try {
       await this.ordersService.create(createOrderDto, {
-        role: Role.SUPERADMIN,
-      });
+        role: Role.SUPERADMIN });
     } catch (error) {
       this.logger.warn(
         `⚠️ Fallo creación de pedido híbrido de cobranza, creando pedido básico: ${error.message}`,
@@ -1090,9 +1025,7 @@ export class AutomatedCollectionService
           paid_amount: new Prisma.Decimal(0),
           order_type: 'HYBRID',
           status: 'PENDING',
-          notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}`,
-        },
-      });
+          notes: `PEDIDO HÍBRIDO PARA COBRANZA MANUAL - Suscripción: ${subscription.subscription_plan.name} - Ciclo: ${cycle.cycle_id}` } });
     }
   }
 
@@ -1104,17 +1037,13 @@ export class AutomatedCollectionService
     const existingOrder = await this.collection_orders.findFirst({
       where: {
         notes: {
-          contains: `Ciclo: ${cycleId}`,
-        },
+          contains: `Ciclo: ${cycleId}` },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
-    });
+          ] } } });
 
     return !!existingOrder;
   }
@@ -1133,27 +1062,18 @@ export class AutomatedCollectionService
       where: {
         payment_due_date: {
           gte: today,
-          lte: endDate,
-        },
+          lte: endDate },
         pending_balance: {
-          gt: 0,
-        },
+          gt: 0 },
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE,
-        },
-      },
+          status: SubscriptionStatus.ACTIVE } },
       include: {
         customer_subscription: {
           include: {
             person: true,
-            subscription_plan: true,
-          },
-        },
-      },
+            subscription_plan: true } } },
       orderBy: {
-        payment_due_date: 'asc',
-      },
-    });
+        payment_due_date: 'asc' } });
 
     return upcomingCycles.map((cycle) => ({
       cycle_id: cycle.cycle_id,
@@ -1165,8 +1085,7 @@ export class AutomatedCollectionService
       payment_due_date: formatBAYMD(cycle.payment_due_date || new Date()),
       pending_balance: Number(cycle.pending_balance),
       order_created: false, // Se determinará al momento de la generación
-      notes: 'Pendiente de generación automática',
-    }));
+      notes: 'Pendiente de generación automática' }));
   }
 
   /**
@@ -1183,9 +1102,7 @@ export class AutomatedCollectionService
     const whereClause: any = {
       order_type: 'ONE_OFF',
       notes: {
-        contains: 'COBRANZA AUTOMÁTICA',
-      },
-    };
+        contains: 'COBRANZA AUTOMÁTICA' } };
 
     // Filtros de fecha (creación de orden)
     if (filters.orderDateFrom || filters.orderDateTo) {
@@ -1248,9 +1165,7 @@ export class AutomatedCollectionService
         ...(whereClause.customer || {}),
         name: {
           contains: filters.customerName,
-          mode: 'insensitive',
-        },
-      };
+          mode: 'insensitive' } };
     }
 
     // Filtro de búsqueda general
@@ -1260,23 +1175,16 @@ export class AutomatedCollectionService
           customer: {
             name: {
               contains: filters.search,
-              mode: 'insensitive',
-            },
-          },
-        },
+              mode: 'insensitive' } } },
         {
           collection_order_id: {
             equals: isNaN(parseInt(filters.search))
               ? undefined
-              : parseInt(filters.search),
-          },
-        },
+              : parseInt(filters.search) } },
         {
           notes: {
             contains: filters.search,
-            mode: 'insensitive',
-          },
-        },
+            mode: 'insensitive' } },
       ];
     }
 
@@ -1308,8 +1216,7 @@ export class AutomatedCollectionService
       // Mantener compatibilidad con estados de pago del pedido
       whereClause.AND = [
         {
-          OR: [{ payment_status: 'PENDING' }, { payment_status: 'OVERDUE' }],
-        },
+          OR: [{ payment_status: 'PENDING' }, { payment_status: 'OVERDUE' }] },
       ];
     }
 
@@ -1318,25 +1225,21 @@ export class AutomatedCollectionService
       whereClause.customer_subscription = {
         ...(whereClause.customer_subscription || {}),
         subscription_cycle: {
-          some: subscriptionCycleSome,
-        },
-      };
+          some: subscriptionCycleSome } };
     }
 
     // Filtro por zonas (IDs de zonas del cliente)
     if (filters.zoneIds && filters.zoneIds.length > 0) {
       whereClause.customer = {
         ...(whereClause.customer || {}),
-        zone_id: { in: filters.zoneIds },
-      };
+        zone_id: { in: filters.zoneIds } };
     }
 
     // Filtro por plan de suscripción
     if (typeof filters.subscriptionPlanId === 'number') {
       whereClause.customer_subscription = {
         ...(whereClause.customer_subscription || {}),
-        subscription_plan_id: filters.subscriptionPlanId,
-      };
+        subscription_plan_id: filters.subscriptionPlanId };
     }
 
     // Ordenamiento
@@ -1377,28 +1280,19 @@ export class AutomatedCollectionService
         include: {
           customer: {
             include: {
-              zone: true,
-            },
-          },
+              zone: true } },
           customer_subscription: {
             include: {
               subscription_plan: true,
               subscription_cycle: {
                 where: {
-                  pending_balance: { gt: 0 },
-                },
+                  pending_balance: { gt: 0 } },
                 orderBy: {
-                  payment_due_date: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
-        },
+                  payment_due_date: 'desc' },
+                take: 1 } } } },
         orderBy,
         skip,
-        take: limit,
-      }),
+        take: limit }),
       this.collection_orders.count({ where: whereClause }),
     ]);
 
@@ -1443,10 +1337,8 @@ export class AutomatedCollectionService
           zone: order.customer.zone
             ? {
                 zone_id: order.customer.zone.zone_id,
-                name: order.customer.zone.name,
-              }
-            : null,
-        },
+                name: order.customer.zone.name }
+            : null },
         subscription_info: order.customer_subscription
           ? {
               subscription_id: order.customer_subscription.subscription_id,
@@ -1460,8 +1352,7 @@ export class AutomatedCollectionService
                 billing_frequency: this.getBillingFrequency(
                   order.customer_subscription.subscription_plan
                     .default_cycle_days,
-                ),
-              },
+                ) },
               cycle_info: order.customer_subscription.subscription_cycle?.[0]
                 ? {
                     cycle_id:
@@ -1483,18 +1374,15 @@ export class AutomatedCollectionService
                         .payment_due_date,
                     ),
                     pending_balance:
-                      order.customer_subscription.subscription_cycle[0].pending_balance.toString(),
-                  }
-                : null,
-            }
+                      order.customer_subscription.subscription_cycle[0].pending_balance.toString() }
+                : null }
           : null,
         created_at: order.order_date
           ? formatBATimestampISO(order.order_date)
           : '',
         updated_at: order.order_date
           ? formatBATimestampISO(order.order_date)
-          : '',
-      };
+          : '' };
 
       return result;
     });
@@ -1525,8 +1413,7 @@ export class AutomatedCollectionService
         .filter((d) => d.is_overdue)
         .reduce((sum, d) => sum + parseFloat(d.pending_amount), 0)
         .toFixed(2),
-      overdue_count: data.filter((d) => d.is_overdue).length,
-    };
+      overdue_count: data.filter((d) => d.is_overdue).length };
 
     // Información de paginación
     const totalPages = Math.ceil(total / limit);
@@ -1536,14 +1423,12 @@ export class AutomatedCollectionService
       limit,
       totalPages,
       hasNext: page < totalPages,
-      hasPrev: page > 1,
-    };
+      hasPrev: page > 1 };
 
     return {
       data,
       pagination,
-      summary,
-    };
+      summary };
   }
 
   /**
@@ -1557,31 +1442,20 @@ export class AutomatedCollectionService
         collection_order_id: orderId,
         order_type: 'ONE_OFF',
         notes: {
-          contains: 'COBRANZA AUTOMÁTICA',
-        },
-      },
+          contains: 'COBRANZA AUTOMÁTICA' } },
       include: {
         customer: {
           include: {
-            zone: true,
-          },
-        },
+            zone: true } },
         customer_subscription: {
           include: {
             subscription_plan: true,
             subscription_cycle: {
               where: {
-                pending_balance: { gt: 0 },
-              },
+                pending_balance: { gt: 0 } },
               orderBy: {
-                payment_due_date: 'desc',
-              },
-              take: 1,
-            },
-          },
-        },
-      },
-    });
+                payment_due_date: 'desc' },
+              take: 1 } } } } });
 
     if (!order) {
       throw new Error(`Cobranza automática con ID ${orderId} no encontrada`);
@@ -1626,10 +1500,8 @@ export class AutomatedCollectionService
         zone: order.customer.zone
           ? {
               zone_id: order.customer.zone.zone_id,
-              name: order.customer.zone.name,
-            }
-          : null,
-      },
+              name: order.customer.zone.name }
+          : null },
       subscription_info: order.customer_subscription
         ? {
             subscription_id: order.customer_subscription.subscription_id,
@@ -1643,8 +1515,7 @@ export class AutomatedCollectionService
               billing_frequency: this.getBillingFrequency(
                 order.customer_subscription.subscription_plan
                   .default_cycle_days,
-              ),
-            },
+              ) },
             cycle_info: order.customer_subscription.subscription_cycle?.[0]
               ? {
                   cycle_id:
@@ -1664,18 +1535,15 @@ export class AutomatedCollectionService
                       .payment_due_date,
                   ),
                   pending_balance:
-                    order.customer_subscription.subscription_cycle[0].pending_balance.toString(),
-                }
-              : null,
-          }
+                    order.customer_subscription.subscription_cycle[0].pending_balance.toString() }
+              : null }
         : null,
       created_at: order.order_date
         ? formatBATimestampISO(order.order_date)
         : '',
       updated_at: order.order_date
         ? formatBATimestampISO(order.order_date)
-        : '',
-    };
+        : '' };
 
     return result;
   }
@@ -1691,13 +1559,9 @@ export class AutomatedCollectionService
         collection_order_id: orderId,
         order_type: 'ONE_OFF',
         notes: {
-          contains: 'COBRANZA AUTOMÁTICA',
-        },
-      },
+          contains: 'COBRANZA AUTOMÁTICA' } },
       include: {
-        customer: true,
-      },
-    });
+        customer: true } });
 
     if (!order) {
       throw new Error(`Cobranza automática con ID ${orderId} no encontrada`);
@@ -1716,9 +1580,7 @@ export class AutomatedCollectionService
       where: { collection_order_id: orderId },
       data: {
         status: 'CANCELLED',
-        notes: `${order.notes} - ELIMINADO LÓGICAMENTE`,
-      },
-    });
+        notes: `${order.notes} - ELIMINADO LÓGICAMENTE` } });
 
     const pendingAmount =
       parseFloat(order.total_amount.toString()) -
@@ -1733,9 +1595,7 @@ export class AutomatedCollectionService
         was_paid: hasPaidAmount,
         had_pending_amount: pendingAmount.toFixed(2),
         customer_name: order.customer.name,
-        deletion_type: 'logical',
-      },
-    };
+        deletion_type: 'logical' } };
   }
 
   private getBillingFrequency(defaultCycleDays?: number | null): string {

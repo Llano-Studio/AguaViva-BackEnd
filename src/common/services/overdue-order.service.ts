@@ -1,17 +1,15 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaClient, OrderStatus as PrismaOrderStatus } from '@prisma/client';
+import { OrderStatus as PrismaOrderStatus } from '@prisma/client';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 @Injectable()
-export class OverdueOrderService extends PrismaClient implements OnModuleInit {
+export class OverdueOrderService extends PrismaBackedService {
   private readonly logger = new Logger(OverdueOrderService.name);
-
-  constructor() {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   /**
@@ -31,8 +29,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
       const overdueOrders = await this.order_header.findMany({
         where: {
           order_date: {
-            lt: twoDaysAgo,
-          },
+            lt: twoDaysAgo },
           status: {
             notIn: [
               PrismaOrderStatus.OVERDUE,
@@ -40,9 +37,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
               PrismaOrderStatus.RETIRADO,
               PrismaOrderStatus.CANCELLED,
               PrismaOrderStatus.REFUNDED,
-            ],
-          },
-        },
+            ] } },
         select: {
           order_id: true,
           order_date: true,
@@ -50,11 +45,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
           customer: {
             select: {
               person_id: true,
-              name: true,
-            },
-          },
-        },
-      });
+              name: true } } } });
 
       this.logger.log(
         `📊 Encontrados ${overdueOrders.length} pedidos atrasados`,
@@ -65,13 +56,9 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
         const updateResult = await this.order_header.updateMany({
           where: {
             order_id: {
-              in: overdueOrders.map((order) => order.order_id),
-            },
-          },
+              in: overdueOrders.map((order) => order.order_id) } },
           data: {
-            status: PrismaOrderStatus.OVERDUE,
-          },
-        });
+            status: PrismaOrderStatus.OVERDUE } });
 
         this.logger.log(
           `✅ Actualizados ${updateResult.count} pedidos a estado OVERDUE`,
@@ -108,8 +95,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
     const overdueOrders = await this.order_header.findMany({
       where: {
         order_date: {
-          lt: twoDaysAgo,
-        },
+          lt: twoDaysAgo },
         status: {
           notIn: [
             PrismaOrderStatus.OVERDUE,
@@ -117,30 +103,20 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
             PrismaOrderStatus.RETIRADO,
             PrismaOrderStatus.CANCELLED,
             PrismaOrderStatus.REFUNDED,
-          ],
-        },
-      },
+          ] } },
       include: {
         customer: {
           select: {
             person_id: true,
-            name: true,
-          },
-        },
-      },
-    });
+            name: true } } } });
 
     if (overdueOrders.length > 0) {
       const updateResult = await this.order_header.updateMany({
         where: {
           order_id: {
-            in: overdueOrders.map((order) => order.order_id),
-          },
-        },
+            in: overdueOrders.map((order) => order.order_id) } },
         data: {
-          status: PrismaOrderStatus.OVERDUE,
-        },
-      });
+          status: PrismaOrderStatus.OVERDUE } });
 
       this.logger.log(
         `✅ Marcados ${updateResult.count} pedidos como atrasados manualmente`,
@@ -156,9 +132,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
           days_overdue: Math.floor(
             (new Date().getTime() - order.order_date.getTime()) /
               (1000 * 60 * 60 * 24),
-          ),
-        })),
-      };
+          ) })) };
     }
 
     return { count: 0, orders: [] };
@@ -174,21 +148,17 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
   }> {
     const overdueOrders = await this.order_header.findMany({
       where: {
-        status: PrismaOrderStatus.OVERDUE,
-      },
+        status: PrismaOrderStatus.OVERDUE },
       select: {
         order_id: true,
-        order_date: true,
-      },
-    });
+        order_date: true } });
 
     const now = new Date();
     const byDays = {
       '2-7 días': 0,
       '8-15 días': 0,
       '16-30 días': 0,
-      'Más de 30 días': 0,
-    };
+      'Más de 30 días': 0 };
 
     overdueOrders.forEach((order) => {
       const daysDiff = Math.floor(
@@ -210,8 +180,7 @@ export class OverdueOrderService extends PrismaClient implements OnModuleInit {
       total_overdue: overdueOrders.length,
       by_days: Object.entries(byDays).map(([days_range, count]) => ({
         days_range,
-        count,
-      })),
+        count })),
       by_status_before_overdue: [], // Se podría implementar un historial de cambios de estado
     };
   }

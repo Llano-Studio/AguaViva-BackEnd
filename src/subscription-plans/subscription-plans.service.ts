@@ -3,17 +3,13 @@ import {
   NotFoundException,
   ConflictException,
   InternalServerErrorException,
-  OnModuleInit,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import {
-  PrismaClient,
   subscription_plan as SubscriptionPlanPrisma,
   Prisma,
   SubscriptionStatus,
   product as ProductPrisma,
-  subscription_plan_product as SubscriptionPlanProductPrisma,
-} from '@prisma/client';
+  subscription_plan_product as SubscriptionPlanProductPrisma } from '@prisma/client';
 import {
   CreateSubscriptionPlanDto,
   UpdateSubscriptionPlanDto,
@@ -24,23 +20,24 @@ import {
   SubscriptionPlanResponseDto,
   SubscriptionPlanProductResponseDto,
   PaginatedSubscriptionPlanResponseDto,
-  FilterSubscriptionPlansDto,
-} from './dto';
+  FilterSubscriptionPlansDto } from './dto';
 import { Decimal } from '@prisma/client/runtime/library';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
 export class SubscriptionPlansService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
-  private readonly entityName = 'Plan de Suscripción';
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Plan de Suscripción';
 
   private toSubscriptionPlanProductResponseDto(
     spp: SubscriptionPlanProductPrisma & { product?: ProductPrisma },
@@ -48,8 +45,7 @@ export class SubscriptionPlansService
     return {
       product_id: spp.product_id,
       product_description: spp.product?.description || 'N/A',
-      quantity: spp.product_quantity,
-    };
+      quantity: spp.product_quantity };
   }
 
   private toSubscriptionPlanResponseDto(
@@ -75,8 +71,7 @@ export class SubscriptionPlansService
       products:
         plan.subscription_plan_product?.map((p) =>
           this.toSubscriptionPlanProductResponseDto(p),
-        ) || [],
-    };
+        ) || [] };
   }
 
   async create(
@@ -91,16 +86,11 @@ export class SubscriptionPlansService
           default_cycle_days: createSubscriptionPlanDto.default_cycle_days,
           default_deliveries_per_cycle:
             createSubscriptionPlanDto.default_deliveries_per_cycle,
-          is_active: createSubscriptionPlanDto.is_active,
-        },
+          is_active: createSubscriptionPlanDto.is_active },
         include: {
           subscription_plan_product: {
             include: {
-              product: true,
-            },
-          },
-        },
-      });
+              product: true } } } });
       return this.toSubscriptionPlanResponseDto(newPlan);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -126,15 +116,13 @@ export class SubscriptionPlansService
       name,
       is_active,
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
-      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
-    } = filters;
+      limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
     const where: Prisma.subscription_planWhereInput = {
       // Por defecto solo mostrar planes activos, a menos que se especifique lo contrario
-      is_active: is_active !== undefined ? is_active : true,
-    };
+      is_active: is_active !== undefined ? is_active : true };
 
     // Búsqueda general en múltiples campos
     if (search) {
@@ -159,14 +147,10 @@ export class SubscriptionPlansService
         include: {
           subscription_plan_product: {
             include: {
-              product: true,
-            },
-          },
-        },
+              product: true } } },
         orderBy: orderByClause,
         skip,
-        take,
-      });
+        take });
 
       const totalPlans = await this.subscription_plan.count({ where });
 
@@ -176,9 +160,7 @@ export class SubscriptionPlansService
           total: totalPlans,
           page,
           limit,
-          totalPages: Math.ceil(totalPlans / take),
-        },
-      };
+          totalPages: Math.ceil(totalPlans / take) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -194,16 +176,11 @@ export class SubscriptionPlansService
     const plan = await this.subscription_plan.findFirst({
       where: {
         subscription_plan_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
+        ...(includeInactive ? {} : { is_active: true }) },
       include: {
         subscription_plan_product: {
           include: {
-            product: true,
-          },
-        },
-      },
-    });
+            product: true } } } });
     if (!plan) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrado.`,
@@ -227,14 +204,10 @@ export class SubscriptionPlansService
           default_cycle_days: updateSubscriptionPlanDto.default_cycle_days,
           default_deliveries_per_cycle:
             updateSubscriptionPlanDto.default_deliveries_per_cycle,
-          is_active: updateSubscriptionPlanDto.is_active,
-        },
+          is_active: updateSubscriptionPlanDto.is_active },
         include: {
           subscription_plan_product: {
-            include: { product: true },
-          },
-        },
-      });
+            include: { product: true } } } });
       return this.toSubscriptionPlanResponseDto(updatedPlan);
     } catch (error) {
       if (
@@ -258,9 +231,7 @@ export class SubscriptionPlansService
     const activeCustomerSubscriptions = await this.customer_subscription.count({
       where: {
         subscription_plan_id: id,
-        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED] },
-      },
-    });
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED] } } });
 
     if (activeCustomerSubscriptions > 0) {
       throw new ConflictException(
@@ -272,13 +243,11 @@ export class SubscriptionPlansService
       // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
       await this.subscription_plan.update({
         where: { subscription_plan_id: id },
-        data: { is_active: false },
-      });
+        data: { is_active: false } });
 
       return {
         message: `${this.entityName} con ID ${id} desactivado correctamente.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -294,8 +263,7 @@ export class SubscriptionPlansService
     await this.findOne(planId);
 
     const product = await this.product.findUnique({
-      where: { product_id: addProductToPlanDto.product_id },
-    });
+      where: { product_id: addProductToPlanDto.product_id } });
     if (!product) {
       throw new NotFoundException(
         `Producto con ID ${addProductToPlanDto.product_id} no encontrado.`,
@@ -306,9 +274,7 @@ export class SubscriptionPlansService
       await this.subscription_plan_product.findFirst({
         where: {
           subscription_plan_id: planId,
-          product_id: addProductToPlanDto.product_id,
-        },
-      });
+          product_id: addProductToPlanDto.product_id } });
 
     if (existingProductInPlan) {
       throw new ConflictException(
@@ -321,13 +287,10 @@ export class SubscriptionPlansService
         data: {
           subscription_plan_id: planId,
           product_id: addProductToPlanDto.product_id,
-          product_quantity: addProductToPlanDto.product_quantity,
-        },
-      });
+          product_quantity: addProductToPlanDto.product_quantity } });
       const updatedPlan = await this.subscription_plan.findUniqueOrThrow({
         where: { subscription_plan_id: planId },
-        include: { subscription_plan_product: { include: { product: true } } },
-      });
+        include: { subscription_plan_product: { include: { product: true } } } });
       return this.toSubscriptionPlanResponseDto(updatedPlan);
     } catch (error) {
       handlePrismaError(error, `producto al ${this.entityName.toLowerCase()}`);
@@ -344,8 +307,7 @@ export class SubscriptionPlansService
   ): Promise<SubscriptionPlanResponseDto> {
     await this.findOne(planId);
     const product = await this.product.findUnique({
-      where: { product_id: productId },
-    });
+      where: { product_id: productId } });
     if (!product) {
       throw new NotFoundException(
         `Producto con ID ${productId} no encontrado.`,
@@ -355,9 +317,7 @@ export class SubscriptionPlansService
     const existingEntry = await this.subscription_plan_product.findFirst({
       where: {
         subscription_plan_id: planId,
-        product_id: productId,
-      },
-    });
+        product_id: productId } });
 
     if (!existingEntry) {
       throw new NotFoundException(
@@ -368,16 +328,12 @@ export class SubscriptionPlansService
     try {
       await this.subscription_plan_product.update({
         where: {
-          spp_id: existingEntry.spp_id,
-        },
+          spp_id: existingEntry.spp_id },
         data: {
-          product_quantity: updateProductInPlanDto.product_quantity,
-        },
-      });
+          product_quantity: updateProductInPlanDto.product_quantity } });
       const updatedPlan = await this.subscription_plan.findUniqueOrThrow({
         where: { subscription_plan_id: planId },
-        include: { subscription_plan_product: { include: { product: true } } },
-      });
+        include: { subscription_plan_product: { include: { product: true } } } });
       return this.toSubscriptionPlanResponseDto(updatedPlan);
     } catch (error) {
       handlePrismaError(
@@ -397,8 +353,7 @@ export class SubscriptionPlansService
     await this.findOne(planId);
 
     const product = await this.product.findUnique({
-      where: { product_id: productId },
-    });
+      where: { product_id: productId } });
     if (!product) {
       throw new NotFoundException(
         `Producto con ID ${productId} no encontrado (no se puede eliminar de un plan si el producto en sí no existe).`,
@@ -408,9 +363,7 @@ export class SubscriptionPlansService
     const existingEntry = await this.subscription_plan_product.findFirst({
       where: {
         subscription_plan_id: planId,
-        product_id: productId,
-      },
-    });
+        product_id: productId } });
 
     if (!existingEntry) {
       throw new NotFoundException(
@@ -421,13 +374,10 @@ export class SubscriptionPlansService
     try {
       await this.subscription_plan_product.delete({
         where: {
-          spp_id: existingEntry.spp_id,
-        },
-      });
+          spp_id: existingEntry.spp_id } });
       const updatedPlan = await this.subscription_plan.findUniqueOrThrow({
         where: { subscription_plan_id: planId },
-        include: { subscription_plan_product: { include: { product: true } } },
-      });
+        include: { subscription_plan_product: { include: { product: true } } } });
       return this.toSubscriptionPlanResponseDto(updatedPlan);
     } catch (error) {
       handlePrismaError(error, `producto del ${this.entityName.toLowerCase()}`);
@@ -448,15 +398,13 @@ export class SubscriptionPlansService
     if (!productAdjustments || productAdjustments.length === 0) {
       const currentPlan = await this.subscription_plan.findUniqueOrThrow({
         where: { subscription_plan_id: planId },
-        include: { subscription_plan_product: { include: { product: true } } },
-      });
+        include: { subscription_plan_product: { include: { product: true } } } });
       return this.toSubscriptionPlanResponseDto(currentPlan);
     }
 
     for (const adj of productAdjustments) {
       const product = await this.product.findUnique({
-        where: { product_id: adj.product_id },
-      });
+        where: { product_id: adj.product_id } });
       if (!product) {
         throw new NotFoundException(
           `Producto con ID ${adj.product_id} en la lista de ajustes no encontrado.`,
@@ -472,8 +420,7 @@ export class SubscriptionPlansService
     await this.$transaction(async (prisma) => {
       const currentProductsInPlan =
         await prisma.subscription_plan_product.findMany({
-          where: { subscription_plan_id: planId },
-        });
+          where: { subscription_plan_id: planId } });
 
       for (const adj of productAdjustments) {
         const existingProduct = currentProductsInPlan.find(
@@ -483,30 +430,25 @@ export class SubscriptionPlansService
         if (adj.quantity === 0) {
           if (existingProduct) {
             await prisma.subscription_plan_product.delete({
-              where: { spp_id: existingProduct.spp_id },
-            });
+              where: { spp_id: existingProduct.spp_id } });
           }
         } else if (existingProduct) {
           await prisma.subscription_plan_product.update({
             where: { spp_id: existingProduct.spp_id },
-            data: { product_quantity: adj.quantity },
-          });
+            data: { product_quantity: adj.quantity } });
         } else {
           await prisma.subscription_plan_product.create({
             data: {
               subscription_plan_id: planId,
               product_id: adj.product_id,
-              product_quantity: adj.quantity,
-            },
-          });
+              product_quantity: adj.quantity } });
         }
       }
     });
 
     const updatedPlan = await this.subscription_plan.findUniqueOrThrow({
       where: { subscription_plan_id: planId },
-      include: { subscription_plan_product: { include: { product: true } } },
-    });
+      include: { subscription_plan_product: { include: { product: true } } } });
     return this.toSubscriptionPlanResponseDto(updatedPlan);
   }
 
@@ -561,8 +503,7 @@ export class SubscriptionPlansService
         try {
           await this.subscription_plan.update({
             where: { subscription_plan_id: plan.subscription_plan_id },
-            data: { price: newPriceDecimal.toDecimalPlaces(2) },
-          });
+            data: { price: newPriceDecimal.toDecimalPlaces(2) } });
           updatedCount++;
         } catch (error) {
           // Podríamos querer manejar errores por plan individual aquí, o dejar que falle la operación completa.
@@ -578,8 +519,7 @@ export class SubscriptionPlansService
 
     return {
       updated_count: updatedCount,
-      message: `Se actualizaron los precios de ${updatedCount} planes de suscripción.`,
-    };
+      message: `Se actualizaron los precios de ${updatedCount} planes de suscripción.` };
   }
 
   /**
@@ -598,20 +538,13 @@ export class SubscriptionPlansService
   }> {
     const plansWithoutPrice = await this.subscription_plan.findMany({
       where: {
-        OR: [{ price: null }, { price: 0 }],
-      },
+        OR: [{ price: null }, { price: 0 }] },
       include: {
         _count: {
           select: {
             customer_subscription: {
               where: {
-                status: 'ACTIVE',
-              },
-            },
-          },
-        },
-      },
-    });
+                status: 'ACTIVE' } } } } } });
 
     const critical_count = plansWithoutPrice.filter(
       (plan) => plan.is_active && plan._count.customer_subscription > 0,
@@ -623,11 +556,9 @@ export class SubscriptionPlansService
         name: plan.name,
         price: plan.price ? Number(plan.price) : null,
         is_active: plan.is_active,
-        active_subscriptions_count: plan._count.customer_subscription,
-      })),
+        active_subscriptions_count: plan._count.customer_subscription })),
       total_count: plansWithoutPrice.length,
-      critical_count,
-    };
+      critical_count };
   }
 
   /**
@@ -638,8 +569,7 @@ export class SubscriptionPlansService
     price: number,
   ): Promise<{ message: string; updated_plan: SubscriptionPlanResponseDto }> {
     const plan = await this.subscription_plan.findUnique({
-      where: { subscription_plan_id: planId },
-    });
+      where: { subscription_plan_id: planId } });
 
     if (!plan) {
       throw new NotFoundException(`Plan con ID ${planId} no encontrado`);
@@ -651,15 +581,10 @@ export class SubscriptionPlansService
       include: {
         subscription_plan_product: {
           include: {
-            product: true,
-          },
-        },
-      },
-    });
+            product: true } } } });
 
     return {
       message: `Precio ${price} asignado al plan "${plan.name}"`,
-      updated_plan: this.toSubscriptionPlanResponseDto(updatedPlan),
-    };
+      updated_plan: this.toSubscriptionPlanResponseDto(updatedPlan) };
   }
 }

@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class SubscriptionCycleCalculatorService {
   private readonly logger = new Logger(SubscriptionCycleCalculatorService.name);
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Calcula y actualiza el total_amount de un ciclo de suscripción

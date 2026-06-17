@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import {
-  PrismaClient,
   SubscriptionStatus,
-  PaymentStatus,
-} from '@prisma/client';
+  PaymentStatus } from '@prisma/client';
 import { CustomerSubscriptionResponseDto } from '../../customer-subscription/dto/customer-subscription-response.dto';
 import { formatBAYMD } from '../utils/date.utils';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 export interface MultipleSubscriptionSummaryDto {
   customer_id: number;
@@ -38,15 +39,10 @@ export interface ActiveCycleSummaryDto {
 
 @Injectable()
 export class MultipleSubscriptionsService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
-  constructor() {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
 
   /**
@@ -57,8 +53,7 @@ export class MultipleSubscriptionsService
   ): Promise<MultipleSubscriptionSummaryDto> {
     // Verificar que el cliente existe
     const customer = await this.person.findUnique({
-      where: { person_id: customerId },
-    });
+      where: { person_id: customerId } });
 
     if (!customer) {
       throw new NotFoundException(`Cliente con ID ${customerId} no encontrado`);
@@ -68,16 +63,12 @@ export class MultipleSubscriptionsService
     const activeSubscriptions = await this.customer_subscription.findMany({
       where: {
         customer_id: customerId,
-        status: SubscriptionStatus.ACTIVE,
-      },
+        status: SubscriptionStatus.ACTIVE },
       include: {
         subscription_plan: {
           include: {
             subscription_plan_product: {
-              include: { product: true },
-            },
-          },
-        },
+              include: { product: true } } } },
         subscription_cycle: {
           where: {
             cycle_end: { gte: new Date() }, // Solo ciclos activos o futuros
@@ -86,10 +77,7 @@ export class MultipleSubscriptionsService
           take: 1, // Solo el ciclo más reciente
         },
         _count: {
-          select: { order_header: true },
-        },
-      },
-    });
+          select: { order_header: true } } } });
 
     // Calcular totales
     let totalPendingAmount = 0;
@@ -154,18 +142,15 @@ export class MultipleSubscriptionsService
           description: subscription.subscription_plan.description,
           price: parseFloat(
             subscription.subscription_plan.price?.toString() || '0',
-          ),
-        },
+          ) },
         subscription_cycle: subscription.subscription_cycle?.map(
           (cycle: any) => ({
             cycle_id: cycle.cycle_id,
             cycle_start: formatBAYMD(cycle.cycle_start),
             cycle_end: formatBAYMD(cycle.cycle_end),
-            notes: cycle.notes,
-          }),
+            notes: cycle.notes }),
         ),
-        orders_count: subscription._count?.order_header || 0,
-      }));
+        orders_count: subscription._count?.order_header || 0 }));
 
     return {
       customer_id: customerId,
@@ -177,9 +162,7 @@ export class MultipleSubscriptionsService
       payment_summary: {
         total_paid: totalPaid,
         total_pending: totalPending,
-        total_overdue: totalOverdue,
-      },
-    };
+        total_overdue: totalOverdue } };
   }
 
   /**
@@ -194,22 +177,17 @@ export class MultipleSubscriptionsService
       where: {
         customer_subscription: {
           customer_id: customerId,
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         cycle_end: { gte: today }, // Solo ciclos que no han terminado
       },
       include: {
         customer_subscription: {
           include: {
-            subscription_plan: true,
-          },
-        },
-      },
+            subscription_plan: true } } },
       orderBy: [
         { cycle_start: 'asc' },
         { customer_subscription: { subscription_plan: { name: 'asc' } } },
-      ],
-    });
+      ] });
 
     return activeCycles.map((cycle) => {
       const isOverdue =
@@ -230,8 +208,7 @@ export class MultipleSubscriptionsService
         pending_balance: Number(cycle.pending_balance),
         credit_balance: Number(cycle.credit_balance),
         payment_status: cycle.payment_status,
-        is_overdue: !!isOverdue,
-      };
+        is_overdue: !!isOverdue };
     });
   }
 
@@ -256,59 +233,43 @@ export class MultipleSubscriptionsService
       await this.customer_subscription.groupBy({
         by: ['customer_id'],
         where: {
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         _count: {
-          subscription_id: true,
-        },
+          subscription_id: true },
         having: {
           subscription_id: {
             _count: {
-              gt: 1,
-            },
-          },
-        },
-      });
+              gt: 1 } } } });
 
     // Contar total de suscripciones activas
     const totalActiveSubscriptions = await this.customer_subscription.count({
       where: {
-        status: SubscriptionStatus.ACTIVE,
-      },
-    });
+        status: SubscriptionStatus.ACTIVE } });
 
     // Contar total de ciclos activos
     const today = new Date();
     const totalActiveCycles = await this.subscription_cycle.count({
       where: {
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE,
-        },
-        cycle_end: { gte: today },
-      },
-    });
+          status: SubscriptionStatus.ACTIVE },
+        cycle_end: { gte: today } } });
 
     // Distribución de estados de pago
     const paymentStatusDistribution = await this.subscription_cycle.groupBy({
       by: ['payment_status'],
       where: {
         customer_subscription: {
-          status: SubscriptionStatus.ACTIVE,
-        },
-        cycle_end: { gte: today },
-      },
+          status: SubscriptionStatus.ACTIVE },
+        cycle_end: { gte: today } },
       _count: {
-        cycle_id: true,
-      },
-    });
+        cycle_id: true } });
 
     const statusCounts = {
       pending: 0,
       partial: 0,
       paid: 0,
       overdue: 0,
-      credited: 0,
-    };
+      credited: 0 };
 
     paymentStatusDistribution.forEach((status) => {
       const statusKey =
@@ -322,9 +283,7 @@ export class MultipleSubscriptionsService
       await this.customer_subscription.groupBy({
         by: ['customer_id'],
         where: {
-          status: SubscriptionStatus.ACTIVE,
-        },
-      });
+          status: SubscriptionStatus.ACTIVE } });
 
     const averageSubscriptionsPerCustomer =
       totalCustomersWithSubscriptions.length > 0
@@ -338,8 +297,7 @@ export class MultipleSubscriptionsService
       total_active_cycles: totalActiveCycles,
       average_subscriptions_per_customer:
         Math.round(averageSubscriptionsPerCustomer * 100) / 100,
-      payment_status_distribution: statusCounts,
-    };
+      payment_status_distribution: statusCounts };
   }
 
   /**
@@ -359,19 +317,13 @@ export class MultipleSubscriptionsService
       await this.customer_subscription.groupBy({
         by: ['customer_id'],
         where: {
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         _count: {
-          subscription_id: true,
-        },
+          subscription_id: true },
         having: {
           subscription_id: {
             _count: {
-              gt: 1,
-            },
-          },
-        },
-      });
+              gt: 1 } } } });
 
     // Para cada cliente, obtener información detallada
     const result = [];
@@ -383,8 +335,7 @@ export class MultipleSubscriptionsService
       // Obtener información del cliente
       const customer = await this.person.findUnique({
         where: { person_id: customerId },
-        select: { name: true },
-      });
+        select: { name: true } });
 
       if (!customer) continue;
 
@@ -394,15 +345,11 @@ export class MultipleSubscriptionsService
         where: {
           customer_subscription: {
             customer_id: customerId,
-            status: SubscriptionStatus.ACTIVE,
-          },
-          cycle_end: { gte: today },
-        },
+            status: SubscriptionStatus.ACTIVE },
+          cycle_end: { gte: today } },
         select: {
           pending_balance: true,
-          credit_balance: true,
-        },
-      });
+          credit_balance: true } });
 
       const totalPendingAmount = activeCycles.reduce(
         (sum, cycle) => sum + Number(cycle.pending_balance || 0),
@@ -419,8 +366,7 @@ export class MultipleSubscriptionsService
         customer_name: customer.name,
         subscription_count: subscriptionCount,
         total_pending_amount: totalPendingAmount,
-        total_credit_balance: totalCreditBalance,
-      });
+        total_credit_balance: totalCreditBalance });
     }
 
     // Ordenar por cantidad de suscripciones descendente
@@ -461,7 +407,6 @@ export class MultipleSubscriptionsService
       total_credit_available: totalCreditAvailable,
       net_amount_due: netAmountDue,
       cycles_with_debt: cyclesWithDebt,
-      cycles_with_credit: cyclesWithCredit,
-    };
+      cycles_with_credit: cyclesWithCredit };
   }
 }

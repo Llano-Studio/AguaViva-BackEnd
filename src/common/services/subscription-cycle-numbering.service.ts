@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class SubscriptionCycleNumberingService {
   private readonly logger = new Logger(SubscriptionCycleNumberingService.name);
-  private readonly prisma = new PrismaClient();
+
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Obtiene el siguiente número de ciclo para una suscripción

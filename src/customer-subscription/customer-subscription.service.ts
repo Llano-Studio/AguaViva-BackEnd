@@ -2,10 +2,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  OnModuleInit,
-  Logger,
-} from '@nestjs/common';
-import { PrismaClient, Prisma, SubscriptionStatus } from '@prisma/client';
+  Logger } from '@nestjs/common';
+import { Prisma, SubscriptionStatus } from '@prisma/client';
 import {
   CreateCustomerSubscriptionDto,
   UpdateCustomerSubscriptionDto,
@@ -14,8 +12,7 @@ import {
   PaginatedCustomerSubscriptionResponseDto,
   CreateSubscriptionDeliveryScheduleDto,
   UpdateSubscriptionDeliveryScheduleDto,
-  SubscriptionDeliveryScheduleResponseDto,
-} from './dto';
+  SubscriptionDeliveryScheduleResponseDto } from './dto';
 import { FirstCycleComodatoService } from '../common/services/first-cycle-comodato.service';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
@@ -23,25 +20,23 @@ import { PaymentSemaphoreService } from '../common/services/payment-semaphore.se
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { dayBefore, formatBAYMD, parseBAYMD } from '../common/utils/date.utils';
 import { calculatePaymentDueDate } from './utils/payment-due-date';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
 export class CustomerSubscriptionService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
   private readonly logger = new Logger(CustomerSubscriptionService.name);
-
   constructor(
+    prisma: PrismaService,
     private readonly firstCycleComodatoService: FirstCycleComodatoService,
     private readonly subscriptionCycleCalculatorService: SubscriptionCycleCalculatorService,
     private readonly recoveryOrderService: RecoveryOrderService,
     private readonly paymentSemaphoreService: PaymentSemaphoreService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   private parseDeliveryPreferences(notes?: string | null) {
@@ -135,8 +130,7 @@ export class CustomerSubscriptionService
 
     // Verificar que el cliente existe
     const customer = await this.person.findUnique({
-      where: { person_id: createDto.customer_id },
-    });
+      where: { person_id: createDto.customer_id } });
 
     if (!customer) {
       throw new NotFoundException(
@@ -146,8 +140,7 @@ export class CustomerSubscriptionService
 
     // Verificar que el plan de suscripción existe
     const subscriptionPlan = await this.subscription_plan.findUnique({
-      where: { subscription_plan_id: createDto.subscription_plan_id },
-    });
+      where: { subscription_plan_id: createDto.subscription_plan_id } });
 
     if (!subscriptionPlan) {
       throw new NotFoundException(
@@ -160,15 +153,13 @@ export class CustomerSubscriptionService
       // Actualizar el tipo de cliente de INDIVIDUAL a PLAN
       await this.person.update({
         where: { person_id: createDto.customer_id },
-        data: { type: 'PLAN' },
-      });
+        data: { type: 'PLAN' } });
 
       // Actualizar el tipo de plan de suscripción a PLAN (si no lo está ya)
       if (subscriptionPlan.type !== 'PLAN') {
         await this.subscription_plan.update({
           where: { subscription_plan_id: createDto.subscription_plan_id },
-          data: { type: 'PLAN' },
-        });
+          data: { type: 'PLAN' } });
         this.logger.log(
           `Plan de suscripción "${subscriptionPlan.name}" (ID: ${subscriptionPlan.subscription_plan_id}) actualizado de tipo "${subscriptionPlan.type}" a "PLAN"`,
         );
@@ -224,28 +215,19 @@ export class CustomerSubscriptionService
               payment_mode: createDto.payment_mode || 'ADVANCE',
               payment_due_day: createDto.payment_due_day || null,
               status: createDto.status || SubscriptionStatus.ACTIVE,
-              notes,
-            },
+              notes },
             include: {
               subscription_plan: {
                 include: {
-                  subscription_plan_product: true,
-                },
-              },
-            },
-          });
+                  subscription_plan_product: true } } } });
 
           const existingCycle = await tx.subscription_cycle.findFirst({
             where: {
-              subscription_id: subscription.subscription_id,
-            },
+              subscription_id: subscription.subscription_id },
             orderBy: {
-              cycle_number: 'desc',
-            },
+              cycle_number: 'desc' },
             select: {
-              cycle_number: true,
-            },
-          });
+              cycle_number: true } });
 
           const nextCycleNumber = existingCycle
             ? existingCycle.cycle_number + 1
@@ -258,9 +240,7 @@ export class CustomerSubscriptionService
               cycle_start: firstCycleStartDate,
               cycle_end: firstCycleEndDate,
               payment_due_date: cycleDates.payment_due_date,
-              total_amount: 0,
-            },
-          });
+              total_amount: 0 } });
 
           for (const planProduct of subscription.subscription_plan
             .subscription_plan_product) {
@@ -270,9 +250,7 @@ export class CustomerSubscriptionService
                 product_id: planProduct.product_id,
                 planned_quantity: planProduct.product_quantity,
                 delivered_quantity: 0,
-                remaining_balance: planProduct.product_quantity,
-              },
-            });
+                remaining_balance: planProduct.product_quantity } });
           }
 
           if (
@@ -286,8 +264,7 @@ export class CustomerSubscriptionService
               THURSDAY: 4,
               FRIDAY: 5,
               SATURDAY: 6,
-              SUNDAY: 7,
-            };
+              SUNDAY: 7 };
             for (const dayName of createDto.delivery_preferences
               .preferred_days) {
               const dayOfWeek = dayNameToNumber[String(dayName).toUpperCase()];
@@ -297,9 +274,7 @@ export class CustomerSubscriptionService
                     subscription_id: subscription.subscription_id,
                     day_of_week: dayOfWeek,
                     scheduled_time:
-                      createDto.delivery_preferences.preferred_time_range,
-                  },
-                });
+                      createDto.delivery_preferences.preferred_time_range } });
               }
             }
           }
@@ -404,8 +379,7 @@ export class CustomerSubscriptionService
         skip,
         take: limit,
         orderBy,
-        include: this.getIncludeClause(),
-      }),
+        include: this.getIncludeClause() }),
       this.customer_subscription.count({ where }),
     ]);
 
@@ -425,9 +399,7 @@ export class CustomerSubscriptionService
         total,
         page,
         limit,
-        totalPages,
-      },
-    };
+        totalPages } };
   }
 
   async findOne(
@@ -439,10 +411,8 @@ export class CustomerSubscriptionService
     const subscription = await this.customer_subscription.findFirst({
       where: {
         subscription_id: id,
-        ...(includeInactive ? {} : { is_active: true }),
-      },
-      include: this.getIncludeClause(),
-    });
+        ...(includeInactive ? {} : { is_active: true }) },
+      include: this.getIncludeClause() });
 
     if (!subscription) {
       throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
@@ -464,8 +434,7 @@ export class CustomerSubscriptionService
 
     // Verificar que la suscripción existe
     const existingSubscription = await this.customer_subscription.findUnique({
-      where: { subscription_id: id },
-    });
+      where: { subscription_id: id } });
 
     if (!existingSubscription) {
       throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
@@ -474,8 +443,7 @@ export class CustomerSubscriptionService
     // Verificar que el nuevo plan existe si se está actualizando
     if (updateDto.subscription_plan_id) {
       const planExists = await this.subscription_plan.findUnique({
-        where: { subscription_plan_id: updateDto.subscription_plan_id },
-      });
+        where: { subscription_plan_id: updateDto.subscription_plan_id } });
 
       if (!planExists) {
         throw new NotFoundException(
@@ -558,11 +526,7 @@ export class CustomerSubscriptionService
                 select: {
                   name: true,
                   description: true,
-                  price: true,
-                },
-              },
-            },
-          });
+                  price: true } } } });
 
           if (beginTodayCycle && effectiveCollectionDay) {
             const today = new Date();
@@ -573,10 +537,8 @@ export class CustomerSubscriptionService
               where: {
                 subscription_id: id,
                 cycle_start: { lte: today },
-                cycle_end: { gte: today },
-              },
-              orderBy: { cycle_start: 'desc' },
-            });
+                cycle_end: { gte: today } },
+              orderBy: { cycle_start: 'desc' } });
 
             if (!currentCycle) {
               throw new BadRequestException(
@@ -605,15 +567,12 @@ export class CustomerSubscriptionService
               where: { cycle_id: currentCycle.cycle_id },
               data: {
                 cycle_end: closedCycleEnd,
-                payment_due_date: closedCycleEnd,
-              },
-            });
+                payment_due_date: closedCycleEnd } });
 
             const latestCycle = await tx.subscription_cycle.findFirst({
               where: { subscription_id: id },
               orderBy: { cycle_number: 'desc' },
-              select: { cycle_number: true },
-            });
+              select: { cycle_number: true } });
             const nextCycleNumber = latestCycle
               ? latestCycle.cycle_number + 1
               : 1;
@@ -629,18 +588,13 @@ export class CustomerSubscriptionService
                 paid_amount: 0,
                 pending_balance: 0,
                 credit_balance: 0,
-                payment_status: 'PENDING',
-              },
-            });
+                payment_status: 'PENDING' } });
 
             const activePlan = await tx.subscription_plan.findUnique({
               where: {
-                subscription_plan_id: updatedSubscription.subscription_plan_id,
-              },
+                subscription_plan_id: updatedSubscription.subscription_plan_id },
               include: {
-                subscription_plan_product: true,
-              },
-            });
+                subscription_plan_product: true } });
 
             if (!activePlan) {
               throw new NotFoundException(
@@ -655,9 +609,7 @@ export class CustomerSubscriptionService
                   product_id: planProduct.product_id,
                   planned_quantity: planProduct.product_quantity,
                   delivered_quantity: 0,
-                  remaining_balance: planProduct.product_quantity,
-                },
-              });
+                  remaining_balance: planProduct.product_quantity } });
             }
 
             cycleTransition = {
@@ -666,8 +618,7 @@ export class CustomerSubscriptionService
               closed_cycle_end: formatBAYMD(closedCycleEnd),
               new_cycle_id: newCycle.cycle_id,
               new_cycle_start: formatBAYMD(today),
-              new_cycle_end: formatBAYMD(newCycleEnd),
-            };
+              new_cycle_end: formatBAYMD(newCycleEnd) };
           }
 
           if (collectionDayChanged && updateDto.collection_day) {
@@ -678,10 +629,8 @@ export class CustomerSubscriptionService
               where: {
                 subscription_id: id,
                 cycle_start: { lte: today },
-                cycle_end: { gte: today },
-              },
-              orderBy: { cycle_start: 'desc' },
-            });
+                cycle_end: { gte: today } },
+              orderBy: { cycle_start: 'desc' } });
 
             if (currentCycle) {
               const collectionDay = updateDto.collection_day;
@@ -704,9 +653,7 @@ export class CustomerSubscriptionService
                 where: { cycle_id: currentCycle.cycle_id },
                 data: {
                   cycle_end: newCurrentCycleEnd,
-                  payment_due_date: currentPaymentDueDate,
-                },
-              });
+                  payment_due_date: currentPaymentDueDate } });
             }
           }
 
@@ -744,9 +691,7 @@ export class CustomerSubscriptionService
       include: {
         order_header: true,
         subscription_cycle: true,
-        subscription_delivery_schedule: true,
-      },
-    });
+        subscription_delivery_schedule: true } });
 
     if (!subscription) {
       throw new NotFoundException(`Suscripción con ID ${id} no encontrada`);
@@ -757,8 +702,7 @@ export class CustomerSubscriptionService
       await this.$transaction(async (prisma) => {
         // 0. Eliminar comodatos asociados a esta suscripción (si existen)
         await prisma.comodato.deleteMany({
-          where: { subscription_id: id },
-        });
+          where: { subscription_id: id } });
 
         // 1. Eliminar los horarios de entrega
         if (
@@ -766,8 +710,7 @@ export class CustomerSubscriptionService
           subscription.subscription_delivery_schedule.length > 0
         ) {
           await prisma.subscription_delivery_schedule.deleteMany({
-            where: { subscription_id: id },
-          });
+            where: { subscription_id: id } });
           this.logger.log(
             `Deleted ${subscription.subscription_delivery_schedule.length} delivery schedule(s) for subscription ${id}`,
           );
@@ -775,11 +718,9 @@ export class CustomerSubscriptionService
 
         // 2. Eliminar pagos y detalles de ciclos (en cascada o explícitamente)
         await prisma.cycle_payment.deleteMany({
-          where: { subscription_cycle: { subscription_id: id } },
-        });
+          where: { subscription_cycle: { subscription_id: id } } });
         await prisma.subscription_cycle_detail.deleteMany({
-          where: { subscription_cycle: { subscription_id: id } },
-        });
+          where: { subscription_cycle: { subscription_id: id } } });
 
         // 3. Eliminar los ciclos de suscripción
         if (
@@ -787,8 +728,7 @@ export class CustomerSubscriptionService
           subscription.subscription_cycle.length > 0
         ) {
           await prisma.subscription_cycle.deleteMany({
-            where: { subscription_id: id },
-          });
+            where: { subscription_id: id } });
           this.logger.log(
             `Deleted ${subscription.subscription_cycle.length} subscription cycle(s) for subscription ${id}`,
           );
@@ -800,9 +740,7 @@ export class CustomerSubscriptionService
           data: {
             is_active: false,
             status: SubscriptionStatus.CANCELLED,
-            cancellation_date: new Date(),
-          },
-        });
+            cancellation_date: new Date() } });
 
         this.logger.log(`Successfully deactivated subscription ${id}`);
       });
@@ -831,11 +769,7 @@ export class CustomerSubscriptionService
         include: {
           zone: {
             include: {
-              locality: true,
-            },
-          },
-        },
-      },
+              locality: true } } } },
       subscription_plan: true,
       subscription_cycle: {
         orderBy: { cycle_start: 'desc' as const },
@@ -847,17 +781,9 @@ export class CustomerSubscriptionService
                 select: {
                   product_id: true,
                   description: true,
-                  price: true,
-                },
-              },
-            },
-          },
-        },
-      },
+                  price: true } } } } } },
       _count: {
-        select: { order_header: true },
-      },
-    };
+        select: { order_header: true } } };
   }
 
   private buildWhereClause(
@@ -918,9 +844,7 @@ export class CustomerSubscriptionService
         {
           notes: {
             contains: filters.search,
-            mode: 'insensitive',
-          },
-        },
+            mode: 'insensitive' } },
       ];
     }
 
@@ -930,13 +854,11 @@ export class CustomerSubscriptionService
           OR: [
             { status: SubscriptionStatus.ACTIVE },
             { status: SubscriptionStatus.PAUSED },
-          ],
-        },
+          ] },
         {
           OR: [
             // end_date conditions removed - field not present in schema
-          ],
-        },
+          ] },
       ];
     }
 
@@ -987,18 +909,14 @@ export class CustomerSubscriptionService
               name: subscription.person.zone.name,
               locality: {
                 locality_id: subscription.person.zone.locality.locality_id,
-                name: subscription.person.zone.locality.name,
-              },
-            }
-          : undefined,
-      },
+                name: subscription.person.zone.locality.name } }
+          : undefined },
       subscription_plan: {
         subscription_plan_id:
           subscription.subscription_plan.subscription_plan_id,
         name: subscription.subscription_plan.name,
         description: subscription.subscription_plan.description,
-        price: subscription.subscription_plan.price?.toString(),
-      },
+        price: subscription.subscription_plan.price?.toString() },
       subscription_cycle: subscription.subscription_cycle?.map(
         (cycle: any) => ({
           cycle_id: cycle.cycle_id,
@@ -1018,14 +936,10 @@ export class CustomerSubscriptionService
                     description: detail.product.description,
                     price: detail.product.price
                       ? parseFloat(detail.product.price.toString())
-                      : undefined,
-                  }
-                : undefined,
-            })) || [],
-        }),
+                      : undefined }
+                : undefined })) || [] }),
       ),
-      orders_count: subscription._count?.order_header || 0,
-    });
+      orders_count: subscription._count?.order_header || 0 });
   }
 
   // =============================================================================
@@ -1055,8 +969,7 @@ export class CustomerSubscriptionService
         return {
           isValid: false,
           type: 'rango',
-          error: 'Formato inválido para rango horario. Use HH:MM-HH:MM',
-        };
+          error: 'Formato inválido para rango horario. Use HH:MM-HH:MM' };
       }
 
       // Verificar que la hora de inicio sea menor que la de fin
@@ -1067,8 +980,7 @@ export class CustomerSubscriptionService
         return {
           isValid: false,
           type: 'rango',
-          error: 'La hora de inicio debe ser menor que la hora de fin',
-        };
+          error: 'La hora de inicio debe ser menor que la hora de fin' };
       }
 
       return { isValid: true, type: 'rango', startTime, endTime };
@@ -1078,8 +990,7 @@ export class CustomerSubscriptionService
         return {
           isValid: false,
           type: 'puntual',
-          error: 'Formato inválido para horario puntual. Use HH:MM',
-        };
+          error: 'Formato inválido para horario puntual. Use HH:MM' };
       }
 
       return { isValid: true, type: 'puntual', startTime: scheduledTime };
@@ -1135,8 +1046,7 @@ export class CustomerSubscriptionService
       return {
         cycle_start: cycleStart,
         cycle_end: cycleEnd,
-        payment_due_date: paymentDueDate,
-      };
+        payment_due_date: paymentDueDate };
     }
 
     // LÓGICA ESPECIAL PARA SUSCRIPCIONES NUEVAS
@@ -1183,8 +1093,7 @@ export class CustomerSubscriptionService
       return {
         cycle_start: cycleStart,
         cycle_end: cycleEnd,
-        payment_due_date: paymentDueDate,
-      };
+        payment_due_date: paymentDueDate };
     }
 
     // LÓGICA PARA CICLOS REGULARES (renovaciones)
@@ -1238,8 +1147,7 @@ export class CustomerSubscriptionService
     return {
       cycle_start: cycleStart,
       cycle_end: cycleEnd,
-      payment_due_date: paymentDueDate,
-    };
+      payment_due_date: paymentDueDate };
   }
 
   /**
@@ -1322,8 +1230,7 @@ export class CustomerSubscriptionService
 
     // Verificar que la suscripción existe
     const subscription = await this.customer_subscription.findUnique({
-      where: { subscription_id: createDto.subscription_id },
-    });
+      where: { subscription_id: createDto.subscription_id } });
 
     if (!subscription) {
       throw new NotFoundException(
@@ -1336,9 +1243,7 @@ export class CustomerSubscriptionService
       await this.subscription_delivery_schedule.findMany({
         where: {
           subscription_id: createDto.subscription_id,
-          day_of_week: createDto.day_of_week,
-        },
-      });
+          day_of_week: createDto.day_of_week } });
 
     for (const existingSchedule of existingSchedules) {
       const normalizedExistingTime = this.normalizeScheduledTime(
@@ -1357,9 +1262,7 @@ export class CustomerSubscriptionService
       data: {
         subscription_id: createDto.subscription_id,
         day_of_week: createDto.day_of_week,
-        scheduled_time: createDto.scheduled_time,
-      },
-    });
+        scheduled_time: createDto.scheduled_time } });
 
     return new SubscriptionDeliveryScheduleResponseDto(schedule);
   }
@@ -1373,8 +1276,7 @@ export class CustomerSubscriptionService
 
     const schedules = await this.subscription_delivery_schedule.findMany({
       where: { subscription_id: subscriptionId },
-      orderBy: { day_of_week: 'asc' },
-    });
+      orderBy: { day_of_week: 'asc' } });
 
     return schedules.map(
       (schedule) => new SubscriptionDeliveryScheduleResponseDto(schedule),
@@ -1389,8 +1291,7 @@ export class CustomerSubscriptionService
 
     const existingSchedule =
       await this.subscription_delivery_schedule.findUnique({
-        where: { schedule_id: scheduleId },
-      });
+        where: { schedule_id: scheduleId } });
 
     if (!existingSchedule) {
       throw new NotFoundException(
@@ -1421,9 +1322,7 @@ export class CustomerSubscriptionService
           where: {
             subscription_id: existingSchedule.subscription_id,
             day_of_week: targetDayOfWeek,
-            schedule_id: { not: scheduleId },
-          },
-        });
+            schedule_id: { not: scheduleId } } });
 
       for (const conflictingSchedule of conflictingSchedules) {
         const conflictingTime = this.normalizeScheduledTime(
@@ -1443,10 +1342,7 @@ export class CustomerSubscriptionService
       data: {
         ...(updateDto.day_of_week && { day_of_week: updateDto.day_of_week }),
         ...(updateDto.scheduled_time && {
-          scheduled_time: updateDto.scheduled_time,
-        }),
-      },
-    });
+          scheduled_time: updateDto.scheduled_time }) } });
 
     return new SubscriptionDeliveryScheduleResponseDto(updatedSchedule);
   }
@@ -1456,8 +1352,7 @@ export class CustomerSubscriptionService
 
     const existingSchedule =
       await this.subscription_delivery_schedule.findUnique({
-        where: { schedule_id: scheduleId },
-      });
+        where: { schedule_id: scheduleId } });
 
     if (!existingSchedule) {
       throw new NotFoundException(
@@ -1466,8 +1361,7 @@ export class CustomerSubscriptionService
     }
 
     await this.subscription_delivery_schedule.delete({
-      where: { schedule_id: scheduleId },
-    });
+      where: { schedule_id: scheduleId } });
   }
 
   async findDeliverySchedulesByDay(
@@ -1481,13 +1375,8 @@ export class CustomerSubscriptionService
         customer_subscription: {
           include: {
             subscription_plan: {
-              select: { name: true },
-            },
-          },
-        },
-      },
-      orderBy: { scheduled_time: 'asc' },
-    });
+              select: { name: true } } } } },
+      orderBy: { scheduled_time: 'asc' } });
 
     return schedules.map(
       (schedule) => new SubscriptionDeliveryScheduleResponseDto(schedule),
@@ -1515,19 +1404,12 @@ export class CustomerSubscriptionService
         include: {
           subscription_cycle: {
             orderBy: { cycle_end: 'desc' },
-            take: 1,
-          },
+            take: 1 },
           subscription_plan: {
             include: {
               subscription_plan_product: {
                 include: {
-                  product: true,
-                },
-              },
-            },
-          },
-        },
-      });
+                  product: true } } } } } });
 
       if (!subscription) {
         throw new NotFoundException(
@@ -1562,10 +1444,8 @@ export class CustomerSubscriptionService
         data: {
           status: SubscriptionStatus.CANCELLED,
           cancellation_date: effectiveEndDate,
-          cancellation_reason: cancellationReason,
-        },
-        include: this.getIncludeClause(),
-      });
+          cancellation_reason: cancellationReason },
+        include: this.getIncludeClause() });
 
       // Cancelar órdenes futuras
       await prisma.order_header.updateMany({
@@ -1579,13 +1459,9 @@ export class CustomerSubscriptionService
               'IN_PREPARATION',
               'READY_FOR_DELIVERY',
               'IN_DELIVERY',
-            ],
-          },
-        },
+            ] } },
         data: {
-          status: 'CANCELLED',
-        },
-      });
+          status: 'CANCELLED' } });
 
       // Obtener comodatos activos asociados a la suscripción
       // Buscar por subscription_id Y person_id para asegurar que se encuentren todos los comodatos
@@ -1593,12 +1469,9 @@ export class CustomerSubscriptionService
         where: {
           person_id: customerId,
           subscription_id: subscriptionId,
-          status: 'ACTIVE',
-        },
+          status: 'ACTIVE' },
         include: {
-          product: true,
-        },
-      });
+          product: true } });
 
       // Generar órdenes de recuperación y órdenes de retiro para cada comodato activo
       if (activeComodatos.length > 0) {
@@ -1637,11 +1510,7 @@ export class CustomerSubscriptionService
                     quantity: comodato.quantity,
                     unit_price: 0, // Sin precio para retiro
                     subtotal: 0, // Sin subtotal para retiro
-                    notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}`,
-                  },
-                },
-              },
-            });
+                    notes: `Retiro de comodato ${comodato.comodato_id} - ${comodato.product.description}` } } } });
 
             this.logger.log(
               `Order de retiro creada exitosamente para comodato ${comodato.comodato_id} - Order ID: ${withdrawalOrder.order_id}`,
@@ -1680,8 +1549,7 @@ export class CustomerSubscriptionService
     return this.$transaction(async (prisma) => {
       // Verificar que la suscripción existe
       const subscription = await prisma.customer_subscription.findUnique({
-        where: { subscription_id: subscriptionId },
-      });
+        where: { subscription_id: subscriptionId } });
 
       if (!subscription) {
         throw new NotFoundException(
@@ -1691,8 +1559,7 @@ export class CustomerSubscriptionService
 
       // Verificar que el producto existe
       const product = await prisma.product.findUnique({
-        where: { product_id: productId },
-      });
+        where: { product_id: productId } });
 
       if (!product) {
         throw new NotFoundException(
@@ -1709,9 +1576,7 @@ export class CustomerSubscriptionService
           quantity: quantity,
           delivery_date: new Date(),
           status: 'ACTIVE',
-          notes: `Comodato independiente creado para nueva suscripción ${subscriptionId}`,
-        },
-      });
+          notes: `Comodato independiente creado para nueva suscripción ${subscriptionId}` } });
 
       this.logger.log(
         `Independent comodato ${comodato.comodato_id} created successfully`,

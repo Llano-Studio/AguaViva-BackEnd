@@ -1,13 +1,14 @@
-import { PrismaClient, RecoveryStatus, ComodatoStatus } from '@prisma/client';
+import { RecoveryStatus, ComodatoStatus } from '@prisma/client';
 import {
   Injectable,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class RecoveryOrderService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Crea una orden de recuperación automática para un comodato específico

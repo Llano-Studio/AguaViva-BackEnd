@@ -1,60 +1,51 @@
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
 import {
-  PrismaClient,
   PaymentStatus,
   SubscriptionStatus,
-  Prisma,
-} from '@prisma/client';
+  Prisma } from '@prisma/client';
 import {
   Injectable,
   Logger,
   NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+  BadRequestException } from '@nestjs/common';
 import { SubscriptionQuotaService } from './subscription-quota.service';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 import { RecoveryOrderService } from './recovery-order.service';
 import { OrderType, OrderStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 import {
   OrderCollectionEditService,
-  CollectionItemDto,
-} from './order-collection-edit.service';
+  CollectionItemDto } from './order-collection-edit.service';
 import {
   CustomerSearchDto,
   CustomerSearchResponseDto,
-  CustomerSearchResultDto,
-} from '../../orders/dto/customer-search.dto';
+  CustomerSearchResultDto } from '../../orders/dto/customer-search.dto';
 import {
   PendingCyclesResponseDto,
   PendingCycleDto,
-  CustomerInfoDto,
-} from '../../orders/dto/pending-cycles.dto';
+  CustomerInfoDto } from '../../orders/dto/pending-cycles.dto';
 import {
   GenerateManualCollectionDto,
   GenerateManualCollectionResponseDto,
   ExistingOrderResponseDto,
-  ExistingOrderInfoDto,
-} from '../../orders/dto/generate-manual-collection.dto';
+  ExistingOrderInfoDto } from '../../orders/dto/generate-manual-collection.dto';
 import {
   formatBAYMD,
   formatBATimestampISO,
-  parseBAYMD,
-} from '../utils/date.utils';
+  parseBAYMD } from '../utils/date.utils';
 
 @Injectable()
-export class ManualCollectionService extends PrismaClient {
+export class ManualCollectionService extends PrismaBackedService {
   private readonly logger = new Logger(ManualCollectionService.name);
-
   constructor(
+    prisma: PrismaService,
     private readonly ordersService: OrdersService,
     private readonly orderCollectionEditService: OrderCollectionEditService,
   ) {
-    super();
-  }
-
-  async onModuleInit() {
-    await this.$connect();
+    super(prisma);
   }
 
   /**
@@ -75,13 +66,7 @@ export class ManualCollectionService extends PrismaClient {
           subscription_cycle: {
             some: {
               pending_balance: {
-                gt: 0,
-              },
-            },
-          },
-        },
-      },
-    };
+                gt: 0 } } } } } };
 
     // Agregar filtros de búsqueda
     if (query) {
@@ -89,18 +74,13 @@ export class ManualCollectionService extends PrismaClient {
         {
           name: {
             contains: query,
-            mode: 'insensitive',
-          },
-        },
+            mode: 'insensitive' } },
         {
           phone: {
             contains: query,
-            mode: 'insensitive',
-          },
-        },
+            mode: 'insensitive' } },
         {
-          person_id: isNaN(Number(query)) ? undefined : Number(query),
-        },
+          person_id: isNaN(Number(query)) ? undefined : Number(query) },
       ].filter(
         (condition) =>
           condition.person_id !== undefined ||
@@ -119,8 +99,7 @@ export class ManualCollectionService extends PrismaClient {
 
     // Obtener total de registros
     const total = await this.person.count({
-      where: whereConditions,
-    });
+      where: whereConditions });
 
     // Obtener clientes con información agregada
     const customers = await this.person.findMany({
@@ -130,32 +109,22 @@ export class ManualCollectionService extends PrismaClient {
         locality: true,
         customer_subscription: {
           where: {
-            status: SubscriptionStatus.ACTIVE,
-          },
+            status: SubscriptionStatus.ACTIVE },
           include: {
             subscription_cycle: {
               where: {
                 pending_balance: {
-                  gt: 0,
-                },
+                  gt: 0 },
                 payment_status: {
                   in: [
                     PaymentStatus.PENDING,
                     PaymentStatus.PARTIAL,
                     PaymentStatus.OVERDUE,
-                  ],
-                },
-              },
-            },
-          },
-        },
-      },
+                  ] } } } } } },
       orderBy: {
-        name: 'asc',
-      },
+        name: 'asc' },
       skip,
-      take: limit,
-    });
+      take: limit });
 
     // Transformar datos para la respuesta
     const customerResults: CustomerSearchResultDto[] = customers.map(
@@ -184,8 +153,7 @@ export class ManualCollectionService extends PrismaClient {
           zone_name: customer.zone?.name || '',
           active_subscriptions: activeSubscriptions,
           pending_cycles: pendingCycles,
-          total_pending: totalPending,
-        };
+          total_pending: totalPending };
       },
     );
 
@@ -195,8 +163,7 @@ export class ManualCollectionService extends PrismaClient {
       customers: customerResults,
       total,
       page,
-      totalPages,
-    };
+      totalPages };
   }
 
   /**
@@ -209,12 +176,9 @@ export class ManualCollectionService extends PrismaClient {
     const customer = await this.person.findFirst({
       where: {
         person_id: customerId,
-        is_active: true,
-      },
+        is_active: true },
       include: {
-        zone: true,
-      },
-    });
+        zone: true } });
 
     if (!customer) {
       throw new NotFoundException(
@@ -227,30 +191,21 @@ export class ManualCollectionService extends PrismaClient {
       where: {
         customer_subscription: {
           customer_id: customerId,
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         pending_balance: {
-          gt: 0,
-        },
+          gt: 0 },
         payment_status: {
           in: [
             PaymentStatus.PENDING,
             PaymentStatus.PARTIAL,
             PaymentStatus.OVERDUE,
-          ],
-        },
-      },
+          ] } },
       include: {
         customer_subscription: {
           include: {
-            subscription_plan: true,
-          },
-        },
-      },
+            subscription_plan: true } } },
       orderBy: {
-        payment_due_date: 'asc',
-      },
-    });
+        payment_due_date: 'asc' } });
 
     // Transformar datos para la respuesta
     const pendingCyclesDto: PendingCycleDto[] = pendingCycles.map((cycle) => {
@@ -275,8 +230,7 @@ export class ManualCollectionService extends PrismaClient {
         payment_due_date: dueDate ? formatBAYMD(dueDate) : '',
         pending_balance: Number(cycle.pending_balance),
         days_overdue: daysOverdue,
-        payment_status: paymentStatus,
-      };
+        payment_status: paymentStatus };
     });
 
     const totalPending = pendingCycles.reduce(
@@ -289,14 +243,12 @@ export class ManualCollectionService extends PrismaClient {
       name: customer.name,
       phone: customer.phone || '',
       address: customer.address || '',
-      zone_name: customer.zone?.name || '',
-    };
+      zone_name: customer.zone?.name || '' };
 
     return {
       customer_info: customerInfo,
       pending_cycles: pendingCyclesDto,
-      total_pending: totalPending,
-    };
+      total_pending: totalPending };
   }
 
   /**
@@ -315,22 +267,17 @@ export class ManualCollectionService extends PrismaClient {
         customer_id: customerId,
         order_date: {
           gte: targetDate,
-          lt: endDate,
-        },
+          lt: endDate },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
-    });
+          ] } } });
 
     if (!existingOrder) {
       return {
-        has_existing_order: false,
-      };
+        has_existing_order: false };
     }
 
     const orderInfo: ExistingOrderInfoDto = {
@@ -338,13 +285,11 @@ export class ManualCollectionService extends PrismaClient {
       order_date: formatBATimestampISO(existingOrder.order_date),
       total_amount: Number(existingOrder.total_amount),
       status: existingOrder.status,
-      notes: existingOrder.notes || undefined,
-    };
+      notes: existingOrder.notes || undefined };
 
     return {
       has_existing_order: true,
-      order_info: orderInfo,
-    };
+      order_info: orderInfo };
   }
 
   /**
@@ -386,9 +331,7 @@ export class ManualCollectionService extends PrismaClient {
     const customer = await this.person.findFirst({
       where: {
         person_id: customer_id,
-        is_active: true,
-      },
-    });
+        is_active: true } });
 
     if (!customer) {
       throw new NotFoundException(
@@ -400,31 +343,22 @@ export class ManualCollectionService extends PrismaClient {
     const cycles = await this.subscription_cycle.findMany({
       where: {
         cycle_id: {
-          in: selected_cycles,
-        },
+          in: selected_cycles },
         customer_subscription: {
           customer_id: customer_id,
-          status: SubscriptionStatus.ACTIVE,
-        },
+          status: SubscriptionStatus.ACTIVE },
         pending_balance: {
-          gt: 0,
-        },
+          gt: 0 },
         payment_status: {
           in: [
             PaymentStatus.PENDING,
             PaymentStatus.PARTIAL,
             PaymentStatus.OVERDUE,
-          ],
-        },
-      },
+          ] } },
       include: {
         customer_subscription: {
           include: {
-            subscription_plan: true,
-          },
-        },
-      },
-    });
+            subscription_plan: true } } } });
 
     if (cycles.length !== selected_cycles.length) {
       throw new BadRequestException(
@@ -451,17 +385,13 @@ export class ManualCollectionService extends PrismaClient {
         customer_id: customer_id,
         order_date: {
           gte: adjustedDate,
-          lt: new Date(adjustedDate.getTime() + 24 * 60 * 60 * 1000),
-        },
+          lt: new Date(adjustedDate.getTime() + 24 * 60 * 60 * 1000) },
         status: {
           in: [
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
             OrderStatus.IN_PREPARATION,
-          ],
-        },
-      },
-    });
+          ] } } });
 
     let orderId: number;
     let action: string;
@@ -489,8 +419,7 @@ export class ManualCollectionService extends PrismaClient {
             payment_due_date: cycle.payment_due_date,
             subscription_plan_name:
               cycle.customer_subscription.subscription_plan.name,
-            customer_name: customer.name,
-          };
+            customer_name: customer.name };
 
           await this.orderCollectionEditService.addCollectionToExistingOrder(
             existingOrder.order_id,
@@ -566,9 +495,7 @@ export class ManualCollectionService extends PrismaClient {
             paid_amount: new Prisma.Decimal(0),
             order_type: 'HYBRID',
             status: 'PENDING',
-            notes: orderNotes,
-          },
-        });
+            notes: orderNotes } });
 
         orderId = basicOrder.order_id;
       }
@@ -583,8 +510,7 @@ export class ManualCollectionService extends PrismaClient {
           payment_due_date: cycle.payment_due_date,
           subscription_plan_name:
             cycle.customer_subscription.subscription_plan.name,
-          customer_name: customer.name,
-        };
+          customer_name: customer.name };
 
         await this.orderCollectionEditService.addCollectionToExistingOrder(
           orderId,
@@ -605,7 +531,6 @@ export class ManualCollectionService extends PrismaClient {
       action,
       total_amount: totalAmount,
       cycles_processed: cycles.length,
-      message: `Pedido de cobranza ${action === 'created' ? 'generado' : 'actualizado'} exitosamente`,
-    };
+      message: `Pedido de cobranza ${action === 'created' ? 'generado' : 'actualizado'} exitosamente` };
   }
 }

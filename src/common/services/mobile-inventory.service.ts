@@ -2,16 +2,17 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  BadRequestException,
-} from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import {
   CreateVehicleRouteInventoryDto,
   VehicleRouteInventoryResponseDto,
   VehicleInventoryItemResponseDto,
-  InventoryTransactionDto,
-} from '../../route-sheet/dto/vehicle-inventory.dto';
+  InventoryTransactionDto } from '../../route-sheet/dto/vehicle-inventory.dto';
 import { DeliveryStatus } from '../../common/constants/enums';
+import { PrismaBackedService } from '../../prisma/prisma-backed.service';
+import { PrismaService } from '../../prisma/prisma.service';
+
 
 interface InventoryItemWithProduct {
   inventory_id: number;
@@ -28,7 +29,11 @@ interface InventoryItemWithProduct {
 }
 
 @Injectable()
-export class MobileInventoryService extends PrismaClient {
+export class MobileInventoryService extends PrismaBackedService {
+  constructor(prisma: PrismaService) {
+    super(prisma);
+  }
+
   /**
    * Inicializa el inventario para una hoja de ruta
    */
@@ -42,9 +47,7 @@ export class MobileInventoryService extends PrismaClient {
       const routeSheet = await this.route_sheet.findUnique({
         where: { route_sheet_id },
         include: {
-          vehicle_route_inventory: true,
-        },
-      });
+          vehicle_route_inventory: true } });
 
       if (!routeSheet) {
         throw new NotFoundException(
@@ -67,8 +70,7 @@ export class MobileInventoryService extends PrismaClient {
         for (const item of items) {
           // Verificar que el producto existe
           const product = await tx.product.findUnique({
-            where: { product_id: item.product_id },
-          });
+            where: { product_id: item.product_id } });
 
           if (!product) {
             throw new BadRequestException(
@@ -83,12 +85,9 @@ export class MobileInventoryService extends PrismaClient {
               product_id: item.product_id,
               initial_quantity: item.initial_quantity,
               current_quantity: item.current_quantity || item.initial_quantity,
-              returned_quantity: item.returned_quantity || 0,
-            },
+              returned_quantity: item.returned_quantity || 0 },
             include: {
-              product: true,
-            },
-          });
+              product: true } });
 
           // Registrar la transacción de carga inicial
           await tx.inventory_transaction.create({
@@ -96,9 +95,7 @@ export class MobileInventoryService extends PrismaClient {
               route_sheet_id,
               product_id: item.product_id,
               quantity: item.initial_quantity,
-              transaction_type: 'LOAD',
-            },
-          });
+              transaction_type: 'LOAD' } });
 
           inventoryItems.push(
             inventoryItem as unknown as InventoryItemWithProduct,
@@ -114,18 +111,15 @@ export class MobileInventoryService extends PrismaClient {
           inventory_id: item.inventory_id,
           product: {
             product_id: item.product.product_id,
-            description: item.product.description,
-          },
+            description: item.product.description },
           initial_quantity: item.initial_quantity,
           current_quantity: item.current_quantity,
-          returned_quantity: item.returned_quantity,
-        }),
+          returned_quantity: item.returned_quantity }),
       );
 
       return new VehicleRouteInventoryResponseDto({
         route_sheet_id,
-        items: responseItems,
-      });
+        items: responseItems });
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -149,17 +143,14 @@ export class MobileInventoryService extends PrismaClient {
       detail_id,
       product_id,
       quantity,
-      transaction_type,
-    } = transactionDto;
+      transaction_type } = transactionDto;
 
     try {
       // 1. Verificar que el inventario existe para esta hoja de ruta
       const routeInventory = await this.vehicle_route_inventory.findFirst({
         where: {
           route_sheet_id,
-          product_id,
-        },
-      });
+          product_id } });
 
       if (!routeInventory) {
         throw new NotFoundException(
@@ -198,10 +189,8 @@ export class MobileInventoryService extends PrismaClient {
 
         await tx.vehicle_route_inventory.update({
           where: {
-            inventory_id: routeInventory.inventory_id,
-          },
-          data: updateData,
-        });
+            inventory_id: routeInventory.inventory_id },
+          data: updateData });
 
         // Registrar la transacción
         await tx.inventory_transaction.create({
@@ -213,9 +202,7 @@ export class MobileInventoryService extends PrismaClient {
               transaction_type === 'DELIVERY'
                 ? -Math.abs(quantity)
                 : Math.abs(quantity),
-            transaction_type,
-          },
-        });
+            transaction_type } });
 
         // Si es una entrega y hay un detalle asociado, actualizar las cantidades entregadas
         if (transaction_type === 'DELIVERY' && detail_id) {
@@ -225,20 +212,12 @@ export class MobileInventoryService extends PrismaClient {
               order_header: {
                 include: {
                   order_item: {
-                    where: { product_id },
-                  },
-                },
-              },
+                    where: { product_id } } } },
               one_off_purchase: true,
               one_off_purchase_header: {
                 include: {
                   purchase_items: {
-                    where: { product_id },
-                  },
-                },
-              },
-            },
-          });
+                    where: { product_id } } } } } });
 
           if (detail) {
             if (
@@ -251,9 +230,7 @@ export class MobileInventoryService extends PrismaClient {
                 where: { order_item_id: orderItem.order_item_id },
                 data: {
                   delivered_quantity:
-                    (orderItem.delivered_quantity || 0) + Math.abs(quantity),
-                },
-              });
+                    (orderItem.delivered_quantity || 0) + Math.abs(quantity) } });
             } else if (
               detail.one_off_purchase &&
               detail.one_off_purchase.product_id === product_id
@@ -263,9 +240,7 @@ export class MobileInventoryService extends PrismaClient {
                 data: {
                   delivered_quantity:
                     (detail.one_off_purchase.delivered_quantity || 0) +
-                    Math.abs(quantity),
-                },
-              });
+                    Math.abs(quantity) } });
             } else if (
               detail.one_off_purchase_header &&
               detail.one_off_purchase_header.purchase_items.length > 0
@@ -311,9 +286,7 @@ export class MobileInventoryService extends PrismaClient {
       const inventoryItems = await this.vehicle_route_inventory.findMany({
         where: { route_sheet_id },
         include: {
-          product: true,
-        },
-      });
+          product: true } });
 
       if (inventoryItems.length === 0) {
         throw new NotFoundException(
@@ -326,17 +299,14 @@ export class MobileInventoryService extends PrismaClient {
           inventory_id: item.inventory_id,
           product: {
             product_id: item.product.product_id,
-            description: item.product.description,
-          },
+            description: item.product.description },
           initial_quantity: item.initial_quantity,
           current_quantity: item.current_quantity,
-          returned_quantity: item.returned_quantity,
-        }));
+          returned_quantity: item.returned_quantity }));
 
       return new VehicleRouteInventoryResponseDto({
         route_sheet_id,
-        items: responseItems,
-      });
+        items: responseItems });
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -361,21 +331,11 @@ export class MobileInventoryService extends PrismaClient {
                 include: {
                   order_header: {
                     include: {
-                      order_item: true,
-                    },
-                  },
+                      order_item: true } },
                   one_off_purchase: true,
                   one_off_purchase_header: {
                     include: {
-                      purchase_items: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      });
+                      purchase_items: true } } } } } } } });
 
       // Calcular inventario necesario para completar las entregas pendientes
       const alerts: Array<{
@@ -426,16 +386,14 @@ export class MobileInventoryService extends PrismaClient {
             product_description: item.product.description,
             current_quantity: item.current_quantity,
             required_quantity: requiredQuantity,
-            shortage: requiredQuantity - item.current_quantity,
-          });
+            shortage: requiredQuantity - item.current_quantity });
         }
       }
 
       return {
         route_sheet_id,
         has_alerts: alerts.length > 0,
-        alerts,
-      };
+        alerts };
     } catch (error) {
       console.error('Error al verificar alertas de inventario:', error);
       throw new InternalServerErrorException(

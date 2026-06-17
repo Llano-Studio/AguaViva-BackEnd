@@ -2,32 +2,31 @@ import {
   Injectable,
   NotFoundException,
   InternalServerErrorException,
-  OnModuleInit,
-  BadRequestException,
-} from '@nestjs/common';
-import { Prisma, PrismaClient } from '@prisma/client';
+  BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CreateVehiculeInventoryDto } from './dto/create-vehicule-inventory.dto';
 import { UpdateVehiculeInventoryDto } from './dto/update-vehicule-inventory.dto';
 import { FilterVehiculeInventoryDto } from './dto/filter-vehicle-inventory.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
 export class VehiculeInventoryService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
-  private readonly entityName = 'Inventario de Vehículo';
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Inventario de Vehículo';
 
   private async validateVehicleExists(vehicleId: number) {
     const vehicle = await this.vehicle.findUnique({
-      where: { vehicle_id: vehicleId },
-    });
+      where: { vehicle_id: vehicleId } });
     if (!vehicle) {
       throw new BadRequestException(
         `Vehículo con ID ${vehicleId} no encontrado.`,
@@ -37,8 +36,7 @@ export class VehiculeInventoryService
 
   private async validateProductExists(productId: number) {
     const product = await this.product.findUnique({
-      where: { product_id: productId },
-    });
+      where: { product_id: productId } });
     if (!product) {
       throw new BadRequestException(
         `Producto con ID ${productId} no encontrado.`,
@@ -55,20 +53,15 @@ export class VehiculeInventoryService
         where: {
           vehicle_id_product_id: {
             vehicle_id: dto.vehicle_id,
-            product_id: dto.product_id,
-          },
-        },
+            product_id: dto.product_id } },
         update: {
           quantity_loaded: dto.quantity_loaded,
-          quantity_empty: dto.quantity_empty,
-        },
+          quantity_empty: dto.quantity_empty },
         create: {
           vehicle_id: dto.vehicle_id,
           product_id: dto.product_id,
           quantity_loaded: dto.quantity_loaded,
-          quantity_empty: dto.quantity_empty,
-        },
-      });
+          quantity_empty: dto.quantity_empty } });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -89,8 +82,7 @@ export class VehiculeInventoryService
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       vehicle_id,
-      product_id,
-    } = filters;
+      product_id } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
@@ -113,20 +105,17 @@ export class VehiculeInventoryService
         where,
         include: {
           vehicle: true,
-          product: true,
-        },
+          product: true },
         orderBy,
         skip,
-        take,
-      });
+        take });
       const totalItems = await this.vehicle_inventory.count({ where });
       return {
         data: items,
         total: totalItems,
         page,
         limit,
-        totalPages: Math.ceil(totalItems / limit),
-      };
+        totalPages: Math.ceil(totalItems / limit) };
     } catch (error) {
       handlePrismaError(error, this.entityName + 's');
       throw new InternalServerErrorException(
@@ -140,9 +129,7 @@ export class VehiculeInventoryService
       where: { vehicle_id_product_id: { vehicle_id, product_id } },
       include: {
         vehicle: true,
-        product: true,
-      },
-    });
+        product: true } });
     if (!inv) {
       throw new NotFoundException(
         `${this.entityName} no encontrado para vehículo ${vehicle_id} y producto ${product_id}`,
@@ -162,9 +149,7 @@ export class VehiculeInventoryService
         where: { vehicle_id_product_id: { vehicle_id, product_id } },
         data: {
           quantity_loaded: dto.quantity_loaded,
-          quantity_empty: dto.quantity_empty,
-        },
-      });
+          quantity_empty: dto.quantity_empty } });
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -177,12 +162,10 @@ export class VehiculeInventoryService
     await this.getVehicleInventoryById(vehicle_id, product_id);
     try {
       await this.vehicle_inventory.delete({
-        where: { vehicle_id_product_id: { vehicle_id, product_id } },
-      });
+        where: { vehicle_id_product_id: { vehicle_id, product_id } } });
       return {
         message: `${this.entityName} eliminado correctamente.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(

@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
-import { PrismaClient, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 import * as jwt from 'jsonwebtoken';
+import { prismaSingleton as prisma } from '../../prisma/prisma.service';
 
 type CentralJwtPayload = {
   userId: number;
@@ -16,8 +17,6 @@ type CentralJwtPayload = {
 type RequestWithCentralUser = Request & {
   centralUser?: CentralJwtPayload;
 };
-
-const prisma = new PrismaClient();
 
 export const verifyCentralSession = async (
   req: RequestWithCentralUser,

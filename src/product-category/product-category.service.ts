@@ -2,31 +2,29 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  InternalServerErrorException,
-  OnModuleInit,
-} from '@nestjs/common';
+  InternalServerErrorException } from '@nestjs/common';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import {
   Prisma,
-  PrismaClient,
-  product_category as ProductCategoryPrisma,
-} from '@prisma/client';
+  product_category as ProductCategoryPrisma } from '@prisma/client';
 import { FilterProductCategoriesDto } from './dto/filter-product-categories.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
+import { PrismaBackedService } from '../prisma/prisma-backed.service';
+import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
 export class ProductCategoryService
-  extends PrismaClient
-  implements OnModuleInit
+  extends PrismaBackedService
 {
-  private readonly entityName = 'Categoría de Producto';
-
-  async onModuleInit() {
-    await this.$connect();
+  constructor(prisma: PrismaService) {
+    super(prisma);
   }
+
+  private readonly entityName = 'Categoría de Producto';
 
   async findAll(filters: FilterProductCategoriesDto): Promise<{
     data: ProductCategoryPrisma[];
@@ -37,8 +35,7 @@ export class ProductCategoryService
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy,
       search,
-      name,
-    } = filters;
+      name } = filters;
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
@@ -60,12 +57,10 @@ export class ProductCategoryService
       const categories = await this.product_category.findMany({
         where,
         include: {
-          product: true,
-        },
+          product: true },
         orderBy,
         skip,
-        take,
-      });
+        take });
 
       const totalCategories = await this.product_category.count({ where });
 
@@ -75,9 +70,7 @@ export class ProductCategoryService
           total: totalCategories,
           page,
           limit,
-          totalPages: Math.ceil(totalCategories / take),
-        },
-      };
+          totalPages: Math.ceil(totalCategories / take) } };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -89,8 +82,7 @@ export class ProductCategoryService
   async getProductCategoryById(id: number): Promise<ProductCategoryPrisma> {
     const category = await this.product_category.findUnique({
       where: { category_id: id },
-      include: { product: true },
-    });
+      include: { product: true } });
     if (!category) {
       throw new NotFoundException(
         `${this.entityName} con ID ${id} no encontrada`,
@@ -104,8 +96,7 @@ export class ProductCategoryService
   ): Promise<ProductCategoryPrisma> {
     try {
       return await this.product_category.create({
-        data: dto,
-      });
+        data: dto });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -130,8 +121,7 @@ export class ProductCategoryService
     try {
       return await this.product_category.update({
         where: { category_id: id },
-        data: dto,
-      });
+        data: dto });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -154,12 +144,10 @@ export class ProductCategoryService
     await this.getProductCategoryById(id);
     try {
       await this.product_category.delete({
-        where: { category_id: id },
-      });
+        where: { category_id: id } });
       return {
         message: `${this.entityName} eliminada correctamente.`,
-        deleted: true,
-      };
+        deleted: true };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
