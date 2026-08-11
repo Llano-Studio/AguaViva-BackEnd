@@ -238,6 +238,7 @@ model person {
   notes                    String?                   @db.Text
   is_active                Boolean                   @default(true)
   owns_returnable_containers Boolean                 @default(false)
+  password_hash            String?
   client_contract          client_contract[]
   customer_subscription    customer_subscription[]
   one_off_purchase         one_off_purchase[]
@@ -397,6 +398,8 @@ model order_header {
   subscription_id         Int?
   zone_id                 Int?                     @db.SmallInt
   is_active               Boolean                  @default(true)
+  /// Origen del pedido. "PORTAL_ADMINISTRADOR" por defecto para mantener compatibilidad con pedidos legacy.
+  origen_pedido           OrigenPedido             @default(PORTAL_ADMINISTRADOR)
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
@@ -877,6 +880,12 @@ enum OrderType {
   ONE_OFF
   CONTRACT_DELIVERY
   HYBRID
+}
+
+/// Origen del pedido. Permite distinguir si fue creado por el cliente desde el portal o por un usuario administrativo.
+enum OrigenPedido {
+  PORTAL_CLIENTES
+  PORTAL_ADMINISTRADOR
 }
 
 enum OrderStatus {

@@ -457,6 +457,7 @@ export class OrdersService extends PrismaBackedService {
       status: (order.status === 'OVERDUE'
         ? 'ATRASADO'
         : order.status) as unknown as AppOrderStatus,
+      origen_pedido: (order as any).origen_pedido ?? undefined,
       notes: order.notes ?? undefined,
       delivery_address: customerPayload?.address ?? undefined,
       order_item: items,

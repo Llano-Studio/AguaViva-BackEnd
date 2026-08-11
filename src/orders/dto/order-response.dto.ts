@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  OrigenPedido,
   OrderItemCoverageMode,
   OrderStatus,
   OrderType,
@@ -193,6 +194,14 @@ export class OrderResponseDto {
     example: OrderStatus.PENDING,
   })
   status: OrderStatus;
+
+  @ApiProperty({
+    description:
+      'Origen del pedido: PORTAL_CLIENTES (creado desde el portal) o PORTAL_ADMINISTRADOR (creado desde el admin).',
+    enum: OrigenPedido,
+    example: OrigenPedido.PORTAL_ADMINISTRADOR,
+  })
+  origen_pedido: OrigenPedido;
 
   @ApiProperty({
     description: 'Notas del pedido',
