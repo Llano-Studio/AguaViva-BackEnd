@@ -7,6 +7,7 @@ import { CustomerSubscriptionModule } from '../customer-subscription/customer-su
 import { OrdersModule } from '../orders/orders.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ServicesModule } from '../common/services/services.module';
+import { PortalModule } from '../portal/portal.module';
 
 @Module({
   controllers: [PersonsController],
@@ -19,6 +20,7 @@ import { ServicesModule } from '../common/services/services.module';
     OrdersModule,
     InventoryModule,
     ServicesModule,
+    PortalModule,
   ],
 })
 export class PersonsModule {}

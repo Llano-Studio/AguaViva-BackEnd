@@ -174,7 +174,10 @@ export class AuthService extends PrismaBackedService {
     const refreshTokenExpiresIn =
       this.configService.get<string>('JWT_REFRESH_TOKEN_EXPIRATION_TIME') ||
       '7d';
-    const refreshTokenPayload: JwtPayload = { id: userId };
+    const refreshTokenPayload: JwtPayload = {
+      id: userId,
+      jti: crypto.randomUUID(),
+    };
     const refreshTokenSecret =
       this.configService.get<string>('JWT_REFRESH_TOKEN_SECRET') ||
       this.configService.get<string>('JWT_SECRET') ||
