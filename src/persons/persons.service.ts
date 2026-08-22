@@ -311,6 +311,16 @@ export class PersonsService extends PrismaBackedService {
       (data as any).password_hash = await bcrypt.hash(dto.password, 10);
     }
 
+    const existingByPhone = await this.person.findFirst({
+      where: { phone: dto.phone },
+      select: { person_id: true, name: true, is_active: true },
+    });
+    if (existingByPhone) {
+      throw new ConflictException(
+        `El teléfono '${dto.phone}' ya está registrado para la ${this.entityName.toLowerCase()} con ID ${existingByPhone.person_id}${existingByPhone.is_active ? '' : ' (inactiva)'}.`,
+      );
+    }
+
     try {
       const newPerson = await this.person.create({
         data,
@@ -807,6 +817,19 @@ export class PersonsService extends PrismaBackedService {
         zoneId === null
           ? { disconnect: true }
           : { connect: { zone_id: zoneId } };
+    }
+
+    // Pre-validación de unicidad del teléfono cuando se está actualizando.
+    if (dto.phone !== undefined && dto.phone !== existingPerson.phone) {
+      const conflict = await this.person.findFirst({
+        where: { phone: dto.phone, NOT: { person_id: id } },
+        select: { person_id: true, name: true, is_active: true },
+      });
+      if (conflict) {
+        throw new ConflictException(
+          `El teléfono '${dto.phone}' ya está registrado para la ${this.entityName.toLowerCase()} con ID ${conflict.person_id}${conflict.is_active ? '' : ' (inactiva)'}.`,
+        );
+      }
     }
 
     try {
