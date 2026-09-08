@@ -108,6 +108,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
   })
   orderType?: OrderType;
 
+
   @ApiPropertyOptional({
     description:
       'Filtrar por múltiples tipos de pedido. Puede ser un array o string separado por comas "SUBSCRIPTION,ONE_OFF,HYBRID"',
