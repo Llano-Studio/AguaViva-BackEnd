@@ -137,6 +137,21 @@ export class ZonesService extends PrismaBackedService {
       );
     }
 
+    const existing = await this.zone.findUnique({
+      where: {
+        unique_zone_code_per_locality: {
+          locality_id: localityId,
+          code: zoneData.code,
+        },
+      },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        `Ya existe una ${this.entityName.toLowerCase()} con el código '${zoneData.code}' en esta localidad.`,
+      );
+    }
+
     try {
       return await this.zone.create({
         data: {
