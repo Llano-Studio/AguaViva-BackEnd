@@ -207,6 +207,7 @@ export class AuthService extends PrismaBackedService {
     }
 
     try {
+      await this.refreshToken.deleteMany({ where: { userId } });
       await this.refreshToken.create({
         data: {
           token: refreshToken,
@@ -744,9 +745,7 @@ export class AuthService extends PrismaBackedService {
         return this.forwardPasswordRecoveryToLoginService(recoverPasswordDto);
       }
 
-      const recoveryToken = (
-        await bcrypt.hash(Math.random().toString(36).substring(2, 15), 10)
-      ).replace(/\//g, '');
+      const recoveryToken = crypto.randomBytes(32).toString('hex');
       const recoveryTokenExpires = new Date(Date.now() + 3600000); // 1 hora
 
       await this.user.update({
@@ -1462,7 +1461,7 @@ export class AuthService extends PrismaBackedService {
       const centralAssignments = await this.forwardJsonToLoginService<any[]>(
         'GET',
         `users/${userId}/vehicles?activeOnly=${activeOnly}`,
-        null,
+        localUser,
       );
 
       await this.$transaction(async (prisma) => {
@@ -1631,11 +1630,6 @@ export class AuthService extends PrismaBackedService {
         data: {
           emailConfirmationToken: confirmationToken,
           emailTokenExpires: tokenExpires } });
-
-      const frontendUrl =
-        this.configService.get<string>('FRONTEND_URL') ||
-        'http://localhost:3000';
-      const confirmationUrl = `${frontendUrl}/confirm-email?token=${confirmationToken}`;
 
       await this.mailService.sendConfirmationEmail(
         user.email,

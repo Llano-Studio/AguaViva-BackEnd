@@ -10,9 +10,12 @@ import { SubscriptionCycleCalculatorService } from './services/subscription-cycl
 import { PdfDevController } from './controllers/pdf-dev.controller';
 import { TempFileManagerService } from './services/temp-file-manager.service';
 
+const devControllers =
+  process.env.NODE_ENV !== 'production' ? [PdfDevController] : [];
+
 @Module({
   imports: [],
-  controllers: [PdfDevController],
+  controllers: [...devControllers],
   providers: [
     PaymentSemaphoreService,
     ScheduleService,

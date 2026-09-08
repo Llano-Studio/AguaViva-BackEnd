@@ -114,16 +114,20 @@ async function bootstrap() {
     process.env.PUBLIC_BASE_URL,
   ].filter((o) => !!o);
 
-  const allowedOrigins = [
-    ...envOrigins,
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:4173',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'http://127.0.0.1:4173',
-  ];
+  const localhostOrigins =
+    process.env.NODE_ENV !== 'production'
+      ? [
+          'http://localhost:3000',
+          'http://localhost:5173',
+          'http://localhost:5174',
+          'http://localhost:4173',
+          'http://127.0.0.1:5173',
+          'http://127.0.0.1:5174',
+          'http://127.0.0.1:4173',
+        ]
+      : [];
+
+  const allowedOrigins = [...envOrigins, ...localhostOrigins];
 
   const isDevelopment =
     configService.get('app.app.environment') === 'development' ||
@@ -156,7 +160,7 @@ async function bootstrap() {
         enableImplicitConversion: true,
       },
       whitelist: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
       skipMissingProperties: false,
       disableErrorMessages: false,
     }),
