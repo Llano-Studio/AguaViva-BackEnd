@@ -4,11 +4,81 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsBoolean,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { OrderStatus, OrderType } from '../../common/constants/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+
+const parseIdsArray = (value: any): number[] | undefined => {
+  if (!value) return undefined;
+  if (typeof value === 'string') {
+    const ids = value
+      .split(',')
+      .map((id) => parseInt(id.trim()))
+      .filter((id) => !isNaN(id));
+    return ids.length > 0 ? ids : undefined;
+  }
+  if (Array.isArray(value)) {
+    const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
+    return ids.length > 0 ? ids : undefined;
+  }
+  return undefined;
+};
+
+const parseEnumArray = <T extends Record<string, string>>(
+  value: any,
+  enumObj: T,
+): T[keyof T][] | undefined => {
+  if (!value) return undefined;
+  const enumValues = Object.values(enumObj);
+  if (typeof value === 'string') {
+    const items = value
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => enumValues.includes(s as T[keyof T]));
+    return items.length > 0 ? (items as T[keyof T][]) : undefined;
+  }
+  if (Array.isArray(value)) {
+    const items = value.filter((s) => enumValues.includes(s));
+    return items.length > 0 ? items : undefined;
+  }
+  return undefined;
+};
+
+const parseBoolean = (value: any): boolean | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  const str = String(value).trim().toLowerCase();
+  if (str === 'true' || str === '1' || str === 'yes') return true;
+  if (str === 'false' || str === '0' || str === 'no') return false;
+  return undefined;
+};
+
+const parseIntValue = (value: any): number | undefined => {
+  if (value === undefined || value === null || value === '') return undefined;
+  const n = parseInt(value);
+  return isNaN(n) ? undefined : n;
+};
+
+const withSnakeAlias = (
+  snakeKey: string,
+  parser?: (v: any) => any,
+): PropertyDecorator =>
+  Transform(({ value, obj }) => {
+    let resolved: any = value;
+    if (
+      resolved === undefined ||
+      resolved === null ||
+      (typeof resolved === 'string' && resolved.trim() === '')
+    ) {
+      resolved = (obj as any)?.[snakeKey];
+    }
+    if (parser) return parser(resolved);
+    return resolved;
+  });
 
 export class FilterOrdersDto extends PaginationQueryDto {
   @IsOptional()
@@ -26,6 +96,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     required: false,
     description: 'Filtrar por nombre del cliente',
   })
+  @withSnakeAlias('customer_name')
   customerName?: string;
 
   @IsOptional()
@@ -34,6 +105,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     required: false,
     description: 'Filtrar por fecha de pedido desde',
   })
+  @withSnakeAlias('order_date_from')
   orderDateFrom?: string;
 
   @IsOptional()
@@ -42,6 +114,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     required: false,
     description: 'Filtrar por fecha de pedido hasta',
   })
+  @withSnakeAlias('order_date_to')
   orderDateTo?: string;
 
   @IsOptional()
@@ -50,6 +123,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     required: false,
     description: 'Filtrar por fecha de entrega desde (YYYY-MM-DD)',
   })
+  @withSnakeAlias('delivery_date_from')
   deliveryDateFrom?: string;
 
   @IsOptional()
@@ -58,6 +132,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     required: false,
     description: 'Filtrar por fecha de entrega hasta (YYYY-MM-DD)',
   })
+  @withSnakeAlias('delivery_date_to')
   deliveryDateTo?: string;
 
   @IsOptional()
@@ -77,26 +152,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     isArray: true,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (!value) return undefined;
-
-    if (typeof value === 'string') {
-      const statuses = value
-        .split(',')
-        .map((status) => status.trim())
-        .filter((status) =>
-          Object.values(OrderStatus).includes(status as OrderStatus),
-        );
-      return statuses.length > 0 ? statuses : undefined;
-    }
-    if (Array.isArray(value)) {
-      const statuses = value.filter((status) =>
-        Object.values(OrderStatus).includes(status),
-      );
-      return statuses.length > 0 ? statuses : undefined;
-    }
-    return undefined;
-  })
+  @withSnakeAlias('statuses', (v) => parseEnumArray(v, OrderStatus))
   statuses?: OrderStatus[];
 
   @IsOptional()
@@ -108,7 +164,6 @@ export class FilterOrdersDto extends PaginationQueryDto {
   })
   orderType?: OrderType;
 
-
   @ApiPropertyOptional({
     description:
       'Filtrar por múltiples tipos de pedido. Puede ser un array o string separado por comas "SUBSCRIPTION,ONE_OFF,HYBRID"',
@@ -117,24 +172,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     isArray: true,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (!value) return undefined;
-
-    if (typeof value === 'string') {
-      const types = value
-        .split(',')
-        .map((type) => type.trim())
-        .filter((type) => Object.values(OrderType).includes(type as OrderType));
-      return types.length > 0 ? types : undefined;
-    }
-    if (Array.isArray(value)) {
-      const types = value.filter((type) =>
-        Object.values(OrderType).includes(type),
-      );
-      return types.length > 0 ? types : undefined;
-    }
-    return undefined;
-  })
+  @withSnakeAlias('order_types', (v) => parseEnumArray(v, OrderType))
   orderTypes?: OrderType[];
 
   @IsOptional()
@@ -145,6 +183,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     description: 'Filtrar por ID del cliente (para compatibilidad)',
     type: Number,
   })
+  @withSnakeAlias('customer_id', parseIntValue)
   customerId?: number;
 
   @ApiPropertyOptional({
@@ -154,22 +193,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     type: [Number],
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (!value) return undefined;
-
-    if (typeof value === 'string') {
-      const ids = value
-        .split(',')
-        .map((id) => parseInt(id.trim()))
-        .filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    if (Array.isArray(value)) {
-      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    return undefined;
-  })
+  @withSnakeAlias('customer_ids', parseIdsArray)
   customerIds?: number[];
 
   @IsOptional()
@@ -180,6 +204,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     description: 'Filtrar por ID del pedido',
     type: Number,
   })
+  @withSnakeAlias('order_id', parseIntValue)
   orderId?: number;
 
   @IsOptional()
@@ -190,6 +215,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     description: 'Filtrar por ID de la zona (para compatibilidad)',
     type: Number,
   })
+  @withSnakeAlias('zone_id', parseIntValue)
   zoneId?: number;
 
   @ApiPropertyOptional({
@@ -199,22 +225,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     type: [Number],
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (!value) return undefined;
-
-    if (typeof value === 'string') {
-      const ids = value
-        .split(',')
-        .map((id) => parseInt(id.trim()))
-        .filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    if (Array.isArray(value)) {
-      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    return undefined;
-  })
+  @withSnakeAlias('zone_ids', parseIdsArray)
   zoneIds?: number[];
 
   @IsOptional()
@@ -225,6 +236,7 @@ export class FilterOrdersDto extends PaginationQueryDto {
     description: 'Filtrar por ID del vehículo (para compatibilidad)',
     type: Number,
   })
+  @withSnakeAlias('vehicle_id', parseIntValue)
   vehicleId?: number;
 
   @ApiPropertyOptional({
@@ -234,21 +246,15 @@ export class FilterOrdersDto extends PaginationQueryDto {
     type: [Number],
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (!value) return undefined;
-
-    if (typeof value === 'string') {
-      const ids = value
-        .split(',')
-        .map((id) => parseInt(id.trim()))
-        .filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    if (Array.isArray(value)) {
-      const ids = value.map((id) => parseInt(id)).filter((id) => !isNaN(id));
-      return ids.length > 0 ? ids : undefined;
-    }
-    return undefined;
-  })
+  @withSnakeAlias('vehicle_ids', parseIdsArray)
   vehicleIds?: number[];
+
+  @IsOptional()
+  @ApiPropertyOptional({
+    description:
+      'Filtrar solo pedidos que requieren entrega (true) o retiro en local (false). Si requieren entrega, tienen scheduled_delivery_date definido.',
+    type: Boolean,
+  })
+  @withSnakeAlias('requires_delivery', parseBoolean)
+  requiresDelivery?: boolean;
 }

@@ -1235,6 +1235,7 @@ export class OrdersService extends PrismaBackedService {
       zoneIds,
       vehicleId,
       vehicleIds,
+      requiresDelivery,
       page = BUSINESS_CONFIG.PAGINATION.DEFAULT_PAGE,
       limit = BUSINESS_CONFIG.PAGINATION.DEFAULT_LIMIT,
       sortBy } = filterDto;
@@ -1249,28 +1250,22 @@ export class OrdersService extends PrismaBackedService {
 
     // Manejar filtrado por estados (múltiples o único)
     if (statuses && statuses.length > 0) {
-      // Si se proporcionan múltiples estados, usar operador IN
       where.status = { in: statuses as PrismaOrderStatus[] };
     } else if (status) {
-      // Si solo se proporciona un estado (compatibilidad), usar equality
       where.status = status as PrismaOrderStatus;
     }
 
     // Manejar filtrado por tipos de orden (múltiples o único)
     if (orderTypes && orderTypes.length > 0) {
-      // Si se proporcionan múltiples tipos, usar operador IN
       where.order_type = { in: orderTypes as PrismaOrderType[] };
     } else if (orderType) {
-      // Si solo se proporciona un tipo (compatibilidad), usar equality
       where.order_type = orderType as PrismaOrderType;
     }
 
     // Manejar filtrado por IDs de clientes (múltiples o único)
     if (customerIds && customerIds.length > 0) {
-      // Si se proporcionan múltiples IDs de clientes, usar operador IN
       where.customer_id = { in: customerIds };
     } else if (customerId) {
-      // Si solo se proporciona un ID de cliente (compatibilidad), usar equality
       where.customer_id = customerId;
     }
 
@@ -1283,31 +1278,57 @@ export class OrdersService extends PrismaBackedService {
         ] });
     }
 
-    // Manejar filtrado por zonas del cliente (múltiples o única)
+    const effectiveZoneIds: number[] = [];
     if (zoneIds && zoneIds.length > 0) {
-      // Si se proporcionan múltiples zonas, usar operador IN
-      customerConditions.push({ zone_id: { in: zoneIds } });
-    } else if (zoneId) {
-      // Si solo se proporciona una zona (compatibilidad), usar equality
-      customerConditions.push({ zone_id: zoneId });
+      effectiveZoneIds.push(...zoneIds);
+    } else if (zoneId !== undefined && zoneId !== null) {
+      effectiveZoneIds.push(zoneId);
+    }
+
+    if (effectiveZoneIds.length > 0) {
+      const existingAnd: Prisma.order_headerWhereInput[] = Array.isArray(
+        where.AND,
+      )
+        ? where.AND
+        : where.AND
+          ? [where.AND]
+          : [];
+      where.AND = [
+        ...existingAnd,
+        {
+          OR: [
+            { zone_id: { in: effectiveZoneIds } },
+            {
+              AND: [
+                { zone_id: null },
+                {
+                  customer: {
+                    zone_id: { in: effectiveZoneIds },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ];
     }
 
     if (customerConditions.length > 0) {
       where.customer = {
-        OR: customerConditions.length > 1 ? customerConditions : undefined,
         AND:
-          customerConditions.length === 1 ? customerConditions[0] : undefined };
+          customerConditions.length === 1
+            ? customerConditions[0]
+            : { AND: customerConditions },
+      };
     }
 
     // Manejar filtrado por vehículos (múltiples o único)
     if (vehicleIds && vehicleIds.length > 0) {
-      // Si se proporcionan múltiples vehículos, usar operador IN
       where.route_sheet_detail = {
         some: {
           route_sheet: {
             vehicle_id: { in: vehicleIds } } } };
     } else if (vehicleId) {
-      // Si solo se proporciona un vehículo (compatibilidad), usar equality
       where.route_sheet_detail = {
         some: {
           route_sheet: {
@@ -1359,25 +1380,40 @@ export class OrdersService extends PrismaBackedService {
     }
 
     if (deliveryDateFrom || deliveryDateTo) {
-      where.scheduled_delivery_date = {};
+      const filter: any = (where.scheduled_delivery_date as any) ?? {};
       if (deliveryDateFrom) {
         const rawFrom = String(deliveryDateFrom).trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(rawFrom)) {
-          where.scheduled_delivery_date.gte = parseUTCYMD(rawFrom);
+          filter.gte = parseUTCYMD(rawFrom);
         } else {
-          where.scheduled_delivery_date.gte = new Date(deliveryDateFrom);
+          filter.gte = new Date(deliveryDateFrom);
         }
       }
       if (deliveryDateTo) {
         const rawTo = String(deliveryDateTo).trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(rawTo)) {
           const start = parseUTCYMD(rawTo);
-          where.scheduled_delivery_date.lte = new Date(
+          filter.lte = new Date(
             start.getTime() + 24 * 60 * 60 * 1000 - 1,
           );
         } else {
-          where.scheduled_delivery_date.lte = new Date(deliveryDateTo);
+          filter.lte = new Date(deliveryDateTo);
         }
+      }
+      where.scheduled_delivery_date = filter;
+    }
+
+    if (requiresDelivery === false) {
+      where.scheduled_delivery_date = null;
+    } else if (requiresDelivery === true) {
+      if (
+        where.scheduled_delivery_date !== null &&
+        where.scheduled_delivery_date !== undefined &&
+        typeof where.scheduled_delivery_date === 'object'
+      ) {
+        (where.scheduled_delivery_date as any).not = null;
+      } else if (where.scheduled_delivery_date === undefined) {
+        where.scheduled_delivery_date = { not: null } as any;
       }
     }
 
