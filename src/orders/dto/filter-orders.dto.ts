@@ -6,7 +6,7 @@ import {
   IsInt,
   IsBoolean,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Expose, Type, Transform } from 'class-transformer';
 import { OrderStatus, OrderType } from '../../common/constants/enums';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -66,19 +66,26 @@ const parseIntValue = (value: any): number | undefined => {
 const withSnakeAlias = (
   snakeKey: string,
   parser?: (v: any) => any,
-): PropertyDecorator =>
-  Transform(({ value, obj }) => {
-    let resolved: any = value;
-    if (
-      resolved === undefined ||
-      resolved === null ||
-      (typeof resolved === 'string' && resolved.trim() === '')
-    ) {
-      resolved = (obj as any)?.[snakeKey];
-    }
-    if (parser) return parser(resolved);
-    return resolved;
-  });
+): PropertyDecorator => (target, propertyKey) => {
+  // Ejecutar la transformacion aunque solo llegue el alias snake_case.
+  Expose({ toClassOnly: true })(target, propertyKey);
+  Transform(
+    ({ obj, key }) => {
+      // Usar el valor original: la conversion implicita convierte "false" a true.
+      let resolved: any = obj?.[key];
+      if (
+        resolved === undefined ||
+        resolved === null ||
+        (typeof resolved === 'string' && resolved.trim() === '')
+      ) {
+        resolved = obj?.[snakeKey];
+      }
+      if (parser) return parser(resolved);
+      return resolved;
+    },
+    { toClassOnly: true },
+  )(target, propertyKey);
+};
 
 export class FilterOrdersDto extends PaginationQueryDto {
   @IsOptional()
