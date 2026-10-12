@@ -1,7 +1,6 @@
 
 .env
 .env.production
-/prisma/migrations
 /prisma/migrations_*
 /postgres
 /pgadmin
