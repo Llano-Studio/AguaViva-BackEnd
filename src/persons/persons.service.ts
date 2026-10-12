@@ -52,6 +52,11 @@ import { CancellationOrderService } from '../orders/cancellation-order.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RecoveryOrderService } from '../common/services/recovery-order.service';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
+import {
+  escapeLikePattern,
+  normalizeSearchText,
+  normalizedColumnSql,
+} from '../common/utils/text-search.utils';
 import { SubscriptionCycleCalculatorService } from '../common/services/subscription-cycle-calculator.service';
 import {
   formatBATimestampISO,
@@ -348,6 +353,28 @@ export class PersonsService extends PrismaBackedService {
     }
   }
 
+  /**
+   * Devuelve los person_id cuyas columnas (name, alias, address, phone, tax_id)
+   * contienen el texto buscado ignorando mayúsculas, tildes y espacios.
+   */
+  private async findPersonIdsByNormalizedText(
+    term: string,
+    columns: Array<'name' | 'alias' | 'address' | 'phone' | 'tax_id'>,
+  ): Promise<number[]> {
+    const normalized = normalizeSearchText(term);
+    if (!normalized) return [];
+
+    const pattern = `%${escapeLikePattern(normalized)}%`;
+    const conditions = columns.map(
+      (column) => Prisma.sql`${normalizedColumnSql(column)} LIKE ${pattern}`,
+    );
+
+    const rows = await this.prisma.$queryRaw<Array<{ person_id: number }>>(
+      Prisma.sql`SELECT person_id FROM person WHERE ${Prisma.join(conditions, ' OR ')}`,
+    );
+    return rows.map((row) => row.person_id);
+  }
+
   async findAllPersons(filters: FilterPersonsDto): Promise<{
     data: PersonResponseDto[];
     meta: { total: number; page: number; limit: number; totalPages: number };
@@ -371,6 +398,7 @@ export class PersonsService extends PrismaBackedService {
       payment_semaphore_status,
       payment_semaphore_statuses,
       is_active,
+      hasScheduledVisits,
       sortBy } = filters;
 
     const where: Prisma.personWhereInput = {};
@@ -387,21 +415,25 @@ export class PersonsService extends PrismaBackedService {
 
     // Búsqueda general en múltiples campos (como en auth.service.ts)
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { alias: { contains: search, mode: 'insensitive' } },
-        { address: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        { tax_id: { contains: search, mode: 'insensitive' } },
-      ];
+      const matchingIds = await this.findPersonIdsByNormalizedText(search, [
+        'name',
+        'alias',
+        'address',
+        'phone',
+        'tax_id',
+      ]);
+      where.OR = [{ person_id: { in: matchingIds } }];
     }
 
     // Filtros específicos (se pueden combinar con search)
     if (personId) where.person_id = personId;
     if (name) {
+      const nameMatchingIds = await this.findPersonIdsByNormalizedText(name, [
+        'name',
+        'alias',
+      ]);
       const nameOrAliasConditions: Prisma.personWhereInput[] = [
-        { name: { contains: name, mode: 'insensitive' } },
-        { alias: { contains: name, mode: 'insensitive' } },
+        { person_id: { in: nameMatchingIds } },
       ];
 
       if (where.OR) {
@@ -413,8 +445,49 @@ export class PersonsService extends PrismaBackedService {
         where.OR = nameOrAliasConditions;
       }
     }
-    if (alias) where.alias = { contains: alias, mode: 'insensitive' };
-    if (address) where.address = { contains: address, mode: 'insensitive' };
+    const appendAnd = (condition: Prisma.personWhereInput) => {
+      where.AND = [
+        ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+        condition,
+      ];
+    };
+    if (alias) {
+      appendAnd({
+        person_id: {
+          in: await this.findPersonIdsByNormalizedText(alias, ['alias']),
+        },
+      });
+    }
+    if (address) {
+      appendAnd({
+        person_id: {
+          in: await this.findPersonIdsByNormalizedText(address, ['address']),
+        },
+      });
+    }
+    // Clientes con (true) o sin (false) visitas/entregas programadas pendientes
+    if (hasScheduledVisits !== undefined) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const scheduledVisitCondition: Prisma.order_headerWhereInput = {
+        is_active: true,
+        status: {
+          in: [
+            PrismaOrderStatus.PENDING,
+            PrismaOrderStatus.CONFIRMED,
+            PrismaOrderStatus.IN_PREPARATION,
+            PrismaOrderStatus.READY_FOR_DELIVERY,
+            PrismaOrderStatus.IN_DELIVERY,
+          ],
+        },
+        scheduled_delivery_date: { gte: todayStart },
+      };
+      appendAnd(
+        hasScheduledVisits
+          ? { orders: { some: scheduledVisitCondition } }
+          : { orders: { none: scheduledVisitCondition } },
+      );
+    }
     if (phone) where.phone = { contains: phone, mode: 'insensitive' };
     if (taxId) where.tax_id = { contains: taxId, mode: 'insensitive' };
     // Manejar filtrado por tipos (múltiples o único)
