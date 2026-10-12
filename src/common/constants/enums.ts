@@ -25,6 +25,11 @@ export enum OrderStatus {
   OVERDUE = 'OVERDUE',
 }
 
+export enum OrigenPedido {
+  PORTAL_CLIENTES = 'PORTAL_CLIENTES',
+  PORTAL_ADMINISTRADOR = 'PORTAL_ADMINISTRADOR',
+}
+
 export enum OrderItemCoverageMode {
   SUBSCRIPTION = 'SUBSCRIPTION',
   EXTRA = 'EXTRA',

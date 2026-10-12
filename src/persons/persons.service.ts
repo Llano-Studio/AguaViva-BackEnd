@@ -4,7 +4,8 @@ import {
   NotFoundException,
   ConflictException,
   InternalServerErrorException,
-  ForbiddenException } from '@nestjs/common';
+  ForbiddenException,
+  Optional } from '@nestjs/common';
 import {
   Prisma,
   SubscriptionStatus,
@@ -60,6 +61,7 @@ import {
 import { DeliveryStatus } from '../common/constants/enums';
 import { PrismaBackedService } from '../prisma/prisma-backed.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LoginServiceClient, SystemCode } from '../portal/services/login-service.client';
 
 
 @Injectable()
@@ -74,6 +76,8 @@ export class PersonsService extends PrismaBackedService {
     private readonly inventoryService: InventoryService,
     private readonly recoveryOrderService: RecoveryOrderService,
     private readonly cycleCalculatorService: SubscriptionCycleCalculatorService,
+    @Optional()
+    private readonly loginServiceClient: LoginServiceClient,
   ) {
     super(prisma);
   }
@@ -301,6 +305,22 @@ export class PersonsService extends PrismaBackedService {
       data.zone = { connect: { zone_id: zoneId } };
     }
 
+    // Si llega una contraseña, la hasheamos.
+    if (dto.password && dto.password.length >= 8) {
+      const bcrypt = await import('bcrypt');
+      (data as any).password_hash = await bcrypt.hash(dto.password, 10);
+    }
+
+    const existingByPhone = await this.person.findFirst({
+      where: { phone: dto.phone },
+      select: { person_id: true, name: true, is_active: true },
+    });
+    if (existingByPhone) {
+      throw new ConflictException(
+        `El teléfono '${dto.phone}' ya está registrado para la ${this.entityName.toLowerCase()} con ID ${existingByPhone.person_id}${existingByPhone.is_active ? '' : ' (inactiva)'}.`,
+      );
+    }
+
     try {
       const newPerson = await this.person.create({
         data,
@@ -311,6 +331,26 @@ export class PersonsService extends PrismaBackedService {
                 include: {
                   country: true } } } },
           zone: true } });
+
+      // Sincronizar credencial con login-service si hay contraseña.
+      if (dto.password && dto.password.length >= 8 && this.loginServiceClient) {
+        try {
+          await this.loginServiceClient.syncCredential({
+            system: 'AGUAVIVA',
+            customerId: newPerson.person_id,
+            phone: newPerson.phone,
+            password: dto.password,
+            isActive: newPerson.is_active,
+          });
+        } catch (syncErr) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[PersonsService] No se pudo sincronizar credencial para ${newPerson.person_id}:`,
+            syncErr,
+          );
+        }
+      }
+
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         newPerson.person_id,
       );
@@ -756,6 +796,15 @@ export class PersonsService extends PrismaBackedService {
     dataToUpdate.registration_date =
       registration_date_obj ?? existingPerson.registration_date;
 
+    // Si llega una nueva contraseña, la hasheamos.
+    let plainPasswordToSync: string | undefined;
+    if (dto.password && dto.password.length >= 8) {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.hash(dto.password, 10);
+      (dataToUpdate as any).password_hash = hash;
+      plainPasswordToSync = dto.password;
+    }
+
     if (rawLocalityId !== undefined) {
       dataToUpdate.locality =
         localityId === null
@@ -770,6 +819,19 @@ export class PersonsService extends PrismaBackedService {
           : { connect: { zone_id: zoneId } };
     }
 
+    // Pre-validación de unicidad del teléfono cuando se está actualizando.
+    if (dto.phone !== undefined && dto.phone !== existingPerson.phone) {
+      const conflict = await this.person.findFirst({
+        where: { phone: dto.phone, NOT: { person_id: id } },
+        select: { person_id: true, name: true, is_active: true },
+      });
+      if (conflict) {
+        throw new ConflictException(
+          `El teléfono '${dto.phone}' ya está registrado para la ${this.entityName.toLowerCase()} con ID ${conflict.person_id}${conflict.is_active ? '' : ' (inactiva)'}.`,
+        );
+      }
+    }
+
     try {
       const updatedPerson = await this.person.update({
         where: { person_id: id },
@@ -781,6 +843,32 @@ export class PersonsService extends PrismaBackedService {
                 include: {
                   country: true } } } },
           zone: true } });
+
+      // Sincronizar credencial con login-service si se actualizó la contraseña,
+      // el teléfono o el estado activo.
+      if (this.loginServiceClient) {
+        const phoneChanged = dto.phone && dto.phone !== existingPerson.phone;
+        const activeChanged = dto.is_active !== undefined &&
+          dto.is_active !== existingPerson.is_active;
+        if (plainPasswordToSync || phoneChanged || activeChanged) {
+          try {
+            await this.loginServiceClient.syncCredential({
+              system: 'AGUAVIVA',
+              customerId: updatedPerson.person_id,
+              phone: updatedPerson.phone,
+              password: plainPasswordToSync ?? 'SyncNoPassword#2026',
+              isActive: updatedPerson.is_active,
+            });
+          } catch (syncErr) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `[PersonsService] No se pudo sincronizar credencial para ${updatedPerson.person_id}:`,
+              syncErr,
+            );
+          }
+        }
+      }
+
       const semaphoreStatus = await this.getPaymentSemaphoreStatus(
         updatedPerson.person_id,
       );

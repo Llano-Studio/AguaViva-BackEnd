@@ -144,4 +144,12 @@ export class UpdatePersonDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Nueva contraseña del cliente para el portal (mínimo 8 caracteres). Si se omite, no se cambia.',
+  })
+  @IsString()
+  @IsOptional()
+  password?: string;
 }
