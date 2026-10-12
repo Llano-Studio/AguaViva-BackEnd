@@ -23,11 +23,6 @@ export class PortalOrderItemDto {
   @Min(1)
   quantity: number;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  price_list_id?: number;
-
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
@@ -35,16 +30,19 @@ export class PortalOrderItemDto {
   notes?: string;
 }
 
+/**
+ * El precio, la lista de precios, el contrato y la fecha del pedido los
+ * resuelve el servidor: el cliente solo elige productos, cantidades y entrega.
+ */
 export class PortalCreateOrderDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Abono al que se descuenta el pedido. Solo hace falta si el cliente tiene más de un abono activo.',
+    example: 6,
+  })
   @IsOptional()
   @IsInt()
-  contract_id?: number;
-
-  @ApiPropertyOptional({ example: '2026-08-11T10:00:00Z' })
-  @IsOptional()
-  @IsDateString()
-  order_date?: string;
+  subscription_id?: number;
 
   @ApiPropertyOptional({ example: '2026-08-12T14:00:00Z' })
   @IsOptional()

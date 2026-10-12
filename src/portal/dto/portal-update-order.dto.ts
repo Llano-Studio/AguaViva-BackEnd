@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -30,11 +35,6 @@ export class PortalUpdateOrderItemDto {
   @Min(1)
   quantity: number;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  price_list_id?: number;
-
   @ApiPropertyOptional({ maxLength: 200 })
   @IsOptional()
   @IsString()
@@ -42,7 +42,9 @@ export class PortalUpdateOrderItemDto {
   notes?: string;
 }
 
-export class PortalUpdateOrderDto extends PartialType(PortalCreateOrderDto) {
+export class PortalUpdateOrderDto extends PartialType(
+  OmitType(PortalCreateOrderDto, ['subscription_id'] as const),
+) {
   @ApiPropertyOptional({ type: [PortalUpdateOrderItemDto] })
   @IsOptional()
   @IsArray()

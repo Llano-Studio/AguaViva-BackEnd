@@ -95,8 +95,10 @@ describe('Portal (AguaViva) - e2e unit', () => {
         update: jest.fn(),
       },
       product: { findUnique: jest.fn() },
-      price_list_item: { findFirst: jest.fn() },
+      price_list_item: { findFirst: jest.fn(), findMany: jest.fn() },
+      price_list: { findMany: jest.fn() },
       client_contract: { findFirst: jest.fn() },
+      customer_subscription: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn(),
     };
 
@@ -159,28 +161,171 @@ describe('Portal (AguaViva) - e2e unit', () => {
     expect(res.body.person_id).toBe(99);
   });
 
-  it('POST /portal/orders marca origen PORTAL_CLIENTES', async () => {
-    prismaMock.product.findUnique.mockResolvedValue({
-      product_id: 1,
-      price: new Decimal(800),
-      description: 'Producto AguaViva',
-    });
-    prismaMock.price_list_item.findFirst.mockResolvedValue(null);
+  function mockGeneralPriceList() {
     prismaMock.client_contract.findFirst.mockResolvedValue(null);
-    prismaMock.order_header.update.mockResolvedValue({
-      ...mockOrder,
-      origen_pedido: OrigenPedido.PORTAL_CLIENTES,
+    prismaMock.price_list.findMany.mockResolvedValue([
+      { price_list_id: 1, name: 'Lista General' },
+    ]);
+    prismaMock.price_list_item.findMany.mockResolvedValue([
+      {
+        price_list_id: 1,
+        unit_price: new Decimal(800),
+        product: {
+          product_id: 1,
+          description: 'Bidón 20L ',
+          volume_liters: new Decimal(20),
+          is_returnable: true,
+          image_url: null,
+        },
+      },
+    ]);
+  }
+
+  async function postOrder(body: Record<string, unknown>, status: number) {
+    const token = await signToken();
+    return request(app.getHttpServer())
+      .post('/portal/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body)
+      .expect(status);
+  }
+
+  it('POST /portal/orders sin abono crea ONE_OFF con precios del servidor y origen PORTAL_CLIENTES', async () => {
+    mockGeneralPriceList();
+
+    const res = await postOrder(
+      {
+        contract_id: 5,
+        items: [{ product_id: 1, quantity: 2, price_list_id: 9 }],
+      },
+      201,
+    );
+
+    expect(res.body.customer_id).toBe(99);
+    const [orderDto, , options] = ordersServiceMock.create.mock.calls[0];
+    expect(orderDto).toMatchObject({
+      customer_id: 99,
+      order_type: OrderType.ONE_OFF,
+      contract_id: undefined,
+      subscription_id: undefined,
+      total_amount: '1600',
+      items: [{ product_id: 1, quantity: 2, price_list_id: 1 }],
     });
+    expect(options).toEqual({ origenPedido: OrigenPedido.PORTAL_CLIENTES });
+    expect(prismaMock.order_header.update).not.toHaveBeenCalled();
+  });
+
+  it('POST /portal/orders con un abono activo crea HYBRID descontando de ese abono', async () => {
+    mockGeneralPriceList();
+    prismaMock.customer_subscription.findMany.mockResolvedValue([
+      { subscription_id: 6 },
+    ]);
+
+    await postOrder({ items: [{ product_id: 1, quantity: 2 }] }, 201);
+
+    const [orderDto] = ordersServiceMock.create.mock.calls[0];
+    expect(orderDto).toMatchObject({
+      order_type: OrderType.HYBRID,
+      subscription_id: 6,
+    });
+    expect(prismaMock.customer_subscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { customer_id: 99, status: 'ACTIVE', is_active: true },
+      }),
+    );
+  });
+
+  it('POST /portal/orders con varios abonos exige elegir uno', async () => {
+    mockGeneralPriceList();
+    prismaMock.customer_subscription.findMany.mockResolvedValue([
+      { subscription_id: 6 },
+      { subscription_id: 7 },
+    ]);
+
+    const res = await postOrder(
+      { items: [{ product_id: 1, quantity: 1 }] },
+      400,
+    );
+    expect(res.body.message).toContain('más de un abono activo');
+
+    await postOrder(
+      { subscription_id: 7, items: [{ product_id: 1, quantity: 1 }] },
+      201,
+    );
+    expect(ordersServiceMock.create.mock.calls[0][0].subscription_id).toBe(7);
+  });
+
+  it('POST /portal/orders rechaza un abono que no es del cliente', async () => {
+    mockGeneralPriceList();
+    prismaMock.customer_subscription.findMany.mockResolvedValue([
+      { subscription_id: 6 },
+    ]);
+
+    await postOrder(
+      { subscription_id: 50, items: [{ product_id: 1, quantity: 1 }] },
+      400,
+    );
+    expect(ordersServiceMock.create).not.toHaveBeenCalled();
+  });
+
+  it('GET /portal/products devuelve precios y la cuota del abono', async () => {
+    mockGeneralPriceList();
+    prismaMock.customer_subscription.findMany.mockResolvedValue([
+      {
+        subscription_id: 6,
+        subscription_plan: { name: 'Abono Familiar' },
+        subscription_cycle: [
+          {
+            cycle_start: new Date('2026-10-01T00:00:00.000Z'),
+            cycle_end: new Date('2026-10-31T00:00:00.000Z'),
+            subscription_cycle_detail: [
+              {
+                product_id: 1,
+                planned_quantity: 8,
+                delivered_quantity: 3,
+                remaining_balance: 5,
+                product: { description: 'Bidón 20L ' },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
 
     const token = await signToken();
     const res = await request(app.getHttpServer())
-      .post('/portal/orders')
+      .get('/portal/products')
       .set('Authorization', `Bearer ${token}`)
-      .send({ items: [{ product_id: 1, quantity: 1 }] })
-      .expect(201);
+      .expect(200);
 
-    expect(res.body.customer_id).toBe(99);
-    expect(prismaMock.order_header.update).toHaveBeenCalled();
+    expect(res.body.products).toEqual([
+      {
+        product_id: 1,
+        description: 'Bidón 20L',
+        volume_liters: '20.00',
+        is_returnable: true,
+        image_url: null,
+        unit_price: '800.00',
+        price_list_id: 1,
+      },
+    ]);
+    expect(res.body.subscriptions).toEqual([
+      {
+        subscription_id: 6,
+        plan_name: 'Abono Familiar',
+        cycle_start: '2026-10-01',
+        cycle_end: '2026-10-31',
+        quotas: [
+          {
+            product_id: 1,
+            description: 'Bidón 20L',
+            planned_quantity: 8,
+            delivered_quantity: 3,
+            remaining_balance: 5,
+          },
+        ],
+      },
+    ]);
   });
 
   it('PATCH /portal/orders/:id bloquea si no es PENDING', async () => {

@@ -6,13 +6,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import {
-  OrderStatus,
-  OrderType,
-  OrigenPedido,
-} from '../common/constants/enums';
+  OrigenPedido as DbOrigenPedido,
+  Prisma,
+  SubscriptionStatus,
+} from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { OrderStatus, OrderType } from '../common/constants/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
@@ -31,6 +31,36 @@ import {
   LoginServiceClient,
   SystemCode,
 } from './services/login-service.client';
+import {
+  PortalCatalogPriceListDto,
+  PortalCatalogResponseDto,
+  PortalSubscriptionDto,
+} from './dto/portal-catalog.dto';
+import { formatBAYMD } from '../common/utils/date.utils';
+
+const CATALOG_PRODUCT_SELECT = {
+  product_id: true,
+  description: true,
+  volume_liters: true,
+  is_returnable: true,
+  image_url: true,
+} satisfies Prisma.productSelect;
+
+type CatalogProduct = Prisma.productGetPayload<{
+  select: typeof CATALOG_PRODUCT_SELECT;
+}>;
+
+interface CustomerPriceEntry {
+  product: CatalogProduct;
+  unit_price: Decimal;
+  price_list_id: number;
+}
+
+interface CustomerPricing {
+  contract: { contract_id: number; price_list_id: number } | null;
+  priceLists: PortalCatalogPriceListDto[];
+  prices: Map<number, CustomerPriceEntry>;
+}
 
 @Injectable()
 export class PortalService {
@@ -159,6 +189,33 @@ export class PortalService {
     return { passwordChanged: true };
   }
 
+  // ── Catálogo ─────────────────────────────────────────────────────
+
+  async getCatalog(customerId: number): Promise<PortalCatalogResponseDto> {
+    const [pricing, subscriptions] = await Promise.all([
+      this.resolveCustomerPricing(customerId),
+      this.findActiveSubscriptions(customerId),
+    ]);
+    const products = [...pricing.prices.values()]
+      .map((entry) => ({
+        product_id: entry.product.product_id,
+        description: entry.product.description.trim(),
+        volume_liters: entry.product.volume_liters?.toFixed(2) ?? null,
+        is_returnable: entry.product.is_returnable,
+        image_url: entry.product.image_url ?? null,
+        unit_price: entry.unit_price.toFixed(2),
+        price_list_id: entry.price_list_id,
+      }))
+      .sort((a, b) => a.description.localeCompare(b.description, 'es'));
+
+    return {
+      contract_id: pricing.contract?.contract_id ?? null,
+      price_lists: pricing.priceLists,
+      products,
+      subscriptions,
+    };
+  }
+
   // ── Pedidos ──────────────────────────────────────────────────────
 
   async createOrder(
@@ -171,39 +228,45 @@ export class PortalService {
       );
     }
 
-    const contract = await this.resolveActiveContractForCustomer(customerId);
-    const { totalAmount, priceListMap } = await this.computeOrderPricing(
-      dto.items,
-      contract?.price_list_id ?? null,
+    const pricing = await this.resolveCustomerPricing(customerId);
+    const { contract } = pricing;
+    const subscriptionId = await this.resolveSubscriptionForOrder(
+      customerId,
+      dto.subscription_id,
     );
+    const items = this.priceItems(dto.items, pricing);
+    // Con abono el total real lo calcula OrdersService según la cuota
+    // disponible (lo cubierto va a $0); este es el total a precio de lista.
+    const listTotal = items.reduce(
+      (sum, item) =>
+        sum.plus(
+          pricing.prices.get(item.product_id).unit_price.mul(item.quantity),
+        ),
+      new Decimal(0),
+    );
+
+    let orderType = contract ? OrderType.CONTRACT_DELIVERY : OrderType.ONE_OFF;
+    if (subscriptionId) orderType = OrderType.HYBRID;
 
     const orderDto: CreateOrderDto = {
       customer_id: customerId,
       sale_channel_id: 1,
-      order_date: dto.order_date ?? new Date().toISOString(),
+      order_date: new Date().toISOString(),
       scheduled_delivery_date: dto.scheduled_delivery_date,
       delivery_time: dto.delivery_time,
-      total_amount: totalAmount.toString(),
+      total_amount: listTotal.toString(),
       paid_amount: '0.00',
-      order_type: contract ? OrderType.CONTRACT_DELIVERY : OrderType.ONE_OFF,
+      order_type: orderType,
       status: OrderStatus.PENDING,
       notes: dto.notes,
       contract_id: contract?.contract_id,
-      items: dto.items.map((item) => ({
-        product_id: item.product_id,
-        quantity: item.quantity,
-        price_list_id: priceListMap.get(item.product_id),
-        notes: item.notes,
-      })),
+      subscription_id: subscriptionId ?? undefined,
+      items,
     };
 
-    const created = await this.ordersService.create(orderDto);
-
-    await this.prisma.order_header.update({
-      where: { order_id: created.order_id },
-      data: { origen_pedido: OrigenPedido.PORTAL_CLIENTES } as any,
+    const created = await this.ordersService.create(orderDto, undefined, {
+      origenPedido: DbOrigenPedido.PORTAL_CLIENTES,
     });
-
     return this.ordersService.findOne(created.order_id);
   }
 
@@ -226,21 +289,26 @@ export class PortalService {
 
     const { UpdateOrderDto } = await import('../orders/dto/update-order.dto');
     const updateDto = new UpdateOrderDto();
-    if (dto.contract_id !== undefined) updateDto.contract_id = dto.contract_id;
     if (dto.scheduled_delivery_date !== undefined) {
       updateDto.scheduled_delivery_date = dto.scheduled_delivery_date;
     }
     if (dto.delivery_time !== undefined)
       updateDto.delivery_time = dto.delivery_time;
     if (dto.notes !== undefined) updateDto.notes = dto.notes;
-    if (dto.items_to_update_or_create) {
-      updateDto.items_to_update_or_create = dto.items_to_update_or_create;
+    if (dto.items_to_update_or_create || dto.items) {
+      const pricing = await this.resolveCustomerPricing(customerId);
+      if (dto.items_to_update_or_create) {
+        updateDto.items_to_update_or_create = this.priceItems(
+          dto.items_to_update_or_create,
+          pricing,
+        );
+      }
+      if (dto.items) {
+        updateDto.items = this.priceItems(dto.items, pricing);
+      }
     }
     if (dto.item_ids_to_delete) {
       updateDto.item_ids_to_delete = dto.item_ids_to_delete;
-    }
-    if (dto.items) {
-      updateDto.items = dto.items;
     }
 
     return this.ordersService.update(orderId, updateDto);
@@ -381,72 +449,158 @@ export class PortalService {
     });
   }
 
-  private async computeOrderPricing(
-    items: { product_id: number; quantity: number; price_list_id?: number }[],
-    contractPriceListId: number | null,
-  ): Promise<{
-    totalAmount: Decimal;
-    priceListMap: Map<number, number | undefined>;
-  }> {
-    const priceListMap = new Map<number, number | undefined>();
-    let total = new Decimal(0);
+  /**
+   * Precios del cliente: los de la lista de su contrato vigente o, sin
+   * contrato, los de la lista general. Lo usan el catálogo y la
+   * creación/edición de pedidos, así el cliente paga lo que ve.
+   */
+  private async resolveCustomerPricing(
+    customerId: number,
+  ): Promise<CustomerPricing> {
+    const contract = await this.resolveActiveContractForCustomer(customerId);
+    const priceListId =
+      contract?.price_list_id ?? BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
 
+    const [lists, items] = await Promise.all([
+      this.prisma.price_list.findMany({
+        where: { price_list_id: priceListId },
+        select: { price_list_id: true, name: true },
+      }),
+      this.prisma.price_list_item.findMany({
+        where: { price_list_id: priceListId, product: { is_active: true } },
+        select: {
+          price_list_id: true,
+          unit_price: true,
+          product: { select: CATALOG_PRODUCT_SELECT },
+        },
+      }),
+    ]);
+
+    const prices = new Map<number, CustomerPriceEntry>();
     for (const item of items) {
-      const product = await this.prisma.product.findUnique({
-        where: { product_id: item.product_id },
+      if (prices.has(item.product.product_id)) continue;
+      prices.set(item.product.product_id, {
+        product: item.product,
+        unit_price: new Decimal(item.unit_price),
+        price_list_id: item.price_list_id,
       });
-      if (!product) {
-        throw new NotFoundException(
-          `Producto ${item.product_id} no encontrado`,
-        );
-      }
-
-      let unitPrice: Decimal = new Decimal(product.price);
-      let usedPriceListId: number | undefined = undefined;
-
-      if (item.price_list_id) {
-        const priceItem = await this.prisma.price_list_item.findFirst({
-          where: {
-            price_list_id: item.price_list_id,
-            product_id: item.product_id,
-          },
-        });
-        if (!priceItem) {
-          throw new BadRequestException(
-            `El producto ${product.description} no está disponible en la lista de precios ${item.price_list_id}.`,
-          );
-        }
-        unitPrice = new Decimal(priceItem.unit_price);
-        usedPriceListId = item.price_list_id;
-      } else if (contractPriceListId) {
-        const priceItem = await this.prisma.price_list_item.findFirst({
-          where: {
-            price_list_id: contractPriceListId,
-            product_id: item.product_id,
-          },
-        });
-        if (priceItem) {
-          unitPrice = new Decimal(priceItem.unit_price);
-          usedPriceListId = contractPriceListId;
-        }
-      } else {
-        const standardItem = await this.prisma.price_list_item.findFirst({
-          where: {
-            price_list_id: BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID,
-            product_id: item.product_id,
-          },
-        });
-        if (standardItem) {
-          unitPrice = new Decimal(standardItem.unit_price);
-          usedPriceListId = BUSINESS_CONFIG.PRICING.DEFAULT_PRICE_LIST_ID;
-        }
-      }
-
-      total = total.plus(unitPrice.mul(item.quantity));
-      priceListMap.set(item.product_id, usedPriceListId);
     }
 
-    return { totalAmount: total, priceListMap };
+    return {
+      contract: contract
+        ? {
+            contract_id: contract.contract_id,
+            price_list_id: contract.price_list_id,
+          }
+        : null,
+      priceLists: lists,
+      prices,
+    };
+  }
+
+  /** Asigna a cada ítem la lista de precios del cliente; rechaza productos fuera de su catálogo. */
+  private priceItems<T extends { product_id: number; quantity: number }>(
+    items: T[],
+    pricing: CustomerPricing,
+  ): (T & { price_list_id: number })[] {
+    return items.map((item) => {
+      const entry = pricing.prices.get(item.product_id);
+      if (!entry) {
+        throw new BadRequestException(
+          `El producto ${item.product_id} no está disponible para tu lista de precios.`,
+        );
+      }
+      return { ...item, price_list_id: entry.price_list_id };
+    });
+  }
+
+  /** Abonos activos del cliente con la cuota del ciclo vigente (solo lectura). */
+  private async findActiveSubscriptions(
+    customerId: number,
+  ): Promise<PortalSubscriptionDto[]> {
+    const today = new Date();
+    const subscriptions = await this.prisma.customer_subscription.findMany({
+      where: {
+        customer_id: customerId,
+        status: SubscriptionStatus.ACTIVE,
+        is_active: true,
+      },
+      orderBy: { subscription_id: 'asc' },
+      select: {
+        subscription_id: true,
+        subscription_plan: { select: { name: true } },
+        subscription_cycle: {
+          where: { cycle_start: { lte: today }, cycle_end: { gte: today } },
+          orderBy: { cycle_start: 'desc' },
+          take: 1,
+          select: {
+            cycle_start: true,
+            cycle_end: true,
+            subscription_cycle_detail: {
+              orderBy: { product_id: 'asc' },
+              select: {
+                product_id: true,
+                planned_quantity: true,
+                delivered_quantity: true,
+                remaining_balance: true,
+                product: { select: { description: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return subscriptions.map((subscription) => {
+      const cycle = subscription.subscription_cycle[0];
+      return {
+        subscription_id: subscription.subscription_id,
+        plan_name: subscription.subscription_plan.name,
+        cycle_start: cycle ? formatBAYMD(cycle.cycle_start) : null,
+        cycle_end: cycle ? formatBAYMD(cycle.cycle_end) : null,
+        quotas: (cycle?.subscription_cycle_detail ?? []).map((detail) => ({
+          product_id: detail.product_id,
+          description: detail.product.description.trim(),
+          planned_quantity: detail.planned_quantity,
+          delivered_quantity: detail.delivered_quantity,
+          remaining_balance: detail.remaining_balance,
+        })),
+      };
+    });
+  }
+
+  /**
+   * Abono al que se descuenta un pedido: el indicado por el cliente (debe ser
+   * suyo y estar activo) o, si no indica ninguno, su único abono activo.
+   */
+  private async resolveSubscriptionForOrder(
+    customerId: number,
+    requestedId?: number,
+  ): Promise<number | null> {
+    const active = await this.prisma.customer_subscription.findMany({
+      where: {
+        customer_id: customerId,
+        status: SubscriptionStatus.ACTIVE,
+        is_active: true,
+      },
+      select: { subscription_id: true },
+    });
+    const ids = active.map((row) => row.subscription_id);
+
+    if (requestedId !== undefined) {
+      if (!ids.includes(requestedId)) {
+        throw new BadRequestException(
+          `El abono ${requestedId} no está activo para este cliente.`,
+        );
+      }
+      return requestedId;
+    }
+    if (ids.length > 1) {
+      throw new BadRequestException(
+        'Tenés más de un abono activo: indicá subscription_id para elegir a cuál se descuenta el pedido.',
+      );
+    }
+    return ids[0] ?? null;
   }
 
   private toProfileResponse(person: any): PortalProfileResponseDto {

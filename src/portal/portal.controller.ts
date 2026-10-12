@@ -33,6 +33,7 @@ import {
   PortalUpdateProfileDto,
 } from './dto/portal-profile.dto';
 import { OrderResponseDto } from '../orders/dto/order-response.dto';
+import { PortalCatalogResponseDto } from './dto/portal-catalog.dto';
 
 @ApiTags('Portal Clientes')
 @ApiBearerAuth()
@@ -66,6 +67,19 @@ export class PortalController {
     @Body(ValidationPipe) dto: PortalChangePasswordDto,
   ) {
     return this.portalService.changePassword(payload.customerId, dto);
+  }
+
+  @Get('products')
+  @ApiOperation({
+    summary: 'Productos que el cliente puede pedir, con sus precios',
+    description:
+      'Precios de la lista del contrato vigente o, sin contrato, de la lista general. Incluye los abonos activos con la cuota disponible del ciclo vigente.',
+  })
+  @ApiResponse({ status: 200, type: PortalCatalogResponseDto })
+  async getCatalog(
+    @GetClientPortal() payload: ClientPortalPayload,
+  ): Promise<PortalCatalogResponseDto> {
+    return this.portalService.getCatalog(payload.customerId);
   }
 
   @Post('orders')
