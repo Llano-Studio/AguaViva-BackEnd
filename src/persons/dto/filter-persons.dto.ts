@@ -315,4 +315,23 @@ export class FilterPersonsDto extends PaginationQueryDto {
     return undefined;
   })
   is_active?: boolean | 'BOTH';
+
+  @ApiPropertyOptional({
+    description:
+      'Filtrar clientes según tengan visitas/entregas programadas pendientes (pedidos activos con fecha de entrega de hoy en adelante). ' +
+      '`false` devuelve los clientes SIN visitas programadas, útil para detectar pendientes.',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (lowerValue === 'true' || lowerValue === '1') return true;
+      if (lowerValue === 'false' || lowerValue === '0') return false;
+    }
+    return undefined;
+  })
+  hasScheduledVisits?: boolean;
 }
