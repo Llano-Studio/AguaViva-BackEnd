@@ -2,13 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
-import { PortalService } from '../src/portal/portal.service';
-import { PortalController } from '../src/portal/portal.controller';
-import { OrdersService } from '../src/orders/orders.service';
-import { LoginServiceClient } from '../src/portal/services/login-service.client';
+import { PortalService } from './portal.service';
+import { PortalController } from './portal.controller';
+import { PrismaService } from '../prisma/prisma.service';
+import { OrdersService } from '../orders/orders.service';
+import { LoginServiceClient } from './services/login-service.client';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OrderStatus, OrigenPedido, OrderType } from '../src/common/constants/enums';
+import { OrderStatus, OrigenPedido, OrderType } from '../common/constants/enums';
 import { Decimal } from '@prisma/client/runtime/library';
 
 describe('Portal (AguaViva) - e2e unit', () => {
@@ -106,7 +107,8 @@ describe('Portal (AguaViva) - e2e unit', () => {
       controllers: [PortalController],
       providers: [
         PortalService,
-        { provide: 'PrismaService', useValue: prismaMock },
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: JwtService, useValue: new JwtService({}) },
         { provide: OrdersService, useValue: ordersServiceMock },
         { provide: LoginServiceClient, useValue: loginServiceClientMock },
         {

@@ -413,6 +413,7 @@ model order_header {
 
   @@index([order_date])
   @@index([status])
+  @@index([origen_pedido], map: "idx_order_header_origen_pedido")
 }
 
 model collection_orders {
