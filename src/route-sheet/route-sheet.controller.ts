@@ -468,7 +468,11 @@ const routeDetails = oneOffPurchases.map(purchase => {
       }),
     )
     filterDto: FilterRouteSheetsDto,
+    @GetUser() user: User,
   ) {
+    if (user.role === Role.DRIVERS) {
+      filterDto.driver_id = user.id;
+    }
     return this.routeSheetService.findAll(filterDto);
   }
 
@@ -631,7 +635,8 @@ RouteSheetResponseDto:
       },
     },
   })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  async findOne(@Param('id', ParseIntPipe) id: number, @GetUser() user: User) {
+    await this.routeSheetService.assertDriverCanAccess(id, user);
     return this.routeSheetService.findOne(id);
   }
 

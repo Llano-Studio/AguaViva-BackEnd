@@ -18,6 +18,7 @@ import { PriceListItemModule } from './price-list-item/price-list-item.module';
 import { OrdersModule } from './orders/orders.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
+import { DriverModule } from './driver/driver.module';
 import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
 import { CustomerSubscriptionModule } from './customer-subscription/customer-subscription.module';
 import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
@@ -54,6 +55,7 @@ import { PrismaModule } from './prisma/prisma.module';
     OrdersModule,
     InventoryModule,
     RouteSheetModule,
+    DriverModule,
     SubscriptionPlansModule,
     CustomerSubscriptionModule,
     CyclePaymentsModule,

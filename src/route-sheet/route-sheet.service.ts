@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role, User } from '@prisma/client';
 import {
   CreateRouteSheetDto,
   UpdateRouteSheetDto,
@@ -1046,6 +1047,20 @@ export class RouteSheetService extends PrismaBackedService {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
         'Error no manejado después de handlePrismaError',
+      );
+    }
+  }
+
+  /** Un chofer solo puede ver sus propias hojas de ruta. */
+  async assertDriverCanAccess(id: number, user: User): Promise<void> {
+    if (user.role !== Role.DRIVERS) return;
+    const row = await this.route_sheet.findUnique({
+      where: { route_sheet_id: id },
+      select: { driver_id: true },
+    });
+    if (row && row.driver_id !== user.id) {
+      throw new ForbiddenException(
+        'No tiene permisos para ver esta hoja de ruta',
       );
     }
   }

@@ -34,6 +34,8 @@ model User {
   collection_payment_transactions_created collection_payment_transaction[] @relation("CollectionPaymentTransactionCreatedBy")
   collection_payment_transactions_updated collection_payment_transaction[] @relation("CollectionPaymentTransactionUpdatedBy")
   route_sheet          route_sheet[]
+  route_sheet_pauses_created   route_sheet_pause[] @relation("RouteSheetPausedBy")
+  route_sheet_pauses_resumed   route_sheet_pause[] @relation("RouteSheetResumedBy")
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
   comodato_changes     comodato_change[]
@@ -742,6 +744,9 @@ model route_sheet {
   route_notes                          String?
   driver_reconciliation_signature_path String?
   reconciliation_at                    DateTime?
+  execution_status                     RouteSheetExecutionStatus @default(PLANNED)
+  started_at                           DateTime?
+  closed_at                            DateTime?
   is_active                            Boolean                   @default(true)
   delivery_stats                       delivery_stats[]
   inventory_transaction                inventory_transaction[]
@@ -749,8 +754,11 @@ model route_sheet {
   driver                               User                      @relation(fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_driver")
   vehicle                              vehicle                   @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_vehicle")
   route_sheet_detail                   route_sheet_detail[]
+  route_sheet_pause                    route_sheet_pause[]
   vehicle_route_inventory              vehicle_route_inventory[]
   cancellation_order cancellation_order[]
+
+  @@index([driver_id, delivery_date])
 }
 
 model route_sheet_detail {
@@ -1056,4 +1064,35 @@ model comodato_change {
   
   @@index([comodato_id])
   @@index([change_date])
+}
+
+/// Estado de ejecución de una hoja de ruta desde la app del chofer.
+enum RouteSheetExecutionStatus {
+  PLANNED
+  IN_PROGRESS
+  PAUSED
+  CLOSED
+}
+
+enum RouteSheetPauseReason {
+  VEHICLE_ISSUE
+  RESTOCK
+  OTHER
+}
+
+/// Pausas de una hoja de ruta en curso (desperfecto del camión, reabastecimiento, etc.).
+model route_sheet_pause {
+  pause_id        Int                   @id @default(autoincrement())
+  route_sheet_id  Int
+  reason          RouteSheetPauseReason
+  notes           String?
+  paused_at       DateTime              @default(now())
+  paused_by       Int
+  resumed_at      DateTime?
+  resumed_by      Int?
+  route_sheet     route_sheet           @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction)
+  paused_by_user  User                  @relation("RouteSheetPausedBy", fields: [paused_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resumed_by_user User?                 @relation("RouteSheetResumedBy", fields: [resumed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([route_sheet_id])
 }
