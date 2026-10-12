@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsEnum,
   IsBoolean,
+  MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
@@ -28,6 +29,7 @@ export class CreatePersonDto {
   @ApiProperty({ example: '3412345678' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(20, { message: "El teléfono no puede superar los 20 caracteres" })
   phone: string;
 
   @ApiPropertyOptional({
