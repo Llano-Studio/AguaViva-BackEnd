@@ -71,8 +71,12 @@ export class PortalProfileResponseDto {
   @ApiPropertyOptional() address?: string | null;
   @ApiPropertyOptional() secondary_phone?: string | null;
   @ApiPropertyOptional() additional_phones?: string | null;
-  @ApiPropertyOptional({ type: Number, nullable: true }) locality_id?: number | null;
-  @ApiPropertyOptional({ type: Number, nullable: true }) zone_id?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) locality_id?:
+    | number
+    | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) zone_id?:
+    | number
+    | null;
   @ApiProperty() type: string;
   @ApiProperty() is_active: boolean;
   @ApiProperty() owns_returnable_containers: boolean;

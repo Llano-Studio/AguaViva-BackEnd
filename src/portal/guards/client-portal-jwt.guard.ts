@@ -47,11 +47,14 @@ export class ClientPortalJwtGuard implements CanActivate {
     const expectedSystem = this.getExpectedSystem();
 
     try {
-      const payload = await this.jwtService.verifyAsync<ClientPortalPayload>(token, {
-        secret,
-        issuer: CLIENT_PORTAL_CONFIG.ISSUER,
-        audience: CLIENT_PORTAL_CONFIG.AUDIENCE,
-      });
+      const payload = await this.jwtService.verifyAsync<ClientPortalPayload>(
+        token,
+        {
+          secret,
+          issuer: CLIENT_PORTAL_CONFIG.ISSUER,
+          audience: CLIENT_PORTAL_CONFIG.AUDIENCE,
+        },
+      );
 
       if (payload.type !== 'access') {
         throw new UnauthorizedException('Token inválido (no es de acceso)');

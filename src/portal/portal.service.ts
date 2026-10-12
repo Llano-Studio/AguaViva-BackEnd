@@ -8,7 +8,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { OrderStatus, OrderType, OrigenPedido } from '../common/constants/enums';
+import {
+  OrderStatus,
+  OrderType,
+  OrigenPedido,
+} from '../common/constants/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrdersService } from '../orders/orders.service';
 import { CreateOrderDto } from '../orders/dto/create-order.dto';
@@ -23,7 +27,10 @@ import {
 } from './dto/portal-profile.dto';
 import { parseSortByString } from '../common/utils/query-parser.utils';
 import { BUSINESS_CONFIG } from '../common/config/business.config';
-import { LoginServiceClient, SystemCode } from './services/login-service.client';
+import {
+  LoginServiceClient,
+  SystemCode,
+} from './services/login-service.client';
 
 @Injectable()
 export class PortalService {
@@ -65,7 +72,9 @@ export class PortalService {
         select: { person_id: true },
       });
       if (conflict) {
-        throw new ConflictException('El teléfono ya está registrado por otro cliente');
+        throw new ConflictException(
+          'El teléfono ya está registrado por otro cliente',
+        );
       }
       newPhone = dto.phone.trim();
     }
@@ -77,7 +86,9 @@ export class PortalService {
         ...(dto.alias !== undefined ? { alias: dto.alias } : {}),
         ...(dto.tax_id !== undefined ? { tax_id: dto.tax_id } : {}),
         ...(dto.address !== undefined ? { address: dto.address } : {}),
-        ...(dto.locality_id !== undefined ? { locality_id: dto.locality_id } : {}),
+        ...(dto.locality_id !== undefined
+          ? { locality_id: dto.locality_id }
+          : {}),
         ...(dto.zone_id !== undefined ? { zone_id: dto.zone_id } : {}),
         ...(dto.secondary_phone !== undefined
           ? { secondary_phone: dto.secondary_phone }
@@ -121,12 +132,17 @@ export class PortalService {
       );
     }
     const bcrypt = await import('bcrypt');
-    const valid = await bcrypt.compare(dto.currentPassword, person.password_hash);
+    const valid = await bcrypt.compare(
+      dto.currentPassword,
+      person.password_hash,
+    );
     if (!valid) {
       throw new BadRequestException('La contraseña actual es incorrecta');
     }
     if (dto.currentPassword === dto.newPassword) {
-      throw new ConflictException('La nueva contraseña debe ser diferente a la actual');
+      throw new ConflictException(
+        'La nueva contraseña debe ser diferente a la actual',
+      );
     }
     const newHash = await bcrypt.hash(dto.newPassword, 10);
     await this.prisma.person.update({
@@ -150,7 +166,9 @@ export class PortalService {
     dto: PortalCreateOrderDto,
   ): Promise<OrderResponseDto> {
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('Debe incluir al menos un ítem en el pedido');
+      throw new BadRequestException(
+        'Debe incluir al menos un ítem en el pedido',
+      );
     }
 
     const contract = await this.resolveActiveContractForCustomer(customerId);
@@ -167,9 +185,7 @@ export class PortalService {
       delivery_time: dto.delivery_time,
       total_amount: totalAmount.toString(),
       paid_amount: '0.00',
-      order_type: contract
-        ? OrderType.CONTRACT_DELIVERY
-        : OrderType.ONE_OFF,
+      order_type: contract ? OrderType.CONTRACT_DELIVERY : OrderType.ONE_OFF,
       status: OrderStatus.PENDING,
       notes: dto.notes,
       contract_id: contract?.contract_id,
@@ -214,7 +230,8 @@ export class PortalService {
     if (dto.scheduled_delivery_date !== undefined) {
       updateDto.scheduled_delivery_date = dto.scheduled_delivery_date;
     }
-    if (dto.delivery_time !== undefined) updateDto.delivery_time = dto.delivery_time;
+    if (dto.delivery_time !== undefined)
+      updateDto.delivery_time = dto.delivery_time;
     if (dto.notes !== undefined) updateDto.notes = dto.notes;
     if (dto.items_to_update_or_create) {
       updateDto.items_to_update_or_create = dto.items_to_update_or_create;
@@ -281,12 +298,18 @@ export class PortalService {
       ...(filters.statuses && filters.statuses.length > 0
         ? { status: { in: filters.statuses as OrderStatus[] } }
         : {}),
-      ...(filters.origen_pedido ? { origen_pedido: filters.origen_pedido } : {}),
+      ...(filters.origen_pedido
+        ? { origen_pedido: filters.origen_pedido }
+        : {}),
       ...(filters.orderDateFrom || filters.orderDateTo
         ? {
             order_date: {
-              ...(filters.orderDateFrom ? { gte: new Date(filters.orderDateFrom) } : {}),
-              ...(filters.orderDateTo ? { lte: new Date(filters.orderDateTo) } : {}),
+              ...(filters.orderDateFrom
+                ? { gte: new Date(filters.orderDateFrom) }
+                : {}),
+              ...(filters.orderDateTo
+                ? { lte: new Date(filters.orderDateTo) }
+                : {}),
             },
           }
         : {}),
@@ -301,11 +324,14 @@ export class PortalService {
     };
 
     const sortBy = filters.sortBy ?? 'order_date:desc';
-    const orderByClause = parseSortByString(
-      sortBy,
-      [{ order_date: 'desc' }, { order_id: 'desc' }],
-    );
-    const orderBy = (orderByClause ?? [{ order_date: 'desc' }, { order_id: 'desc' }]) as Prisma.order_headerOrderByWithRelationInput[];
+    const orderByClause = parseSortByString(sortBy, [
+      { order_date: 'desc' },
+      { order_id: 'desc' },
+    ]);
+    const orderBy = (orderByClause ?? [
+      { order_date: 'desc' },
+      { order_id: 'desc' },
+    ]) as Prisma.order_headerOrderByWithRelationInput[];
 
     const [total, orders] = await this.prisma.$transaction([
       this.prisma.order_header.count({ where }),
@@ -358,7 +384,10 @@ export class PortalService {
   private async computeOrderPricing(
     items: { product_id: number; quantity: number; price_list_id?: number }[],
     contractPriceListId: number | null,
-  ): Promise<{ totalAmount: Decimal; priceListMap: Map<number, number | undefined> }> {
+  ): Promise<{
+    totalAmount: Decimal;
+    priceListMap: Map<number, number | undefined>;
+  }> {
     const priceListMap = new Map<number, number | undefined>();
     let total = new Decimal(0);
 
@@ -367,7 +396,9 @@ export class PortalService {
         where: { product_id: item.product_id },
       });
       if (!product) {
-        throw new NotFoundException(`Producto ${item.product_id} no encontrado`);
+        throw new NotFoundException(
+          `Producto ${item.product_id} no encontrado`,
+        );
       }
 
       let unitPrice: Decimal = new Decimal(product.price);
@@ -375,7 +406,10 @@ export class PortalService {
 
       if (item.price_list_id) {
         const priceItem = await this.prisma.price_list_item.findFirst({
-          where: { price_list_id: item.price_list_id, product_id: item.product_id },
+          where: {
+            price_list_id: item.price_list_id,
+            product_id: item.product_id,
+          },
         });
         if (!priceItem) {
           throw new BadRequestException(
@@ -386,7 +420,10 @@ export class PortalService {
         usedPriceListId = item.price_list_id;
       } else if (contractPriceListId) {
         const priceItem = await this.prisma.price_list_item.findFirst({
-          where: { price_list_id: contractPriceListId, product_id: item.product_id },
+          where: {
+            price_list_id: contractPriceListId,
+            product_id: item.product_id,
+          },
         });
         if (priceItem) {
           unitPrice = new Decimal(priceItem.unit_price);

@@ -10,7 +10,10 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PortalCreateOrderDto, PortalOrderItemDto } from './portal-create-order.dto';
+import {
+  PortalCreateOrderDto,
+  PortalOrderItemDto,
+} from './portal-create-order.dto';
 
 export class PortalUpdateOrderItemDto {
   @ApiPropertyOptional()

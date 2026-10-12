@@ -82,7 +82,8 @@ export class PortalController {
   @ApiOperation({ summary: 'Historial de pedidos del cliente autenticado' })
   async getOrderHistory(
     @GetClientPortal() payload: ClientPortalPayload,
-    @Query(new ValidationPipe({ transform: true })) filters: PortalFilterOrdersDto,
+    @Query(new ValidationPipe({ transform: true }))
+    filters: PortalFilterOrdersDto,
   ) {
     return this.portalService.getOrderHistory(payload.customerId, filters);
   }

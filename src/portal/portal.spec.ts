@@ -9,7 +9,11 @@ import { OrdersService } from '../orders/orders.service';
 import { LoginServiceClient } from './services/login-service.client';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { OrderStatus, OrigenPedido, OrderType } from '../common/constants/enums';
+import {
+  OrderStatus,
+  OrigenPedido,
+  OrderType,
+} from '../common/constants/enums';
 import { Decimal } from '@prisma/client/runtime/library';
 
 describe('Portal (AguaViva) - e2e unit', () => {
@@ -78,7 +82,11 @@ describe('Portal (AguaViva) - e2e unit', () => {
     process.env.MODULE_SYSTEM_CODE = 'AGUAVIVA';
 
     prismaMock = {
-      person: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      person: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
       order_header: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
@@ -93,9 +101,15 @@ describe('Portal (AguaViva) - e2e unit', () => {
     };
 
     ordersServiceMock = {
-      create: jest.fn().mockImplementation(async (dto) => ({ ...mockOrder, ...dto })),
-      update: jest.fn().mockImplementation(async (id, dto) => ({ ...mockOrder, ...dto })),
-      findOne: jest.fn().mockImplementation(async (id) => ({ ...mockOrder, order_id: id })),
+      create: jest
+        .fn()
+        .mockImplementation(async (dto) => ({ ...mockOrder, ...dto })),
+      update: jest
+        .fn()
+        .mockImplementation(async (id, dto) => ({ ...mockOrder, ...dto })),
+      findOne: jest
+        .fn()
+        .mockImplementation(async (id) => ({ ...mockOrder, order_id: id })),
     };
 
     loginServiceClientMock = {
@@ -115,14 +129,19 @@ describe('Portal (AguaViva) - e2e unit', () => {
           provide: ConfigService,
           useValue: {
             get: (k: string) =>
-              ({ CLIENT_PORTAL_JWT_SECRET: 'test-secret', MODULE_SYSTEM_CODE: 'AGUAVIVA' })[k],
+              ({
+                CLIENT_PORTAL_JWT_SECRET: 'test-secret',
+                MODULE_SYSTEM_CODE: 'AGUAVIVA',
+              })[k],
           },
         },
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 

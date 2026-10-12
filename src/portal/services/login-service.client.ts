@@ -25,14 +25,17 @@ export class LoginServiceClient {
       return null;
     }
     try {
-      const res = await fetch(`${baseUrl.replace(/\/$/, '')}/client/internal/credentials/sync`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-secret': secret,
+      const res = await fetch(
+        `${baseUrl.replace(/\/$/, '')}/client/internal/credentials/sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': secret,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
       if (!res.ok) {
         const text = await res.text();
         this.logger.error(
@@ -49,7 +52,10 @@ export class LoginServiceClient {
     }
   }
 
-  async disableCredential(system: SystemCode, customerId: number): Promise<boolean> {
+  async disableCredential(
+    system: SystemCode,
+    customerId: number,
+  ): Promise<boolean> {
     const baseUrl = this.configService.get<string>('LOGIN_SERVICE_URL');
     const secret = this.configService.get<string>('INTERNAL_SERVICE_SECRET');
     if (!baseUrl || !secret) {

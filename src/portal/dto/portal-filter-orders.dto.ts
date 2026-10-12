@@ -62,7 +62,10 @@ export class PortalFilterOrdersDto {
   @Transform(({ value }) => {
     if (!value) return undefined;
     if (typeof value === 'string') {
-      const arr = value.split(',').map((v) => v.trim()).filter(Boolean);
+      const arr = value
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
       return arr.length > 0 ? arr : undefined;
     }
     if (Array.isArray(value)) {
