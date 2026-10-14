@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../utils/text-search.utils';
 import { Prisma, SubscriptionStatus, Role } from '@prisma/client';
 import { OrderStatus, PaymentStatus } from '../../common/constants/enums';
 import { OrdersService } from '../../orders/orders.service';
@@ -1161,30 +1162,53 @@ export class AutomatedCollectionService
     }
 
     if (filters.customerName) {
-      whereClause.customer = {
-        ...(whereClause.customer || {}),
-        name: {
-          contains: filters.customerName,
-          mode: 'insensitive' } };
+      whereClause.AND = [
+        ...(Array.isArray(whereClause.AND)
+          ? whereClause.AND
+          : whereClause.AND
+            ? [whereClause.AND]
+            : []),
+        {
+          customer_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'person',
+              idColumn: 'person_id',
+              columns: ['name'],
+              term: filters.customerName,
+            }),
+          },
+        },
+      ];
     }
 
     // Filtro de búsqueda general
     if (filters.search) {
       whereClause.OR = [
         {
-          customer: {
-            name: {
-              contains: filters.search,
-              mode: 'insensitive' } } },
+          customer_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'person',
+              idColumn: 'person_id',
+              columns: ['name'],
+              term: filters.search,
+            }),
+          },
+        },
         {
           collection_order_id: {
             equals: isNaN(parseInt(filters.search))
               ? undefined
               : parseInt(filters.search) } },
         {
-          notes: {
-            contains: filters.search,
-            mode: 'insensitive' } },
+          collection_order_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'ordenes_de_cobranza',
+              idColumn: 'collection_order_id',
+              columns: ['notes'],
+              term: filters.search,
+            }),
+          },
+        },
       ];
     }
 

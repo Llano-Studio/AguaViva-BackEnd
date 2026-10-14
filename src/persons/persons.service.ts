@@ -54,6 +54,7 @@ import { RecoveryOrderService } from '../common/services/recovery-order.service'
 import { BUSINESS_CONFIG } from '../common/config/business.config';
 import {
   escapeLikePattern,
+  findIdsByNormalizedText,
   normalizeSearchText,
   normalizedColumnSql,
 } from '../common/utils/text-search.utils';
@@ -488,8 +489,20 @@ export class PersonsService extends PrismaBackedService {
           : { orders: { none: scheduledVisitCondition } },
       );
     }
-    if (phone) where.phone = { contains: phone, mode: 'insensitive' };
-    if (taxId) where.tax_id = { contains: taxId, mode: 'insensitive' };
+    if (phone) {
+      appendAnd({
+        person_id: {
+          in: await this.findPersonIdsByNormalizedText(phone, ['phone']),
+        },
+      });
+    }
+    if (taxId) {
+      appendAnd({
+        person_id: {
+          in: await this.findPersonIdsByNormalizedText(taxId, ['tax_id']),
+        },
+      });
+    }
     // Manejar filtrado por tipos (múltiples o único)
     if (types && types.length > 0) {
       // Si se proporcionan múltiples tipos, usar operador IN
@@ -1784,36 +1797,57 @@ export class PersonsService extends PrismaBackedService {
         personFilters.zone_id = filters.zone_id;
       }
       if (filters.customer_name) {
-        personFilters.name = {
-          contains: filters.customer_name,
-          mode: 'insensitive' };
+        personFilters.person_id = {
+          in: await this.findPersonIdsByNormalizedText(filters.customer_name, [
+            'name',
+          ]),
+        };
       }
       // Siempre aplicar el filtro de persona (al menos is_active)
       whereConditions.person = personFilters;
 
       if (filters.product_name) {
         whereConditions.product = {
-          description: {
-            contains: filters.product_name,
-            mode: 'insensitive' } };
+          product_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'product',
+              idColumn: 'product_id',
+              columns: ['description'],
+              term: filters.product_name,
+            }),
+          },
+        };
       }
 
       if (filters.search) {
         whereConditions.OR = [
           {
-            person: {
-              name: {
-                contains: filters.search,
-                mode: 'insensitive' } } },
+            person_id: {
+              in: await this.findPersonIdsByNormalizedText(filters.search, [
+                'name',
+              ]),
+            },
+          },
           {
-            product: {
-              description: {
-                contains: filters.search,
-                mode: 'insensitive' } } },
+            product_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'product',
+                idColumn: 'product_id',
+                columns: ['description'],
+                term: filters.search,
+              }),
+            },
+          },
           {
-            notes: {
-              contains: filters.search,
-              mode: 'insensitive' } },
+            comodato_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'comodato',
+                idColumn: 'comodato_id',
+                columns: ['notes'],
+                term: filters.search,
+              }),
+            },
+          },
         ];
       }
 

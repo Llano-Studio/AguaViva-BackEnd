@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import {
   Prisma,
   stock_movement as PrismaStockMovement,
@@ -389,9 +390,14 @@ export class InventoryService extends PrismaBackedService {
 
     const productWhere: Prisma.productWhereInput = {};
     if (product_description) {
-      productWhere.description = {
-        contains: product_description,
-        mode: 'insensitive' };
+      productWhere.product_id = {
+        in: await findIdsByNormalizedText(this.prisma, {
+          table: 'product',
+          idColumn: 'product_id',
+          columns: ['description'],
+          term: product_description,
+        }),
+      };
     }
 
     // Filtro por category_id (múltiples o único)
