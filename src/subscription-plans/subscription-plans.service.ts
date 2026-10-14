@@ -4,6 +4,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import {
   subscription_plan as SubscriptionPlanPrisma,
   Prisma,
@@ -124,17 +125,38 @@ export class SubscriptionPlansService
       // Por defecto solo mostrar planes activos, a menos que se especifique lo contrario
       is_active: is_active !== undefined ? is_active : true };
 
+    // Búsquedas de texto sin distinguir mayúsculas, tildes ni espacios
+    const andConditions: Prisma.subscription_planWhereInput[] = [];
+
     // Búsqueda general en múltiples campos
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        subscription_plan_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'subscription_plan',
+            idColumn: 'subscription_plan_id',
+            columns: ['name', 'description'],
+            term: search,
+          }),
+        },
+      });
     }
 
     // Filtros específicos
     if (name) {
-      where.name = { contains: name, mode: 'insensitive' };
+      andConditions.push({
+        subscription_plan_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'subscription_plan',
+            idColumn: 'subscription_plan_id',
+            columns: ['name'],
+            term: name,
+          }),
+        },
+      });
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // El filtro por estado de activación ya está configurado arriba

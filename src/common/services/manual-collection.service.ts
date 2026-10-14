@@ -1,4 +1,5 @@
 import { CreateOrderDto } from '../../orders/dto/create-order.dto';
+import { findIdsByNormalizedText } from '../utils/text-search.utils';
 import {
   PaymentStatus,
   SubscriptionStatus,
@@ -70,23 +71,16 @@ export class ManualCollectionService extends PrismaBackedService {
 
     // Agregar filtros de búsqueda
     if (query) {
+      const matchingIds = await findIdsByNormalizedText(this.prisma, {
+        table: 'person',
+        idColumn: 'person_id',
+        columns: ['name', 'phone'],
+        term: query,
+      });
       whereConditions.OR = [
-        {
-          name: {
-            contains: query,
-            mode: 'insensitive' } },
-        {
-          phone: {
-            contains: query,
-            mode: 'insensitive' } },
-        {
-          person_id: isNaN(Number(query)) ? undefined : Number(query) },
-      ].filter(
-        (condition) =>
-          condition.person_id !== undefined ||
-          condition.name ||
-          condition.phone,
-      );
+        { person_id: { in: matchingIds } },
+        ...(isNaN(Number(query)) ? [] : [{ person_id: Number(query) }]),
+      ];
     }
 
     if (zone_id) {

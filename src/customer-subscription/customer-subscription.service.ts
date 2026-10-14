@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   Logger } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { Prisma, SubscriptionStatus } from '@prisma/client';
 import {
   CreateCustomerSubscriptionDto,
@@ -368,7 +369,7 @@ export class CustomerSubscriptionService
     const skip = (page - 1) * limit;
 
     // Construir filtros dinámicos
-    const where = this.buildWhereClause(filterParams);
+    const where = await this.buildWhereClause(filterParams);
 
     // Construir ordenamiento dinámico
     const orderBy = this.buildOrderByClause(sortBy, 'asc');
@@ -786,9 +787,9 @@ export class CustomerSubscriptionService
         select: { order_header: true } } };
   }
 
-  private buildWhereClause(
+  private async buildWhereClause(
     filters: Partial<FilterCustomerSubscriptionsDto>,
-  ): Prisma.customer_subscriptionWhereInput {
+  ): Promise<Prisma.customer_subscriptionWhereInput> {
     const where: Prisma.customer_subscriptionWhereInput = {
       is_active: true, // Solo mostrar suscripciones activas
     };
@@ -842,9 +843,15 @@ export class CustomerSubscriptionService
     if (filters.search) {
       where.OR = [
         {
-          notes: {
-            contains: filters.search,
-            mode: 'insensitive' } },
+          subscription_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'customer_subscription',
+              idColumn: 'subscription_id',
+              columns: ['notes'],
+              term: filters.search,
+            }),
+          },
+        },
       ];
     }
 

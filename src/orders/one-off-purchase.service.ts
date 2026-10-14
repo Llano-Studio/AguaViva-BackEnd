@@ -5,6 +5,7 @@ import {
   ConflictException,
   BadRequestException,
   Logger } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { Prisma } from '@prisma/client';
 import { OrderType, PersonType } from '../common/constants/enums';
 import { CreateOneOffPurchaseDto } from './dto/create-one-off-purchase.dto';
@@ -663,10 +664,14 @@ export class OneOffPurchaseService
 
     const personFilter: Prisma.personWhereInput = {};
     if (customerName) {
-      personFilter.OR = [
-        { name: { contains: customerName, mode: 'insensitive' } },
-        { alias: { contains: customerName, mode: 'insensitive' } },
-      ];
+      personFilter.person_id = {
+        in: await findIdsByNormalizedText(this.prisma, {
+          table: 'person',
+          idColumn: 'person_id',
+          columns: ['name', 'alias'],
+          term: customerName,
+        }),
+      };
     }
     if (Object.keys(personFilter).length > 0) {
       where.person = personFilter;
@@ -674,9 +679,14 @@ export class OneOffPurchaseService
 
     const productFilter: Prisma.productWhereInput = {};
     if (productName) {
-      productFilter.description = {
-        contains: productName,
-        mode: 'insensitive' };
+      productFilter.product_id = {
+        in: await findIdsByNormalizedText(this.prisma, {
+          table: 'product',
+          idColumn: 'product_id',
+          columns: ['description'],
+          term: productName,
+        }),
+      };
     }
     if (Object.keys(productFilter).length > 0) {
       where.product = productFilter;
@@ -691,16 +701,26 @@ export class OneOffPurchaseService
     if (search) {
       const searchNum = parseInt(search);
       const orConditions: Prisma.one_off_purchaseWhereInput[] = [
-        { person: { name: { contains: search, mode: 'insensitive' } } },
-        { person: { alias: { contains: search, mode: 'insensitive' } } },
-        { product: { description: { contains: search, mode: 'insensitive' } } },
-        { person: { phone: { contains: search, mode: 'insensitive' } } },
         {
-          person: {
-            secondary_phone: { contains: search, mode: 'insensitive' } } },
+          person_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'person',
+              idColumn: 'person_id',
+              columns: ['name', 'alias', 'phone', 'secondary_phone', 'additional_phones'],
+              term: search,
+            }),
+          },
+        },
         {
-          person: {
-            additional_phones: { contains: search, mode: 'insensitive' } } },
+          product_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'product',
+              idColumn: 'product_id',
+              columns: ['description'],
+              term: search,
+            }),
+          },
+        },
       ];
       if (!isNaN(searchNum)) {
         orConditions.push({ purchase_id: searchNum });
@@ -2197,10 +2217,14 @@ export class OneOffPurchaseService
 
       const personFilter: Prisma.personWhereInput = {};
       if (customerName) {
-        personFilter.OR = [
-          { name: { contains: customerName, mode: 'insensitive' } },
-          { alias: { contains: customerName, mode: 'insensitive' } },
-        ];
+        personFilter.person_id = {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'person',
+            idColumn: 'person_id',
+            columns: ['name', 'alias'],
+            term: customerName,
+          }),
+        };
       }
       if (Object.keys(personFilter).length > 0) {
         where.person = personFilter;
@@ -2211,16 +2235,26 @@ export class OneOffPurchaseService
       if (search) {
         const searchNum = parseInt(search);
         searchConditions = [
-          { person: { name: { contains: search, mode: 'insensitive' } } },
-          { person: { alias: { contains: search, mode: 'insensitive' } } },
-          { person: { phone: { contains: search, mode: 'insensitive' } } },
           {
-            person: {
-              secondary_phone: { contains: search, mode: 'insensitive' } } },
+            person_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'person',
+                idColumn: 'person_id',
+                columns: ['name', 'alias', 'phone', 'secondary_phone', 'additional_phones'],
+                term: search,
+              }),
+            },
+          },
           {
-            person: {
-              additional_phones: { contains: search, mode: 'insensitive' } } },
-          { notes: { contains: search, mode: 'insensitive' } },
+            purchase_header_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'one_off_purchase_header',
+                idColumn: 'purchase_header_id',
+                columns: ['notes'],
+                term: search,
+              }),
+            },
+          },
         ];
 
         if (!isNaN(searchNum)) {

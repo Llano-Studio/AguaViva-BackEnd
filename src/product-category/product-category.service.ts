@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   InternalServerErrorException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import {
@@ -41,14 +42,38 @@ export class ProductCategoryService
 
     const where: Prisma.product_categoryWhereInput = {};
 
+    // Búsquedas de texto sin distinguir mayúsculas, tildes ni espacios
+    const andConditions: Prisma.product_categoryWhereInput[] = [];
+
     // Búsqueda general en múltiples campos
     if (search) {
-      where.OR = [{ name: { contains: search, mode: 'insensitive' } }];
+      andConditions.push({
+        category_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'product_category',
+            idColumn: 'category_id',
+            columns: ['name'],
+            term: search,
+          }),
+        },
+      });
     }
 
     // Filtros específicos
     if (name) {
-      where.name = { contains: name, mode: 'insensitive' };
+      andConditions.push({
+        category_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'product_category',
+            idColumn: 'category_id',
+            columns: ['name'],
+            term: name,
+          }),
+        },
+      });
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const orderBy = parseSortByString(sortBy, [{ name: 'asc' }]);
