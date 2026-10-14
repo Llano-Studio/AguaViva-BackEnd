@@ -7,6 +7,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   NotFoundException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -462,10 +463,14 @@ export class AuthService extends PrismaBackedService {
         isActive: filters?.isActive !== undefined ? filters.isActive : true };
       if (filters) {
         if (filters.search) {
-          whereClause.OR = [
-            { name: { contains: filters.search, mode: 'insensitive' } },
-            { email: { contains: filters.search, mode: 'insensitive' } },
-          ];
+          whereClause.id = {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'User',
+              idColumn: 'id',
+              columns: ['name', 'email'],
+              term: filters.search,
+            }),
+          };
         }
         // Filtros de roles (múltiples o único)
         if (filters.roles && filters.roles.length > 0) {
