@@ -6,6 +6,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import {
   Prisma,
   order_header as PrismaOrderHeader,
@@ -1272,10 +1273,15 @@ export class OrdersService extends PrismaBackedService {
     const customerConditions: Prisma.personWhereInput[] = [];
     if (customerName) {
       customerConditions.push({
-        OR: [
-          { name: { contains: customerName, mode: 'insensitive' } },
-          { alias: { contains: customerName, mode: 'insensitive' } },
-        ] });
+        person_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'person',
+            idColumn: 'person_id',
+            columns: ['name', 'alias'],
+            term: customerName,
+          }),
+        },
+      });
     }
 
     const effectiveZoneIds: number[] = [];
@@ -1341,11 +1347,15 @@ export class OrdersService extends PrismaBackedService {
         : undefined;
       const orConditions: Prisma.order_headerWhereInput[] = [];
       orConditions.push({
-        customer: {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { alias: { contains: search, mode: 'insensitive' } },
-          ] } });
+        customer_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'person',
+            idColumn: 'person_id',
+            columns: ['name', 'alias'],
+            term: search,
+          }),
+        },
+      });
       if (searchAsNumber) {
         orConditions.push({ order_id: searchAsNumber });
       }

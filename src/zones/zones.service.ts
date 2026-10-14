@@ -4,6 +4,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { zone, Prisma } from '@prisma/client';
 import { CreateZoneDto } from './dto/create-zone.dto';
 import { UpdateZoneDto } from './dto/update-zone.dto';
@@ -46,17 +47,39 @@ export class ZonesService extends PrismaBackedService {
     // Búsqueda general en múltiples campos
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } },
-        { locality: { name: { contains: search, mode: 'insensitive' } } },
+        {
+          zone_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'zone',
+              idColumn: 'zone_id',
+              columns: ['name', 'code'],
+              term: search,
+            }),
+          },
+        },
+        {
+          locality_id: {
+            in: await findIdsByNormalizedText(this.prisma, {
+              table: 'locality',
+              idColumn: 'locality_id',
+              columns: ['name'],
+              term: search,
+            }),
+          },
+        },
       ];
     }
 
     // Filtros específicos
     if (name) {
-      where.name = {
-        contains: name,
-        mode: 'insensitive' };
+      where.zone_id = {
+        in: await findIdsByNormalizedText(this.prisma, {
+          table: 'zone',
+          idColumn: 'zone_id',
+          columns: ['name'],
+          term: name,
+        }),
+      };
     }
 
     // Filtros de localidad (múltiples o única)
@@ -70,9 +93,15 @@ export class ZonesService extends PrismaBackedService {
 
     if (locality_name) {
       where.locality = {
-        name: {
-          contains: locality_name,
-          mode: 'insensitive' } };
+        locality_id: {
+          in: await findIdsByNormalizedText(this.prisma, {
+            table: 'locality',
+            idColumn: 'locality_id',
+            columns: ['name'],
+            term: locality_name,
+          }),
+        },
+      };
     }
 
     const orderByClause = parseSortByString(sortBy, [{ name: 'asc' }]);

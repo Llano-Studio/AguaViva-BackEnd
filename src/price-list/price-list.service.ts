@@ -3,6 +3,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import {
   Prisma,
   price_list as PrismaPriceList,
@@ -116,17 +117,38 @@ export class PriceListService extends PrismaBackedService {
         is_active: true, // Solo mostrar listas de precios activas
       };
 
+      // Búsquedas de texto sin distinguir mayúsculas, tildes ni espacios
+      const andConditions: Prisma.price_listWhereInput[] = [];
+
       // Búsqueda general en múltiples campos
       if (search) {
-        where.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ];
+        andConditions.push({
+            price_list_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'price_list',
+                idColumn: 'price_list_id',
+                columns: ['name', 'description'],
+                term: search,
+              }),
+            },
+          });
       }
 
       // Filtros específicos
       if (name) {
-        where.name = { contains: name, mode: 'insensitive' };
+        andConditions.push({
+            price_list_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'price_list',
+                idColumn: 'price_list_id',
+                columns: ['name'],
+                term: name,
+              }),
+            },
+          });
+      }
+      if (andConditions.length > 0) {
+        where.AND = andConditions;
       }
 
       // Filtros para nuevos campos

@@ -4,6 +4,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import { Prisma, vehicle as VehiclePrisma } from '@prisma/client';
 import {
   CreateVehicleDto,
@@ -69,20 +70,39 @@ export class VehicleService extends PrismaBackedService {
     const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
     const take = Math.max(1, limit);
 
+    // Búsquedas de texto sin distinguir mayúsculas, tildes ni espacios
+    const andConditions: Prisma.vehicleWhereInput[] = [];
     if (filters) {
       // Búsqueda general en múltiples campos
       if (filters.search) {
-        where.OR = [
-          { name: { contains: filters.search, mode: 'insensitive' } },
-          { code: { contains: filters.search, mode: 'insensitive' } },
-          { description: { contains: filters.search, mode: 'insensitive' } },
-        ];
+        andConditions.push({
+            vehicle_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'vehicle',
+                idColumn: 'vehicle_id',
+                columns: ['name', 'code', 'description'],
+                term: filters.search,
+              }),
+            },
+          });
       }
 
       // Filtros específicos
       if (filters.code) {
-        where.code = { contains: filters.code, mode: 'insensitive' };
+        andConditions.push({
+            vehicle_id: {
+              in: await findIdsByNormalizedText(this.prisma, {
+                table: 'vehicle',
+                idColumn: 'vehicle_id',
+                columns: ['code'],
+                term: filters.code,
+              }),
+            },
+          });
       }
+    }
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
     const orderBy = parseSortByString(filters?.sortBy, [{ code: 'asc' }]);
 

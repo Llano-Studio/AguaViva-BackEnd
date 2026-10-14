@@ -4,6 +4,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   BadRequestException } from '@nestjs/common';
+import { findIdsByNormalizedText } from '../common/utils/text-search.utils';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -79,15 +80,21 @@ export class ProductService extends PrismaBackedService {
         is_active: true, // Solo mostrar productos activos
       };
 
+      // Búsquedas de texto sin distinguir mayúsculas, tildes ni espacios
+      const andConditions: Prisma.productWhereInput[] = [];
       if (filters) {
         // Búsqueda general en múltiples campos
         if (filters.search) {
-          whereClause.OR = [
-            { description: { contains: filters.search, mode: 'insensitive' } },
-            {
-              serial_number: { contains: filters.search, mode: 'insensitive' } },
-            { notes: { contains: filters.search, mode: 'insensitive' } },
-          ];
+          andConditions.push({
+              product_id: {
+                in: await findIdsByNormalizedText(this.prisma, {
+                  table: 'product',
+                  idColumn: 'product_id',
+                  columns: ['description', 'serial_number', 'notes'],
+                  term: filters.search,
+                }),
+              },
+            });
         }
 
         // Filtros específicos de categorías (múltiples o única)
@@ -117,9 +124,16 @@ export class ProductService extends PrismaBackedService {
         }
 
         if (filters.description) {
-          whereClause.description = {
-            contains: filters.description,
-            mode: 'insensitive' };
+          andConditions.push({
+              product_id: {
+                in: await findIdsByNormalizedText(this.prisma, {
+                  table: 'product',
+                  idColumn: 'product_id',
+                  columns: ['description'],
+                  term: filters.description,
+                }),
+              },
+            });
         }
 
         if (filters.isReturnable !== undefined) {
@@ -127,10 +141,20 @@ export class ProductService extends PrismaBackedService {
         }
 
         if (filters.serialNumber) {
-          whereClause.serial_number = {
-            contains: filters.serialNumber,
-            mode: 'insensitive' };
+          andConditions.push({
+              product_id: {
+                in: await findIdsByNormalizedText(this.prisma, {
+                  table: 'product',
+                  idColumn: 'product_id',
+                  columns: ['serial_number'],
+                  term: filters.serialNumber,
+                }),
+              },
+            });
         }
+      }
+      if (andConditions.length > 0) {
+        whereClause.AND = andConditions;
       }
 
       const page = filters?.page || 1;
