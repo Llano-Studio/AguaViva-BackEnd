@@ -324,10 +324,13 @@ export class FilterPersonsDto extends PaginationQueryDto {
   })
   @IsOptional()
   @IsBoolean()
-  @Transform(({ value }) => {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-      const lowerValue = value.toLowerCase().trim();
+  // Se lee el valor crudo (obj[key]): con enableImplicitConversion el pipe global
+  // convertiría "false" en true antes de llegar acá.
+  @Transform(({ obj, key }) => {
+    const raw = obj[key];
+    if (typeof raw === 'boolean') return raw;
+    if (typeof raw === 'string') {
+      const lowerValue = raw.toLowerCase().trim();
       if (lowerValue === 'true' || lowerValue === '1') return true;
       if (lowerValue === 'false' || lowerValue === '0') return false;
     }
