@@ -62,7 +62,8 @@ import { SubscriptionCycleCalculatorService } from '../common/services/subscript
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseBAYMD } from '../common/utils/date.utils';
+  parseBAYMD,
+  nowBAYMD } from '../common/utils/date.utils';
 import { DeliveryStatus } from '../common/constants/enums';
 import { PrismaBackedService } from '../prisma/prisma-backed.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -283,6 +284,10 @@ export class PersonsService extends PrismaBackedService {
         );
       }
       registration_date_for_prisma = parsedDate;
+    } else {
+      // El default de la base (CURRENT_DATE) usa UTC: entre las 21:00 y las 24:00
+      // de Buenos Aires registraría el día siguiente.
+      registration_date_for_prisma = parseBAYMD(nowBAYMD());
     }
 
     const data: Prisma.personCreateInput = {
