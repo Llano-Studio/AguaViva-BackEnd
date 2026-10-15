@@ -889,7 +889,8 @@ export class AuthService extends PrismaBackedService {
         const fileBuffer = await fs.readFile(profileImage.path);
         formData.append(
           'profileImage',
-          new Blob([fileBuffer as any]),
+          // Sin type viaja como application/octet-stream y login-service la rechaza
+          new Blob([fileBuffer as any], { type: profileImage.mimetype }),
           profileImage.originalname || profileImage.filename || 'profile-image',
         );
       }
