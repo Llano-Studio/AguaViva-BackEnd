@@ -31,9 +31,10 @@ export function getAppTimeZone(): string {
 }
 
 function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
+  // h23 (no hour12:false): a medianoche hour12:false devuelve "24" y corre el offset +24h
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    hour12: false,
+    hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
