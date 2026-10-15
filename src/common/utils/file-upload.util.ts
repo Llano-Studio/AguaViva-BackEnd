@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { extname } from 'path';
 import { diskStorage } from 'multer';
 
@@ -28,7 +29,7 @@ export const imageFileFilter = (
 ) => {
   if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
     return callback(
-      new Error(
+      new BadRequestException(
         '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp)!',
       ),
       false,
@@ -47,7 +48,7 @@ export const contractFileFilter = (
 ) => {
   if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|pdf)$/i)) {
     return callback(
-      new Error(
+      new BadRequestException(
         '¡Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o PDF (pdf)!',
       ),
       false,
