@@ -66,6 +66,7 @@ export enum PaymentMethod {
 
 export enum DeliveryStatus {
   PENDING = 'PENDING',
+  VISITED = 'VISITED',
   ASSIGNED = 'ASSIGNED',
   IN_TRANSIT = 'IN_TRANSIT',
   DELIVERED = 'DELIVERED',

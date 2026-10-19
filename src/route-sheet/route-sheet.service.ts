@@ -1,11 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
   NotFoundException } from '@nestjs/common';
-import { Prisma, Role, User } from '@prisma/client';
+import {
+  Prisma,
+  RouteSheetExecutionStatus,
+  Role,
+  User,
+} from '@prisma/client';
 import {
   CreateRouteSheetDto,
   UpdateRouteSheetDto,
@@ -42,6 +48,10 @@ import { OrdersService } from '../orders/orders.service';
 import { CyclePaymentsService } from '../cycle-payments/cycle-payments.service';
 import { PrismaBackedService } from '../prisma/prisma-backed.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  DELIVERY_SEQUENCE_ORDER_BY,
+  isCurrentDelivery,
+} from './delivery-locks';
 
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
@@ -2493,10 +2503,62 @@ export class RouteSheetService extends PrismaBackedService {
     return paymentTransactionResult;
   }
 
+  /**
+   * Un chofer solo puede operar entregas de sus propias hojas, con la hoja en
+   * curso y sobre la parada actual. Los administrativos no están sujetos a
+   * este control.
+   */
+  private async assertDriverCanOperateDelivery(
+    detail: {
+      route_sheet_detail_id: number;
+      route_sheet: {
+        route_sheet_id: number;
+        driver_id: number;
+        execution_status: RouteSheetExecutionStatus;
+      } | null;
+    },
+    user: User,
+  ): Promise<void> {
+    if (user?.role !== Role.DRIVERS) {
+      return;
+    }
+
+    const routeSheet = detail.route_sheet;
+    if (!routeSheet || routeSheet.driver_id !== user.id) {
+      throw new ForbiddenException(
+        'No tiene permisos para modificar el estado de esta entrega',
+      );
+    }
+
+    if (routeSheet.execution_status !== RouteSheetExecutionStatus.IN_PROGRESS) {
+      throw new ConflictException(
+        'La hoja de ruta no está en curso. Iniciala o reanudala antes de operar una entrega.',
+      );
+    }
+
+    const siblings = await this.route_sheet_detail.findMany({
+      where: { route_sheet_id: routeSheet.route_sheet_id },
+      select: { route_sheet_detail_id: true, delivery_status: true },
+      orderBy: DELIVERY_SEQUENCE_ORDER_BY,
+    });
+
+    if (
+      !isCurrentDelivery(
+        siblings,
+        detail.route_sheet_detail_id,
+        routeSheet.execution_status,
+      )
+    ) {
+      throw new ConflictException(
+        'Solo podés operar la parada actual. Resolvé las entregas anteriores primero.',
+      );
+    }
+  }
+
   async skipDelivery(
     detailId: number,
     dto: SkipDeliveryDto,
-    userId: number,
+    user: User,
   ): Promise<RouteSheetDetailResponseDto> {
     const routeSheetDetail = await this.route_sheet_detail.findUnique({
       where: { route_sheet_detail_id: detailId },
@@ -2514,9 +2576,7 @@ export class RouteSheetService extends PrismaBackedService {
       );
     }
 
-    // if (routeSheetDetail.route_sheet.driver_id !== userId) {
-    //   throw new ForbiddenException('No tienes permiso para modificar esta entrega.');
-    // }
+    await this.assertDriverCanOperateDelivery(routeSheetDetail, user);
 
     if (routeSheetDetail.delivery_status !== DeliveryStatus.PENDING) {
       throw new BadRequestException(

@@ -21,6 +21,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { DriverRouteSheetsService } from './driver-route-sheets.service';
 import {
+  DriverDeliveryDetailDto,
   DriverRouteSheetDetailDto,
   DriverRouteSheetSummaryDto,
   FilterDriverRouteSheetsDto,
@@ -62,6 +63,28 @@ export class DriverRouteSheetsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DriverRouteSheetDetailDto> {
     return this.driverRouteSheetsService.findOneForDriver(user.id, id);
+  }
+
+  @Get(':id/deliveries/:detailId')
+  @ApiOperation({
+    summary: 'Detalle de una parada',
+    description:
+      'Devuelve cliente, contacto, productos con precios, deuda, pagos previos, acciones habilitadas y una versión del estado de la parada. Solo para la hoja del chofer.',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'detailId', type: Number })
+  @ApiResponse({ status: 200, type: DriverDeliveryDetailDto })
+  @ApiResponse({ status: 404, description: 'No existe o no es del chofer' })
+  getDelivery(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('detailId', ParseIntPipe) detailId: number,
+  ): Promise<DriverDeliveryDetailDto> {
+    return this.driverRouteSheetsService.findDeliveryForDriver(
+      user.id,
+      id,
+      detailId,
+    );
   }
 
   @Post(':id/start')

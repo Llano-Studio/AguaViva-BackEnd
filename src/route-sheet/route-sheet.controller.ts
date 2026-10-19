@@ -1047,13 +1047,9 @@ Notas:
   async skipDelivery(
     @Param('detailId', ParseIntPipe) detailId: number,
     @Body() skipDeliveryDto: SkipDeliveryDto,
-    @GetUser('sub') userId: number,
+    @GetUser() user: User,
   ) {
-    return this.routeSheetService.skipDelivery(
-      detailId,
-      skipDeliveryDto,
-      userId,
-    );
+    return this.routeSheetService.skipDelivery(detailId, skipDeliveryDto, user);
   }
 
   @Post('validate-delivery-times')
