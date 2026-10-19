@@ -1,4 +1,5 @@
 import { Module, Global } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { GeneralCycleNumberingService } from './general-cycle-numbering.service';
 import { RecoveryOrderService } from './recovery-order.service';
 import { AutomatedCollectionService } from './automated-collection.service';
@@ -18,6 +19,8 @@ import { RouteOptimizationService } from './route-optimization.service';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 import { SubscriptionCycleNumberingService } from './subscription-cycle-numbering.service';
 import { SubscriptionQuotaService } from './subscription-quota.service';
+import { createRouteOptimizer } from '../routing/route-optimizer.provider';
+import { ROUTE_OPTIMIZER } from '../routing/route-optimizer.port';
 
 import { OrdersService } from '../../orders/orders.service';
 import { CommonModule } from '../common.module';
@@ -48,6 +51,11 @@ import { CyclePaymentsModule } from '../../cycle-payments/cycle-payments.module'
     SubscriptionCycleCalculatorService,
     SubscriptionCycleNumberingService,
     SubscriptionQuotaService,
+    {
+      provide: ROUTE_OPTIMIZER,
+      useFactory: createRouteOptimizer,
+      inject: [ConfigService],
+    },
     OrdersService,
   ],
   exports: [
@@ -70,6 +78,7 @@ import { CyclePaymentsModule } from '../../cycle-payments/cycle-payments.module'
     SubscriptionCycleCalculatorService,
     SubscriptionCycleNumberingService,
     SubscriptionQuotaService,
+    ROUTE_OPTIMIZER,
     OrdersService,
   ],
 })

@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { BUSINESS_CONFIG } from './business.config';
 
 export default registerAs('app', () => ({
   // Configuración de base de datos
@@ -64,6 +65,45 @@ export default registerAs('app', () => ({
   // Configuración de inventario
   inventory: {
     defaultWarehouseId: parseInt(process.env.DEFAULT_WAREHOUSE_ID || '1', 10),
+  },
+
+  // Configuración del motor de optimización de rutas y geocodificación
+  routeOptimization: {
+    provider:
+      process.env.ROUTE_OPTIMIZER_PROVIDER ||
+      BUSINESS_CONFIG.ROUTE_OPTIMIZATION.DEFAULT_PROVIDER,
+    // El mock nunca se habilita en producción salvo habilitación explícita.
+    allowMockInProduction:
+      process.env.ROUTE_OPTIMIZER_ALLOW_MOCK_IN_PRODUCTION === 'true',
+    depot: {
+      lat: Number(
+        process.env.ROUTE_DEPOT_LAT ||
+          BUSINESS_CONFIG.ROUTE_OPTIMIZATION.DEFAULT_DEPOT.LAT,
+      ),
+      lng: Number(
+        process.env.ROUTE_DEPOT_LNG ||
+          BUSINESS_CONFIG.ROUTE_OPTIMIZATION.DEFAULT_DEPOT.LNG,
+      ),
+    },
+    returnToDepot: process.env.ROUTE_RETURN_TO_DEPOT
+      ? process.env.ROUTE_RETURN_TO_DEPOT === 'true'
+      : BUSINESS_CONFIG.ROUTE_OPTIMIZATION.RETURN_TO_DEPOT,
+    mockRadiusKm: Number(
+      process.env.ROUTE_MOCK_RADIUS_KM ||
+        BUSINESS_CONFIG.ROUTE_OPTIMIZATION.MOCK_RADIUS_KM,
+    ),
+    averageSpeedKmh: Number(
+      process.env.ROUTE_AVERAGE_SPEED_KMH ||
+        BUSINESS_CONFIG.ROUTE_OPTIMIZATION.AVERAGE_SPEED_KMH,
+    ),
+    serviceMinutesPerStop: Number(
+      process.env.ROUTE_SERVICE_MINUTES_PER_STOP ||
+        BUSINESS_CONFIG.ROUTE_OPTIMIZATION.SERVICE_MINUTES_PER_STOP,
+    ),
+    roadFactor: Number(
+      process.env.ROUTE_ROAD_FACTOR ||
+        BUSINESS_CONFIG.ROUTE_OPTIMIZATION.ROAD_FACTOR,
+    ),
   },
 
   // Configuración de paginación
