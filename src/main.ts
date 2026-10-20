@@ -180,6 +180,7 @@ async function bootstrap() {
     './public/uploads/delivery-evidence',
     './public/uploads/reconciliations',
     './public/uploads/contracts',
+    './public/uploads/payment-proofs',
     './public/pdfs', // 🆕 Directorio para PDFs generados
     './public/pdfs/collections', // 🆕 Subdirectorio para hojas de ruta de cobranzas automáticas
   ];

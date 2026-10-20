@@ -604,27 +604,34 @@ model payment_method {
 }
 
 model payment_transaction {
-  transaction_id     Int            @id @default(autoincrement())
-  transaction_date   DateTime       @db.Timestamp(6)
-  customer_id        Int
-  order_id           Int?
-  document_number    String         @db.VarChar(20)
-  receipt_number     String?        @db.VarChar(20)
-  transaction_type   String         @db.VarChar(10)
-  previous_balance   Decimal        @db.Decimal(10, 2)
-  transaction_amount Decimal        @db.Decimal(10, 2)
-  total              Decimal        @db.Decimal(10, 2)
-  payment_method_id  Int            @default(1) @db.SmallInt
-  notes              String?
-  user_id            Int?
-  is_active          Boolean        @default(true)
-  updated_at         DateTime?      @updatedAt
-  updated_by         Int?
-  payment_line       payment_line[]
-  order_header       order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
-  payment_method     payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
-  user               User?          @relation("PaymentTransactionUser", fields: [user_id], references: [id])
-  updated_by_user    User?          @relation("PaymentTransactionUpdatedBy", fields: [updated_by], references: [id])
+  transaction_id        Int            @id @default(autoincrement())
+  transaction_date      DateTime       @db.Timestamp(6)
+  customer_id           Int
+  order_id              Int?
+  route_sheet_detail_id Int?
+  document_number       String         @db.VarChar(20)
+  receipt_number        String?        @db.VarChar(20)
+  transaction_type      String         @db.VarChar(10)
+  previous_balance      Decimal        @db.Decimal(10, 2)
+  transaction_amount    Decimal        @db.Decimal(10, 2)
+  total                 Decimal        @db.Decimal(10, 2)
+  amount_received       Decimal?       @db.Decimal(10, 2)
+  change_amount         Decimal?       @db.Decimal(10, 2)
+  idempotency_key       String?        @unique @db.VarChar(80)
+  idempotency_hash      String?        @db.VarChar(64)
+  payment_method_id     Int            @default(1) @db.SmallInt
+  notes                 String?
+  user_id               Int?
+  is_active             Boolean        @default(true)
+  updated_at            DateTime?      @updatedAt
+  updated_by            Int?
+  payment_line          payment_line[]
+  payment_proof         payment_proof[]
+  order_header          order_header?  @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_order")
+  route_sheet_detail    route_sheet_detail? @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id], onDelete: NoAction, onUpdate: NoAction)
+  payment_method        payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
+  user                  User?          @relation("PaymentTransactionUser", fields: [user_id], references: [id])
+  updated_by_user       User?          @relation("PaymentTransactionUpdatedBy", fields: [updated_by], references: [id])
 }
 
 model payment_audit {
@@ -657,6 +664,27 @@ model payment_line {
   notes               String?
   product             product?            @relation(fields: [product_id], references: [product_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_line_product")
   payment_transaction payment_transaction @relation(fields: [transaction_id], references: [transaction_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_line_transaction")
+}
+
+/// Comprobante que el chofer adjunta a una parada (foto de transferencia, etc.).
+/// Una foto por si sola no acredita el pago: es evidencia de la parada.
+model payment_proof {
+  proof_id               Int                   @id @default(autoincrement())
+  route_sheet_detail_id  Int
+  payment_transaction_id Int?
+  kind                   String                @db.VarChar(30)
+  file_name              String                @db.VarChar(255)
+  mime_type              String                @db.VarChar(100)
+  size_bytes             Int
+  notes                  String?
+  uploaded_by            Int?
+  created_at             DateTime              @default(now())
+  is_active              Boolean               @default(true)
+  route_sheet_detail     route_sheet_detail    @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id], onDelete: NoAction, onUpdate: NoAction)
+  payment_transaction    payment_transaction?  @relation(fields: [payment_transaction_id], references: [transaction_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([route_sheet_detail_id])
+  @@index([payment_transaction_id])
 }
 
 model payment_installment {
@@ -785,6 +813,8 @@ model route_sheet_detail {
   delivery_evidence          delivery_evidence[]
   delivery_incident          delivery_incident[]
   inventory_transaction      inventory_transaction[]
+  payment_transaction        payment_transaction[]
+  payment_proof              payment_proof[]
   order_header               order_header?            @relation(fields: [order_id], references: [order_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_order")
   one_off_purchase           one_off_purchase?        @relation(fields: [one_off_purchase_id], references: [purchase_id], onDelete: NoAction, onUpdate: NoAction)
   one_off_purchase_header    one_off_purchase_header? @relation(fields: [one_off_purchase_header_id], references: [purchase_header_id], onDelete: NoAction, onUpdate: NoAction)

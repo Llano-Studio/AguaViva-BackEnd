@@ -115,6 +115,20 @@ export const fileUploadConfigs = {
       fileSize: 20 * 1024 * 1024, // 20MB para contratos
     },
   },
+
+  /**
+   * Configuración para comprobantes de pago en ruta (imágenes y PDFs)
+   */
+  paymentProofs: {
+    storage: diskStorage({
+      destination: './public/uploads/payment-proofs',
+      filename: editFileName,
+    }),
+    fileFilter: contractFileFilter,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB para comprobantes
+    },
+  },
 };
 
 export const buildImageUrl = (
@@ -125,7 +139,8 @@ export const buildImageUrl = (
     | 'evidence'
     | 'delivery-evidence'
     | 'reconciliations'
-    | 'contracts',
+    | 'contracts'
+    | 'payment-proofs',
 ): string | null => {
   if (!fileName) {
     return null;

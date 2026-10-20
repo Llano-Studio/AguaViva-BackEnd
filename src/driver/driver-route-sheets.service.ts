@@ -304,6 +304,30 @@ interface PricedStopItem {
   price_list_id: number | null;
 }
 
+/**
+ * Hash estable del estado mutable de la parada. Sirve para que el front
+ * detecte que trabajó con datos obsoletos y para validar la versión que envían
+ * las operaciones del chofer (agregar ítems, cobrar).
+ */
+export function buildDeliveryVersion(detail: {
+  route_sheet_detail_id: number;
+  delivery_status: string;
+  comments: string | null;
+  actual_arrival_time: Date | null;
+  order_header: { status: string; paid_amount: Prisma.Decimal } | null;
+}): string {
+  const order = detail.order_header;
+  const payload = [
+    detail.route_sheet_detail_id,
+    detail.delivery_status,
+    detail.comments ?? '',
+    detail.actual_arrival_time?.toISOString() ?? '',
+    order?.status ?? '',
+    order?.paid_amount?.toString() ?? '',
+  ].join('|');
+  return createHash('sha1').update(payload).digest('hex').slice(0, 16);
+}
+
 @Injectable()
 export class DriverRouteSheetsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -557,16 +581,7 @@ export class DriverRouteSheetsService {
     actual_arrival_time: Date | null;
     order_header: { status: string; paid_amount: Prisma.Decimal } | null;
   }): string {
-    const order = detail.order_header;
-    const payload = [
-      detail.route_sheet_detail_id,
-      detail.delivery_status,
-      detail.comments ?? '',
-      detail.actual_arrival_time?.toISOString() ?? '',
-      order?.status ?? '',
-      order?.paid_amount?.toString() ?? '',
-    ].join('|');
-    return createHash('sha1').update(payload).digest('hex').slice(0, 16);
+    return buildDeliveryVersion(detail);
   }
 
   async start(
