@@ -39,6 +39,7 @@ import {
   RouteSheetPdfData } from '../common/services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
+import { RouteOptimizationService } from '../common/services/route-optimization.service';
 import {
   formatBATimestampISO,
   formatBAYMD,
@@ -143,6 +144,7 @@ export class RouteSheetService extends PrismaBackedService {
     private readonly ordersService: OrdersService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
     private readonly cyclePaymentsService: CyclePaymentsService,
+    private readonly routeOptimizationService: RouteOptimizationService,
   ) {
     super(prisma);
   }
@@ -919,12 +921,66 @@ export class RouteSheetService extends PrismaBackedService {
                           include: {
                             person: true } } } } } } } } } });
       });
+      await this.assignDeliverySequence(result);
       return await this.mapToRouteSheetResponseDto(result, selectedZoneIds);
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
         'Error no manejado después de handlePrismaError',
+      );
+    }
+  }
+
+  /**
+   * Calcula el orden de las paradas con el motor de ruteo configurado y lo
+   * persiste en la hoja recién creada.
+   *
+   * Un fallo de optimización no debe abortar la creación de la hoja: la hoja
+   * queda creada y conserva el orden de carga de sus detalles. La secuencia
+   * calculada también se refleja en memoria para que la respuesta la devuelva
+   * en el orden optimizado.
+   */
+  private async assignDeliverySequence(
+    routeSheet: RouteSheetWithDetails,
+  ): Promise<void> {
+    try {
+      const optimization = await this.routeOptimizationService.optimizeRoute({
+        route_sheet_id: routeSheet.route_sheet_id,
+      });
+
+      const sequenceByDetailId = new Map<number, number>();
+      for (const waypoint of optimization.waypoints) {
+        if (
+          waypoint.route_sheet_detail_id !== undefined &&
+          waypoint.sequence_number !== undefined
+        ) {
+          sequenceByDetailId.set(
+            waypoint.route_sheet_detail_id,
+            waypoint.sequence_number,
+          );
+        }
+      }
+
+      for (const detail of routeSheet.route_sheet_detail) {
+        const sequence = sequenceByDetailId.get(detail.route_sheet_detail_id);
+        if (sequence !== undefined) {
+          detail.sequence_number = sequence;
+        }
+      }
+
+      const source = optimization.is_simulated
+        ? `${optimization.provider} (distancias estimadas)`
+        : optimization.provider;
+
+      this.logger.log(
+        `Hoja ${routeSheet.route_sheet_id}: secuencia calculada con "${source}". Paradas: ${optimization.waypoints.length}.`,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(
+        `No se pudo calcular la secuencia de la hoja ${routeSheet.route_sheet_id}: ${message}`,
       );
     }
   }
