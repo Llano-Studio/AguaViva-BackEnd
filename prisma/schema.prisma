@@ -39,6 +39,10 @@ model User {
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
   comodato_changes     comodato_change[]
+  driver_account_movements         driver_account_movement[] @relation("DriverAccountDriver")
+  driver_account_movements_created driver_account_movement[] @relation("DriverAccountMovementCreatedBy")
+  reconciliations                  route_reconciliation[]   @relation("ReconciliationDriver")
+  reconciliations_received         route_reconciliation[]   @relation("ReconciliationReceivedBy")
 }
 
 model RefreshToken {
@@ -785,6 +789,7 @@ model route_sheet {
   route_sheet_pause                    route_sheet_pause[]
   vehicle_route_inventory              vehicle_route_inventory[]
   cancellation_order cancellation_order[]
+  route_reconciliation route_reconciliation?
 
   @@index([driver_id, delivery_date])
 }
@@ -909,6 +914,54 @@ model delivery_stats {
   route_sheet            route_sheet? @relation(fields: [route_sheet_id], references: [route_sheet_id])
   vehicle                vehicle?     @relation(fields: [vehicle_id], references: [vehicle_id])
   zone                   zone?        @relation(fields: [zone_id], references: [zone_id])
+}
+
+/// Snapshot auditable de la rendicion de una hoja de ruta. Una hoja se rinde
+/// una sola vez; el registro queda congelado para reconstruir el cierre.
+model route_reconciliation {
+  reconciliation_id       Int                     @id @default(autoincrement())
+  route_sheet_id          Int                     @unique
+  driver_id               Int
+  status                  String                  @db.VarChar(20)
+  cash_to_render          Decimal                 @db.Decimal(10, 2)
+  electronic_total        Decimal                 @db.Decimal(10, 2)
+  total_collected         Decimal                 @db.Decimal(10, 2)
+  collections_by_method   Json
+  product_summary         Json
+  differences             Json?
+  version                 String                  @db.VarChar(64)
+  signature_path          String?
+  idempotency_key         String?                 @unique @db.VarChar(80)
+  notes                   String?
+  confirmed_at            DateTime                @default(now())
+  received_at             DateTime?
+  received_by             Int?
+  created_at              DateTime                @default(now())
+  driver                  User                    @relation("ReconciliationDriver", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  received_by_user        User?                   @relation("ReconciliationReceivedBy", fields: [received_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  route_sheet             route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction)
+  driver_account_movement driver_account_movement[]
+}
+
+/// Movimientos inmutables de la cuenta del chofer. El saldo se reconstruye
+/// sumando los movimientos; no se guarda un saldo editable.
+model driver_account_movement {
+  movement_id       Int                  @id @default(autoincrement())
+  driver_id         Int
+  movement_type     String               @db.VarChar(30)
+  amount            Decimal              @db.Decimal(10, 2)
+  route_sheet_id    Int?
+  reconciliation_id Int?
+  reference         String?              @db.VarChar(80)
+  origin_key        String?              @unique
+  notes             String?
+  created_by        Int?
+  created_at        DateTime             @default(now())
+  driver            User                 @relation("DriverAccountDriver", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  created_by_user   User?                @relation("DriverAccountMovementCreatedBy", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reconciliation    route_reconciliation? @relation(fields: [reconciliation_id], references: [reconciliation_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([driver_id, created_at])
 }
 
 enum Role {

@@ -19,6 +19,7 @@ import { OrdersModule } from './orders/orders.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
 import { DriverModule } from './driver/driver.module';
+import { RouteReconciliationModule } from './route-reconciliation/route-reconciliation.module';
 import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
 import { CustomerSubscriptionModule } from './customer-subscription/customer-subscription.module';
 import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
@@ -56,6 +57,7 @@ import { PrismaModule } from './prisma/prisma.module';
     InventoryModule,
     RouteSheetModule,
     DriverModule,
+    RouteReconciliationModule,
     SubscriptionPlansModule,
     CustomerSubscriptionModule,
     CyclePaymentsModule,
