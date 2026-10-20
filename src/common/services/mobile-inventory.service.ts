@@ -133,7 +133,12 @@ export class MobileInventoryService extends PrismaBackedService {
   }
 
   /**
-   * Registra una transacción de inventario (entrega o devolución)
+   * Registra una transacción de inventario (carga, entrega o devolución).
+   *
+   * El descuento de stock se hace con una actualización condicional dentro de la
+   * transacción, para que dos solicitudes simultáneas nunca dejen el inventario
+   * en negativo. Las entregas llevan una clave de origen única: si el dispositivo
+   * reintenta una entrega ya registrada, el segundo intento no vuelve a descontar.
    */
   async registerInventoryTransaction(
     transactionDto: InventoryTransactionDto,
@@ -145,124 +150,43 @@ export class MobileInventoryService extends PrismaBackedService {
       quantity,
       transaction_type } = transactionDto;
 
+    const amount = Math.abs(quantity);
+    const originKey =
+      transaction_type === 'DELIVERY' && detail_id
+        ? `DELIVERY:${detail_id}:${product_id}`
+        : null;
+
     try {
-      // 1. Verificar que el inventario existe para esta hoja de ruta
-      const routeInventory = await this.vehicle_route_inventory.findFirst({
-        where: {
-          route_sheet_id,
-          product_id } });
-
-      if (!routeInventory) {
-        throw new NotFoundException(
-          `No se encontró inventario para el producto ${product_id} en la hoja de ruta ${route_sheet_id}`,
-        );
-      }
-
-      // 2. Validar la transacción según su tipo
-      if (
-        transaction_type === 'DELIVERY' &&
-        routeInventory.current_quantity < Math.abs(quantity)
-      ) {
-        throw new BadRequestException(
-          `No hay suficiente inventario para entregar ${Math.abs(quantity)} unidades`,
-        );
-      }
-
-      // 3. Actualizar el inventario en una transacción
       await this.$transaction(async (tx) => {
-        // Actualizar el inventario del vehículo
-        const updateData: Prisma.vehicle_route_inventoryUpdateInput = {};
+        await this.applyInventoryMovement(
+          tx,
+          { route_sheet_id, product_id, amount, transaction_type },
+        );
 
-        if (transaction_type === 'DELIVERY') {
-          // Para entregas, reducimos el inventario actual
-          updateData.current_quantity =
-            routeInventory.current_quantity - Math.abs(quantity);
-        } else if (transaction_type === 'RETURN') {
-          // Para devoluciones, incrementamos el contador de devoluciones
-          updateData.returned_quantity =
-            routeInventory.returned_quantity + Math.abs(quantity);
-        } else if (transaction_type === 'LOAD') {
-          // Para cargas adicionales, incrementamos el inventario actual
-          updateData.current_quantity =
-            routeInventory.current_quantity + Math.abs(quantity);
-        }
-
-        await tx.vehicle_route_inventory.update({
-          where: {
-            inventory_id: routeInventory.inventory_id },
-          data: updateData });
-
-        // Registrar la transacción
         await tx.inventory_transaction.create({
           data: {
             route_sheet_id,
             detail_id,
             product_id,
-            quantity:
-              transaction_type === 'DELIVERY'
-                ? -Math.abs(quantity)
-                : Math.abs(quantity),
-            transaction_type } });
+            quantity: transaction_type === 'DELIVERY' ? -amount : amount,
+            transaction_type,
+            origin_key: originKey } });
 
-        // Si es una entrega y hay un detalle asociado, actualizar las cantidades entregadas
         if (transaction_type === 'DELIVERY' && detail_id) {
-          const detail = await tx.route_sheet_detail.findUnique({
-            where: { route_sheet_detail_id: detail_id },
-            include: {
-              order_header: {
-                include: {
-                  order_item: {
-                    where: { product_id } } } },
-              one_off_purchase: true,
-              one_off_purchase_header: {
-                include: {
-                  purchase_items: {
-                    where: { product_id } } } } } });
-
-          if (detail) {
-            if (
-              detail.order_header &&
-              detail.order_header.order_item.length > 0
-            ) {
-              const orderItem = detail.order_header.order_item[0];
-
-              await tx.order_item.update({
-                where: { order_item_id: orderItem.order_item_id },
-                data: {
-                  delivered_quantity:
-                    (orderItem.delivered_quantity || 0) + Math.abs(quantity) } });
-            } else if (
-              detail.one_off_purchase &&
-              detail.one_off_purchase.product_id === product_id
-            ) {
-              await tx.one_off_purchase.update({
-                where: { purchase_id: detail.one_off_purchase.purchase_id },
-                data: {
-                  delivered_quantity:
-                    (detail.one_off_purchase.delivered_quantity || 0) +
-                    Math.abs(quantity) } });
-            } else if (
-              detail.one_off_purchase_header &&
-              detail.one_off_purchase_header.purchase_items.length > 0
-            ) {
-              const purchaseItem =
-                detail.one_off_purchase_header.purchase_items[0];
-
-              // Los purchase_items no tienen delivered_quantity, se maneja a nivel de header
-              // await tx.one_off_purchase_item.update({
-              //   where: { purchase_item_id: purchaseItem.purchase_item_id },
-              //   data: {
-              //      delivered_quantity: (purchaseItem.delivered_quantity || 0) + Math.abs(quantity)
-              //   }
-              // });
-            }
-          }
+          await this.applyDeliveredQuantity(tx, detail_id, product_id, amount);
         }
       });
 
-      // 4. Obtener y devolver el inventario actualizado
       return this.getRouteInventory(route_sheet_id);
     } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        // El movimiento ya estaba registrado: se devuelve el estado actual sin
+        // volver a descontar.
+        return this.getRouteInventory(route_sheet_id);
+      }
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
@@ -274,6 +198,100 @@ export class MobileInventoryService extends PrismaBackedService {
         'Error al registrar transacción de inventario',
       );
     }
+  }
+
+  /** Aplica el efecto de la transacción sobre el stock cargado en el camión. */
+  private async applyInventoryMovement(
+    tx: Prisma.TransactionClient,
+    movement: {
+      route_sheet_id: number;
+      product_id: number;
+      amount: number;
+      transaction_type: 'LOAD' | 'DELIVERY' | 'RETURN';
+    },
+  ): Promise<void> {
+    const { route_sheet_id, product_id, amount, transaction_type } = movement;
+
+    if (transaction_type === 'DELIVERY') {
+      // El filtro `current_quantity >= amount` hace que el descuento sea
+      // atómico: si no alcanza, no se actualiza ninguna fila.
+      const updated = await tx.vehicle_route_inventory.updateMany({
+        where: {
+          route_sheet_id,
+          product_id,
+          current_quantity: { gte: amount } },
+        data: { current_quantity: { decrement: amount } } });
+
+      if (updated.count === 0) {
+        await this.assertInventoryExists(tx, route_sheet_id, product_id);
+        throw new BadRequestException(
+          `No hay suficiente inventario para entregar ${amount} unidades`,
+        );
+      }
+      return;
+    }
+
+    const updated = await tx.vehicle_route_inventory.updateMany({
+      where: { route_sheet_id, product_id },
+      data:
+        transaction_type === 'RETURN'
+          ? { returned_quantity: { increment: amount } }
+          : { current_quantity: { increment: amount } } });
+
+    if (updated.count === 0) {
+      await this.assertInventoryExists(tx, route_sheet_id, product_id);
+    }
+  }
+
+  private async assertInventoryExists(
+    tx: Prisma.TransactionClient,
+    routeSheetId: number,
+    productId: number,
+  ): Promise<void> {
+    const inventory = await tx.vehicle_route_inventory.findFirst({
+      where: { route_sheet_id: routeSheetId, product_id: productId },
+      select: { inventory_id: true } });
+    if (!inventory) {
+      throw new NotFoundException(
+        `No se encontró inventario para el producto ${productId} en la hoja de ruta ${routeSheetId}`,
+      );
+    }
+  }
+
+  /** Refleja la entrega en las cantidades entregadas del pedido o compra puntual. */
+  private async applyDeliveredQuantity(
+    tx: Prisma.TransactionClient,
+    detailId: number,
+    productId: number,
+    amount: number,
+  ): Promise<void> {
+    const detail = await tx.route_sheet_detail.findUnique({
+      where: { route_sheet_detail_id: detailId },
+      include: {
+        order_header: {
+          include: { order_item: { where: { product_id: productId } } } },
+        one_off_purchase: true } });
+
+    if (!detail) return;
+
+    const orderItem = detail.order_header?.order_item[0];
+    if (orderItem) {
+      await tx.order_item.update({
+        where: { order_item_id: orderItem.order_item_id },
+        data: {
+          delivered_quantity:
+            (orderItem.delivered_quantity || 0) + amount } });
+      return;
+    }
+
+    const purchase = detail.one_off_purchase;
+    if (purchase && purchase.product_id === productId) {
+      await tx.one_off_purchase.update({
+        where: { purchase_id: purchase.purchase_id },
+        data: {
+          delivered_quantity: (purchase.delivered_quantity || 0) + amount } });
+    }
+    // Las compras puntuales con encabezado no tienen delivered_quantity por línea.
   }
 
   /**

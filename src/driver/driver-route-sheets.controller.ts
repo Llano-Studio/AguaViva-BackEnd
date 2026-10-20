@@ -23,6 +23,7 @@ import { DriverRouteSheetsService } from './driver-route-sheets.service';
 import {
   DriverDeliveryDetailDto,
   DriverRouteSheetDetailDto,
+  DriverRouteSheetInventoryDto,
   DriverRouteSheetSummaryDto,
   FilterDriverRouteSheetsDto,
   PauseRouteSheetDto,
@@ -63,6 +64,22 @@ export class DriverRouteSheetsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<DriverRouteSheetDetailDto> {
     return this.driverRouteSheetsService.findOneForDriver(user.id, id);
+  }
+
+  @Get(':id/inventory')
+  @ApiOperation({
+    summary: 'Inventario del camión para la hoja de ruta',
+    description:
+      'Devuelve lo cargado, lo que queda en el camión y lo todavía ofrecible: lo que hay menos lo comprometido con las paradas sin resolver. Solo para la hoja del chofer.',
+  })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({ status: 200, type: DriverRouteSheetInventoryDto })
+  @ApiResponse({ status: 404, description: 'No existe o no es del chofer' })
+  getInventory(
+    @GetUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<DriverRouteSheetInventoryDto> {
+    return this.driverRouteSheetsService.getInventoryForDriver(user.id, id);
   }
 
   @Get(':id/deliveries/:detailId')

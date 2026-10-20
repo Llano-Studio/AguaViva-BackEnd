@@ -22,6 +22,8 @@ import {
   parseUTCYMD,
 } from '../common/utils/date.utils';
 import {
+  AddDeliveryItemDto,
+  AddDeliveryItemsDto,
   DriverDeliveryAction,
   DriverDeliveryCustomerDto,
   DriverDeliveryDetailCustomerDto,
@@ -29,8 +31,10 @@ import {
   DriverDeliveryItemDto,
   DriverDeliveryOrderDto,
   DriverDeliveryPaymentDto,
+  DriverInventoryItemDto,
   DriverRouteSheetDeliveryDto,
   DriverRouteSheetDetailDto,
+  DriverRouteSheetInventoryDto,
   DriverRouteSheetPauseDto,
   DriverRouteSheetSummaryDto,
   DriverStopType,
@@ -292,6 +296,14 @@ export function resolveStop(detail: DetailItemRow): StopInfo {
   };
 }
 
+/** Producto a agregar a una parada, ya con el precio resuelto por el servidor. */
+interface PricedStopItem {
+  product_id: number;
+  quantity: number;
+  unit_price: Prisma.Decimal;
+  price_list_id: number | null;
+}
+
 @Injectable()
 export class DriverRouteSheetsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -538,7 +550,13 @@ export class DriverRouteSheetsService {
    * Hash estable del estado mutable de la parada. Sirve para que el front
    * detecte que trabajó con datos obsoletos.
    */
-  private buildVersion(detail: DeliveryDetailRow): string {
+  private buildVersion(detail: {
+    route_sheet_detail_id: number;
+    delivery_status: string;
+    comments: string | null;
+    actual_arrival_time: Date | null;
+    order_header: { status: string; paid_amount: Prisma.Decimal } | null;
+  }): string {
     const order = detail.order_header;
     const payload = [
       detail.route_sheet_detail_id,
@@ -620,6 +638,503 @@ export class DriverRouteSheetsService {
       }),
     );
     return this.findOneForDriver(driverId, routeSheetId);
+  }
+
+  /**
+   * Inventario del camión para la hoja del chofer. Expone lo cargado, lo que
+   * queda y lo todavía ofrecible: lo que hay menos lo comprometido con las
+   * paradas sin resolver.
+   */
+  async getInventoryForDriver(
+    driverId: number,
+    routeSheetId: number,
+  ): Promise<DriverRouteSheetInventoryDto> {
+    const sheet = await this.prisma.route_sheet.findFirst({
+      where: { route_sheet_id: routeSheetId, driver_id: driverId, is_active: true },
+      select: { route_sheet_id: true },
+    });
+    if (!sheet) {
+      throw new NotFoundException(`Hoja de ruta ${routeSheetId} no encontrada`);
+    }
+
+    const [inventory, committed] = await Promise.all([
+      this.prisma.vehicle_route_inventory.findMany({
+        where: { route_sheet_id: routeSheetId },
+        include: {
+          product: { select: { product_id: true, description: true } },
+        },
+        orderBy: { product_id: 'asc' },
+      }),
+      this.committedQuantitiesByProduct(routeSheetId),
+    ]);
+
+    const items: DriverInventoryItemDto[] = inventory.map((item) => {
+      const required = committed.get(item.product_id) ?? 0;
+      return {
+        product_id: item.product.product_id,
+        description: item.product.description,
+        initial_quantity: item.initial_quantity,
+        current_quantity: item.current_quantity,
+        returned_quantity: item.returned_quantity,
+        available_quantity: Math.max(item.current_quantity - required, 0),
+      };
+    });
+
+    return new DriverRouteSheetInventoryDto({
+      route_sheet_id: routeSheetId,
+      items,
+    });
+  }
+
+  /**
+   * Expande la parada actual con productos que el cliente pide en el momento.
+   *
+   * El chofer sólo indica producto y cantidad: el precio sale del catálogo del
+   * servidor y la disponibilidad del inventario del camión. Se rechaza modificar
+   * una parada resuelta, una hoja fuera de curso o un pedido ya cobrado, para no
+   * cambiar un importe que el cliente aceptó.
+   */
+  async addItemsToDelivery(
+    driverId: number,
+    detailId: number,
+    dto: AddDeliveryItemsDto,
+  ): Promise<DriverDeliveryDetailDto> {
+    const detail = await this.prisma.route_sheet_detail.findUnique({
+      where: { route_sheet_detail_id: detailId },
+      include: {
+        route_sheet: {
+          select: {
+            route_sheet_id: true,
+            driver_id: true,
+            is_active: true,
+            execution_status: true,
+          },
+        },
+        order_header: {
+          select: {
+            order_id: true,
+            status: true,
+            paid_amount: true,
+            contract_id: true,
+          },
+        },
+        one_off_purchase: {
+          select: {
+            purchase_id: true,
+            product_id: true,
+            quantity: true,
+            paid_amount: true,
+            price_list_id: true,
+          },
+        },
+        one_off_purchase_header: {
+          select: {
+            purchase_header_id: true,
+            paid_amount: true,
+            price_list_id: true,
+          },
+        },
+      },
+    });
+
+    const sheet = detail?.route_sheet;
+    if (!detail || !sheet || !sheet.is_active || sheet.driver_id !== driverId) {
+      throw new NotFoundException(`Parada ${detailId} no encontrada`);
+    }
+    if (sheet.execution_status !== RouteSheetExecutionStatus.IN_PROGRESS) {
+      throw new ConflictException('La hoja de ruta no está en curso');
+    }
+    if (RESOLVED_DELIVERY_STATUSES.has(detail.delivery_status)) {
+      throw new ConflictException('La parada ya está resuelta');
+    }
+
+    const siblings = await this.prisma.route_sheet_detail.findMany({
+      where: { route_sheet_id: sheet.route_sheet_id },
+      select: { route_sheet_detail_id: true, delivery_status: true },
+      orderBy: DELIVERY_SEQUENCE_ORDER_BY,
+    });
+    if (!isCurrentDelivery(siblings, detailId, sheet.execution_status)) {
+      throw new ConflictException(
+        'Solo se pueden agregar productos a la parada actual',
+      );
+    }
+
+    if (dto.version && dto.version !== this.buildVersion(detail)) {
+      throw new ConflictException(
+        'La parada cambió desde la última consulta. Actualizá e intentá de nuevo.',
+      );
+    }
+
+    const order = detail.order_header;
+    const oneOff = detail.one_off_purchase;
+    const oneOffHeader = detail.one_off_purchase_header;
+    if (!order && !oneOff && !oneOffHeader) {
+      throw new ConflictException('Esta parada no admite agregar productos');
+    }
+    const paidAmount = order
+      ? Number(order.paid_amount)
+      : Number((oneOffHeader ?? oneOff)?.paid_amount ?? 0);
+    if (paidAmount > 0) {
+      throw new ConflictException(
+        'La parada ya tiene pagos aplicados; no se puede cambiar el importe acordado',
+      );
+    }
+
+    const requested = this.normalizeItems(dto.items);
+    const priceListId = await this.resolvePriceListId(detail);
+    const priced = await this.priceItems(requested, priceListId);
+
+    await this.prisma.$transaction(async (tx) => {
+      // La disponibilidad se valida dentro de la transacción para que el chequeo
+      // y la escritura no queden separados por una ventana de carrera.
+      await this.assertStopAvailability(sheet.route_sheet_id, priced, tx);
+      if (order) {
+        await this.applyOrderItems(tx, order.order_id, priced);
+      } else if (oneOff) {
+        await this.applyOneOffPurchase(tx, oneOff, priced);
+      } else if (oneOffHeader) {
+        await this.applyOneOffPurchaseHeader(
+          tx,
+          oneOffHeader.purchase_header_id,
+          priced,
+        );
+      }
+    });
+
+    return this.findDeliveryForDriver(driverId, sheet.route_sheet_id, detailId);
+  }
+
+  /**
+   * Suma, por producto, las unidades ya comprometidas con las paradas sin
+   * resolver de la hoja: pedidos, compras puntuales y compras puntuales con
+   * varias líneas. Las cobranzas y cancelaciones no comprometen stock.
+   */
+  private async committedQuantitiesByProduct(
+    routeSheetId: number,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<Map<number, number>> {
+    const details = await db.route_sheet_detail.findMany({
+      where: {
+        route_sheet_id: routeSheetId,
+        delivery_status: { notIn: [...RESOLVED_DELIVERY_STATUSES] },
+      },
+      select: {
+        order_header: {
+          select: {
+            order_item: {
+              select: {
+                product_id: true,
+                quantity: true,
+                delivered_quantity: true,
+              },
+            },
+          },
+        },
+        one_off_purchase: {
+          select: {
+            product_id: true,
+            quantity: true,
+            delivered_quantity: true,
+          },
+        },
+        one_off_purchase_header: {
+          select: {
+            purchase_items: { select: { product_id: true, quantity: true } },
+          },
+        },
+      },
+    });
+
+    const committed = new Map<number, number>();
+    const add = (productId: number, quantity: number) => {
+      if (quantity <= 0) return;
+      committed.set(productId, (committed.get(productId) ?? 0) + quantity);
+    };
+
+    for (const detail of details) {
+      for (const item of detail.order_header?.order_item ?? []) {
+        add(item.product_id, item.quantity - (item.delivered_quantity ?? 0));
+      }
+      const purchase = detail.one_off_purchase;
+      if (purchase) {
+        add(
+          purchase.product_id,
+          purchase.quantity - (purchase.delivered_quantity ?? 0),
+        );
+      }
+      for (const item of detail.one_off_purchase_header?.purchase_items ?? []) {
+        add(item.product_id, item.quantity);
+      }
+    }
+    return committed;
+  }
+
+  /** Une líneas repetidas del mismo producto y devuelve un orden estable. */
+  private normalizeItems(items: AddDeliveryItemDto[]): AddDeliveryItemDto[] {
+    const merged = new Map<number, number>();
+    for (const item of items) {
+      merged.set(
+        item.product_id,
+        (merged.get(item.product_id) ?? 0) + item.quantity,
+      );
+    }
+    return [...merged.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([product_id, quantity]) => ({ product_id, quantity }));
+  }
+
+  /** Lista de precios aplicable: la del contrato del pedido o la de la venta puntual. */
+  private async resolvePriceListId(detail: {
+    order_header: { contract_id: number | null } | null;
+    one_off_purchase: { price_list_id: number | null } | null;
+    one_off_purchase_header: { price_list_id: number | null } | null;
+  }): Promise<number | null> {
+    const contractId = detail.order_header?.contract_id;
+    if (contractId) {
+      const contract = await this.prisma.client_contract.findUnique({
+        where: { contract_id: contractId },
+        select: { price_list_id: true },
+      });
+      if (contract) return contract.price_list_id;
+    }
+    return (
+      detail.one_off_purchase_header?.price_list_id ??
+      detail.one_off_purchase?.price_list_id ??
+      null
+    );
+  }
+
+  /**
+   * Resuelve el precio de cada producto en el servidor. El cliente nunca envía
+   * precios: la lista de precios manda y, si no tiene el producto, se usa el
+   * precio de catálogo del producto.
+   */
+  private async priceItems(
+    requested: AddDeliveryItemDto[],
+    priceListId: number | null,
+  ): Promise<PricedStopItem[]> {
+    const productIds = requested.map((item) => item.product_id);
+    const products = await this.prisma.product.findMany({
+      where: { product_id: { in: productIds }, is_active: true },
+      select: { product_id: true, price: true },
+    });
+    if (products.length !== productIds.length) {
+      throw new BadRequestException(
+        'Alguno de los productos no existe o está inactivo',
+      );
+    }
+    const catalogPrice = new Map(
+      products.map((product) => [product.product_id, product.price]),
+    );
+
+    const listPrices = priceListId
+      ? await this.prisma.price_list_item.findMany({
+          where: { price_list_id: priceListId, product_id: { in: productIds } },
+          select: { product_id: true, unit_price: true },
+        })
+      : [];
+    const listPrice = new Map(
+      listPrices.map((item) => [item.product_id, item.unit_price]),
+    );
+
+    return requested.map((item) => {
+      const fromList = listPrice.get(item.product_id);
+      const unit_price = fromList ?? catalogPrice.get(item.product_id);
+      if (!unit_price) {
+        throw new BadRequestException(
+          `No se pudo determinar el precio del producto ${item.product_id}`,
+        );
+      }
+      return {
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price,
+        price_list_id: fromList ? priceListId : null,
+      };
+    });
+  }
+
+  /**
+   * Verifica que el camión pueda cubrir lo pedido sin descubrir las paradas
+   * pendientes: disponible = lo que hay en el camión menos lo ya comprometido.
+   */
+  private async assertStopAvailability(
+    routeSheetId: number,
+    priced: PricedStopItem[],
+    db: Prisma.TransactionClient,
+  ): Promise<void> {
+    const [inventory, committed] = await Promise.all([
+      db.vehicle_route_inventory.findMany({
+        where: { route_sheet_id: routeSheetId },
+        select: { product_id: true, current_quantity: true },
+      }),
+      this.committedQuantitiesByProduct(routeSheetId, db),
+    ]);
+    const stock = new Map(
+      inventory.map((item) => [item.product_id, item.current_quantity]),
+    );
+
+    for (const item of priced) {
+      if (!stock.has(item.product_id)) {
+        throw new ConflictException(
+          `El producto ${item.product_id} no está cargado en el camión`,
+        );
+      }
+      const available =
+        (stock.get(item.product_id) ?? 0) -
+        (committed.get(item.product_id) ?? 0);
+      if (item.quantity > available) {
+        throw new ConflictException(
+          `Stock insuficiente del producto ${item.product_id}: disponible ${Math.max(available, 0)}, pedido ${item.quantity}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Suma las líneas nuevas al pedido y recalcula el total. Si el producto ya
+   * estaba en el pedido se amplía esa línea con el precio del catálogo actual.
+   */
+  private async applyOrderItems(
+    tx: Prisma.TransactionClient,
+    orderId: number,
+    priced: PricedStopItem[],
+  ): Promise<void> {
+    for (const item of priced) {
+      const existing = await tx.order_item.findFirst({
+        where: { order_id: orderId, product_id: item.product_id },
+        select: { order_item_id: true, quantity: true },
+      });
+      if (existing) {
+        const quantity = existing.quantity + item.quantity;
+        await tx.order_item.update({
+          where: { order_item_id: existing.order_item_id },
+          data: {
+            quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price.mul(quantity),
+            price_list_id: item.price_list_id,
+          },
+        });
+      } else {
+        await tx.order_item.create({
+          data: {
+            order_id: orderId,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price.mul(item.quantity),
+            price_list_id: item.price_list_id,
+          },
+        });
+      }
+    }
+    await this.recalculateOrderTotal(tx, orderId);
+  }
+
+  private async recalculateOrderTotal(
+    tx: Prisma.TransactionClient,
+    orderId: number,
+  ): Promise<void> {
+    const items = await tx.order_item.findMany({
+      where: { order_id: orderId },
+      select: { subtotal: true },
+    });
+    const total = items.reduce(
+      (acc, item) => acc.add(item.subtotal),
+      new Prisma.Decimal(0),
+    );
+    await tx.order_header.update({
+      where: { order_id: orderId },
+      data: { total_amount: total },
+    });
+  }
+
+  /**
+   * Amplía una compra puntual de una sola línea. Solo admite el producto ya
+   * cargado: el modelo no representa varios productos en esta tabla.
+   */
+  private async applyOneOffPurchase(
+    tx: Prisma.TransactionClient,
+    oneOff: {
+      purchase_id: number;
+      product_id: number;
+      quantity: number;
+      price_list_id: number | null;
+    },
+    priced: PricedStopItem[],
+  ): Promise<void> {
+    const item = priced[0];
+    if (priced.length !== 1 || item.product_id !== oneOff.product_id) {
+      throw new ConflictException(
+        'Esta compra puntual solo admite ampliar el producto que ya tiene cargado',
+      );
+    }
+    const quantity = oneOff.quantity + item.quantity;
+    await tx.one_off_purchase.update({
+      where: { purchase_id: oneOff.purchase_id },
+      data: {
+        quantity,
+        total_amount: item.unit_price.mul(quantity),
+        price_list_id: item.price_list_id ?? oneOff.price_list_id,
+      },
+    });
+  }
+
+  /**
+   * Suma líneas a una compra puntual con encabezado, creándolas si el producto
+   * todavía no estaba, y recalcula el total del encabezado.
+   */
+  private async applyOneOffPurchaseHeader(
+    tx: Prisma.TransactionClient,
+    purchaseHeaderId: number,
+    priced: PricedStopItem[],
+  ): Promise<void> {
+    for (const item of priced) {
+      const existing = await tx.one_off_purchase_item.findFirst({
+        where: {
+          purchase_header_id: purchaseHeaderId,
+          product_id: item.product_id,
+        },
+        select: { purchase_item_id: true, quantity: true },
+      });
+      if (existing) {
+        const quantity = existing.quantity + item.quantity;
+        await tx.one_off_purchase_item.update({
+          where: { purchase_item_id: existing.purchase_item_id },
+          data: {
+            quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price.mul(quantity),
+            price_list_id: item.price_list_id,
+          },
+        });
+      } else {
+        await tx.one_off_purchase_item.create({
+          data: {
+            purchase_header_id: purchaseHeaderId,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.unit_price.mul(item.quantity),
+            price_list_id: item.price_list_id,
+          },
+        });
+      }
+    }
+
+    const items = await tx.one_off_purchase_item.findMany({
+      where: { purchase_header_id: purchaseHeaderId },
+      select: { subtotal: true },
+    });
+    const total = items.reduce(
+      (acc, item) => acc.add(item.subtotal),
+      new Prisma.Decimal(0),
+    );
+    await tx.one_off_purchase_header.update({
+      where: { purchase_header_id: purchaseHeaderId },
+      data: { total_amount: total },
+    });
   }
 
   private async findOwnedOrThrow(driverId: number, routeSheetId: number) {

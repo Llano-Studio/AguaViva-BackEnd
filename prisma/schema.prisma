@@ -822,6 +822,7 @@ model inventory_transaction {
   product_id       Int
   quantity         Int
   transaction_type String
+  origin_key       String?             @unique
   created_at       DateTime            @default(now())
   detail           route_sheet_detail? @relation(fields: [detail_id], references: [route_sheet_detail_id])
   product          product             @relation(fields: [product_id], references: [product_id])

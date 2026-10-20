@@ -593,3 +593,285 @@ describe('DriverRouteSheetsService', () => {
     });
   });
 });
+
+describe('DriverRouteSheetsService - inventario y extras de la parada', () => {
+  let prisma: any;
+  let tx: any;
+  let service: DriverRouteSheetsService;
+
+  const ORDER_DETAIL_ID = 2;
+  const PRODUCT_ID = 4;
+
+  function deliveryRow(id = ORDER_DETAIL_ID, status = 'PENDING') {
+    return {
+      route_sheet_detail_id: id,
+      route_sheet_id: 1,
+      delivery_status: status,
+      comments: null,
+      actual_arrival_time: null,
+      order_header: {
+        order_id: 20,
+        order_type: 'CONTRACT_DELIVERY',
+        status: 'READY_FOR_DELIVERY',
+        payment_status: 'PENDING',
+        order_date: new Date('2026-10-12T11:00:00.000Z'),
+        total_amount: new Prisma.Decimal(750),
+        paid_amount: new Prisma.Decimal(0),
+        notes: null,
+        customer: {
+          person_id: 200,
+          name: 'Cliente 2',
+          alias: null,
+          address: 'Calle 123',
+          phone: '3624000000',
+          tax_id: null,
+          notes: null,
+        },
+        order_item: [],
+      },
+      one_off_purchase: null,
+      one_off_purchase_header: null,
+      cancellation_order: null,
+      cycle_payment: null,
+    };
+  }
+
+  function editableDetail(overrides: Record<string, unknown> = {}) {
+    return {
+      route_sheet_detail_id: ORDER_DETAIL_ID,
+      delivery_status: 'PENDING',
+      comments: null,
+      actual_arrival_time: null,
+      route_sheet: {
+        route_sheet_id: 1,
+        driver_id: DRIVER_ID,
+        is_active: true,
+        execution_status: RouteSheetExecutionStatus.IN_PROGRESS,
+      },
+      order_header: {
+        order_id: 20,
+        status: 'READY_FOR_DELIVERY',
+        paid_amount: new Prisma.Decimal(0),
+        contract_id: 5,
+      },
+      one_off_purchase: null,
+      one_off_purchase_header: null,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    tx = {
+      vehicle_route_inventory: { findMany: jest.fn() },
+      route_sheet_detail: { findMany: jest.fn().mockResolvedValue([]) },
+      order_item: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      order_header: { update: jest.fn().mockResolvedValue({}) },
+    };
+    prisma = {
+      route_sheet: { findFirst: jest.fn() },
+      route_sheet_detail: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+      },
+      client_contract: { findUnique: jest.fn() },
+      product: { findMany: jest.fn() },
+      price_list_item: { findMany: jest.fn() },
+      payment_transaction: { findMany: jest.fn().mockResolvedValue([]) },
+      vehicle_route_inventory: { findMany: jest.fn() },
+      $transaction: jest.fn((fn: (client: any) => Promise<unknown>) => fn(tx)),
+    };
+    service = new DriverRouteSheetsService(prisma);
+  });
+
+  /** Deja lista la parada actual con stock y precios cargados. */
+  function mockEditableStop(
+    opts: {
+      currentQuantity?: number;
+      listPrice?: Prisma.Decimal | null;
+      paidAmount?: Prisma.Decimal;
+      siblings?: unknown[];
+      detail?: unknown;
+    } = {},
+  ) {
+    const currentQuantity = opts.currentQuantity ?? 14;
+    prisma.route_sheet_detail.findUnique.mockResolvedValue(
+      opts.detail ??
+        editableDetail({
+          order_header: {
+            order_id: 20,
+            status: 'READY_FOR_DELIVERY',
+            paid_amount: opts.paidAmount ?? new Prisma.Decimal(0),
+            contract_id: 5,
+          },
+        }),
+    );
+    prisma.route_sheet_detail.findMany.mockResolvedValue(
+      opts.siblings ?? [
+        { route_sheet_detail_id: 1, delivery_status: 'DELIVERED' },
+        { route_sheet_detail_id: ORDER_DETAIL_ID, delivery_status: 'PENDING' },
+      ],
+    );
+    prisma.route_sheet_detail.findFirst.mockResolvedValue(deliveryRow());
+    prisma.route_sheet.findFirst.mockResolvedValue({
+      route_sheet_id: 1,
+      execution_status: RouteSheetExecutionStatus.IN_PROGRESS,
+    });
+    prisma.client_contract.findUnique.mockResolvedValue({ price_list_id: 9 });
+    prisma.product.findMany.mockResolvedValue([
+      { product_id: PRODUCT_ID, price: new Prisma.Decimal(900) },
+    ]);
+    prisma.price_list_item.findMany.mockResolvedValue(
+      opts.listPrice === null
+        ? []
+        : [{ product_id: PRODUCT_ID, unit_price: opts.listPrice ?? new Prisma.Decimal(750) }],
+    );
+    tx.vehicle_route_inventory.findMany.mockResolvedValue([
+      { product_id: PRODUCT_ID, current_quantity: currentQuantity },
+    ]);
+  }
+
+  const addTwoBottles = () =>
+    service.addItemsToDelivery(DRIVER_ID, ORDER_DETAIL_ID, {
+      items: [{ product_id: PRODUCT_ID, quantity: 2 }],
+    });
+
+  describe('getInventoryForDriver', () => {
+    it('calcula lo ofrecible como lo cargado menos lo comprometido con lo pendiente', async () => {
+      prisma.route_sheet.findFirst.mockResolvedValue({ route_sheet_id: 1 });
+      prisma.vehicle_route_inventory.findMany.mockResolvedValue([
+        {
+          product_id: PRODUCT_ID,
+          initial_quantity: 20,
+          current_quantity: 14,
+          returned_quantity: 1,
+          product: { product_id: PRODUCT_ID, description: 'Bidón 20L' },
+        },
+      ]);
+      prisma.route_sheet_detail.findMany.mockResolvedValue([
+        {
+          order_header: {
+            order_item: [
+              { product_id: PRODUCT_ID, quantity: 8, delivered_quantity: 3 },
+            ],
+          },
+          one_off_purchase: null,
+          one_off_purchase_header: null,
+        },
+      ]);
+
+      const result = await service.getInventoryForDriver(DRIVER_ID, 1);
+
+      expect(result.route_sheet_id).toBe(1);
+      expect(result.items[0]).toMatchObject({
+        product_id: PRODUCT_ID,
+        description: 'Bidón 20L',
+        current_quantity: 14,
+        available_quantity: 9,
+      });
+    });
+
+    it('devuelve 404 si la hoja no es del chofer', async () => {
+      prisma.route_sheet.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.getInventoryForDriver(DRIVER_ID, 99),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('addItemsToDelivery', () => {
+    it('usa el precio del servidor y recalcula el total del pedido', async () => {
+      mockEditableStop();
+      tx.order_item.findMany.mockResolvedValue([
+        { subtotal: new Prisma.Decimal(750) },
+      ]);
+
+      const result = await addTwoBottles();
+
+      expect(prisma.route_sheet_detail.findUnique).toHaveBeenCalled();
+      expect(tx.order_item.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          order_id: 20,
+          product_id: PRODUCT_ID,
+          quantity: 2,
+          unit_price: new Prisma.Decimal(750),
+          price_list_id: 9,
+        }),
+      });
+      expect(tx.order_header.update).toHaveBeenCalledWith({
+        where: { order_id: 20 },
+        data: { total_amount: new Prisma.Decimal(750) },
+      });
+      expect(result.route_sheet_detail_id).toBe(ORDER_DETAIL_ID);
+    });
+
+    it('cae al precio de catálogo si la lista de precios no tiene el producto', async () => {
+      mockEditableStop({ listPrice: null });
+
+      await addTwoBottles();
+
+      expect(tx.order_item.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          unit_price: new Prisma.Decimal(900),
+          price_list_id: null,
+        }),
+      });
+    });
+
+    it('rechaza la operación si el camión no tiene stock suficiente', async () => {
+      mockEditableStop({ currentQuantity: 1 });
+
+      await expect(addTwoBottles()).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.order_item.create).not.toHaveBeenCalled();
+      expect(tx.order_header.update).not.toHaveBeenCalled();
+    });
+
+    it('rechaza la operación si la parada no es la actual', async () => {
+      mockEditableStop({
+        siblings: [
+          { route_sheet_detail_id: 1, delivery_status: 'PENDING' },
+          { route_sheet_detail_id: ORDER_DETAIL_ID, delivery_status: 'PENDING' },
+        ],
+      });
+
+      await expect(addTwoBottles()).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.order_item.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza la operación si la parada ya tiene pagos aplicados', async () => {
+      mockEditableStop({ paidAmount: new Prisma.Decimal(500) });
+
+      await expect(addTwoBottles()).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.product.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rechaza la operación si la hoja no está en curso', async () => {
+      mockEditableStop({
+        detail: editableDetail({
+          route_sheet: {
+            route_sheet_id: 1,
+            driver_id: DRIVER_ID,
+            is_active: true,
+            execution_status: RouteSheetExecutionStatus.PAUSED,
+          },
+        }),
+      });
+
+      await expect(addTwoBottles()).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rechaza un producto que no está cargado en el camión', async () => {
+      mockEditableStop();
+      tx.vehicle_route_inventory.findMany.mockResolvedValue([]);
+
+      await expect(addTwoBottles()).rejects.toBeInstanceOf(ConflictException);
+      expect(tx.order_item.create).not.toHaveBeenCalled();
+    });
+  });
+});
