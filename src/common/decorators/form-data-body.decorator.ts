@@ -41,7 +41,10 @@ export const FormDataBody = createParamDecorator(
           'total_stock',
           'productImage',
         ];
-      } else if (dtoName.includes('User') || dtoName.includes('Register')) {
+      } else if (dtoName.includes('User')) {
+        // RegisterUserDto / CreateUserDto / UpdateUserDto. No matchear por
+        // "Register": RegisterPaymentProofBodyDto tambien lo contiene y sus
+        // campos (kind, notes, payment_transaction_id) quedarian filtrados.
         allowedFields = [
           'email',
           'password',
