@@ -7,6 +7,16 @@ import { SubscriptionCycleRenewalService } from './subscription-cycle-renewal.se
 
 describe('SubscriptionCycleRenewalService', () => {
   const buildService = () => {
+    const prisma = {
+      $connect: jest.fn(),
+      subscription_cycle: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+      },
+      subscription_cycle_detail: {
+        create: jest.fn(),
+      },
+    } as any;
     const cycleNumberingService = {
       createCycleWithNumber: jest.fn(),
     } as any;
@@ -15,20 +25,14 @@ describe('SubscriptionCycleRenewalService', () => {
     } as any;
 
     const service = new SubscriptionCycleRenewalService(
+      prisma,
       cycleNumberingService,
       cycleCalculatorService,
     ) as any;
 
     service.checkAndApplyLateFees = jest.fn();
-    service.subscription_cycle = {
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-    };
-    service.subscription_cycle_detail = {
-      create: jest.fn(),
-    };
 
-    return { service, cycleNumberingService, cycleCalculatorService };
+    return { service, prisma, cycleNumberingService, cycleCalculatorService };
   };
 
   it('consulta ciclos vencidos con distinct y no duplica creación por suscripción', async () => {
