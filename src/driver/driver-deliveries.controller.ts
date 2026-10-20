@@ -28,6 +28,7 @@ import {
   DriverDeliverySignatureResultDto,
   DriverDeliverySummaryDto,
   RegisterDeliverySignatureDto,
+  SkipDeliveryDto,
 } from './dto';
 
 @ApiTags('🚚 Chofer - Entregas')
@@ -107,6 +108,29 @@ export class DriverDeliveriesController {
     @Body() dto: ConfirmDeliveryDto,
   ): Promise<DriverDeliveryConfirmationResultDto> {
     return this.driverDeliveriesService.confirmDelivery(user.id, detailId, dto);
+  }
+
+  @Post(':detailId/skip')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Saltar la parada actual con motivo',
+    description:
+      'Marca la parada como no entregada registrando el motivo obligatorio y deja un incidente auditable, para que el cierre pueda explicar cada pendiente. No reprograma ni deriva: eso queda en manos del administrador. Un reintento sobre una parada ya saltada no vuelve a escribir.',
+  })
+  @ApiParam({ name: 'detailId', type: Number })
+  @ApiResponse({ status: 200, type: DriverDeliveryDetailDto })
+  @ApiResponse({ status: 404, description: 'No existe o no es del chofer' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Parada resuelta, hoja fuera de curso o resumen desactualizado',
+  })
+  skipDelivery(
+    @GetUser() user: User,
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body() dto: SkipDeliveryDto,
+  ): Promise<DriverDeliveryDetailDto> {
+    return this.driverDeliveriesService.skipDelivery(user.id, detailId, dto);
   }
 
   @Post(':detailId/items')

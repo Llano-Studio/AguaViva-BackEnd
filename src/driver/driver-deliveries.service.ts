@@ -26,6 +26,7 @@ import {
   DriverDeliveredItemDto,
   DriverDeliveryConfirmationResultDto,
   DriverDeliveryDetailCustomerDto,
+  DriverDeliveryDetailDto,
   DriverDeliveryPaymentDto,
   DriverDeliverySignatureResultDto,
   DriverDeliverySummaryDto,
@@ -33,6 +34,7 @@ import {
   DriverDeliverySummaryTotalsDto,
   DriverStopType,
   RegisterDeliverySignatureDto,
+  SkipDeliveryDto,
 } from './dto';
 
 /** Tipo de evidencia que cuenta como firma del receptor. */
@@ -355,6 +357,68 @@ export class DriverDeliveriesService {
       missingReason,
       detail.order_header ? OrderStatus.DELIVERED : null,
       !applied,
+    );
+  }
+
+  /**
+   * Salta la parada actual con un motivo obligatorio. Registra el motivo en el
+   * detalle y deja un incidente auditable para que el cierre pueda explicar cada
+   * pendiente. Reprogramar o derivar al admin queda fuera de esta operación del
+   * chofer. Un reintento sobre una parada ya saltada no vuelve a escribir.
+   */
+  async skipDelivery(
+    driverId: number,
+    detailId: number,
+    dto: SkipDeliveryDto,
+  ): Promise<DriverDeliveryDetailDto> {
+    const detail = await this.loadStop(driverId, detailId);
+    const routeSheetId = detail.route_sheet.route_sheet_id;
+
+    if (detail.delivery_status === String(DeliveryStatus.SKIPPED)) {
+      return this.routeSheetsService.findDeliveryForDriver(
+        driverId,
+        routeSheetId,
+        detailId,
+      );
+    }
+
+    await this.assertOperable(detail);
+    if (dto.version && dto.version !== this.version(detail)) {
+      throw new ConflictException(
+        'La parada cambió desde la última consulta. Actualizá e intentá de nuevo.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const flipped = await tx.route_sheet_detail.updateMany({
+        where: {
+          route_sheet_detail_id: detailId,
+          delivery_status: { notIn: [...RESOLVED_DELIVERY_STATUSES] },
+        },
+        data: {
+          delivery_status: DeliveryStatus.SKIPPED,
+          rejection_reason: dto.reason,
+          comments: dto.notes?.trim() || detail.comments,
+          delivery_time: detail.delivery_time ?? this.nowHHMM(),
+        },
+      });
+      if (flipped.count !== 1) return;
+
+      await tx.delivery_incident.create({
+        data: {
+          route_sheet_detail_id: detailId,
+          incident_type: 'DELIVERY_SKIPPED',
+          description: dto.notes?.trim() || dto.reason,
+          created_by: driverId,
+          status: 'OPEN',
+        },
+      });
+    });
+
+    return this.routeSheetsService.findDeliveryForDriver(
+      driverId,
+      routeSheetId,
+      detailId,
     );
   }
 

@@ -5,3 +5,4 @@ export * from './driver-delivery-detail.dto';
 export * from './driver-inventory.dto';
 export * from './driver-payment.dto';
 export * from './driver-delivery-confirmation.dto';
+export * from './driver-skip.dto';

@@ -5,13 +5,9 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException } from '@nestjs/common';
-import {
-  Prisma,
-  RouteSheetExecutionStatus,
-  Role,
-  User,
-} from '@prisma/client';
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, RouteSheetExecutionStatus, Role, User } from '@prisma/client';
 import {
   CreateRouteSheetDto,
   UpdateRouteSheetDto,
@@ -28,7 +24,12 @@ import {
   ReconcileRouteSheetDto,
   RecordPaymentDto,
   SkipDeliveryDto,
-  UpdateDeliveryTimeDto } from './dto';
+  UpdateDeliveryTimeDto,
+  AddRouteSheetDetailsDto,
+  RescheduleDeliveryDto,
+  ForwardDeliveryToAdminDto,
+  DeliveryResolutionResultDto,
+} from './dto';
 import * as fs from 'fs-extra';
 import { join } from 'path';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -36,14 +37,16 @@ import { parseSortByString } from '../common/utils/query-parser.utils';
 import { handlePrismaError } from '../common/utils/prisma-error-handler.utils';
 import {
   PdfGeneratorService,
-  RouteSheetPdfData } from '../common/services/pdf-generator.service';
+  RouteSheetPdfData,
+} from '../common/services/pdf-generator.service';
 import { RouteSheetGeneratorService } from '../common/services/route-sheet-generator.service';
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import { RouteOptimizationService } from '../common/services/route-optimization.service';
 import {
   formatBATimestampISO,
   formatBAYMD,
-  parseBAYMD } from '../common/utils/date.utils';
+  parseBAYMD,
+} from '../common/utils/date.utils';
 import { DeliveryStatus, PaymentMethod } from '../common/constants/enums';
 import { OrdersService } from '../orders/orders.service';
 import { CyclePaymentsService } from '../cycle-payments/cycle-payments.service';
@@ -53,7 +56,6 @@ import {
   DELIVERY_SEQUENCE_ORDER_BY,
   isCurrentDelivery,
 } from './delivery-locks';
-
 
 type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   include: {
@@ -135,6 +137,62 @@ type RouteSheetWithDetails = Prisma.route_sheetGetPayload<{
   };
 }>;
 
+/** Referencia de una parada: exactamente uno de estos campos está presente. */
+type DetailReference = {
+  order_id?: number | null;
+  one_off_purchase_id?: number | null;
+  one_off_purchase_header_id?: number | null;
+  cycle_payment_id?: number | null;
+};
+
+/** Campos que referencian la entidad de una parada. */
+const DETAIL_REFERENCE_FIELDS = [
+  'order_id',
+  'one_off_purchase_id',
+  'one_off_purchase_header_id',
+  'cycle_payment_id',
+] as const;
+
+/** Clave estable de una parada para detectar duplicados dentro de una hoja. */
+function detailRefKey(ref: DetailReference): string {
+  if (typeof ref.order_id === 'number') return `ORDER:${ref.order_id}`;
+  if (typeof ref.one_off_purchase_id === 'number')
+    return `ONE_OFF:${ref.one_off_purchase_id}`;
+  if (typeof ref.one_off_purchase_header_id === 'number')
+    return `ONE_OFF_HEADER:${ref.one_off_purchase_header_id}`;
+  if (typeof ref.cycle_payment_id === 'number')
+    return `CYCLE_PAYMENT:${ref.cycle_payment_id}`;
+  return 'UNKNOWN';
+}
+
+/** Filtro Prisma que identifica una parada por su referencia. */
+function detailRefWhere(
+  ref: DetailReference,
+): Prisma.route_sheet_detailWhereInput {
+  if (typeof ref.order_id === 'number') return { order_id: ref.order_id };
+  if (typeof ref.one_off_purchase_id === 'number')
+    return { one_off_purchase_id: ref.one_off_purchase_id };
+  if (typeof ref.one_off_purchase_header_id === 'number')
+    return { one_off_purchase_header_id: ref.one_off_purchase_header_id };
+  if (typeof ref.cycle_payment_id === 'number')
+    return { cycle_payment_id: ref.cycle_payment_id };
+  throw new BadRequestException(
+    `La parada debe indicar una referencia (${DETAIL_REFERENCE_FIELDS.join(', ')})`,
+  );
+}
+
+/** Exige que la parada referencie exactamente una entidad. */
+function assertSingleReference(ref: DetailReference): void {
+  const present = DETAIL_REFERENCE_FIELDS.filter(
+    (field) => typeof ref[field] === 'number',
+  );
+  if (present.length !== 1) {
+    throw new BadRequestException(
+      `Cada parada debe indicar exactamente una referencia (${DETAIL_REFERENCE_FIELDS.join(', ')})`,
+    );
+  }
+}
+
 @Injectable()
 export class RouteSheetService extends PrismaBackedService {
   constructor(
@@ -185,7 +243,8 @@ export class RouteSheetService extends PrismaBackedService {
       3: PaymentMethod.TARJETA_DEBITO,
       4: PaymentMethod.TARJETA_CREDITO,
       5: PaymentMethod.CHEQUE,
-      6: PaymentMethod.MOBILE_PAYMENT };
+      6: PaymentMethod.MOBILE_PAYMENT,
+    };
     return mapById[paymentMethodId] ?? PaymentMethod.EFECTIVO;
   }
 
@@ -225,7 +284,8 @@ export class RouteSheetService extends PrismaBackedService {
 
     const cycles = await this.subscription_cycle.findMany({
       where: { cycle_id: { in: cycleIds } },
-      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }] });
+      orderBy: [{ payment_due_date: 'asc' }, { cycle_number: 'asc' }],
+    });
     if (cycles.length === 0) return;
 
     let remaining = Number(amount);
@@ -251,7 +311,8 @@ export class RouteSheetService extends PrismaBackedService {
           payment_method: this.mapPaymentMethodId(paymentMethodId),
           payment_date: paymentDate,
           reference,
-          notes: combinedNotes },
+          notes: combinedNotes,
+        },
         userId,
       );
 
@@ -304,7 +365,8 @@ export class RouteSheetService extends PrismaBackedService {
       'image/jpg': 'jpg',
       'image/png': 'png',
       'image/svg+xml': 'svg',
-      'application/pdf': 'pdf' };
+      'application/pdf': 'pdf',
+    };
     return mimeMap[mimeType] || 'bin';
   }
 
@@ -316,7 +378,8 @@ export class RouteSheetService extends PrismaBackedService {
 
     try {
       const driver = await this.user.findUnique({
-        where: { id: driver_id } });
+        where: { id: driver_id },
+      });
       if (!driver) {
         throw new BadRequestException(
           `El conductor con ID ${driver_id} no existe`,
@@ -324,7 +387,8 @@ export class RouteSheetService extends PrismaBackedService {
       }
 
       const vehicle = await this.vehicle.findUnique({
-        where: { vehicle_id } });
+        where: { vehicle_id },
+      });
       if (!vehicle) {
         throw new BadRequestException(
           `El vehículo con ID ${vehicle_id} no existe`,
@@ -352,7 +416,8 @@ export class RouteSheetService extends PrismaBackedService {
       // Validar órdenes regulares (SUBSCRIPTION, HYBRID, CONTRACT_DELIVERY)
       if (regularOrderIds.length > 0) {
         const orders = await this.order_header.findMany({
-          where: { order_id: { in: regularOrderIds } } });
+          where: { order_id: { in: regularOrderIds } },
+        });
         if (orders.length !== regularOrderIds.length) {
           const foundOrderIds = orders.map((order) => order.order_id);
           const missingOrderIds = regularOrderIds.filter(
@@ -379,7 +444,8 @@ export class RouteSheetService extends PrismaBackedService {
       // Validar órdenes ONE_OFF que usan order_id con order_type
       if (oneOffOrderIds.length > 0) {
         const oneOffPurchases = await this.one_off_purchase.findMany({
-          where: { purchase_id: { in: oneOffOrderIds } } });
+          where: { purchase_id: { in: oneOffOrderIds } },
+        });
         if (oneOffPurchases.length !== oneOffOrderIds.length) {
           const foundIds = oneOffPurchases.map(
             (purchase) => purchase.purchase_id,
@@ -396,7 +462,8 @@ export class RouteSheetService extends PrismaBackedService {
       // Validar órdenes one-off legacy (usando one_off_purchase_id directamente)
       if (oneOffPurchaseIds.length > 0) {
         const oneOffPurchases = await this.one_off_purchase.findMany({
-          where: { purchase_id: { in: oneOffPurchaseIds } } });
+          where: { purchase_id: { in: oneOffPurchaseIds } },
+        });
         if (oneOffPurchases.length !== oneOffPurchaseIds.length) {
           const foundIds = oneOffPurchases.map(
             (purchase) => purchase.purchase_id,
@@ -414,7 +481,8 @@ export class RouteSheetService extends PrismaBackedService {
       if (oneOffPurchaseHeaderIds.length > 0) {
         const oneOffPurchaseHeaders =
           await this.one_off_purchase_header.findMany({
-            where: { purchase_header_id: { in: oneOffPurchaseHeaderIds } } });
+            where: { purchase_header_id: { in: oneOffPurchaseHeaderIds } },
+          });
         if (oneOffPurchaseHeaders.length !== oneOffPurchaseHeaderIds.length) {
           const foundIds = oneOffPurchaseHeaders.map(
             (header) => header.purchase_header_id,
@@ -431,7 +499,8 @@ export class RouteSheetService extends PrismaBackedService {
       // Validar pedidos de cobranza
       if (cyclePaymentIds.length > 0) {
         const cyclePayments = await this.cycle_payment.findMany({
-          where: { payment_id: { in: cyclePaymentIds } } });
+          where: { payment_id: { in: cyclePaymentIds } },
+        });
         if (cyclePayments.length !== cyclePaymentIds.length) {
           const foundIds = cyclePayments.map((payment) => payment.payment_id);
           const missingIds = cyclePaymentIds.filter(
@@ -467,9 +536,14 @@ export class RouteSheetService extends PrismaBackedService {
                 /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
                   ? parseBAYMD(delivery_date.trim())
                   : new Date(delivery_date),
-              is_active: true } } },
+              is_active: true,
+            },
+          },
+        },
         include: {
-          route_sheet: true } });
+          route_sheet: true,
+        },
+      });
 
       if (existingAssignments.length > 0) {
         const assignedOrders = existingAssignments.map((assignment) => {
@@ -523,7 +597,8 @@ export class RouteSheetService extends PrismaBackedService {
           cycle_payment_id: detail.cycle_payment_id,
           delivery_status: detail.delivery_status || DeliveryStatus.PENDING,
           delivery_time: detail.delivery_time || null,
-          comments: detail.comments });
+          comments: detail.comments,
+        });
       }
 
       if (validationErrors.length > 0) {
@@ -535,7 +610,8 @@ export class RouteSheetService extends PrismaBackedService {
       // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
       const activeVehicleZones = await this.vehicle_zone.findMany({
         where: { vehicle_id, is_active: true },
-        select: { zone_id: true } });
+        select: { zone_id: true },
+      });
       const assignedZoneIds = new Set<number>(
         activeVehicleZones.map((z) => z.zone_id),
       );
@@ -571,18 +647,22 @@ export class RouteSheetService extends PrismaBackedService {
         regularOrderIds.length > 0
           ? this.order_header.findMany({
               where: { order_id: { in: regularOrderIds } },
-              select: { order_id: true, zone_id: true } })
+              select: { order_id: true, zone_id: true },
+            })
           : Promise.resolve([]),
         allOneOffIds.length > 0
           ? this.one_off_purchase.findMany({
               where: { purchase_id: { in: allOneOffIds } },
-              select: { purchase_id: true, zone_id: true } })
+              select: { purchase_id: true, zone_id: true },
+            })
           : Promise.resolve([]),
         oneOffPurchaseHeaderIds.length > 0
           ? this.one_off_purchase_header.findMany({
               where: {
-                purchase_header_id: { in: oneOffPurchaseHeaderIds } },
-              select: { purchase_header_id: true, zone_id: true } })
+                purchase_header_id: { in: oneOffPurchaseHeaderIds },
+              },
+              select: { purchase_header_id: true, zone_id: true },
+            })
           : Promise.resolve([]),
         cyclePaymentIds.length > 0
           ? this.cycle_payment.findMany({
@@ -591,7 +671,12 @@ export class RouteSheetService extends PrismaBackedService {
                 subscription_cycle: {
                   include: {
                     customer_subscription: {
-                      include: { person: true } } } } } })
+                      include: { person: true },
+                    },
+                  },
+                },
+              },
+            })
           : Promise.resolve([]),
       ]);
 
@@ -663,7 +748,8 @@ export class RouteSheetService extends PrismaBackedService {
               /^\d{4}-\d{2}-\d{2}$/.test(delivery_date.trim())
                 ? parseBAYMD(delivery_date.trim())
                 : new Date(delivery_date),
-            route_notes },
+            route_notes,
+          },
           include: {
             driver: true,
             vehicle: {
@@ -677,7 +763,17 @@ export class RouteSheetService extends PrismaBackedService {
                           include: {
                             province: {
                               include: {
-                                country: true } } } } } } } } } },
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -687,32 +783,59 @@ export class RouteSheetService extends PrismaBackedService {
                       include: {
                         subscription_cycle: {
                           orderBy: { cycle_number: 'desc' },
-                          take: 1 } } },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 one_off_purchase: {
                   include: {
                     person: true,
-                    product: true } },
+                    product: true,
+                  },
+                },
                 one_off_purchase_header: {
                   include: {
                     person: true,
                     purchase_items: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 cancellation_order: {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true } } } },
+                        person: true,
+                      },
+                    },
+                  },
+                },
                 cycle_payment: {
                   include: {
                     subscription_cycle: {
                       include: {
                         customer_subscription: {
                           include: {
-                            person: true } } } } } } } } } });
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
 
         // Crear los detalles de la hoja de ruta con MERGE de cobranzas:
         // 1) Crear detalles de pedidos (order_id) y mapear persona -> detalle
@@ -735,7 +858,8 @@ export class RouteSheetService extends PrismaBackedService {
         const ordersWithCustomer = orderIds.length
           ? await tx.order_header.findMany({
               where: { order_id: { in: orderIds } },
-              include: { customer: true } })
+              include: { customer: true },
+            })
           : [];
         const orderIdToPersonId = new Map<number, number>();
         for (const o of ordersWithCustomer) {
@@ -750,7 +874,9 @@ export class RouteSheetService extends PrismaBackedService {
               order_id: detail.order_id,
               delivery_status: detail.delivery_status,
               delivery_time: detail.delivery_time || undefined,
-              comments: detail.comments } });
+              comments: detail.comments,
+            },
+          });
           const personId = orderIdToPersonId.get(detail.order_id);
           if (personId) {
             personToDetailId.set(personId, created.route_sheet_detail_id);
@@ -767,7 +893,9 @@ export class RouteSheetService extends PrismaBackedService {
                 detail.one_off_purchase_header_id || undefined,
               delivery_status: detail.delivery_status,
               delivery_time: detail.delivery_time || undefined,
-              comments: detail.comments } });
+              comments: detail.comments,
+            },
+          });
         }
 
         // Pre-cargar personas de cobranzas
@@ -779,7 +907,10 @@ export class RouteSheetService extends PrismaBackedService {
               where: { payment_id: { in: cyclePaymentIds } },
               include: {
                 subscription_cycle: {
-                  include: { customer_subscription: true } } } })
+                  include: { customer_subscription: true },
+                },
+              },
+            })
           : [];
         const cyclePaymentIdToPersonId = new Map<number, number>();
         for (const cp of cyclePayments) {
@@ -800,12 +931,15 @@ export class RouteSheetService extends PrismaBackedService {
           if (existingDetailId) {
             const existing = await tx.route_sheet_detail.findUnique({
               where: { route_sheet_detail_id: existingDetailId },
-              select: { cycle_payment_id: true } });
+              select: { cycle_payment_id: true },
+            });
             if (!existing?.cycle_payment_id) {
               await tx.route_sheet_detail.update({
                 where: { route_sheet_detail_id: existingDetailId },
                 data: {
-                  cycle_payment_id: detail.cycle_payment_id } });
+                  cycle_payment_id: detail.cycle_payment_id,
+                },
+              });
             } else {
               await tx.route_sheet_detail.create({
                 data: {
@@ -813,7 +947,9 @@ export class RouteSheetService extends PrismaBackedService {
                   cycle_payment_id: detail.cycle_payment_id,
                   delivery_status: detail.delivery_status,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
             }
           } else {
             await tx.route_sheet_detail.create({
@@ -822,7 +958,9 @@ export class RouteSheetService extends PrismaBackedService {
                 cycle_payment_id: detail.cycle_payment_id,
                 delivery_status: detail.delivery_status,
                 delivery_time: detail.delivery_time || undefined,
-                comments: detail.comments } });
+                comments: detail.comments,
+              },
+            });
           }
         }
 
@@ -835,9 +973,12 @@ export class RouteSheetService extends PrismaBackedService {
           await tx.order_header.updateMany({
             where: {
               order_id: { in: orderIdsToUpdate },
-              status: 'PENDING' },
+              status: 'PENDING',
+            },
             data: {
-              status: 'READY_FOR_DELIVERY' } });
+              status: 'READY_FOR_DELIVERY',
+            },
+          });
         }
 
         // 🆕 CORRECCIÓN: Cambiar estado de compras one-off (LEGACY) a READY_FOR_DELIVERY al asignar a hoja de ruta
@@ -849,9 +990,12 @@ export class RouteSheetService extends PrismaBackedService {
           await tx.one_off_purchase.updateMany({
             where: {
               purchase_id: { in: oneOffIdsToUpdate },
-              status: 'PENDING' },
+              status: 'PENDING',
+            },
             data: {
-              status: 'READY_FOR_DELIVERY' } });
+              status: 'READY_FOR_DELIVERY',
+            },
+          });
         }
 
         // 🆕 CORRECCIÓN: Cambiar estado de compras one-off con header a READY_FOR_DELIVERY al asignar a hoja de ruta
@@ -863,9 +1007,12 @@ export class RouteSheetService extends PrismaBackedService {
           await tx.one_off_purchase_header.updateMany({
             where: {
               purchase_header_id: { in: oneOffHeaderIdsToUpdate },
-              status: 'PENDING' },
+              status: 'PENDING',
+            },
             data: {
-              status: 'READY_FOR_DELIVERY' } });
+              status: 'READY_FOR_DELIVERY',
+            },
+          });
         }
 
         // Obtener la hoja de ruta completa con los detalles
@@ -884,7 +1031,17 @@ export class RouteSheetService extends PrismaBackedService {
                           include: {
                             province: {
                               include: {
-                                country: true } } } } } } } } } },
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -894,32 +1051,59 @@ export class RouteSheetService extends PrismaBackedService {
                       include: {
                         subscription_cycle: {
                           orderBy: { cycle_number: 'desc' },
-                          take: 1 } } },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 one_off_purchase: {
                   include: {
                     person: true,
-                    product: true } },
+                    product: true,
+                  },
+                },
                 one_off_purchase_header: {
                   include: {
                     person: true,
                     purchase_items: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 cancellation_order: {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true } } } },
+                        person: true,
+                      },
+                    },
+                  },
+                },
                 cycle_payment: {
                   include: {
                     subscription_cycle: {
                       include: {
                         customer_subscription: {
                           include: {
-                            person: true } } } } } } } } } });
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
       });
       await this.assignDeliverySequence(result);
       return await this.mapToRouteSheetResponseDto(result, selectedZoneIds);
@@ -1056,7 +1240,17 @@ export class RouteSheetService extends PrismaBackedService {
                         include: {
                           province: {
                             include: {
-                              country: true } } } } } } } } } },
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {
@@ -1066,35 +1260,62 @@ export class RouteSheetService extends PrismaBackedService {
                     include: {
                       subscription_cycle: {
                         orderBy: { cycle_number: 'desc' },
-                        take: 1 } } },
+                        take: 1,
+                      },
+                    },
+                  },
                   order_item: {
                     include: {
-                      product: true } } } },
+                      product: true,
+                    },
+                  },
+                },
+              },
               one_off_purchase: {
                 include: {
                   person: true,
-                  product: true } },
+                  product: true,
+                },
+              },
               one_off_purchase_header: {
                 include: {
                   person: true,
                   purchase_items: {
                     include: {
-                      product: true } } } },
+                      product: true,
+                    },
+                  },
+                },
+              },
               cancellation_order: {
                 include: {
                   customer_subscription: {
                     include: {
-                      person: true } } } },
+                      person: true,
+                    },
+                  },
+                },
+              },
               cycle_payment: {
                 include: {
                   subscription_cycle: {
                     include: {
                       customer_subscription: {
                         include: {
-                          person: true } } } } } } } } },
+                          person: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         orderBy: orderByClause,
         skip,
-        take: limit });
+        take: limit,
+      });
 
       const data = await Promise.all(
         routeSheets.map((routeSheet) =>
@@ -1108,7 +1329,9 @@ export class RouteSheetService extends PrismaBackedService {
           total: totalCount,
           page,
           limit,
-          totalPages: Math.ceil(totalCount / take) } };
+          totalPages: Math.ceil(totalCount / take),
+        },
+      };
     } catch (error) {
       handlePrismaError(error, `${this.entityName}s`);
       throw new InternalServerErrorException(
@@ -1138,7 +1361,8 @@ export class RouteSheetService extends PrismaBackedService {
     const routeSheet = await this.route_sheet.findFirst({
       where: {
         route_sheet_id: id,
-        ...(includeInactive ? {} : { is_active: true }) },
+        ...(includeInactive ? {} : { is_active: true }),
+      },
       include: {
         driver: true,
         vehicle: {
@@ -1152,7 +1376,17 @@ export class RouteSheetService extends PrismaBackedService {
                       include: {
                         province: {
                           include: {
-                            country: true } } } } } } } } } },
+                            country: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         route_sheet_detail: {
           include: {
             order_header: {
@@ -1162,32 +1396,59 @@ export class RouteSheetService extends PrismaBackedService {
                   include: {
                     subscription_cycle: {
                       orderBy: { cycle_number: 'desc' },
-                      take: 1 } } },
+                      take: 1,
+                    },
+                  },
+                },
                 order_item: {
                   include: {
-                    product: true } } } },
+                    product: true,
+                  },
+                },
+              },
+            },
             one_off_purchase: {
               include: {
                 person: true,
-                product: true } },
+                product: true,
+              },
+            },
             one_off_purchase_header: {
               include: {
                 person: true,
                 purchase_items: {
                   include: {
-                    product: true } } } },
+                    product: true,
+                  },
+                },
+              },
+            },
             cancellation_order: {
               include: {
                 customer_subscription: {
                   include: {
-                    person: true } } } },
+                    person: true,
+                  },
+                },
+              },
+            },
             cycle_payment: {
               include: {
                 subscription_cycle: {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true } } } } } } } } } });
+                        person: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
 
     if (!routeSheet) {
       throw new NotFoundException(
@@ -1208,7 +1469,8 @@ export class RouteSheetService extends PrismaBackedService {
       delivery_date,
       route_notes,
       details,
-      zone_ids } = updateRouteSheetDto;
+      zone_ids,
+    } = updateRouteSheetDto;
 
     try {
       if (driver_id) {
@@ -1222,7 +1484,8 @@ export class RouteSheetService extends PrismaBackedService {
 
       if (vehicle_id) {
         const vehicle = await this.vehicle.findUnique({
-          where: { vehicle_id } });
+          where: { vehicle_id },
+        });
         if (!vehicle) {
           throw new BadRequestException(
             `El vehículo con ID ${vehicle_id} no existe`,
@@ -1259,7 +1522,17 @@ export class RouteSheetService extends PrismaBackedService {
                           include: {
                             province: {
                               include: {
-                                country: true } } } } } } } } } },
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1269,32 +1542,59 @@ export class RouteSheetService extends PrismaBackedService {
                       include: {
                         subscription_cycle: {
                           orderBy: { cycle_number: 'desc' },
-                          take: 1 } } },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 one_off_purchase: {
                   include: {
                     person: true,
-                    product: true } },
+                    product: true,
+                  },
+                },
                 one_off_purchase_header: {
                   include: {
                     person: true,
                     purchase_items: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 cancellation_order: {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true } } } },
+                        person: true,
+                      },
+                    },
+                  },
+                },
                 cycle_payment: {
                   include: {
                     subscription_cycle: {
                       include: {
                         customer_subscription: {
                           include: {
-                            person: true } } } } } } } } } });
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
 
         // Validación de zonas contra zonas asignadas al vehículo y zone_ids opcional
         const assignedZoneIds = (
@@ -1325,14 +1625,18 @@ export class RouteSheetService extends PrismaBackedService {
                 select: {
                   order_id: true,
                   one_off_purchase_id: true,
-                  one_off_purchase_header_id: true } });
+                  one_off_purchase_header_id: true,
+                },
+              });
 
               await tx.route_sheet_detail.update({
                 where: { route_sheet_detail_id: detail.route_sheet_detail_id },
                 data: {
                   delivery_status: detail.delivery_status,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
 
               // Marcar para actualizar estado según el tipo que tenga el detalle existente
               if (existing?.order_id) orderIdsToUpdate.push(existing.order_id);
@@ -1345,7 +1649,8 @@ export class RouteSheetService extends PrismaBackedService {
             } else if (detail.order_id) {
               const order = await tx.order_header.findUnique({
                 where: { order_id: detail.order_id },
-                include: { customer: true } });
+                include: { customer: true },
+              });
               if (!order) {
                 throw new BadRequestException(
                   `El pedido con ID ${detail.order_id} no existe`,
@@ -1359,7 +1664,11 @@ export class RouteSheetService extends PrismaBackedService {
                     is: {
                       delivery_date: updatedRouteSheet.delivery_date,
                       route_sheet_id: { not: id },
-                      is_active: true } } } });
+                      is_active: true,
+                    },
+                  },
+                },
+              });
 
               if (existingAssignment) {
                 throw new BadRequestException(
@@ -1374,7 +1683,9 @@ export class RouteSheetService extends PrismaBackedService {
                   delivery_status:
                     detail.delivery_status || DeliveryStatus.PENDING,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
 
               // Capturar zone_id del pedido para validación
               const orderZoneId =
@@ -1386,7 +1697,8 @@ export class RouteSheetService extends PrismaBackedService {
             } else if (detail.one_off_purchase_id) {
               const purchase = await tx.one_off_purchase.findUnique({
                 where: { purchase_id: detail.one_off_purchase_id },
-                include: { person: true } });
+                include: { person: true },
+              });
               if (!purchase) {
                 throw new BadRequestException(
                   `La compra one-off con ID ${detail.one_off_purchase_id} no existe`,
@@ -1400,7 +1712,11 @@ export class RouteSheetService extends PrismaBackedService {
                     is: {
                       delivery_date: updatedRouteSheet.delivery_date,
                       route_sheet_id: { not: id },
-                      is_active: true } } } });
+                      is_active: true,
+                    },
+                  },
+                },
+              });
               if (existingAssignment) {
                 throw new BadRequestException(
                   `La compra one-off ${detail.one_off_purchase_id} ya está asignada a otra hoja de ruta para esa fecha`,
@@ -1414,7 +1730,9 @@ export class RouteSheetService extends PrismaBackedService {
                   delivery_status:
                     detail.delivery_status || DeliveryStatus.PENDING,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
 
               const purchaseZoneId =
                 purchase.zone_id ?? purchase.person.zone_id ?? null;
@@ -1424,8 +1742,10 @@ export class RouteSheetService extends PrismaBackedService {
             } else if (detail.one_off_purchase_header_id) {
               const header = await tx.one_off_purchase_header.findUnique({
                 where: {
-                  purchase_header_id: detail.one_off_purchase_header_id },
-                include: { person: true } });
+                  purchase_header_id: detail.one_off_purchase_header_id,
+                },
+                include: { person: true },
+              });
               if (!header) {
                 throw new BadRequestException(
                   `La compra one-off (header) con ID ${detail.one_off_purchase_header_id} no existe`,
@@ -1439,7 +1759,11 @@ export class RouteSheetService extends PrismaBackedService {
                     is: {
                       delivery_date: updatedRouteSheet.delivery_date,
                       route_sheet_id: { not: id },
-                      is_active: true } } } });
+                      is_active: true,
+                    },
+                  },
+                },
+              });
               if (existingAssignment) {
                 throw new BadRequestException(
                   `La compra one-off (header) ${detail.one_off_purchase_header_id} ya está asignada a otra hoja de ruta para esa fecha`,
@@ -1453,7 +1777,9 @@ export class RouteSheetService extends PrismaBackedService {
                   delivery_status:
                     detail.delivery_status || DeliveryStatus.PENDING,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
 
               const headerZoneId =
                 header.zone_id ?? header.person.zone_id ?? null;
@@ -1466,7 +1792,11 @@ export class RouteSheetService extends PrismaBackedService {
                 include: {
                   subscription_cycle: {
                     include: {
-                      customer_subscription: { include: { person: true } } } } } });
+                      customer_subscription: { include: { person: true } },
+                    },
+                  },
+                },
+              });
               if (!cp) {
                 throw new BadRequestException(
                   `El pago de ciclo con ID ${detail.cycle_payment_id} no existe`,
@@ -1480,7 +1810,9 @@ export class RouteSheetService extends PrismaBackedService {
                   delivery_status:
                     detail.delivery_status || DeliveryStatus.PENDING,
                   delivery_time: detail.delivery_time || undefined,
-                  comments: detail.comments } });
+                  comments: detail.comments,
+                },
+              });
 
               const cpZoneId =
                 cp.subscription_cycle.customer_subscription.person.zone_id ??
@@ -1505,21 +1837,26 @@ export class RouteSheetService extends PrismaBackedService {
           if (orderIdsToUpdate.length > 0) {
             await tx.order_header.updateMany({
               where: { order_id: { in: orderIdsToUpdate }, status: 'PENDING' },
-              data: { status: 'READY_FOR_DELIVERY' } });
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
           }
           if (oneOffIdsToUpdate.length > 0) {
             await tx.one_off_purchase.updateMany({
               where: {
                 purchase_id: { in: oneOffIdsToUpdate },
-                status: 'PENDING' },
-              data: { status: 'READY_FOR_DELIVERY' } });
+                status: 'PENDING',
+              },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
           }
           if (oneOffHeaderIdsToUpdate.length > 0) {
             await tx.one_off_purchase_header.updateMany({
               where: {
                 purchase_header_id: { in: oneOffHeaderIdsToUpdate },
-                status: 'PENDING' },
-              data: { status: 'READY_FOR_DELIVERY' } });
+                status: 'PENDING',
+              },
+              data: { status: 'READY_FOR_DELIVERY' },
+            });
           }
         }
         return await tx.route_sheet.findUniqueOrThrow({
@@ -1537,7 +1874,17 @@ export class RouteSheetService extends PrismaBackedService {
                           include: {
                             province: {
                               include: {
-                                country: true } } } } } } } } } },
+                                country: true,
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
             route_sheet_detail: {
               include: {
                 order_header: {
@@ -1547,32 +1894,59 @@ export class RouteSheetService extends PrismaBackedService {
                       include: {
                         subscription_cycle: {
                           orderBy: { cycle_number: 'desc' },
-                          take: 1 } } },
+                          take: 1,
+                        },
+                      },
+                    },
                     order_item: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 one_off_purchase: {
                   include: {
                     person: true,
-                    product: true } },
+                    product: true,
+                  },
+                },
                 one_off_purchase_header: {
                   include: {
                     person: true,
                     purchase_items: {
                       include: {
-                        product: true } } } },
+                        product: true,
+                      },
+                    },
+                  },
+                },
                 cancellation_order: {
                   include: {
                     customer_subscription: {
                       include: {
-                        person: true } } } },
+                        person: true,
+                      },
+                    },
+                  },
+                },
                 cycle_payment: {
                   include: {
                     subscription_cycle: {
                       include: {
                         customer_subscription: {
                           include: {
-                            person: true } } } } } } } } } });
+                            person: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
       });
       // Pasar zone_ids seleccionadas para que zones_covered respete el payload del PATCH
       return await this.mapToRouteSheetResponseDto(result, zone_ids);
@@ -1589,6 +1963,494 @@ export class RouteSheetService extends PrismaBackedService {
     }
   }
 
+  /**
+   * Agrega paradas a una hoja de ruta existente sin borrar ni recrear detalles.
+   *
+   * - Preserva los IDs (`route_sheet_detail_id`) ya existentes en la hoja.
+   * - Es idempotente: una parada ya presente en la hoja no se duplica.
+   * - Rechaza hojas cerradas y paradas ya asignadas a otra hoja activa de la
+   *   misma fecha de entrega.
+   */
+  async addDetailsIncremental(
+    routeSheetId: number,
+    dto: AddRouteSheetDetailsDto,
+  ): Promise<RouteSheetResponseDto> {
+    const routeSheet = await this.route_sheet.findUnique({
+      where: { route_sheet_id: routeSheetId },
+      select: {
+        route_sheet_id: true,
+        is_active: true,
+        delivery_date: true,
+        execution_status: true,
+      },
+    });
+
+    if (!routeSheet || !routeSheet.is_active) {
+      throw new NotFoundException(
+        `${this.entityName} con ID ${routeSheetId} no encontrada`,
+      );
+    }
+
+    if (routeSheet.execution_status === RouteSheetExecutionStatus.CLOSED) {
+      throw new ConflictException(
+        'No se pueden agregar paradas a una hoja de ruta cerrada',
+      );
+    }
+
+    const details = dto.details ?? [];
+    if (details.length === 0) {
+      throw new BadRequestException('Debe enviar al menos una parada');
+    }
+
+    for (const detail of details) {
+      assertSingleReference(detail);
+    }
+    await this.assertDetailReferencesExist(details);
+
+    try {
+      await this.$transaction(async (tx) => {
+        const currentDetails = await tx.route_sheet_detail.findMany({
+          where: { route_sheet_id: routeSheetId },
+          select: {
+            order_id: true,
+            one_off_purchase_id: true,
+            one_off_purchase_header_id: true,
+            cycle_payment_id: true,
+          },
+        });
+        const presentKeys = new Set(currentDetails.map((d) => detailRefKey(d)));
+
+        const maxSequence = await tx.route_sheet_detail.aggregate({
+          where: { route_sheet_id: routeSheetId },
+          _max: { sequence_number: true },
+        });
+        let nextSequence = (maxSequence._max.sequence_number ?? 0) + 1;
+
+        const orderIdsToActivate: number[] = [];
+
+        for (const detail of details) {
+          const key = detailRefKey(detail);
+          // Idempotencia: la parada ya está en esta hoja de ruta
+          if (presentKeys.has(key)) continue;
+
+          const conflictingSheetId = await this.findConflictingAssignment(
+            detail,
+            routeSheetId,
+            routeSheet.delivery_date,
+            tx,
+          );
+          if (conflictingSheetId !== null) {
+            throw new ConflictException(
+              `La parada ${key} ya está asignada a la hoja de ruta ${conflictingSheetId}`,
+            );
+          }
+
+          await tx.route_sheet_detail.create({
+            data: {
+              route_sheet_id: routeSheetId,
+              order_id: detail.order_id ?? undefined,
+              one_off_purchase_id: detail.one_off_purchase_id ?? undefined,
+              one_off_purchase_header_id:
+                detail.one_off_purchase_header_id ?? undefined,
+              cycle_payment_id: detail.cycle_payment_id ?? undefined,
+              delivery_status: detail.delivery_status ?? DeliveryStatus.PENDING,
+              delivery_time: detail.delivery_time ?? undefined,
+              comments: detail.comments,
+              sequence_number: nextSequence,
+            },
+          });
+
+          presentKeys.add(key);
+          nextSequence += 1;
+          if (typeof detail.order_id === 'number') {
+            orderIdsToActivate.push(detail.order_id);
+          }
+        }
+
+        if (orderIdsToActivate.length > 0) {
+          await tx.order_header.updateMany({
+            where: {
+              order_id: { in: orderIdsToActivate },
+              status: 'PENDING',
+            },
+            data: { status: 'READY_FOR_DELIVERY' },
+          });
+        }
+      });
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      )
+        throw error;
+      handlePrismaError(error, this.entityName);
+      throw new InternalServerErrorException(
+        'Error no manejado después de handlePrismaError',
+      );
+    }
+
+    return await this.findOne(routeSheetId);
+  }
+
+  /**
+   * Reprograma una parada no entregada a una nueva fecha.
+   *
+   * La parada original queda resuelta como FAILED con `reschedule_date` (fuera
+   * del reasignador automático) y se crea -o reutiliza- la parada equivalente
+   * en la hoja destino, sin duplicarla. Idempotente: si ya fue reprogramada, no
+   * vuelve a aplicar efectos.
+   */
+  async rescheduleDelivery(
+    detailId: number,
+    dto: RescheduleDeliveryDto,
+    userId: number,
+  ): Promise<DeliveryResolutionResultDto> {
+    const detail = await this.findDetailOrThrow(detailId);
+
+    if (detail.delivery_status === DeliveryStatus.DELIVERED) {
+      throw new ConflictException(
+        'No se puede reprogramar una entrega que ya fue completada',
+      );
+    }
+
+    const rescheduleDate = parseBAYMD(dto.reschedule_date);
+    if (
+      formatBAYMD(rescheduleDate) ===
+      formatBAYMD(detail.route_sheet.delivery_date)
+    ) {
+      throw new BadRequestException(
+        'La nueva fecha debe ser distinta a la fecha actual de la hoja de ruta',
+      );
+    }
+
+    if (detail.reschedule_date) {
+      return {
+        detail_id: detailId,
+        reschedule_date: formatBAYMD(detail.reschedule_date),
+        target_route_sheet_id: null,
+        target_detail_id: null,
+        idempotent_replay: true,
+      };
+    }
+
+    const applied = await this.$transaction(async (tx) => {
+      const flipped = await tx.route_sheet_detail.updateMany({
+        where: {
+          route_sheet_detail_id: detailId,
+          reschedule_date: null,
+          delivery_status: { not: DeliveryStatus.DELIVERED },
+        },
+        data: {
+          reschedule_date: rescheduleDate,
+          rejection_reason: dto.reason,
+          delivery_status: DeliveryStatus.FAILED,
+          comments: this.appendNote(detail.comments, dto.notes),
+        },
+      });
+
+      // Otro reprogramador ya tomó la parada: replay idempotente.
+      if (flipped.count !== 1) return null;
+
+      const targetRouteSheetId = await this.resolveTargetRouteSheet(
+        tx,
+        rescheduleDate,
+        detail.route_sheet,
+      );
+
+      // Evitar duplicar la parada destino: si ya existe en la hoja destino se reutiliza.
+      const alreadyThere = await tx.route_sheet_detail.findFirst({
+        where: {
+          route_sheet_id: targetRouteSheetId,
+          ...detailRefWhere(detail),
+        },
+        select: { route_sheet_detail_id: true },
+      });
+
+      let targetDetailId = alreadyThere?.route_sheet_detail_id ?? null;
+      if (targetDetailId === null) {
+        const created = await tx.route_sheet_detail.create({
+          data: {
+            route_sheet_id: targetRouteSheetId,
+            order_id: detail.order_id ?? undefined,
+            one_off_purchase_id: detail.one_off_purchase_id ?? undefined,
+            one_off_purchase_header_id:
+              detail.one_off_purchase_header_id ?? undefined,
+            cycle_payment_id: detail.cycle_payment_id ?? undefined,
+            delivery_status: DeliveryStatus.PENDING,
+            comments: `Reprogramado desde la hoja ${detail.route_sheet_id} (parada ${detailId})`,
+          },
+          select: { route_sheet_detail_id: true },
+        });
+        targetDetailId = created.route_sheet_detail_id;
+      }
+
+      await tx.delivery_incident.create({
+        data: {
+          route_sheet_detail_id: detailId,
+          incident_type: 'DELIVERY_RESCHEDULED',
+          description: dto.notes?.trim() || dto.reason,
+          created_by: userId,
+          status: 'CLOSED',
+          resolution: `Reprogramado a ${formatBAYMD(rescheduleDate)} (hoja ${targetRouteSheetId})`,
+          resolved_at: new Date(),
+          resolved_by: userId,
+        },
+      });
+
+      if (typeof detail.order_id === 'number') {
+        await tx.order_header.update({
+          where: { order_id: detail.order_id },
+          data: { scheduled_delivery_date: rescheduleDate },
+        });
+      }
+
+      return { targetRouteSheetId, targetDetailId };
+    });
+
+    if (!applied) {
+      return {
+        detail_id: detailId,
+        reschedule_date: formatBAYMD(rescheduleDate),
+        target_route_sheet_id: null,
+        target_detail_id: null,
+        idempotent_replay: true,
+      };
+    }
+
+    return {
+      detail_id: detailId,
+      reschedule_date: formatBAYMD(rescheduleDate),
+      target_route_sheet_id: applied.targetRouteSheetId,
+      target_detail_id: applied.targetDetailId,
+      idempotent_replay: false,
+    };
+  }
+
+  /**
+   * Deriva una parada no entregada a resolución administrativa.
+   *
+   * La parada queda SKIPPED con el motivo indicado y se registra un incidente
+   * abierto para que el administrador la resuelva. No se crea una parada nueva,
+   * por lo que no se duplica la entrega.
+   */
+  async forwardDeliveryToAdmin(
+    detailId: number,
+    dto: ForwardDeliveryToAdminDto,
+    userId: number,
+  ): Promise<DeliveryResolutionResultDto> {
+    const detail = await this.findDetailOrThrow(detailId);
+
+    if (detail.delivery_status === DeliveryStatus.DELIVERED) {
+      throw new ConflictException(
+        'No se puede derivar una entrega que ya fue completada',
+      );
+    }
+
+    if (detail.delivery_status === DeliveryStatus.SKIPPED) {
+      return { detail_id: detailId, idempotent_replay: true };
+    }
+
+    const applied = await this.$transaction(async (tx) => {
+      const flipped = await tx.route_sheet_detail.updateMany({
+        where: {
+          route_sheet_detail_id: detailId,
+          delivery_status: {
+            notIn: [DeliveryStatus.DELIVERED, DeliveryStatus.SKIPPED],
+          },
+        },
+        data: {
+          delivery_status: DeliveryStatus.SKIPPED,
+          rejection_reason: dto.reason,
+          comments: this.appendNote(detail.comments, dto.notes),
+        },
+      });
+
+      if (flipped.count !== 1) return false;
+
+      await tx.delivery_incident.create({
+        data: {
+          route_sheet_detail_id: detailId,
+          incident_type: 'FORWARDED_TO_ADMIN',
+          description: dto.notes?.trim() || dto.reason,
+          created_by: userId,
+          status: 'OPEN',
+        },
+      });
+
+      return true;
+    });
+
+    return { detail_id: detailId, idempotent_replay: !applied };
+  }
+
+  /** Concatena una nota al comentario existente sin perder el historial. */
+  private appendNote(
+    current: string | null,
+    note?: string,
+  ): string | undefined {
+    const trimmed = note?.trim();
+    if (!trimmed) return undefined;
+    return current ? `${current} | ${trimmed}` : trimmed;
+  }
+
+  /** Carga la parada o falla si no existe. */
+  private async findDetailOrThrow(detailId: number) {
+    const detail = await this.route_sheet_detail.findUnique({
+      where: { route_sheet_detail_id: detailId },
+      select: {
+        route_sheet_detail_id: true,
+        route_sheet_id: true,
+        order_id: true,
+        one_off_purchase_id: true,
+        one_off_purchase_header_id: true,
+        cycle_payment_id: true,
+        delivery_status: true,
+        reschedule_date: true,
+        comments: true,
+        route_sheet: {
+          select: {
+            route_sheet_id: true,
+            delivery_date: true,
+            driver_id: true,
+            vehicle_id: true,
+            is_active: true,
+          },
+        },
+      },
+    });
+    if (!detail) {
+      throw new NotFoundException(
+        `Detalle de hoja de ruta ${detailId} no encontrado`,
+      );
+    }
+    return detail;
+  }
+
+  /** Valida que cada referencia de las paradas exista en su tabla. */
+  private async assertDetailReferencesExist(
+    details: DetailReference[],
+  ): Promise<void> {
+    const unique = (values: Array<number | null | undefined>): number[] => [
+      ...new Set(
+        values.filter((value): value is number => typeof value === 'number'),
+      ),
+    ];
+
+    const orderIds = unique(details.map((d) => d.order_id));
+    if (orderIds.length > 0) {
+      const orders = await this.order_header.findMany({
+        where: { order_id: { in: orderIds } },
+        select: { order_id: true },
+      });
+      const found = new Set(orders.map((order) => order.order_id));
+      const missing = orderIds.filter((id) => !found.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          `Los siguientes pedidos no existen: ${missing.join(', ')}`,
+        );
+      }
+    }
+
+    const oneOffIds = unique(details.map((d) => d.one_off_purchase_id));
+    if (oneOffIds.length > 0) {
+      const purchases = await this.one_off_purchase.findMany({
+        where: { purchase_id: { in: oneOffIds } },
+        select: { purchase_id: true },
+      });
+      const found = new Set(purchases.map((purchase) => purchase.purchase_id));
+      const missing = oneOffIds.filter((id) => !found.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          `Las siguientes compras one-off no existen: ${missing.join(', ')}`,
+        );
+      }
+    }
+
+    const headerIds = unique(details.map((d) => d.one_off_purchase_header_id));
+    if (headerIds.length > 0) {
+      const headers = await this.one_off_purchase_header.findMany({
+        where: { purchase_header_id: { in: headerIds } },
+        select: { purchase_header_id: true },
+      });
+      const found = new Set(headers.map((header) => header.purchase_header_id));
+      const missing = headerIds.filter((id) => !found.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          `Las siguientes compras one-off (header) no existen: ${missing.join(', ')}`,
+        );
+      }
+    }
+
+    const cyclePaymentIds = unique(details.map((d) => d.cycle_payment_id));
+    if (cyclePaymentIds.length > 0) {
+      const payments = await this.cycle_payment.findMany({
+        where: { payment_id: { in: cyclePaymentIds } },
+        select: { payment_id: true },
+      });
+      const found = new Set(payments.map((payment) => payment.payment_id));
+      const missing = cyclePaymentIds.filter((id) => !found.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          `Los siguientes pagos de ciclo no existen: ${missing.join(', ')}`,
+        );
+      }
+    }
+  }
+
+  /** Busca una asignación de la misma parada en otra hoja activa de la fecha. */
+  private async findConflictingAssignment(
+    ref: DetailReference,
+    excludeRouteSheetId: number,
+    deliveryDate: Date,
+    tx: Prisma.TransactionClient,
+  ): Promise<number | null> {
+    const conflict = await tx.route_sheet_detail.findFirst({
+      where: {
+        ...detailRefWhere(ref),
+        route_sheet: {
+          is: {
+            delivery_date: deliveryDate,
+            route_sheet_id: { not: excludeRouteSheetId },
+            is_active: true,
+          },
+        },
+      },
+      select: { route_sheet_id: true },
+    });
+    return conflict?.route_sheet_id ?? null;
+  }
+
+  /** Devuelve la hoja destino para la nueva fecha, creándola si no existe. */
+  private async resolveTargetRouteSheet(
+    tx: Prisma.TransactionClient,
+    deliveryDate: Date,
+    source: { route_sheet_id: number; driver_id: number; vehicle_id: number },
+  ): Promise<number> {
+    const existing = await tx.route_sheet.findFirst({
+      where: {
+        delivery_date: deliveryDate,
+        driver_id: source.driver_id,
+        vehicle_id: source.vehicle_id,
+        is_active: true,
+      },
+      orderBy: { route_sheet_id: 'asc' },
+      select: { route_sheet_id: true },
+    });
+    if (existing) return existing.route_sheet_id;
+
+    const created = await tx.route_sheet.create({
+      data: {
+        driver_id: source.driver_id,
+        vehicle_id: source.vehicle_id,
+        delivery_date: deliveryDate,
+        route_notes: `Hoja creada al reprogramar la parada de la hoja ${source.route_sheet_id}`,
+      },
+      select: { route_sheet_id: true },
+    });
+    return created.route_sheet_id;
+  }
+
   async remove(id: number): Promise<{ message: string; deleted: boolean }> {
     await this.findOne(id);
     try {
@@ -1599,7 +2461,9 @@ export class RouteSheetService extends PrismaBackedService {
           select: {
             order_id: true,
             one_off_purchase_id: true,
-            one_off_purchase_header_id: true } });
+            one_off_purchase_header_id: true,
+          },
+        });
 
         const orderIds: number[] = [];
         const oneOffIds: number[] = [];
@@ -1617,28 +2481,33 @@ export class RouteSheetService extends PrismaBackedService {
         if (orderIds.length > 0) {
           await tx.order_header.updateMany({
             where: { order_id: { in: orderIds } },
-            data: { status: 'PENDING' } });
+            data: { status: 'PENDING' },
+          });
         }
         if (oneOffIds.length > 0) {
           await tx.one_off_purchase.updateMany({
             where: { purchase_id: { in: oneOffIds } },
-            data: { status: 'PENDING' } });
+            data: { status: 'PENDING' },
+          });
         }
         if (oneOffHeaderIds.length > 0) {
           await tx.one_off_purchase_header.updateMany({
             where: { purchase_header_id: { in: oneOffHeaderIds } },
-            data: { status: 'PENDING' } });
+            data: { status: 'PENDING' },
+          });
         }
 
         // Soft delete: cambiar is_active a false en lugar de eliminar físicamente
         await tx.route_sheet.update({
           where: { route_sheet_id: id },
-          data: { is_active: false } });
+          data: { is_active: false },
+        });
       });
 
       return {
         message: `${this.entityName} con ID ${id} desactivada y pedidos revertidos a PENDING`,
-        deleted: true };
+        deleted: true,
+      };
     } catch (error) {
       handlePrismaError(error, this.entityName);
       throw new InternalServerErrorException(
@@ -1660,12 +2529,14 @@ export class RouteSheetService extends PrismaBackedService {
         driver: {
           id: routeSheet.driver.id,
           name: routeSheet.driver.name,
-          email: routeSheet.driver.email },
+          email: routeSheet.driver.email,
+        },
         vehicle: {
           vehicle_id: routeSheet.vehicle.vehicle_id,
           code: routeSheet.vehicle.code,
           name: routeSheet.vehicle.name,
-          zones: routeSheet.vehicle.zones || [] },
+          zones: routeSheet.vehicle.zones || [],
+        },
         zone_identifiers: (routeSheet as any).zones_covered
           ? (routeSheet as any).zones_covered.map((z: any) => z.name)
           : undefined,
@@ -1701,10 +2572,12 @@ export class RouteSheetService extends PrismaBackedService {
                           locality_id:
                             detail.order.customer.locality.locality_id,
                           code: detail.order.customer.locality.code,
-                          name: detail.order.customer.locality.name }
+                          name: detail.order.customer.locality.name,
+                        }
                       : undefined,
                     special_instructions:
-                      detail.order.customer.special_instructions },
+                      detail.order.customer.special_instructions,
+                  },
                   items: detail.order.items.map((item) => ({
                     order_item_id: item.order_item_id || 0,
                     quantity: item.quantity,
@@ -1712,24 +2585,31 @@ export class RouteSheetService extends PrismaBackedService {
                     returned_quantity: item.returned_quantity || 0,
                     product: {
                       product_id: item.product.product_id || 0,
-                      description: item.product.description } })),
-                  notes: detail.order.notes },
+                      description: item.product.description,
+                    },
+                  })),
+                  notes: detail.order.notes,
+                },
                 delivery_status: detail.delivery_status,
                 delivery_time: detail.delivery_time || '08:00-18:00',
                 is_current_delivery: detail.is_current_delivery ?? true,
-                credits: detail.credits || [] };
+                credits: detail.credits || [],
+              };
             }
             // Si no hay orden de suscripción, devolver null y filtrar después
             return null;
           })
           .filter((detail) => detail !== null),
-        zones_covered: routeSheet.zones_covered || [] };
+        zones_covered: routeSheet.zones_covered || [],
+      };
       const pdfLogPayload = {
         route_sheet_id: pdfData.route_sheet_id,
         delivery_date: pdfData.delivery_date,
         details: pdfData.details.map((detail) => ({
           order_id: detail.order.order_id,
-          collection_days: detail.order.collection_days ?? [] })) };
+          collection_days: detail.order.collection_days ?? [],
+        })),
+      };
       this.logger.log(
         `Hoja de ruta PDF data: ${JSON.stringify(pdfLogPayload)}`,
       );
@@ -1767,7 +2647,8 @@ export class RouteSheetService extends PrismaBackedService {
     const driverDto: DriverDto = {
       id: routeSheet.driver.id,
       name: routeSheet.driver.name,
-      email: routeSheet.driver.email };
+      email: routeSheet.driver.email,
+    };
 
     const vehicleDto: VehicleDto = {
       vehicle_id: routeSheet.vehicle.vehicle_id,
@@ -1789,7 +2670,12 @@ export class RouteSheetService extends PrismaBackedService {
               country: {
                 country_id: vz.zone.locality.province.country.country_id,
                 code: vz.zone.locality.province.country.code,
-                name: vz.zone.locality.province.country.name } } } })) || [] };
+                name: vz.zone.locality.province.country.name,
+              },
+            },
+          },
+        })) || [],
+    };
 
     const sortedDetails = [...routeSheet.route_sheet_detail]
       .map((d, idx) => ({ d, idx }))
@@ -1902,30 +2788,35 @@ export class RouteSheetService extends PrismaBackedService {
               ? {
                   zone_id: (detail.order_header.customer as any).zone.zone_id,
                   code: (detail.order_header.customer as any).zone.code,
-                  name: (detail.order_header.customer as any).zone.name }
+                  name: (detail.order_header.customer as any).zone.name,
+                }
               : undefined,
             locality: (detail.order_header.customer as any).locality
               ? {
                   locality_id: (detail.order_header.customer as any).locality
                     .locality_id,
                   code: (detail.order_header.customer as any).locality.code,
-                  name: (detail.order_header.customer as any).locality.name }
+                  name: (detail.order_header.customer as any).locality.name,
+                }
               : undefined,
             special_instructions:
               (detail.order_header as any).customer_subscription?.notes ||
-              undefined };
+              undefined,
+          };
 
           const orderItemsDto: OrderItemDto[] =
             detail.order_header.order_item.map((item) => {
               const productDto: ProductDto = {
                 product_id: item.product.product_id,
-                description: item.product.description };
+                description: item.product.description,
+              };
               return {
                 order_item_id: item.order_item_id,
                 product: productDto,
                 quantity: item.quantity,
                 delivered_quantity: item.delivered_quantity || 0,
-                returned_quantity: item.returned_quantity || 0 };
+                returned_quantity: item.returned_quantity || 0,
+              };
             });
 
           orderDto = {
@@ -1953,7 +2844,8 @@ export class RouteSheetService extends PrismaBackedService {
                 : detail.order_header.status,
             customer: customerDto,
             items: orderItemsDto,
-            notes: detail.order_header.notes || undefined };
+            notes: detail.order_header.notes || undefined,
+          };
 
           const customerId = customerDto.person_id;
           let cachedCollectionDays = collectionDaysByPerson.get(customerId);
@@ -1964,9 +2856,11 @@ export class RouteSheetService extends PrismaBackedService {
                   customer_id: customerId,
                   is_active: true,
                   status: 'ACTIVE',
-                  collection_day: { not: null } },
+                  collection_day: { not: null },
+                },
                 select: { collection_day: true },
-                orderBy: { collection_day: 'asc' } });
+                orderBy: { collection_day: 'asc' },
+              });
               cachedCollectionDays = subscriptions
                 .map((sub) => sub.collection_day)
                 .filter((day): day is number => typeof day === 'number');
@@ -1991,10 +2885,13 @@ export class RouteSheetService extends PrismaBackedService {
             const unpaidCycles = await this.subscription_cycle.findMany({
               where: {
                 customer_subscription: {
-                  customer_id: customerDto.person_id },
-                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+                  customer_id: customerDto.person_id,
+                },
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
               select: { payment_due_date: true },
-              orderBy: { payment_due_date: 'asc' } });
+              orderBy: { payment_due_date: 'asc' },
+            });
             orderDto.all_due_dates = unpaidCycles
               .map((c) => formatBAYMD(c.payment_due_date))
               .filter((d) => !!d);
@@ -2014,19 +2911,23 @@ export class RouteSheetService extends PrismaBackedService {
               ? {
                   zone_id: (detail.one_off_purchase.person as any).zone.zone_id,
                   code: (detail.one_off_purchase.person as any).zone.code,
-                  name: (detail.one_off_purchase.person as any).zone.name }
+                  name: (detail.one_off_purchase.person as any).zone.name,
+                }
               : undefined,
             locality: (detail.one_off_purchase.person as any)?.locality
               ? {
                   locality_id: (detail.one_off_purchase.person as any).locality
                     .locality_id,
                   code: (detail.one_off_purchase.person as any).locality.code,
-                  name: (detail.one_off_purchase.person as any).locality.name }
-              : undefined };
+                  name: (detail.one_off_purchase.person as any).locality.name,
+                }
+              : undefined,
+          };
 
           const productDto: ProductDto = {
             product_id: detail.one_off_purchase.product.product_id,
-            description: detail.one_off_purchase.product.description };
+            description: detail.one_off_purchase.product.description,
+          };
 
           const orderItemsDto: OrderItemDto[] = [
             {
@@ -2034,7 +2935,8 @@ export class RouteSheetService extends PrismaBackedService {
               product: productDto,
               quantity: detail.one_off_purchase.quantity,
               delivered_quantity: 0, // Las compras one-off no tienen delivered_quantity
-              returned_quantity: 0 },
+              returned_quantity: 0,
+            },
           ];
 
           orderDto = {
@@ -2051,7 +2953,8 @@ export class RouteSheetService extends PrismaBackedService {
             })(),
             status: detail.one_off_purchase.status,
             customer: customerDto,
-            items: orderItemsDto };
+            items: orderItemsDto,
+          };
         } else if (detail.one_off_purchase_header) {
           // Compra one-off con header
           customerDto = {
@@ -2068,7 +2971,8 @@ export class RouteSheetService extends PrismaBackedService {
                   code: (detail.one_off_purchase_header.person as any).zone
                     .code,
                   name: (detail.one_off_purchase_header.person as any).zone
-                    .name }
+                    .name,
+                }
               : undefined,
             locality: (detail.one_off_purchase_header.person as any)?.locality
               ? {
@@ -2077,21 +2981,25 @@ export class RouteSheetService extends PrismaBackedService {
                   code: (detail.one_off_purchase_header.person as any).locality
                     .code,
                   name: (detail.one_off_purchase_header.person as any).locality
-                    .name }
-              : undefined };
+                    .name,
+                }
+              : undefined,
+          };
 
           const orderItemsDto: OrderItemDto[] = (
             detail.one_off_purchase_header?.purchase_items || []
           ).map((item) => {
             const productDto: ProductDto = {
               product_id: item.product.product_id,
-              description: item.product.description };
+              description: item.product.description,
+            };
             return {
               order_item_id: item.purchase_item_id,
               product: productDto,
               quantity: item.quantity,
               delivered_quantity: 0, // Las compras one-off no tienen delivered_quantity
-              returned_quantity: 0 };
+              returned_quantity: 0,
+            };
           });
 
           orderDto = {
@@ -2109,7 +3017,8 @@ export class RouteSheetService extends PrismaBackedService {
             })(),
             status: detail.one_off_purchase_header.status,
             customer: customerDto,
-            items: orderItemsDto };
+            items: orderItemsDto,
+          };
         } else if (detail.cancellation_order) {
           // Orden de cancelación
           customerDto = {
@@ -2140,7 +3049,8 @@ export class RouteSheetService extends PrismaBackedService {
                   name: (
                     detail.cancellation_order.customer_subscription
                       .person as any
-                  ).zone.name }
+                  ).zone.name,
+                }
               : undefined,
             locality: (
               detail.cancellation_order.customer_subscription.person as any
@@ -2157,8 +3067,10 @@ export class RouteSheetService extends PrismaBackedService {
                   name: (
                     detail.cancellation_order.customer_subscription
                       .person as any
-                  ).locality.name }
-              : undefined };
+                  ).locality.name,
+                }
+              : undefined,
+          };
 
           // Para órdenes de cancelación, no tenemos productos específicos
           const orderItemsDto: OrderItemDto[] = [];
@@ -2171,7 +3083,8 @@ export class RouteSheetService extends PrismaBackedService {
             total_amount: '0.00', // Las cancelaciones no tienen monto
             status: 'CANCELLED',
             customer: customerDto,
-            items: orderItemsDto };
+            items: orderItemsDto,
+          };
         } else if (detail.cycle_payment) {
           // Pedido de cobranza
           customerDto = {
@@ -2206,7 +3119,8 @@ export class RouteSheetService extends PrismaBackedService {
                   name: (
                     detail.cycle_payment.subscription_cycle
                       .customer_subscription.person as any
-                  ).zone.name }
+                  ).zone.name,
+                }
               : undefined,
             locality: (
               detail.cycle_payment.subscription_cycle.customer_subscription
@@ -2224,11 +3138,13 @@ export class RouteSheetService extends PrismaBackedService {
                   name: (
                     detail.cycle_payment.subscription_cycle
                       .customer_subscription.person as any
-                  ).locality.name }
+                  ).locality.name,
+                }
               : undefined,
             special_instructions:
               detail.cycle_payment.subscription_cycle.customer_subscription
-                .notes || undefined };
+                .notes || undefined,
+          };
 
           // Para pedidos de cobranza, no tenemos productos específicos
           const orderItemsDto: OrderItemDto[] = [];
@@ -2239,7 +3155,8 @@ export class RouteSheetService extends PrismaBackedService {
             total_amount: detail.cycle_payment.amount.toString(),
             status: 'PENDING', // Los cycle_payments no tienen status, usamos un valor por defecto
             customer: customerDto,
-            items: orderItemsDto };
+            items: orderItemsDto,
+          };
 
           const customerId = customerDto.person_id;
           let cachedCollectionDays = collectionDaysByPerson.get(customerId);
@@ -2250,9 +3167,11 @@ export class RouteSheetService extends PrismaBackedService {
                   customer_id: customerId,
                   is_active: true,
                   status: 'ACTIVE',
-                  collection_day: { not: null } },
+                  collection_day: { not: null },
+                },
                 select: { collection_day: true },
-                orderBy: { collection_day: 'asc' } });
+                orderBy: { collection_day: 'asc' },
+              });
               cachedCollectionDays = subscriptions
                 .map((sub) => sub.collection_day)
                 .filter((day): day is number => typeof day === 'number');
@@ -2274,10 +3193,13 @@ export class RouteSheetService extends PrismaBackedService {
             const unpaidCycles = await this.subscription_cycle.findMany({
               where: {
                 customer_subscription: {
-                  customer_id: customerDto.person_id },
-                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
+                  customer_id: customerDto.person_id,
+                },
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
               select: { payment_due_date: true },
-              orderBy: { payment_due_date: 'asc' } });
+              orderBy: { payment_due_date: 'asc' },
+            });
             orderDto.all_due_dates = unpaidCycles
               .map((c) => formatBAYMD(c.payment_due_date))
               .filter((d) => !!d);
@@ -2305,7 +3227,8 @@ export class RouteSheetService extends PrismaBackedService {
           delivery_time: detail.delivery_time || undefined,
           comments: detail.comments || undefined,
           digital_signature_id: detail.digital_signature_id || undefined,
-          is_current_delivery: isCurrent };
+          is_current_delivery: isCurrent,
+        };
 
         if (detail.order_header?.subscription_id) {
           try {
@@ -2319,7 +3242,9 @@ export class RouteSheetService extends PrismaBackedService {
                 product_description: c.product_description,
                 planned_quantity: c.planned_quantity,
                 delivered_quantity: c.delivered_quantity,
-                remaining_balance: c.remaining_balance })) };
+                remaining_balance: c.remaining_balance,
+              })),
+            };
           } catch {
             return baseDetail;
           }
@@ -2338,7 +3263,8 @@ export class RouteSheetService extends PrismaBackedService {
         ? routeSheet.route_notes
         : '-',
       details: detailsDto,
-      zones_covered: zonesCoveredDto });
+      zones_covered: zonesCoveredDto,
+    });
   }
 
   async reconcileRouteSheetByDriver(
@@ -2349,7 +3275,8 @@ export class RouteSheetService extends PrismaBackedService {
 
     try {
       const routeSheet = await this.route_sheet.findUnique({
-        where: { route_sheet_id } });
+        where: { route_sheet_id },
+      });
 
       if (!routeSheet) {
         throw new NotFoundException(
@@ -2373,7 +3300,9 @@ export class RouteSheetService extends PrismaBackedService {
         where: { route_sheet_id },
         data: {
           driver_reconciliation_signature_path: signatureFileName,
-          reconciliation_at: new Date() } });
+          reconciliation_at: new Date(),
+        },
+      });
 
       const updatedRouteSheet = await this.route_sheet.findUniqueOrThrow({
         where: { route_sheet_id },
@@ -2390,7 +3319,17 @@ export class RouteSheetService extends PrismaBackedService {
                         include: {
                           province: {
                             include: {
-                              country: true } } } } } } } } } },
+                              country: true,
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
           route_sheet_detail: {
             include: {
               order_header: {
@@ -2400,32 +3339,59 @@ export class RouteSheetService extends PrismaBackedService {
                     include: {
                       subscription_cycle: {
                         orderBy: { cycle_number: 'desc' },
-                        take: 1 } } },
+                        take: 1,
+                      },
+                    },
+                  },
                   order_item: {
                     include: {
-                      product: true } } } },
+                      product: true,
+                    },
+                  },
+                },
+              },
               one_off_purchase: {
                 include: {
                   person: true,
-                  product: true } },
+                  product: true,
+                },
+              },
               one_off_purchase_header: {
                 include: {
                   person: true,
                   purchase_items: {
                     include: {
-                      product: true } } } },
+                      product: true,
+                    },
+                  },
+                },
+              },
               cancellation_order: {
                 include: {
                   customer_subscription: {
                     include: {
-                      person: true } } } },
+                      person: true,
+                    },
+                  },
+                },
+              },
               cycle_payment: {
                 include: {
                   subscription_cycle: {
                     include: {
                       customer_subscription: {
                         include: {
-                          person: true } } } } } } } } } });
+                          person: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
       return await this.mapToRouteSheetResponseDto(
         updatedRouteSheet as RouteSheetWithDetails,
       );
@@ -2452,7 +3418,9 @@ export class RouteSheetService extends PrismaBackedService {
       where: { route_sheet_detail_id: detailId },
       include: {
         order_header: true,
-        route_sheet: true } });
+        route_sheet: true,
+      },
+    });
 
     if (!routeSheetDetail) {
       throw new NotFoundException(
@@ -2472,7 +3440,8 @@ export class RouteSheetService extends PrismaBackedService {
     }
 
     const paymentMethod = await this.payment_method.findUnique({
-      where: { payment_method_id: recordPaymentDto.payment_method_id } });
+      where: { payment_method_id: recordPaymentDto.payment_method_id },
+    });
 
     if (!paymentMethod) {
       throw new BadRequestException(
@@ -2513,7 +3482,9 @@ export class RouteSheetService extends PrismaBackedService {
           total: paymentAmount.toString(),
           payment_method_id: recordPaymentDto.payment_method_id,
           user_id: userId,
-          notes: recordPaymentDto.notes } });
+          notes: recordPaymentDto.notes,
+        },
+      });
 
       const newPaidAmount = orderCurrentPaidAmount.plus(paymentAmount);
       let newOrderStatus = order.status;
@@ -2524,7 +3495,9 @@ export class RouteSheetService extends PrismaBackedService {
       await tx.order_header.update({
         where: { order_id: order.order_id },
         data: {
-          paid_amount: newPaidAmount.toString() } });
+          paid_amount: newPaidAmount.toString(),
+        },
+      });
 
       return paymentTransaction;
     });
@@ -2553,7 +3526,8 @@ export class RouteSheetService extends PrismaBackedService {
       order.status !== DeliveryStatus.DELIVERED
     ) {
       await this.ordersService.update(order.order_id, {
-        status: updatedStatus } as any);
+        status: updatedStatus,
+      } as any);
     }
 
     return paymentTransactionResult;
@@ -2624,7 +3598,12 @@ export class RouteSheetService extends PrismaBackedService {
           include: {
             customer: true,
             order_item: {
-              include: { product: true } } } } } });
+              include: { product: true },
+            },
+          },
+        },
+      },
+    });
 
     if (!routeSheetDetail) {
       throw new NotFoundException(
@@ -2670,7 +3649,11 @@ export class RouteSheetService extends PrismaBackedService {
         order_header: {
           include: {
             customer: true,
-            order_item: { include: { product: true } } } } } });
+            order_item: { include: { product: true } },
+          },
+        },
+      },
+    });
     const responseDto = new RouteSheetDetailResponseDto();
     responseDto.route_sheet_detail_id = updatedDetail.route_sheet_detail_id;
     responseDto.route_sheet_id = updatedDetail.route_sheet_id;
@@ -2697,10 +3680,12 @@ export class RouteSheetService extends PrismaBackedService {
           order_item_id: item.order_item_id,
           product: {
             product_id: item.product_id,
-            description: item.product.description },
+            description: item.product.description,
+          },
           quantity: item.quantity,
           delivered_quantity: item.delivered_quantity || 0,
-          returned_quantity: item.returned_quantity || 0 }));
+          returned_quantity: item.returned_quantity || 0,
+        }));
 
       const orderDto = new OrderDto();
       orderDto.order_id = updatedDetail.order_header.order_id;
@@ -2734,7 +3719,11 @@ export class RouteSheetService extends PrismaBackedService {
           customer: true,
           customer_subscription: {
             include: {
-              subscription_delivery_schedule: true } } } });
+              subscription_delivery_schedule: true,
+            },
+          },
+        },
+      });
 
       if (!order || !order.customer_subscription) {
         return { isValid: true }; // No hay suscripción, no validar
@@ -2752,7 +3741,8 @@ export class RouteSheetService extends PrismaBackedService {
       if (!timeValidation.isValid) {
         return {
           isValid: false,
-          message: `Formato de horario inválido: ${timeValidation.error}` };
+          message: `Formato de horario inválido: ${timeValidation.error}`,
+        };
       }
 
       // Para validación simplificada, asumimos que el horario es válido si está en formato correcto
@@ -2787,7 +3777,8 @@ export class RouteSheetService extends PrismaBackedService {
         return {
           isValid: false,
           type: 'rango',
-          error: 'Formato de datos URI inválido.' };
+          error: 'Formato de datos URI inválido.',
+        };
       }
 
       const startMinutes = this.timeToMinutes(startTime);
@@ -2797,7 +3788,8 @@ export class RouteSheetService extends PrismaBackedService {
         return {
           isValid: false,
           type: 'rango',
-          error: 'La hora de inicio debe ser menor que la hora de fin' };
+          error: 'La hora de inicio debe ser menor que la hora de fin',
+        };
       }
 
       return { isValid: true, type: 'rango', startTime, endTime };
@@ -2807,7 +3799,8 @@ export class RouteSheetService extends PrismaBackedService {
         return {
           isValid: false,
           type: 'puntual',
-          error: 'Formato de datos URI inválido.' };
+          error: 'Formato de datos URI inválido.',
+        };
       }
 
       return { isValid: true, type: 'puntual', startTime: scheduledTime };
@@ -2840,7 +3833,13 @@ export class RouteSheetService extends PrismaBackedService {
               customer: true,
               customer_subscription: {
                 include: {
-                  subscription_delivery_schedule: true } } } } } });
+                  subscription_delivery_schedule: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
       if (!detail) {
         throw new NotFoundException(
@@ -2867,14 +3866,21 @@ export class RouteSheetService extends PrismaBackedService {
         where: { route_sheet_detail_id: detailId },
         data: {
           delivery_time: updateDeliveryTimeDto.delivery_time,
-          comments: updateDeliveryTimeDto.comments || detail.comments },
+          comments: updateDeliveryTimeDto.comments || detail.comments,
+        },
         include: {
           order_header: {
             include: {
               customer: true,
               order_item: {
                 include: {
-                  product: true } } } } } });
+                  product: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
       // Obtener la hoja de ruta completa para mapear correctamente
       const routeSheet = await this.route_sheet.findUnique({
@@ -2889,7 +3895,15 @@ export class RouteSheetService extends PrismaBackedService {
                   customer: true,
                   order_item: {
                     include: {
-                      product: true } } } } } } } });
+                      product: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
 
       if (!routeSheet) {
         throw new NotFoundException('Hoja de ruta no encontrada');
@@ -2913,7 +3927,8 @@ export class RouteSheetService extends PrismaBackedService {
         delivery_status: updatedDetail.delivery_status as DeliveryStatus,
         delivery_time: updatedDetail.delivery_time || undefined,
         comments: updatedDetail.comments || undefined,
-        digital_signature_id: updatedDetail.digital_signature_id || undefined };
+        digital_signature_id: updatedDetail.digital_signature_id || undefined,
+      };
 
       // Solo agregar información de orden si existe order_header
       if (updatedDetail.order_header) {
@@ -2929,15 +3944,19 @@ export class RouteSheetService extends PrismaBackedService {
             name: updatedDetail.order_header.customer.name || '',
             alias: updatedDetail.order_header.customer.alias || undefined,
             phone: updatedDetail.order_header.customer.phone,
-            address: updatedDetail.order_header.customer.address || '' },
+            address: updatedDetail.order_header.customer.address || '',
+          },
           items: updatedDetail.order_header.order_item.map((item) => ({
             order_item_id: item.order_item_id,
             product: {
               product_id: item.product.product_id,
-              description: item.product.description },
+              description: item.product.description,
+            },
             quantity: item.quantity,
             delivered_quantity: 0,
-            returned_quantity: 0 })) };
+            returned_quantity: 0,
+          })),
+        };
       }
 
       return responseDto;
@@ -2971,7 +3990,8 @@ export class RouteSheetService extends PrismaBackedService {
           vehicle: true,
           route_sheet_detail: {
             where: {
-              cycle_payment_id: { not: null } },
+              cycle_payment_id: { not: null },
+            },
             include: {
               cycle_payment: {
                 include: {
@@ -2982,11 +4002,25 @@ export class RouteSheetService extends PrismaBackedService {
                           person: {
                             include: {
                               zone: true,
-                              locality: true } },
-                          subscription_plan: true } },
+                              locality: true,
+                            },
+                          },
+                          subscription_plan: true,
+                        },
+                      },
                       subscription_cycle_detail: {
                         include: {
-                          product: true } } } } } } } } } });
+                          product: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
 
       if (!routeSheet) {
         throw new NotFoundException(
@@ -3031,14 +4065,17 @@ export class RouteSheetService extends PrismaBackedService {
 
           const activeSubscriptionsCount =
             await this.customer_subscription.count({
-              where: { customer_id: person.person_id, is_active: true } });
+              where: { customer_id: person.person_id, is_active: true },
+            });
 
           if (activeSubscriptionsCount === 1) {
             const unpaidCycles = await this.subscription_cycle.findMany({
               where: {
                 subscription_id: subscription.subscription_id,
-                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
-              select: { pending_balance: true, payment_due_date: true } });
+                payment_status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] },
+              },
+              select: { pending_balance: true, payment_due_date: true },
+            });
             const sumDebts = unpaidCycles.reduce(
               (acc, c) => acc + Number(c.pending_balance ?? 0),
               0,
@@ -3059,14 +4096,17 @@ export class RouteSheetService extends PrismaBackedService {
                 ? {
                     zone_id: person.zone.zone_id,
                     code: person.zone.code,
-                    name: person.zone.name }
+                    name: person.zone.name,
+                  }
                 : undefined,
               locality: person.locality
                 ? {
                     locality_id: person.locality.locality_id,
                     code: person.locality.code,
-                    name: person.locality.name }
-                : undefined },
+                    name: person.locality.name,
+                  }
+                : undefined,
+            },
             amount: finalAmount,
             payment_reference: detail.cycle_payment.reference || undefined,
             payment_notes: detail.cycle_payment.notes || undefined,
@@ -3110,7 +4150,9 @@ export class RouteSheetService extends PrismaBackedService {
                 product_description: cycleDetail.product.description,
                 planned_quantity: cycleDetail.planned_quantity,
                 delivered_quantity: cycleDetail.delivered_quantity,
-                remaining_balance: cycleDetail.remaining_balance })) || [] };
+                remaining_balance: cycleDetail.remaining_balance,
+              })) || [],
+          };
           return mapped;
         }),
       );
@@ -3121,12 +4163,15 @@ export class RouteSheetService extends PrismaBackedService {
         route_notes: routeSheet.route_notes,
         driver: {
           name: routeSheet.driver.name,
-          email: routeSheet.driver.email },
+          email: routeSheet.driver.email,
+        },
         vehicle: {
           code: routeSheet.vehicle.code,
-          name: routeSheet.vehicle.name },
+          name: routeSheet.vehicle.name,
+        },
         zone_identifiers: zoneIdentifiers,
-        collections };
+        collections,
+      };
       // Generar el PDF usando el servicio de generación mejorado
       const { doc, filename, pdfPath } =
         await this.pdfGeneratorService.generateCollectionRouteSheetPdf(
@@ -3146,7 +4191,8 @@ export class RouteSheetService extends PrismaBackedService {
 
       return {
         ...result,
-        total_collections: collectionDetails.length };
+        total_collections: collectionDetails.length,
+      };
     } catch (error) {
       if (
         error instanceof NotFoundException ||

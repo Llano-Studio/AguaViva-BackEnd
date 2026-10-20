@@ -821,6 +821,13 @@ model route_sheet_detail {
   cancellation_order         cancellation_order?      @relation(fields: [cancellation_order_id], references: [cancellation_order_id], onDelete: NoAction, onUpdate: NoAction)
   cycle_payment              cycle_payment?           @relation(fields: [cycle_payment_id], references: [payment_id], onDelete: NoAction, onUpdate: NoAction)
   route_sheet                route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+
+  // Evita asignar la misma parada dos veces dentro de una hoja de ruta.
+  // Las filas con la referencia en NULL no colisionan (semántica NULL de UNIQUE).
+  @@unique([route_sheet_id, order_id], name: "unique_route_sheet_detail_order")
+  @@unique([route_sheet_id, one_off_purchase_id], name: "unique_route_sheet_detail_one_off")
+  @@unique([route_sheet_id, one_off_purchase_header_id], name: "unique_route_sheet_detail_one_off_header")
+  @@unique([route_sheet_id, cycle_payment_id], name: "unique_route_sheet_detail_cycle_payment")
 }
 
 model route_optimization {

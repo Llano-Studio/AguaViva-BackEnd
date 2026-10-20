@@ -41,6 +41,10 @@ import {
   UpdateDeliveryTimeDto,
   GenerateCollectionPdfDto,
   CollectionPdfResponseDto,
+  AddRouteSheetDetailsDto,
+  RescheduleDeliveryDto,
+  ForwardDeliveryToAdminDto,
+  DeliveryResolutionResultDto,
 } from './dto';
 import { RouteSheetService } from './route-sheet.service';
 import { RouteOptimizationService } from '../common/services/route-optimization.service';
@@ -1050,6 +1054,107 @@ Notas:
     @GetUser() user: User,
   ) {
     return this.routeSheetService.skipDelivery(detailId, skipDeliveryDto, user);
+  }
+
+  @Post(':id/details')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Agregar paradas a una hoja de ruta existente',
+    description: `Inserción incremental de paradas: agrega pedidos, compras one-off o cobranzas a una hoja de ruta sin borrar ni recrear los detalles existentes (preserva los IDs).
+
+**Idempotencia:** una parada ya presente en la hoja no se duplica.
+**Conflictos:** rechaza paradas ya asignadas a otra hoja activa de la misma fecha y hojas cerradas.`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la hoja de ruta',
+    type: Number,
+    example: 1,
+  })
+  @ApiBody({ type: AddRouteSheetDetailsDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Paradas agregadas a la hoja de ruta',
+    type: RouteSheetResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      'La hoja de ruta está cerrada o alguna parada ya está asignada',
+  })
+  async addRouteSheetDetails(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(ValidationPipe) addDetailsDto: AddRouteSheetDetailsDto,
+  ) {
+    return this.routeSheetService.addDetailsIncremental(id, addDetailsDto);
+  }
+
+  @Post('details/:detailId/reschedule')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Reprogramar una parada no entregada a una nueva fecha',
+    description: `Marca la parada original como no entregada con la nueva fecha y crea (o reutiliza) la parada equivalente en la hoja destino del mismo chofer y vehículo, sin duplicarla.
+
+Si la hoja destino no existe para esa fecha se crea automáticamente. Es idempotente: una parada ya reprogramada no vuelve a aplicar efectos.`,
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de la hoja de ruta',
+    type: Number,
+    example: 101,
+  })
+  @ApiBody({ type: RescheduleDeliveryDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Parada reprogramada',
+    type: DeliveryResolutionResultDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'La entrega ya fue completada',
+  })
+  async rescheduleDelivery(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body(ValidationPipe) rescheduleDto: RescheduleDeliveryDto,
+    @GetUser() user: User,
+  ) {
+    return this.routeSheetService.rescheduleDelivery(
+      detailId,
+      rescheduleDto,
+      user.id,
+    );
+  }
+
+  @Post('details/:detailId/forward-to-admin')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE, Role.ADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Derivar una parada no entregada al administrador',
+    description: `Marca la parada como omitida con el motivo indicado y registra un incidente abierto para resolución administrativa. No crea una parada nueva ni la toma el reasignador automático.
+
+Es idempotente: una parada ya derivada no vuelve a aplicar efectos.`,
+  })
+  @ApiParam({
+    name: 'detailId',
+    description: 'ID del detalle de la hoja de ruta',
+    type: Number,
+    example: 101,
+  })
+  @ApiBody({ type: ForwardDeliveryToAdminDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Parada derivada al administrador',
+    type: DeliveryResolutionResultDto,
+  })
+  async forwardDeliveryToAdmin(
+    @Param('detailId', ParseIntPipe) detailId: number,
+    @Body(ValidationPipe) forwardDto: ForwardDeliveryToAdminDto,
+    @GetUser() user: User,
+  ) {
+    return this.routeSheetService.forwardDeliveryToAdmin(
+      detailId,
+      forwardDto,
+      user.id,
+    );
   }
 
   @Post('validate-delivery-times')
