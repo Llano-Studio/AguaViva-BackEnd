@@ -3,8 +3,8 @@ export const BUSINESS_CONFIG = {
   ROUTE_OPTIMIZATION: {
     // Implementaciones disponibles: mock (desarrollo/QA), google, osrm.
     DEFAULT_PROVIDER: 'mock',
-    // Deposito de la operacion.
-    DEFAULT_DEPOT: { LAT: -27.4514, LNG: -58.9866 },
+    // Deposito central de la operacion: 27°29'36.4"S 58°56'36.8"W.
+    DEFAULT_DEPOT: { LAT: -27.4934444, LNG: -58.9435556 },
     // Cerrar el recorrido volviendo al deposito.
     RETURN_TO_DEPOT: true,
     // Generacion de coordenadas simuladas.
