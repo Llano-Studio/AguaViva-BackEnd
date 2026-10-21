@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
@@ -954,6 +956,7 @@ Notas:
   }
 
   @Post(':id/reconcile-driver')
+  @HttpCode(HttpStatus.OK)
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Registrar la rendición de una hoja de ruta por el chofer',

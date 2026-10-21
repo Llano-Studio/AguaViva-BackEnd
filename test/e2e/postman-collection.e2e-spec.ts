@@ -40,13 +40,12 @@ import { createTestPrisma } from '../helpers/test-db';
  *  6) `payment-proofs` envía `payment_transaction_id` con valor vacío, que
  *     rompe la validación del DTO (`@Min(1)` sobre la conversión de ''), se
  *     omite ese campo opcional.
- *  7) Firma de `reconcile-driver`: el DTO (`@IsBase64`) rechaza el data URI de
- *     la coleccion y el servicio (`saveFile`) exige el prefijo `data:`. Las dos
- *     validaciones son mutuamente excluyentes: el endpoint responde 400 con
- *     cualquiera de las dos formas. Defecto PREEXISTENTE de AguaViva (tambien
- *     en `main`), ajeno a la fase de choferes y sin uso desde el frontend. Se
- *     fija como discrepancia conocida (ver KNOWN_DISCREPANCIES) y el request se
- *     ejecuta igual, con base64 puro, para dejar el 400 real en la evidencia.
+ *  7) Firma de `reconcile-driver`: se envia como data URI
+ *     (`data:image/png;base64,...`), el formato que documenta el contrato. El
+ *     DTO de AguaViva antes validaba base64 puro (`@IsBase64`) mientras el
+ *     servicio (`saveFile`) exige el prefijo `data:`, validaciones mutuamente
+ *     excluyentes que hacían imposible el 200; se alineo el DTO al data URI
+ *     (ver `ReconcileRouteSheetDto`) y el endpoint responde 200.
  */
 
 const COLLECTION_SOURCE = '/opt/deploy/docs/choferes-postman-aguaviva.json';
@@ -75,25 +74,6 @@ const EXPECTED: Record<string, number[]> = {
   [FOLDER.driverPayments]: [200, 200, 201, 200],
   [FOLDER.driverReconciliation]: [200, 200, 200],
   [FOLDER.adminReconciliations]: [200, 200, 200, 200],
-};
-
-/**
- * Discrepancias REALES entre el contrato publicado y el backend, verificadas
- * por HTTP. Se fijan aca para que la suite quede verde y cualquier cambio de
- * comportamiento (o su correccion) vuelva a hacerla fallar y obligue a
- * actualizar el contrato.
- */
-const KNOWN_DISCREPANCIES: Record<
-  string,
-  Record<number, { status: number; reason: string }>
-> = {
-  [FOLDER.routeSheets]: {
-    0: {
-      status: 400,
-      reason:
-        'reconcile-driver no acepta ni el data URI (el DTO usa @IsBase64) ni base64 puro (el servicio exige el prefijo data:). Defecto preexistente de AguaViva; el contrato documenta 200.',
-    },
-  },
 };
 
 type RoleName = 'DRIVERS' | 'ADMINISTRATIVE' | 'SUPERADMIN' | 'BOSSADMINISTRATIVE';
@@ -501,7 +481,7 @@ describe('Colección Postman (newman) contra la app real (e2e)', () => {
 
     // El índice único parcial route_sheet_one_in_progress_per_driver_key solo
     // admite UNA hoja IN_PROGRESS por chofer: la hoja de reconcile-driver queda
-    // PLANNED (ese request falla antes por validación del DTO, ver TODO).
+    // PLANNED y el resto de las operaciones usan la hoja s1.
     const s1Reconcile = (await createSheet({ status: 'PLANNED' }))
       .route_sheet_id;
     const s1 = await createSheet({ status: 'IN_PROGRESS' });
@@ -525,10 +505,11 @@ describe('Colección Postman (newman) contra la app real (e2e)', () => {
 
     results.push(
       ...await runFolder(FOLDER.routeSheets, adminToken, 1, (folder) => {
-        // 0) reconcile-driver: se envia base64 PURO (@IsBase64 del DTO rechaza
-        //    el data URI de la coleccion).
+        // 0) reconcile-driver: firma como data URI (formato del contrato).
         setPathVar(folder.item[0].request, 'id', String(s1Reconcile));
-        setJsonBody(folder.item[0].request, { signature_data: PNG_BASE64 });
+        setJsonBody(folder.item[0].request, {
+          signature_data: SIGNATURE_DATA_URI,
+        });
 
         // 1) skip (admin) sobre una parada PENDING
         setPathVar(folder.item[1].request, 'detailId', String(detailSkip));
@@ -738,33 +719,10 @@ describe('Colección Postman (newman) contra la app real (e2e)', () => {
     console.table(rows);
 
     const mismatches = results.filter((r) => r.status !== EXPECTED[r.folder]?.[r.index]);
-
-    // Se separan las discrepancias ya conocidas y justificadas (KNOWN_DISCREPANCIES)
-    // de las inesperadas. Las conocidas se informan pero no rompen la suite; las
-    // inesperadas sí fallan, de modo que cualquier cambio de comportamiento real
-    // obligue a revisar el contrato.
-    const known = mismatches.filter(
-      (m) => KNOWN_DISCREPANCIES[m.folder]?.[m.index]?.status === m.status,
-    );
-    const unexpected = mismatches.filter(
-      (m) => KNOWN_DISCREPANCIES[m.folder]?.[m.index]?.status !== m.status,
-    );
-
-    if (known.length > 0) {
+    if (mismatches.length > 0) {
       // eslint-disable-next-line no-console
-      console.log('\n=== DISCREPANCIAS CONOCIDAS (aceptadas, no rompen la suite) ===');
-      known.forEach((m) => {
-        // eslint-disable-next-line no-console
-        console.log(
-          `\n- [${m.folder}] #${m.index} ${m.method} ${m.name}\n  real=${m.status} documentado=${EXPECTED[m.folder]?.[m.index]}\n  motivo=${KNOWN_DISCREPANCIES[m.folder]?.[m.index]?.reason}`,
-        );
-      });
-    }
-
-    if (unexpected.length > 0) {
-      // eslint-disable-next-line no-console
-      console.log('\n=== REQUESTS NO VERDES INESPERADOS (estado real vs documentado) ===');
-      unexpected.forEach((m) => {
+      console.log('\n=== REQUESTS NO VERDES (estado real vs documentado) ===');
+      mismatches.forEach((m) => {
         // eslint-disable-next-line no-console
         console.log(
           `\n- [${m.folder}] #${m.index} ${m.method} ${m.name}\n  real=${m.status} documentado=${EXPECTED[m.folder]?.[m.index]}\n  body=${m.errBody ?? '(vacío)'}`,
@@ -773,7 +731,7 @@ describe('Colección Postman (newman) contra la app real (e2e)', () => {
     }
 
     expect(
-      unexpected.map((m) => ({
+      mismatches.map((m) => ({
         carpeta: m.folder,
         request: m.name,
         real: m.status,
