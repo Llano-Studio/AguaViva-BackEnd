@@ -3,16 +3,17 @@ import { Prisma } from '@prisma/client';
 /**
  * Reglas de la cuenta corriente del chofer. Cuando el chofer deja que un
  * cliente pague con su cuenta corriente, la deuda pasa al chofer como un cargo
- * independiente. Cada cargo vence el día `dueDay` del mes siguiente al cargo;
- * si después de esa fecha sigue impago, se le aplica una sola vez el interés
- * sobre lo que quede impago de ese cargo (nunca sobre el total de la cuenta).
+ * independiente. Cada cargo vence `graceDays` días corridos después del día
+ * del cargo; si después de esa fecha sigue impago, se le aplica una sola vez el
+ * interés sobre lo que quede impago de ese cargo (nunca sobre el total de la
+ * cuenta).
  */
 export const DRIVER_CREDIT_DEFAULT_RATE = '0.20';
-export const DRIVER_CREDIT_DEFAULT_DUE_DAY = 10;
+export const DRIVER_CREDIT_DEFAULT_GRACE_DAYS = 10;
 
 export interface DriverCreditPolicy {
   rate: Prisma.Decimal;
-  dueDay: number;
+  graceDays: number;
 }
 
 /** Lee la política desde el entorno, con los valores acordados por defecto. */
@@ -20,27 +21,28 @@ export function readDriverCreditPolicy(
   env: NodeJS.ProcessEnv = process.env,
 ): DriverCreditPolicy {
   const rawRate = env.DRIVER_CREDIT_INTEREST_RATE?.trim();
-  const rawDueDay = env.DRIVER_CREDIT_DUE_DAY?.trim();
+  const rawGraceDays = env.DRIVER_CREDIT_GRACE_DAYS?.trim();
   const rate = new Prisma.Decimal(rawRate || DRIVER_CREDIT_DEFAULT_RATE);
-  const dueDay = rawDueDay ? Number(rawDueDay) : DRIVER_CREDIT_DEFAULT_DUE_DAY;
+  const graceDays = rawGraceDays
+    ? Number(rawGraceDays)
+    : DRIVER_CREDIT_DEFAULT_GRACE_DAYS;
   if (rate.lt(0) || rate.gt(1)) {
     throw new Error('DRIVER_CREDIT_INTEREST_RATE debe estar entre 0 y 1');
   }
-  if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 28) {
-    throw new Error('DRIVER_CREDIT_DUE_DAY debe ser un día entre 1 y 28');
+  if (!Number.isInteger(graceDays) || graceDays < 0 || graceDays > 365) {
+    throw new Error('DRIVER_CREDIT_GRACE_DAYS debe ser un entero entre 0 y 365');
   }
-  return { rate, dueDay };
+  return { rate, graceDays };
 }
 
 /**
  * Fecha de vencimiento (`YYYY-MM-DD`) de un cargo tomado el día `chargeYmd`
- * (fecha de Buenos Aires): el día `dueDay` del mes siguiente.
+ * (fecha de Buenos Aires): `graceDays` días corridos después del cargo.
  */
-export function dueDateFor(chargeYmd: string, dueDay: number): string {
-  const [year, month] = chargeYmd.split('-').map(Number);
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
-  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+export function dueDateFor(chargeYmd: string, graceDays: number): string {
+  const date = new Date(`${chargeYmd}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + graceDays);
+  return date.toISOString().slice(0, 10);
 }
 
 /** El interés corresponde recién el día siguiente al vencimiento. */

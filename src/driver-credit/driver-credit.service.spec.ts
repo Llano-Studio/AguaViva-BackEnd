@@ -15,7 +15,7 @@ function charge(overrides: Record<string, unknown> = {}) {
     payment_transaction_id: 7001,
     amount: d(100000),
     settled_amount: d(0),
-    due_date: new Date('2026-12-10T00:00:00.000Z'),
+    due_date: new Date('2026-11-26T00:00:00.000Z'),
     interest_rate: d('0.2000'),
     interest_base: null,
     interest_amount: null,
@@ -58,7 +58,7 @@ describe('DriverCreditService', () => {
   });
 
   describe('createCharge', () => {
-    it('vence el 10 del mes siguiente y suma la deuda al chofer', async () => {
+    it('vence a los 10 días del cargo y suma la deuda al chofer', async () => {
       await service.createCharge(prisma, {
         driverId: 7,
         customerId: 5885,
@@ -71,7 +71,7 @@ describe('DriverCreditService', () => {
       });
 
       const data = prisma.driver_credit_charge.create.mock.calls[0][0].data;
-      expect(data.due_date.toISOString()).toBe('2026-12-10T00:00:00.000Z');
+      expect(data.due_date.toISOString()).toBe('2026-11-26T00:00:00.000Z');
       expect(data.interest_rate).toBe('0.2000');
       expect(prisma.driver_account_movement.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -93,10 +93,10 @@ describe('DriverCreditService', () => {
         _sum: { amount: d(30000) },
       });
 
-      const result = await service.applyDueInterest(undefined, '2026-12-11');
+      const result = await service.applyDueInterest(undefined, '2026-11-27');
 
       expect(result).toEqual({
-        date: '2026-12-11',
+        date: '2026-11-27',
         applied: 1,
         total_interest: '14000.00',
       });
@@ -119,7 +119,7 @@ describe('DriverCreditService', () => {
 
     it('no aplica nada el mismo día del vencimiento', async () => {
       prisma.driver_credit_charge.findMany.mockResolvedValue([charge()]);
-      const result = await service.applyDueInterest(undefined, '2026-12-10');
+      const result = await service.applyDueInterest(undefined, '2026-11-26');
       expect(result.applied).toBe(0);
       expect(prisma.driver_credit_charge.updateMany).not.toHaveBeenCalled();
     });
@@ -127,7 +127,7 @@ describe('DriverCreditService', () => {
     it('si otro proceso ya lo aplicó no duplica el movimiento', async () => {
       prisma.driver_credit_charge.findMany.mockResolvedValue([charge()]);
       prisma.driver_credit_charge.updateMany.mockResolvedValue({ count: 0 });
-      const result = await service.applyDueInterest(undefined, '2026-12-11');
+      const result = await service.applyDueInterest(undefined, '2026-11-27');
       expect(result.applied).toBe(0);
       expect(prisma.driver_account_movement.create).not.toHaveBeenCalled();
     });

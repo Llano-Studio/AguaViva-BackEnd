@@ -82,7 +82,7 @@ export class DriverCreditService {
   ): Promise<void> {
     const dueDate = dueDateFor(
       formatBAYMD(input.chargedAt),
-      this.policy.dueDay,
+      this.policy.graceDays,
     );
     await tx.driver_credit_charge.create({
       data: {

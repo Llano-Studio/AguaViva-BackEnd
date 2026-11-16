@@ -2,7 +2,7 @@
 CREATE TYPE "public"."CustomerCurrentAccountType" AS ENUM ('NONE', 'OWN', 'DRIVER');
 
 -- AlterTable
-ALTER TABLE "public"."person" ADD COLUMN     "current_account_type" "public"."CustomerCurrentAccountType" NOT NULL DEFAULT 'DRIVER';
+ALTER TABLE "public"."person" ADD COLUMN     "current_account_type" "public"."CustomerCurrentAccountType" NOT NULL DEFAULT 'NONE';
 
 -- AlterTable
 ALTER TABLE "public"."route_reconciliation" ADD COLUMN     "customer_account_total" DECIMAL(10,2) NOT NULL DEFAULT 0,

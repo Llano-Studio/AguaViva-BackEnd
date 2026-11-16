@@ -11,15 +11,16 @@ import {
 const d = (value: string | number) => new Prisma.Decimal(value);
 
 describe('driver credit rules', () => {
-  it('vence el día 10 del mes siguiente al cargo', () => {
-    expect(dueDateFor('2026-11-16', 10)).toBe('2026-12-10');
-    expect(dueDateFor('2026-11-01', 10)).toBe('2026-12-10');
-    expect(dueDateFor('2026-12-28', 10)).toBe('2027-01-10');
+  it('vence a los 10 días corridos del cargo', () => {
+    expect(dueDateFor('2026-11-16', 10)).toBe('2026-11-26');
+    expect(dueDateFor('2026-11-25', 10)).toBe('2026-12-05');
+    expect(dueDateFor('2026-12-28', 10)).toBe('2027-01-07');
+    expect(dueDateFor('2027-02-20', 10)).toBe('2027-03-02');
   });
 
   it('el interés corre recién después del vencimiento', () => {
-    expect(isOverdue('2026-12-10', '2026-12-10')).toBe(false);
-    expect(isOverdue('2026-12-10', '2026-12-11')).toBe(true);
+    expect(isOverdue('2026-11-26', '2026-11-26')).toBe(false);
+    expect(isOverdue('2026-11-26', '2026-11-27')).toBe(true);
   });
 
   it('el interés es el 20% de lo impago del cargo, no del total', () => {
@@ -69,18 +70,21 @@ describe('driver credit rules', () => {
     ]);
   });
 
-  it('toma la tasa y el día del entorno y valida los valores', () => {
+  it('toma la tasa y los días de gracia del entorno y valida los valores', () => {
     const policy = readDriverCreditPolicy({});
     expect(policy.rate.toFixed(2)).toBe('0.20');
-    expect(policy.dueDay).toBe(10);
+    expect(policy.graceDays).toBe(10);
     expect(
       readDriverCreditPolicy({
         DRIVER_CREDIT_INTEREST_RATE: '0.15',
-        DRIVER_CREDIT_DUE_DAY: '5',
+        DRIVER_CREDIT_GRACE_DAYS: '15',
       }),
-    ).toEqual({ rate: d('0.15'), dueDay: 5 });
+    ).toEqual({ rate: d('0.15'), graceDays: 15 });
     expect(() =>
-      readDriverCreditPolicy({ DRIVER_CREDIT_DUE_DAY: '31' }),
+      readDriverCreditPolicy({ DRIVER_CREDIT_GRACE_DAYS: '-1' }),
+    ).toThrow();
+    expect(() =>
+      readDriverCreditPolicy({ DRIVER_CREDIT_GRACE_DAYS: '2.5' }),
     ).toThrow();
   });
 });

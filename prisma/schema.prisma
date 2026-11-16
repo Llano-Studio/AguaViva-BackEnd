@@ -259,7 +259,7 @@ model person {
   comodatos                comodato[]
   locality                 locality?                 @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
   zone                     zone?                     @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
-  current_account_type     CustomerCurrentAccountType @default(DRIVER)
+  current_account_type     CustomerCurrentAccountType @default(NONE)
   driver_credit_charges    driver_credit_charge[]
 
   @@index([name])
