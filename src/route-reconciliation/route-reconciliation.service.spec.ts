@@ -1,10 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma, RouteSheetExecutionStatus } from '@prisma/client';
 import { RouteReconciliationService } from './route-reconciliation.service';
-import {
-  DriverAccountMovementType,
-  ReconciliationStatus,
-} from './dto';
+import { DriverAccountMovementType, ReconciliationStatus } from './dto';
 
 const DRIVER_ID = 7;
 const ROUTE_SHEET_ID = 345;
@@ -59,6 +56,7 @@ describe('RouteReconciliationService', () => {
   let service: RouteReconciliationService;
   let prisma: any;
   let tx: any;
+  let driverCredit: { applyDueInterest: jest.Mock };
 
   beforeEach(() => {
     tx = {
@@ -78,6 +76,14 @@ describe('RouteReconciliationService', () => {
         count: jest.fn().mockResolvedValue(0),
       },
       payment_transaction: { findMany: jest.fn().mockResolvedValue([]) },
+      driver_expense: {
+        aggregate: jest.fn().mockResolvedValue({ _sum: { amount: null } }),
+      },
+      delivery_payment_batch: {
+        aggregate: jest
+          .fn()
+          .mockResolvedValue({ _sum: { customer_account_amount: null } }),
+      },
       vehicle_route_inventory: { findMany: jest.fn().mockResolvedValue([]) },
       inventory_transaction: { findMany: jest.fn().mockResolvedValue([]) },
       product: { findMany: jest.fn().mockResolvedValue([]) },
@@ -90,7 +96,8 @@ describe('RouteReconciliationService', () => {
       },
       $transaction: jest.fn((fn: (client: any) => Promise<unknown>) => fn(tx)),
     };
-    service = new RouteReconciliationService(prisma);
+    driverCredit = { applyDueInterest: jest.fn().mockResolvedValue({}) };
+    service = new RouteReconciliationService(prisma, driverCredit as any);
   });
 
   describe('previewForDriver', () => {
@@ -107,10 +114,7 @@ describe('RouteReconciliationService', () => {
         },
       ]);
 
-      const preview = await service.previewForDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-      );
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
 
       expect(preview.totals.cash_to_render).toBe('1000.00');
       expect(preview.totals.electronic_total).toBe('500.00');
@@ -125,9 +129,7 @@ describe('RouteReconciliationService', () => {
     });
 
     it('resume por producto: cargado menos entregado menos devuelto', async () => {
-      prisma.route_sheet.findFirst.mockResolvedValue(
-        ownedSheet(['DELIVERED']),
-      );
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
       prisma.vehicle_route_inventory.findMany.mockResolvedValue([
         { product_id: 1, product: { description: 'Bidón 20L' } },
       ]);
@@ -137,10 +139,7 @@ describe('RouteReconciliationService', () => {
         { product_id: 1, quantity: 1, transaction_type: 'RETURN' },
       ]);
 
-      const preview = await service.previewForDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-      );
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
 
       expect(preview.products).toEqual([
         {
@@ -155,6 +154,41 @@ describe('RouteReconciliationService', () => {
         },
       ]);
       expect(preview.can_confirm).toBe(true);
+    });
+    it('descuenta gastos del efectivo y separa las cuentas corrientes', async () => {
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
+      prisma.payment_transaction.findMany.mockResolvedValue([
+        {
+          transaction_amount: new Prisma.Decimal('10000.00'),
+          payment_method: { code: 'EFECTIVO' },
+        },
+        {
+          transaction_amount: new Prisma.Decimal('3000.00'),
+          payment_method: { code: 'TRANSFERENCIA' },
+        },
+        {
+          transaction_amount: new Prisma.Decimal('5000.00'),
+          payment_method: { code: 'CTA_CTE_CHOFER' },
+        },
+      ]);
+      prisma.driver_expense.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal('2500.00') },
+      });
+      prisma.delivery_payment_batch.aggregate.mockResolvedValue({
+        _sum: { customer_account_amount: new Prisma.Decimal('8000.00') },
+      });
+
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
+
+      expect(preview.totals).toEqual({
+        total_collected: '18000.00',
+        cash_collected: '10000.00',
+        expenses_total: '2500.00',
+        cash_to_render: '7500.00',
+        electronic_total: '3000.00',
+        driver_credit_total: '5000.00',
+        customer_account_total: '8000.00',
+      });
     });
   });
 
@@ -173,9 +207,7 @@ describe('RouteReconciliationService', () => {
     });
 
     it('rechaza la confirmación si la versión quedó obsoleta', async () => {
-      prisma.route_sheet.findFirst.mockResolvedValue(
-        ownedSheet(['DELIVERED']),
-      );
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
 
       await expect(
         service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
@@ -197,15 +229,11 @@ describe('RouteReconciliationService', () => {
       ]);
       tx.route_reconciliation.create.mockResolvedValue(reconciliationRow());
 
-      const preview = await service.previewForDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-      );
-      const result = await service.confirmByDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-        { idempotency_key: 'key-1', version: preview.version },
-      );
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
+      const result = await service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
+        idempotency_key: 'key-1',
+        version: preview.version,
+      });
 
       expect(result.idempotent_replay).toBe(false);
       expect(tx.driver_account_movement.create).toHaveBeenCalledWith({
@@ -224,27 +252,22 @@ describe('RouteReconciliationService', () => {
     });
 
     it('es idempotente: la misma clave devuelve la rendición ya registrada', async () => {
-      prisma.route_sheet.findFirst.mockResolvedValue(
-        ownedSheet(['DELIVERED']),
-      );
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
       prisma.route_reconciliation.findUnique.mockResolvedValue(
         reconciliationRow({ idempotency_key: 'key-1' }),
       );
 
-      const result = await service.confirmByDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-        { idempotency_key: 'key-1', version: 'v1' },
-      );
+      const result = await service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
+        idempotency_key: 'key-1',
+        version: 'v1',
+      });
 
       expect(result.idempotent_replay).toBe(true);
       expect(tx.route_reconciliation.create).not.toHaveBeenCalled();
     });
 
     it('registra el conteo físico y expone las diferencias', async () => {
-      prisma.route_sheet.findFirst.mockResolvedValue(
-        ownedSheet(['DELIVERED']),
-      );
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
       prisma.vehicle_route_inventory.findMany.mockResolvedValue([
         { product_id: 1, product: { description: 'Bidón 20L' } },
       ]);
@@ -253,10 +276,7 @@ describe('RouteReconciliationService', () => {
       ]);
       tx.route_reconciliation.create.mockResolvedValue(reconciliationRow());
 
-      const preview = await service.previewForDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-      );
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
       await service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
         idempotency_key: 'key-1',
         version: preview.version,
@@ -276,9 +296,7 @@ describe('RouteReconciliationService', () => {
     });
 
     it('no abre deuda cuando no hay efectivo a rendir', async () => {
-      prisma.route_sheet.findFirst.mockResolvedValue(
-        ownedSheet(['DELIVERED']),
-      );
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
       tx.route_reconciliation.create.mockResolvedValue(
         reconciliationRow({
           cash_to_render: new Prisma.Decimal('0.00'),
@@ -286,10 +304,7 @@ describe('RouteReconciliationService', () => {
         }),
       );
 
-      const preview = await service.previewForDriver(
-        DRIVER_ID,
-        ROUTE_SHEET_ID,
-      );
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
       await service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
         idempotency_key: 'key-1',
         version: preview.version,
@@ -298,6 +313,40 @@ describe('RouteReconciliationService', () => {
       expect(tx.driver_account_movement.create).not.toHaveBeenCalled();
       const created = tx.route_reconciliation.create.mock.calls[0][0].data;
       expect(created.status).toBe(ReconciliationStatus.CASH_RECEIVED);
+    });
+
+    it('con gastos registra el efectivo y el descuento por separado', async () => {
+      prisma.route_sheet.findFirst.mockResolvedValue(ownedSheet(['DELIVERED']));
+      prisma.payment_transaction.findMany.mockResolvedValue([
+        {
+          transaction_amount: new Prisma.Decimal('10000.00'),
+          payment_method: { code: 'EFECTIVO' },
+        },
+      ]);
+      prisma.driver_expense.aggregate.mockResolvedValue({
+        _sum: { amount: new Prisma.Decimal('2500.00') },
+      });
+      tx.route_reconciliation.create.mockResolvedValue(
+        reconciliationRow({ cash_to_render: new Prisma.Decimal('7500.00') }),
+      );
+
+      const preview = await service.previewForDriver(DRIVER_ID, ROUTE_SHEET_ID);
+      await service.confirmByDriver(DRIVER_ID, ROUTE_SHEET_ID, {
+        idempotency_key: 'key-1',
+        version: preview.version,
+      });
+
+      const movements = tx.driver_account_movement.create.mock.calls.map(
+        ([arg]) => [arg.data.movement_type, arg.data.amount],
+      );
+      expect(movements).toEqual([
+        [DriverAccountMovementType.CASH_COLLECTED, '10000.00'],
+        [DriverAccountMovementType.EXPENSE, '-2500.00'],
+      ]);
+      const created = tx.route_reconciliation.create.mock.calls[0][0].data;
+      expect(created.cash_to_render).toBe('7500.00');
+      expect(created.expenses_total).toBe('2500.00');
+      expect(created.status).toBe(ReconciliationStatus.CONFIRMED);
     });
   });
 
@@ -350,8 +399,12 @@ describe('RouteReconciliationService', () => {
   describe('getDriverAccount', () => {
     it('reconstruye el saldo a partir de los movimientos', async () => {
       prisma.driver_account_movement.aggregate
-        .mockResolvedValueOnce({ _sum: { amount: new Prisma.Decimal('1500.00') } })
-        .mockResolvedValueOnce({ _sum: { amount: new Prisma.Decimal('-500.00') } });
+        .mockResolvedValueOnce({
+          _sum: { amount: new Prisma.Decimal('1500.00') },
+        })
+        .mockResolvedValueOnce({
+          _sum: { amount: new Prisma.Decimal('-500.00') },
+        });
       prisma.driver_account_movement.findMany.mockResolvedValue([
         {
           movement_id: 2,

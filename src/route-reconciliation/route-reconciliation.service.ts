@@ -9,6 +9,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { Prisma, RouteSheetExecutionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DriverCreditService } from '../driver-credit/driver-credit.service';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import {
   endOfDayBA,
@@ -43,6 +44,8 @@ import {
 
 /** Método de pago cuyo efectivo el chofer debe rendir. */
 const CASH_METHOD_CODE = 'EFECTIVO';
+/** Cobro con la cuenta corriente del chofer: no es dinero, es deuda del chofer. */
+const DRIVER_CREDIT_METHOD_CODE = 'CTA_CTE_CHOFER';
 
 /** Tipos de movimiento de inventario que arma el resumen por producto. */
 const INVENTORY_LOAD = 'LOAD';
@@ -82,7 +85,10 @@ interface ReconciledSnapshot {
 
 @Injectable()
 export class RouteReconciliationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly driverCreditService: DriverCreditService,
+  ) {}
 
   /**
    * Previsualización de la rendición: cobros por método, efectivo a rendir y
@@ -189,6 +195,9 @@ export class RouteReconciliationService {
             cash_to_render: snapshot.totals.cash_to_render,
             electronic_total: snapshot.totals.electronic_total,
             total_collected: snapshot.totals.total_collected,
+            expenses_total: snapshot.totals.expenses_total,
+            driver_credit_total: snapshot.totals.driver_credit_total,
+            customer_account_total: snapshot.totals.customer_account_total,
             collections_by_method:
               snapshot.collections as unknown as Prisma.InputJsonValue,
             product_summary:
@@ -203,17 +212,36 @@ export class RouteReconciliationService {
           include: RECONCILIATION_INCLUDE,
         });
 
-        if (!fullyReceived) {
+        const cashCollected = new Prisma.Decimal(
+          snapshot.totals.cash_collected,
+        );
+        if (cashCollected.gt(0)) {
           await tx.driver_account_movement.create({
             data: {
               driver_id: driverId,
               movement_type: DriverAccountMovementType.CASH_COLLECTED,
-              amount: snapshot.totals.cash_to_render,
+              amount: cashCollected.toFixed(2),
               route_sheet_id: routeSheetId,
               reconciliation_id: reconciliation.reconciliation_id,
               reference: `RS-${routeSheetId}`,
               origin_key: `RECONCILIATION:${routeSheetId}`,
               notes: 'Efectivo cobrado en la hoja de ruta',
+              created_by: driverId,
+            },
+          });
+        }
+        const expenses = new Prisma.Decimal(snapshot.totals.expenses_total);
+        if (expenses.gt(0)) {
+          await tx.driver_account_movement.create({
+            data: {
+              driver_id: driverId,
+              movement_type: DriverAccountMovementType.EXPENSE,
+              amount: expenses.neg().toFixed(2),
+              route_sheet_id: routeSheetId,
+              reconciliation_id: reconciliation.reconciliation_id,
+              reference: `RS-${routeSheetId}`,
+              origin_key: `RECONCILIATION_EXPENSES:${routeSheetId}`,
+              notes: 'Gastos del chofer descontados del efectivo',
               created_by: driverId,
             },
           });
@@ -285,7 +313,8 @@ export class RouteReconciliationService {
     if (filters.date_from || filters.date_to) {
       const confirmedAt: Prisma.DateTimeFilter = {};
       if (filters.date_from) confirmedAt.gte = parseBAYMD(filters.date_from);
-      if (filters.date_to) confirmedAt.lte = endOfDayBA(parseBAYMD(filters.date_to));
+      if (filters.date_to)
+        confirmedAt.lte = endOfDayBA(parseBAYMD(filters.date_to));
       where.confirmed_at = confirmedAt;
     }
 
@@ -297,10 +326,7 @@ export class RouteReconciliationService {
           ...RECONCILIATION_INCLUDE,
           route_sheet: { select: { delivery_date: true } },
         },
-        orderBy: [
-          { confirmed_at: 'desc' },
-          { reconciliation_id: 'desc' },
-        ],
+        orderBy: [{ confirmed_at: 'desc' }, { reconciliation_id: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -463,6 +489,7 @@ export class RouteReconciliationService {
   ): Promise<DriverAccountDto> {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 50;
+    await this.driverCreditService.applyDueInterest(driverId);
 
     const [total, rows, debits, credits] = await Promise.all([
       this.prisma.driver_account_movement.count({
@@ -503,32 +530,44 @@ export class RouteReconciliationService {
     };
   }
 
-  /** Resumen de una rendición: cobros por método y saldo de efectivo a rendir. */
+  /**
+   * Resumen de una rendición: cobros por método, efectivo a rendir (efectivo
+   * menos gastos), lo cobrado con la cuenta corriente del chofer y lo dejado en
+   * la cuenta corriente propia del cliente.
+   */
   private async buildCollections(
+    routeSheetId: number,
     detailIds: number[],
   ): Promise<CollectionsBreakdown> {
-    if (detailIds.length === 0) {
-      return {
-        collections: [],
-        totals: {
-          total_collected: '0.00',
-          cash_to_render: '0.00',
-          electronic_total: '0.00',
-        },
-      };
-    }
-
-    const payments = await this.prisma.payment_transaction.findMany({
-      where: { route_sheet_detail_id: { in: detailIds }, is_active: true },
-      select: {
-        transaction_amount: true,
-        payment_method: { select: { code: true } },
-      },
-    });
+    const [payments, expenses, onAccount] = await Promise.all([
+      detailIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.payment_transaction.findMany({
+            where: {
+              route_sheet_detail_id: { in: detailIds },
+              is_active: true,
+            },
+            select: {
+              transaction_amount: true,
+              payment_method: { select: { code: true } },
+            },
+          }),
+      this.prisma.driver_expense.aggregate({
+        where: { route_sheet_id: routeSheetId, is_active: true },
+        _sum: { amount: true },
+      }),
+      detailIds.length === 0
+        ? Promise.resolve({ _sum: { customer_account_amount: null } })
+        : this.prisma.delivery_payment_batch.aggregate({
+            where: { route_sheet_detail_id: { in: detailIds } },
+            _sum: { customer_account_amount: true },
+          }),
+    ]);
 
     const byMethod = new Map<string, Prisma.Decimal>();
     let total = new Prisma.Decimal(0);
     let cash = new Prisma.Decimal(0);
+    let driverCredit = new Prisma.Decimal(0);
     for (const payment of payments) {
       const code = payment.payment_method.code;
       const amount = new Prisma.Decimal(payment.transaction_amount);
@@ -538,7 +577,14 @@ export class RouteReconciliationService {
       );
       total = total.add(amount);
       if (code === CASH_METHOD_CODE) cash = cash.add(amount);
+      if (code === DRIVER_CREDIT_METHOD_CODE) {
+        driverCredit = driverCredit.add(amount);
+      }
     }
+    const expensesTotal = new Prisma.Decimal(expenses._sum.amount ?? 0);
+    const customerAccount = new Prisma.Decimal(
+      onAccount._sum.customer_account_amount ?? 0,
+    );
 
     // Orden estable por código de método para que la respuesta no varíe.
     const collections = [...byMethod.entries()]
@@ -552,8 +598,12 @@ export class RouteReconciliationService {
       collections,
       totals: {
         total_collected: total.toFixed(2),
-        cash_to_render: cash.toFixed(2),
-        electronic_total: total.minus(cash).toFixed(2),
+        cash_to_render: cash.minus(expensesTotal).toFixed(2),
+        electronic_total: total.minus(cash).minus(driverCredit).toFixed(2),
+        cash_collected: cash.toFixed(2),
+        expenses_total: expensesTotal.toFixed(2),
+        driver_credit_total: driverCredit.toFixed(2),
+        customer_account_total: customerAccount.toFixed(2),
       },
     };
   }
@@ -596,7 +646,10 @@ export class RouteReconciliationService {
     for (const tx of transactions) {
       productIds.add(tx.product_id);
       if (tx.transaction_type === INVENTORY_LOAD) {
-        loaded.set(tx.product_id, (loaded.get(tx.product_id) ?? 0) + tx.quantity);
+        loaded.set(
+          tx.product_id,
+          (loaded.get(tx.product_id) ?? 0) + tx.quantity,
+        );
       } else if (tx.transaction_type === INVENTORY_DELIVERY) {
         delivered.set(
           tx.product_id,
@@ -672,7 +725,7 @@ export class RouteReconciliationService {
     ).length;
 
     const [collectionsBreakdown, productSummary] = await Promise.all([
-      this.buildCollections(detailIds),
+      this.buildCollections(sheet.route_sheet_id, detailIds),
       this.buildProductSummary(sheet.route_sheet_id, counted),
     ]);
 
@@ -681,6 +734,7 @@ export class RouteReconciliationService {
       execution_status: sheet.execution_status,
       pending_deliveries: pendingDeliveries,
       collections: collectionsBreakdown.collections,
+      totals: collectionsBreakdown.totals,
       products: productSummary.products,
     });
 
@@ -704,6 +758,7 @@ export class RouteReconciliationService {
     execution_status: string;
     pending_deliveries: number;
     collections: ReconciliationCollectionDto[];
+    totals: ReconciliationTotalsDto;
     products: ReconciliationProductItemDto[];
   }): string {
     const payload = JSON.stringify({
@@ -711,6 +766,8 @@ export class RouteReconciliationService {
       execution_status: input.execution_status,
       pending_deliveries: input.pending_deliveries,
       collections: input.collections.map((c) => [c.payment_method, c.amount]),
+      expenses: input.totals.expenses_total,
+      customer_account: input.totals.customer_account_total,
       products: input.products.map((p) => [
         p.product_id,
         p.loaded_quantity,
@@ -763,9 +820,7 @@ export class RouteReconciliationService {
     return sheet;
   }
 
-  private async requireReconciliation(
-    reconciliationId: number,
-  ): Promise<{
+  private async requireReconciliation(reconciliationId: number): Promise<{
     reconciliation_id: number;
     route_sheet_id: number;
     driver_id: number;
@@ -795,7 +850,9 @@ export class RouteReconciliationService {
   }
 
   /** Suma del efectivo ya rendido (movimientos negativos) de una rendición. */
-  private async sumRenderedCash(reconciliationId: number): Promise<Prisma.Decimal> {
+  private async sumRenderedCash(
+    reconciliationId: number,
+  ): Promise<Prisma.Decimal> {
     const result = await this.prisma.driver_account_movement.aggregate({
       where: {
         reconciliation_id: reconciliationId,
@@ -881,11 +938,24 @@ export class RouteReconciliationService {
     total_collected: Prisma.Decimal;
     cash_to_render: Prisma.Decimal;
     electronic_total: Prisma.Decimal;
+    expenses_total?: Prisma.Decimal | null;
+    driver_credit_total?: Prisma.Decimal | null;
+    customer_account_total?: Prisma.Decimal | null;
   }): ReconciliationTotalsDto {
+    const cashToRender = new Prisma.Decimal(row.cash_to_render);
+    const expenses = new Prisma.Decimal(row.expenses_total ?? 0);
     return {
       total_collected: new Prisma.Decimal(row.total_collected).toFixed(2),
-      cash_to_render: new Prisma.Decimal(row.cash_to_render).toFixed(2),
+      cash_to_render: cashToRender.toFixed(2),
       electronic_total: new Prisma.Decimal(row.electronic_total).toFixed(2),
+      cash_collected: cashToRender.plus(expenses).toFixed(2),
+      expenses_total: expenses.toFixed(2),
+      driver_credit_total: new Prisma.Decimal(
+        row.driver_credit_total ?? 0,
+      ).toFixed(2),
+      customer_account_total: new Prisma.Decimal(
+        row.customer_account_total ?? 0,
+      ).toFixed(2),
     };
   }
 

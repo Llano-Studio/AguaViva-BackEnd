@@ -39,6 +39,14 @@ export class LoanedProductDetailDto {
 
 export class PersonResponseDto extends CreatePersonDto {
   @ApiProperty({
+    enum: ['NONE', 'OWN', 'DRIVER'],
+    description:
+      'Cuenta corriente que puede usar al pagar en ruta: OWN (propia), DRIVER (la del chofer) o NONE',
+    example: 'DRIVER',
+  })
+  current_account_type: 'NONE' | 'OWN' | 'DRIVER';
+
+  @ApiProperty({
     example: 1,
     description: 'ID único del cliente en el sistema',
   })

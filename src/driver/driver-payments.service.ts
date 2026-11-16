@@ -5,8 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { Prisma, RouteSheetExecutionStatus } from '@prisma/client';
+import {
+  CustomerCurrentAccountType,
+  Prisma,
+  RouteSheetExecutionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DriverCreditService } from '../driver-credit/driver-credit.service';
 import {
   DELIVERY_SEQUENCE_ORDER_BY,
   RESOLVED_DELIVERY_STATUSES,
@@ -15,12 +20,16 @@ import {
 import { formatBATimestampISO } from '../common/utils/date.utils';
 import { buildImageUrl } from '../common/utils/file-upload.util';
 import {
+  CombinedPaymentLineResultDto,
+  DriverCombinedPaymentResultDto,
+  DriverDeliveryPaymentOptionsDto,
   DriverPaymentOptionDto,
   DriverPaymentOptionsDto,
   DriverPaymentProofDto,
   DriverPaymentProofKind,
   DriverPaymentResultDto,
   DriverTransferDataDto,
+  RegisterCombinedPaymentDto,
   RegisterDeliveryPaymentDto,
   RegisterPaymentProofBodyDto,
 } from './dto';
@@ -30,6 +39,46 @@ import {
 } from './driver-route-sheets.service';
 
 const CASH_METHOD_CODE = 'EFECTIVO';
+const TRANSFER_METHOD_CODE = 'TRANSFERENCIA';
+const MERCADOPAGO_METHOD_CODE = 'MERCADOPAGO';
+/** El cliente paga con la cuenta corriente del chofer: la deuda pasa al chofer. */
+const DRIVER_ACCOUNT_METHOD_CODE = 'CTA_CTE_CHOFER';
+/** El cliente deja la deuda en su cuenta corriente propia: no hay cobro. */
+const CUSTOMER_ACCOUNT_METHOD_CODE = 'CTA_CTE_CLIENTE';
+
+/** Cuenta corriente que puede usar el cliente según su configuración. */
+const ACCOUNT_METHOD_BY_TYPE: Record<
+  CustomerCurrentAccountType,
+  string | null
+> = {
+  [CustomerCurrentAccountType.NONE]: null,
+  [CustomerCurrentAccountType.OWN]: CUSTOMER_ACCOUNT_METHOD_CODE,
+  [CustomerCurrentAccountType.DRIVER]: DRIVER_ACCOUNT_METHOD_CODE,
+};
+
+/**
+ * Métodos con los que el chofer cobra en la calle. MercadoPago queda oculto
+ * hasta que exista la integración (`MERCADOPAGO_ENABLED=true` lo habilita).
+ */
+function baseMethodCodes(): string[] {
+  const codes = [CASH_METHOD_CODE, TRANSFER_METHOD_CODE];
+  if (process.env.MERCADOPAGO_ENABLED === 'true') {
+    codes.push(MERCADOPAGO_METHOD_CODE);
+  }
+  return codes;
+}
+
+/** Datos de una parte del cobro ya validada, lista para grabarse. */
+interface PreparedLine {
+  index: number;
+  methodId: number;
+  methodCode: string;
+  amount: Prisma.Decimal;
+  amountReceived: Prisma.Decimal;
+  changeAmount: Prisma.Decimal;
+  reference: string | null;
+  notes: string | null;
+}
 
 /** Archivo ya validado por el multer, tal como llega al servicio. */
 export interface UploadedProofFile {
@@ -122,23 +171,41 @@ export class DriverPaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly driverRouteSheetsService: DriverRouteSheetsService,
+    private readonly driverCreditService: DriverCreditService,
   ) {}
 
-  /** Métodos de pago habilitados y datos de transferencia de la empresa. */
+  /**
+   * Métodos de pago generales y datos de transferencia de la empresa. No
+   * incluye las cuentas corrientes: dependen del cliente (ver la variante por
+   * parada).
+   */
   async getPaymentOptions(): Promise<DriverPaymentOptionsDto> {
-    const methods = await this.prisma.payment_method.findMany({
-      orderBy: { payment_method_id: 'asc' },
-    });
-    const options: DriverPaymentOptionDto[] = methods.map((method) => ({
-      payment_method_id: method.payment_method_id,
-      code: method.code,
-      description: method.description,
-      requires_reference: method.code !== CASH_METHOD_CODE,
-      requires_amount_received: method.code === CASH_METHOD_CODE,
-    }));
     return new DriverPaymentOptionsDto({
-      methods: options,
+      methods: await this.listMethods(baseMethodCodes()),
       transfer: this.getTransferData(),
+    });
+  }
+
+  /**
+   * Métodos de pago para una parada: los generales más la única cuenta
+   * corriente que le corresponde al cliente (la propia o la del chofer).
+   */
+  async getPaymentOptionsForDelivery(
+    driverId: number,
+    detailId: number,
+  ): Promise<DriverDeliveryPaymentOptionsDto> {
+    const detail = await this.loadPaymentDetail(driverId, detailId);
+    const obligation = this.resolveObligation(detail);
+    const accountType = await this.customerAccountType(obligation.customerId);
+    const codes = baseMethodCodes();
+    const accountCode = ACCOUNT_METHOD_BY_TYPE[accountType];
+    if (accountCode) codes.push(accountCode);
+    return new DriverDeliveryPaymentOptionsDto({
+      methods: await this.listMethods(codes),
+      transfer: this.getTransferData(),
+      customer_id: obligation.customerId,
+      current_account_type: accountType,
+      pending_amount: obligation.debt.toFixed(2),
     });
   }
 
@@ -185,8 +252,17 @@ export class DriverPaymentsService {
         `El método de pago ${dto.payment_method_id} no es válido`,
       );
     }
+    if (method.code === CUSTOMER_ACCOUNT_METHOD_CODE) {
+      throw new BadRequestException(
+        'La cuenta corriente del cliente se registra con el cobro combinado (POST /driver/deliveries/:detailId/payments/combined)',
+      );
+    }
 
     const obligation = this.resolveObligation(detail);
+    this.assertMethodAllowed(
+      method.code,
+      await this.customerAccountType(obligation.customerId),
+    );
     const amount = new Prisma.Decimal(dto.amount);
     if (obligation.debt.lte(0) || amount.gt(obligation.debt)) {
       throw new ConflictException(
@@ -222,41 +298,30 @@ export class DriverPaymentsService {
 
     let created: PaymentTransactionRow;
     try {
-      created = await this.prisma.$transaction(async (tx) => {
-        const transaction = await tx.payment_transaction.create({
-          data: {
-            transaction_date: new Date(),
-            customer_id: obligation.customerId,
-            order_id:
-              obligation.type === 'ORDER' ? obligation.referenceId : null,
-            route_sheet_detail_id: detailId,
-            document_number: this.buildDocumentNumber(
-              sheet.route_sheet_id,
-              detailId,
-            ),
-            receipt_number: dto.transaction_reference ?? null,
-            transaction_type: 'PAYMENT',
-            previous_balance: obligation.debt.toFixed(2),
-            transaction_amount: amount.toFixed(2),
-            total: amount.toFixed(2),
-            amount_received: amountReceived.toFixed(2),
-            change_amount: changeAmount.toFixed(2),
-            idempotency_key: dto.idempotency_key,
-            idempotency_hash: idempotencyHash,
-            payment_method_id: dto.payment_method_id,
-            user_id: driverId,
+      created = await this.prisma.$transaction((tx) =>
+        this.recordLine(
+          tx,
+          {
+            driverId,
+            routeSheetId: sheet.route_sheet_id,
+            detailId,
+            obligation,
+            previousDebt: obligation.debt,
+            idempotencyKey: dto.idempotency_key,
+            idempotencyHash,
+          },
+          {
+            index: 0,
+            methodId: dto.payment_method_id,
+            methodCode: method.code,
+            amount,
+            amountReceived,
+            changeAmount,
+            reference: dto.transaction_reference ?? null,
             notes: dto.notes ?? null,
           },
-          select: PAYMENT_TRANSACTION_SELECT,
-        });
-        await this.applyObligation(tx, obligation, amount, {
-          paymentMethodCode: method.code,
-          reference: dto.transaction_reference ?? null,
-          notes: dto.notes ?? null,
-          driverId,
-        });
-        return transaction;
-      });
+        ),
+      );
     } catch (error) {
       // Carrera de reintentos: otra petición creó la misma clave primero.
       if (
@@ -285,6 +350,178 @@ export class DriverPaymentsService {
 
     return this.buildResult(
       created,
+      false,
+      driverId,
+      sheet.route_sheet_id,
+      detailId,
+    );
+  }
+
+  /**
+   * Cobro combinado de la parada actual: varios métodos en una sola operación
+   * (por ejemplo, mitad en efectivo, una parte por transferencia y el resto a
+   * cuenta corriente). Se graba todo o nada y es idempotente por
+   * `idempotency_key`. Lo que va a la cuenta corriente del cliente no genera
+   * cobro: la parada queda con ese saldo pendiente.
+   */
+  async registerCombinedPayment(
+    driverId: number,
+    detailId: number,
+    dto: RegisterCombinedPaymentDto,
+  ): Promise<DriverCombinedPaymentResultDto> {
+    const detail = await this.loadPaymentDetail(driverId, detailId);
+    const sheet = detail.route_sheet;
+    const obligation = this.resolveObligation(detail);
+
+    const methodIds = dto.payments.map((line) => line.payment_method_id);
+    if (new Set(methodIds).size !== methodIds.length) {
+      throw new BadRequestException(
+        'Cada método de pago puede aparecer una sola vez en el cobro',
+      );
+    }
+    const methods = await this.prisma.payment_method.findMany({
+      where: { payment_method_id: { in: methodIds } },
+    });
+    const methodById = new Map(methods.map((m) => [m.payment_method_id, m]));
+    const accountType = await this.customerAccountType(obligation.customerId);
+
+    const lines: PreparedLine[] = dto.payments.map((line, index) => {
+      const method = methodById.get(line.payment_method_id);
+      if (!method) {
+        throw new BadRequestException(
+          `El método de pago ${line.payment_method_id} no es válido`,
+        );
+      }
+      this.assertMethodAllowed(method.code, accountType);
+      const amount = new Prisma.Decimal(line.amount);
+      const { amountReceived, changeAmount } = this.resolveCash(
+        method.code,
+        amount,
+        line.amount_received,
+      );
+      return {
+        index,
+        methodId: method.payment_method_id,
+        methodCode: method.code,
+        amount,
+        amountReceived,
+        changeAmount,
+        reference: line.transaction_reference ?? null,
+        notes: line.notes ?? null,
+      };
+    });
+
+    const idempotencyHash = this.hashCombined(detailId, obligation, lines);
+    const replay = await this.findCombinedReplay(
+      dto.idempotency_key,
+      idempotencyHash,
+    );
+    if (replay) {
+      return this.buildCombinedResult(
+        replay,
+        true,
+        driverId,
+        sheet.route_sheet_id,
+        detailId,
+      );
+    }
+
+    if (
+      detail.delivery_status &&
+      RESOLVED_DELIVERY_STATUSES.has(detail.delivery_status)
+    ) {
+      throw new ConflictException('La parada ya está resuelta');
+    }
+    await this.assertIsCurrentStop(
+      sheet.route_sheet_id,
+      detailId,
+      sheet.execution_status,
+    );
+    if (dto.version && dto.version !== buildDeliveryVersion(detail)) {
+      throw new ConflictException(
+        'La parada cambió desde la última consulta. Actualizá e intentá de nuevo.',
+      );
+    }
+
+    const total = lines.reduce(
+      (sum, line) => sum.plus(line.amount),
+      new Prisma.Decimal(0),
+    );
+    if (obligation.debt.lte(0) || total.gt(obligation.debt)) {
+      throw new ConflictException(
+        `La suma del cobro debe ser mayor a 0 y no superar el saldo pendiente (${obligation.debt.toFixed(2)})`,
+      );
+    }
+    const customerAccountAmount = lines
+      .filter((line) => line.methodCode === CUSTOMER_ACCOUNT_METHOD_CODE)
+      .reduce((sum, line) => sum.plus(line.amount), new Prisma.Decimal(0));
+
+    let batchId: number;
+    try {
+      batchId = await this.prisma.$transaction(async (tx) => {
+        const batch = await tx.delivery_payment_batch.create({
+          data: {
+            route_sheet_detail_id: detailId,
+            idempotency_key: dto.idempotency_key,
+            request_hash: idempotencyHash,
+            customer_account_amount: customerAccountAmount.toFixed(2),
+            created_by: driverId,
+          },
+        });
+        let previousDebt = obligation.debt;
+        for (const line of lines) {
+          if (line.methodCode === CUSTOMER_ACCOUNT_METHOD_CODE) continue;
+          await this.recordLine(
+            tx,
+            {
+              driverId,
+              routeSheetId: sheet.route_sheet_id,
+              detailId,
+              obligation,
+              previousDebt,
+              idempotencyKey: this.lineKey(dto.idempotency_key, line.index),
+              idempotencyHash,
+            },
+            line,
+          );
+          previousDebt = previousDebt.minus(line.amount);
+        }
+        return batch.batch_id;
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const raced = await this.findCombinedReplay(
+          dto.idempotency_key,
+          idempotencyHash,
+        );
+        if (raced) {
+          return this.buildCombinedResult(
+            raced,
+            true,
+            driverId,
+            sheet.route_sheet_id,
+            detailId,
+          );
+        }
+        throw new ConflictException(
+          'La clave de idempotencia ya fue usada con otro contenido',
+        );
+      }
+      throw error;
+    }
+
+    const batch = await this.findCombinedReplay(
+      dto.idempotency_key,
+      idempotencyHash,
+    );
+    if (!batch || batch.batch_id !== batchId) {
+      throw new ConflictException('No se pudo leer el cobro registrado');
+    }
+    return this.buildCombinedResult(
+      batch,
       false,
       driverId,
       sheet.route_sheet_id,
@@ -406,6 +643,242 @@ export class DriverPaymentsService {
         'Solo se puede cobrar la parada actual del recorrido',
       );
     }
+  }
+
+  /**
+   * Graba una parte del cobro: el movimiento de pago, su imputación a la
+   * obligación y, si se pagó con la cuenta corriente del chofer, el cargo que
+   * pasa a deber el chofer.
+   */
+  private async recordLine(
+    tx: Prisma.TransactionClient,
+    context: {
+      driverId: number;
+      routeSheetId: number;
+      detailId: number;
+      obligation: PaymentObligation;
+      previousDebt: Prisma.Decimal;
+      idempotencyKey: string;
+      idempotencyHash: string;
+    },
+    line: PreparedLine,
+  ): Promise<PaymentTransactionRow> {
+    const { obligation } = context;
+    const documentNumber = this.buildDocumentNumber(
+      context.routeSheetId,
+      context.detailId,
+    );
+    const now = new Date();
+    const transaction = await tx.payment_transaction.create({
+      data: {
+        transaction_date: now,
+        customer_id: obligation.customerId,
+        order_id: obligation.type === 'ORDER' ? obligation.referenceId : null,
+        route_sheet_detail_id: context.detailId,
+        document_number: documentNumber,
+        receipt_number: line.reference,
+        transaction_type: 'PAYMENT',
+        previous_balance: context.previousDebt.toFixed(2),
+        transaction_amount: line.amount.toFixed(2),
+        total: line.amount.toFixed(2),
+        amount_received: line.amountReceived.toFixed(2),
+        change_amount: line.changeAmount.toFixed(2),
+        idempotency_key: context.idempotencyKey,
+        idempotency_hash: context.idempotencyHash,
+        payment_method_id: line.methodId,
+        user_id: context.driverId,
+        notes: line.notes,
+      },
+      select: PAYMENT_TRANSACTION_SELECT,
+    });
+    await this.applyObligation(tx, obligation, line.amount, {
+      paymentMethodCode: line.methodCode,
+      reference: line.reference,
+      notes: line.notes,
+      driverId: context.driverId,
+    });
+    if (line.methodCode === DRIVER_ACCOUNT_METHOD_CODE) {
+      await this.driverCreditService.createCharge(tx, {
+        driverId: context.driverId,
+        customerId: obligation.customerId,
+        routeSheetId: context.routeSheetId,
+        detailId: context.detailId,
+        transactionId: transaction.transaction_id,
+        amount: line.amount,
+        chargedAt: now,
+        reference: documentNumber,
+      });
+    }
+    return transaction;
+  }
+
+  private async listMethods(
+    codes: string[],
+  ): Promise<DriverPaymentOptionDto[]> {
+    const methods = await this.prisma.payment_method.findMany({
+      where: { code: { in: codes } },
+      orderBy: { payment_method_id: 'asc' },
+    });
+    return methods.map((method) => ({
+      payment_method_id: method.payment_method_id,
+      code: method.code,
+      description: method.description,
+      requires_reference:
+        method.code === TRANSFER_METHOD_CODE ||
+        method.code === MERCADOPAGO_METHOD_CODE,
+      requires_amount_received: method.code === CASH_METHOD_CODE,
+      is_current_account:
+        method.code === DRIVER_ACCOUNT_METHOD_CODE ||
+        method.code === CUSTOMER_ACCOUNT_METHOD_CODE,
+    }));
+  }
+
+  private async customerAccountType(
+    customerId: number,
+  ): Promise<CustomerCurrentAccountType> {
+    const person = await this.prisma.person.findUnique({
+      where: { person_id: customerId },
+      select: { current_account_type: true },
+    });
+    return person?.current_account_type ?? CustomerCurrentAccountType.NONE;
+  }
+
+  /** Rechaza métodos que el chofer no usa o la cuenta que no le toca al cliente. */
+  private assertMethodAllowed(
+    code: string,
+    accountType: CustomerCurrentAccountType,
+  ): void {
+    if (code === MERCADOPAGO_METHOD_CODE && !baseMethodCodes().includes(code)) {
+      throw new BadRequestException(
+        'MercadoPago todavía no está habilitado: la integración no está hecha',
+      );
+    }
+    if (
+      code === DRIVER_ACCOUNT_METHOD_CODE ||
+      code === CUSTOMER_ACCOUNT_METHOD_CODE
+    ) {
+      if (ACCOUNT_METHOD_BY_TYPE[accountType] !== code) {
+        throw new BadRequestException(
+          code === DRIVER_ACCOUNT_METHOD_CODE
+            ? 'Este cliente no puede pagar con la cuenta corriente del chofer'
+            : 'Este cliente no tiene cuenta corriente propia',
+        );
+      }
+      return;
+    }
+    if (!baseMethodCodes().includes(code)) {
+      throw new BadRequestException(
+        `El método de pago ${code} no está habilitado para el cobro en ruta`,
+      );
+    }
+  }
+
+  private lineKey(idempotencyKey: string, index: number): string {
+    return `${idempotencyKey}#${index}`;
+  }
+
+  private hashCombined(
+    detailId: number,
+    obligation: PaymentObligation,
+    lines: PreparedLine[],
+  ): string {
+    const payload = [
+      'COMBINED',
+      detailId,
+      obligation.type,
+      obligation.referenceId,
+      ...lines.map((line) =>
+        [
+          line.methodId,
+          line.amount.toFixed(2),
+          line.amountReceived.toFixed(2),
+          line.reference ?? '',
+        ].join(':'),
+      ),
+    ].join('|');
+    return createHash('sha256').update(payload).digest('hex');
+  }
+
+  private async findCombinedReplay(
+    idempotencyKey: string,
+    idempotencyHash: string,
+  ) {
+    const batch = await this.prisma.delivery_payment_batch.findUnique({
+      where: { idempotency_key: idempotencyKey },
+    });
+    if (!batch) return null;
+    if (batch.request_hash !== idempotencyHash) {
+      throw new ConflictException(
+        'La clave de idempotencia ya fue usada con otro contenido',
+      );
+    }
+    return batch;
+  }
+
+  private async buildCombinedResult(
+    batch: {
+      batch_id: number;
+      idempotency_key: string;
+      customer_account_amount: Prisma.Decimal;
+    },
+    idempotentReplay: boolean,
+    driverId: number,
+    routeSheetId: number,
+    detailId: number,
+  ): Promise<DriverCombinedPaymentResultDto> {
+    const transactions = await this.prisma.payment_transaction.findMany({
+      where: { idempotency_key: { startsWith: `${batch.idempotency_key}#` } },
+      select: { ...PAYMENT_TRANSACTION_SELECT, idempotency_key: true },
+    });
+    const byIndex = new Map(
+      transactions.map((t) => [Number(t.idempotency_key.split('#').pop()), t]),
+    );
+    const customerAccount = new Prisma.Decimal(batch.customer_account_amount);
+
+    const payments: CombinedPaymentLineResultDto[] = [...byIndex.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, t]) => ({
+        payment_method: t.payment_method.code,
+        transaction_id: t.transaction_id,
+        amount_applied: t.transaction_amount.toFixed(2),
+        amount_received: (t.amount_received ?? t.transaction_amount).toFixed(2),
+        change_amount: (t.change_amount ?? new Prisma.Decimal(0)).toFixed(2),
+        document_number: t.document_number,
+        receipt_number: t.receipt_number ?? null,
+      }));
+    if (customerAccount.gt(0)) {
+      payments.push({
+        payment_method: CUSTOMER_ACCOUNT_METHOD_CODE,
+        transaction_id: null,
+        amount_applied: customerAccount.toFixed(2),
+        amount_received: '0.00',
+        change_amount: '0.00',
+        document_number: null,
+        receipt_number: null,
+      });
+    }
+
+    const totalApplied = transactions
+      .reduce((sum, t) => sum.plus(t.transaction_amount), new Prisma.Decimal(0))
+      .plus(customerAccount);
+    const change = transactions.reduce(
+      (sum, t) => sum.plus(t.change_amount ?? 0),
+      new Prisma.Decimal(0),
+    );
+
+    return {
+      batch_id: batch.batch_id,
+      total_applied: totalApplied.toFixed(2),
+      customer_account_amount: customerAccount.toFixed(2),
+      change_amount: change.toFixed(2),
+      payments,
+      idempotent_replay: idempotentReplay,
+      delivery: await this.driverRouteSheetsService.findDeliveryForDriver(
+        driverId,
+        routeSheetId,
+        detailId,
+      ),
+    };
   }
 
   /** Determina la obligación que cubre el cobro según el tipo de parada. */

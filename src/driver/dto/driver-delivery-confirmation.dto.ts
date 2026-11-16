@@ -133,6 +133,12 @@ export class DriverDeliverySummaryDto {
     enum: DriverSignatureMissingReason,
   })
   signature_missing_reason: string | null;
+
+  @ApiProperty({
+    description:
+      'Administración habilitó reducir cantidades (PATCH /driver/deliveries/:detailId/items)',
+  })
+  quantity_edit_enabled: boolean;
 }
 
 /** Firma manuscrita del receptor, enviada como data URI base64. */

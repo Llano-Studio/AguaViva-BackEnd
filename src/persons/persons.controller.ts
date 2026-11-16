@@ -43,6 +43,12 @@ import {
   ComodatoResponseDto,
   CreateSubscriptionWithComodatoDto,
 } from './dto';
+import {
+  BulkCurrentAccountTypeResultDto,
+  BulkUpdateCurrentAccountTypeDto,
+  CurrentAccountTypeResultDto,
+  UpdateCurrentAccountTypeDto,
+} from './dto/current-account-type.dto';
 import { WithdrawComodatoDto } from './dto/withdraw-comodato.dto';
 import { WithdrawComodatoResponseDto } from './dto/withdraw-comodato-response.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -387,6 +393,37 @@ export class PersonsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<PersonResponseDto> {
     return this.personsService.findPersonById(id);
+  }
+
+  @Patch('current-account-type/bulk')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiOperation({
+    summary: 'Asignar la cuenta corriente a varios clientes',
+    description:
+      'OWN: cuenta corriente propia (clientes grandes); DRIVER: usan la del chofer; NONE: sin cuenta corriente.',
+  })
+  @ApiResponse({ status: 200, type: BulkCurrentAccountTypeResultDto })
+  bulkUpdateCurrentAccountType(
+    @Body() dto: BulkUpdateCurrentAccountTypeDto,
+  ): Promise<BulkCurrentAccountTypeResultDto> {
+    return this.personsService.bulkUpdateCurrentAccountType(dto);
+  }
+
+  @Patch(':id/current-account-type')
+  @Auth(Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
+  @ApiParam({ name: 'id', type: Number })
+  @ApiOperation({
+    summary: 'Asignar la cuenta corriente del cliente',
+    description:
+      'Define qué cuenta corriente aparece al cobrar en ruta. OWN: cuenta propia (clientes grandes); DRIVER: la del chofer; NONE: ninguna.',
+  })
+  @ApiResponse({ status: 200, type: CurrentAccountTypeResultDto })
+  @ApiResponse({ status: 404, description: 'Persona no encontrada' })
+  updateCurrentAccountType(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCurrentAccountTypeDto,
+  ): Promise<CurrentAccountTypeResultDto> {
+    return this.personsService.updateCurrentAccountType(id, dto);
   }
 
   @Patch(':id')

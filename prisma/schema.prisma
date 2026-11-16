@@ -43,6 +43,11 @@ model User {
   driver_account_movements_created driver_account_movement[] @relation("DriverAccountMovementCreatedBy")
   reconciliations                  route_reconciliation[]   @relation("ReconciliationDriver")
   reconciliations_received         route_reconciliation[]   @relation("ReconciliationReceivedBy")
+  driver_credit_charges            driver_credit_charge[]   @relation("DriverCreditDriver")
+  delivery_payment_batches         delivery_payment_batch[] @relation("DeliveryPaymentBatchCreatedBy")
+  driver_expenses                  driver_expense[]         @relation("DriverExpenseDriver")
+  driver_expenses_voided           driver_expense[]         @relation("DriverExpenseVoidedBy")
+  quantity_edits_enabled           delivery_quantity_edit[] @relation("QuantityEditEnabledBy")
 }
 
 model RefreshToken {
@@ -254,6 +259,8 @@ model person {
   comodatos                comodato[]
   locality                 locality?                 @relation(fields: [locality_id], references: [locality_id], onDelete: NoAction, onUpdate: NoAction)
   zone                     zone?                     @relation(fields: [zone_id], references: [zone_id], onDelete: NoAction, onUpdate: NoAction)
+  current_account_type     CustomerCurrentAccountType @default(DRIVER)
+  driver_credit_charges    driver_credit_charge[]
 
   @@index([name])
   @@index([alias])
@@ -636,6 +643,7 @@ model payment_transaction {
   payment_method        payment_method @relation(fields: [payment_method_id], references: [payment_method_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_paymenttrans_paymentmethod")
   user                  User?          @relation("PaymentTransactionUser", fields: [user_id], references: [id])
   updated_by_user       User?          @relation("PaymentTransactionUpdatedBy", fields: [updated_by], references: [id])
+  driver_credit_charge  driver_credit_charge?
 }
 
 model payment_audit {
@@ -790,6 +798,7 @@ model route_sheet {
   vehicle_route_inventory              vehicle_route_inventory[]
   cancellation_order cancellation_order[]
   route_reconciliation route_reconciliation?
+  driver_expense       driver_expense[]
 
   @@index([driver_id, delivery_date])
 }
@@ -826,6 +835,9 @@ model route_sheet_detail {
   cancellation_order         cancellation_order?      @relation(fields: [cancellation_order_id], references: [cancellation_order_id], onDelete: NoAction, onUpdate: NoAction)
   cycle_payment              cycle_payment?           @relation(fields: [cycle_payment_id], references: [payment_id], onDelete: NoAction, onUpdate: NoAction)
   route_sheet                route_sheet              @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_route_detail_route")
+  driver_credit_charge       driver_credit_charge[]
+  delivery_payment_batch     delivery_payment_batch[]
+  delivery_quantity_edit     delivery_quantity_edit[]
 
   // Evita asignar la misma parada dos veces dentro de una hoja de ruta.
   // Las filas con la referencia en NULL no colisionan (semántica NULL de UNIQUE).
@@ -941,6 +953,9 @@ model route_reconciliation {
   received_by_user        User?                   @relation("ReconciliationReceivedBy", fields: [received_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   route_sheet             route_sheet             @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction)
   driver_account_movement driver_account_movement[]
+  expenses_total          Decimal                 @default(0) @db.Decimal(10, 2)
+  driver_credit_total     Decimal                 @default(0) @db.Decimal(10, 2)
+  customer_account_total  Decimal                 @default(0) @db.Decimal(10, 2)
 }
 
 /// Movimientos inmutables de la cuenta del chofer. El saldo se reconstruye
@@ -960,6 +975,7 @@ model driver_account_movement {
   driver            User                 @relation("DriverAccountDriver", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   created_by_user   User?                @relation("DriverAccountMovementCreatedBy", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reconciliation    route_reconciliation? @relation(fields: [reconciliation_id], references: [reconciliation_id], onDelete: NoAction, onUpdate: NoAction)
+  allocations       driver_credit_allocation[]
 
   @@index([driver_id, created_at])
 }
@@ -1186,4 +1202,110 @@ model route_sheet_pause {
   resumed_by_user User?                 @relation("RouteSheetResumedBy", fields: [resumed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([route_sheet_id])
+}
+
+/// Qué cuenta corriente puede usar el cliente al pagar en ruta.
+enum CustomerCurrentAccountType {
+  NONE
+  OWN
+  DRIVER
+}
+
+/// Deuda que tomó el chofer al dejar que el cliente pague con su cuenta
+/// corriente. Cada cargo vence por separado y genera su propio interés.
+model driver_credit_charge {
+  charge_id              Int                        @id @default(autoincrement())
+  driver_id              Int
+  customer_id            Int
+  route_sheet_id         Int
+  route_sheet_detail_id  Int
+  payment_transaction_id Int                        @unique
+  amount                 Decimal                    @db.Decimal(10, 2)
+  settled_amount         Decimal                    @default(0) @db.Decimal(10, 2)
+  due_date               DateTime                   @db.Date
+  interest_rate          Decimal                    @db.Decimal(5, 4)
+  interest_base          Decimal?                   @db.Decimal(10, 2)
+  interest_amount        Decimal?                   @db.Decimal(10, 2)
+  interest_applied_at    DateTime?
+  status                 String                     @default("OPEN") @db.VarChar(20)
+  created_at             DateTime                   @default(now())
+  driver                 User                       @relation("DriverCreditDriver", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer               person                     @relation(fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  route_sheet_detail     route_sheet_detail         @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id], onDelete: NoAction, onUpdate: NoAction)
+  payment_transaction    payment_transaction        @relation(fields: [payment_transaction_id], references: [transaction_id], onDelete: NoAction, onUpdate: NoAction)
+  allocations            driver_credit_allocation[]
+
+  @@index([driver_id, status])
+  @@index([status, due_date])
+}
+
+/// Parte de un pago del chofer imputada a un cargo de su cuenta corriente.
+model driver_credit_allocation {
+  allocation_id Int                     @id @default(autoincrement())
+  charge_id     Int
+  movement_id   Int
+  amount        Decimal                 @db.Decimal(10, 2)
+  created_at    DateTime                @default(now())
+  charge        driver_credit_charge    @relation(fields: [charge_id], references: [charge_id], onDelete: NoAction, onUpdate: NoAction)
+  movement      driver_account_movement @relation(fields: [movement_id], references: [movement_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([charge_id])
+  @@index([movement_id])
+}
+
+/// Cobro combinado de una parada (varios métodos en una sola operación).
+model delivery_payment_batch {
+  batch_id                Int                @id @default(autoincrement())
+  route_sheet_detail_id   Int
+  idempotency_key         String             @unique @db.VarChar(80)
+  request_hash            String             @db.VarChar(64)
+  customer_account_amount Decimal            @default(0) @db.Decimal(10, 2)
+  created_by              Int
+  created_at              DateTime           @default(now())
+  route_sheet_detail      route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id], onDelete: NoAction, onUpdate: NoAction)
+  created_by_user         User               @relation("DeliveryPaymentBatchCreatedBy", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([route_sheet_detail_id])
+}
+
+/// Gasto ocasional del chofer en la hoja de ruta (combustible, gomería, etc.).
+model driver_expense {
+  expense_id        Int         @id @default(autoincrement())
+  route_sheet_id    Int
+  driver_id         Int
+  category          String      @db.VarChar(30)
+  amount            Decimal     @db.Decimal(10, 2)
+  description       String?     @db.VarChar(255)
+  receipt_reference String?     @db.VarChar(100)
+  idempotency_key   String?     @unique @db.VarChar(80)
+  created_at        DateTime    @default(now())
+  is_active         Boolean     @default(true)
+  voided_by         Int?
+  voided_at         DateTime?
+  void_reason       String?     @db.VarChar(255)
+  route_sheet       route_sheet @relation(fields: [route_sheet_id], references: [route_sheet_id], onDelete: NoAction, onUpdate: NoAction)
+  driver            User        @relation("DriverExpenseDriver", fields: [driver_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  voided_by_user    User?       @relation("DriverExpenseVoidedBy", fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([route_sheet_id])
+  @@index([driver_id, created_at])
+}
+
+/// Habilitación de administración para que el chofer reduzca cantidades de
+/// una parada. Se usa una sola vez.
+model delivery_quantity_edit {
+  edit_id               Int                @id @default(autoincrement())
+  route_sheet_detail_id Int
+  reason                String             @db.VarChar(255)
+  enabled_by            Int
+  enabled_at            DateTime           @default(now())
+  used_by               Int?
+  used_at               DateTime?
+  revoked_by            Int?
+  revoked_at            DateTime?
+  changes               Json?
+  route_sheet_detail    route_sheet_detail @relation(fields: [route_sheet_detail_id], references: [route_sheet_detail_id], onDelete: NoAction, onUpdate: NoAction)
+  enabled_by_user       User               @relation("QuantityEditEnabledBy", fields: [enabled_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([route_sheet_detail_id])
 }

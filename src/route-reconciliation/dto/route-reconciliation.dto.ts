@@ -28,19 +28,23 @@ export const RECONCILIATION_STATUSES: ReconciliationStatus[] = [
 /**
  * Tipo de movimiento de la cuenta del chofer. `CASH_COLLECTED` suma deuda (el
  * chofer retuvo efectivo que debe rendir), `CASH_RENDERED` la baja (rindió el
- * efectivo) y `ADJUSTMENT` la corrige con un monto firmado.
+ * efectivo), `EXPENSE` la baja por los gastos de la hoja y `ADJUSTMENT` la
+ * corrige con un monto firmado. `DRIVER_CREDIT` es la deuda de un cliente que
+ * pagó con la cuenta corriente del chofer, `DRIVER_CREDIT_INTEREST` el interés
+ * por mora de ese cargo y `DRIVER_CREDIT_PAYMENT` lo que el chofer pagó.
  */
 export enum DriverAccountMovementType {
   CASH_COLLECTED = 'CASH_COLLECTED',
   CASH_RENDERED = 'CASH_RENDERED',
+  EXPENSE = 'EXPENSE',
   ADJUSTMENT = 'ADJUSTMENT',
+  DRIVER_CREDIT = 'DRIVER_CREDIT',
+  DRIVER_CREDIT_INTEREST = 'DRIVER_CREDIT_INTEREST',
+  DRIVER_CREDIT_PAYMENT = 'DRIVER_CREDIT_PAYMENT',
 }
 
-export const DRIVER_ACCOUNT_MOVEMENT_TYPES: DriverAccountMovementType[] = [
-  DriverAccountMovementType.CASH_COLLECTED,
-  DriverAccountMovementType.CASH_RENDERED,
-  DriverAccountMovementType.ADJUSTMENT,
-];
+export const DRIVER_ACCOUNT_MOVEMENT_TYPES: DriverAccountMovementType[] =
+  Object.values(DriverAccountMovementType);
 
 /** Motivo autorizado de un ajuste manual sobre la cuenta o la rendición. */
 export enum ReconciliationAdjustmentReason {
@@ -131,13 +135,44 @@ export class ReconciliationTotalsDto {
   total_collected: string;
 
   @ApiProperty({
-    description: 'Efectivo a rendir (solo método EFECTIVO)',
+    description:
+      'Efectivo a rendir: efectivo cobrado menos gastos. Negativo si la empresa le debe al chofer',
     example: '15000.00',
   })
   cash_to_render: string;
 
-  @ApiProperty({ description: 'Cobros electrónicos', example: '3000.00' })
+  @ApiProperty({
+    description:
+      'Cobros electrónicos (transferencia, etc.). No incluye la cuenta corriente del chofer',
+    example: '3000.00',
+  })
   electronic_total: string;
+
+  @ApiProperty({
+    description: 'Efectivo cobrado, antes de descontar gastos',
+    example: '17000.00',
+  })
+  cash_collected: string;
+
+  @ApiProperty({
+    description: 'Gastos del chofer en la hoja; se descuentan del efectivo',
+    example: '2000.00',
+  })
+  expenses_total: string;
+
+  @ApiProperty({
+    description:
+      'Cobrado con la cuenta corriente del chofer: deuda que pasa al chofer',
+    example: '5000.00',
+  })
+  driver_credit_total: string;
+
+  @ApiProperty({
+    description:
+      'Dejado en la cuenta corriente propia del cliente (no se cobró)',
+    example: '8000.00',
+  })
+  customer_account_total: string;
 }
 
 /** Diferencia de conteo de un producto. */
@@ -281,7 +316,8 @@ export class ConfirmRouteReconciliationDto {
   signature?: string;
 
   @ApiPropertyOptional({
-    description: 'Conteo físico por producto. Opcional: sin él no hay diferencias',
+    description:
+      'Conteo físico por producto. Opcional: sin él no hay diferencias',
     type: [ReconciliationCountedItemDto],
   })
   @IsOptional()
@@ -306,7 +342,8 @@ export class ConfirmRouteReconciliationDto {
   idempotency_key: string;
 
   @ApiProperty({
-    description: 'Versión de la previsualización que el chofer tenía a la vista',
+    description:
+      'Versión de la previsualización que el chofer tenía a la vista',
     example: 'a1b2c3d4e5f60718',
   })
   @IsString()

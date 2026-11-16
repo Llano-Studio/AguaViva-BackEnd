@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { CustomerCurrentAccountType } from '@prisma/client';
 import {
   IsOptional,
   IsString,
@@ -315,4 +316,13 @@ export class FilterPersonsDto extends PaginationQueryDto {
     return undefined;
   })
   is_active?: boolean | 'BOTH';
+
+  @ApiPropertyOptional({
+    description:
+      'Filtrar por cuenta corriente: OWN (cuenta propia, clientes grandes), DRIVER (usa la del chofer) o NONE',
+    enum: CustomerCurrentAccountType,
+  })
+  @IsOptional()
+  @IsEnum(CustomerCurrentAccountType)
+  current_account_type?: CustomerCurrentAccountType;
 }

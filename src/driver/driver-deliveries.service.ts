@@ -186,11 +186,20 @@ export class DriverDeliveriesService {
     detailId: number,
   ): Promise<DriverDeliverySummaryDto> {
     const detail = await this.loadStop(driverId, detailId);
-    const [signature, payments, isCurrent] = await Promise.all([
-      this.findSignature(detailId),
-      this.loadPreviousPayments(detail),
-      this.isCurrent(detail),
-    ]);
+    const [signature, payments, isCurrent, openQuantityEdit] =
+      await Promise.all([
+        this.findSignature(detailId),
+        this.loadPreviousPayments(detail),
+        this.isCurrent(detail),
+        this.prisma.delivery_quantity_edit.findFirst({
+          where: {
+            route_sheet_detail_id: detailId,
+            used_at: null,
+            revoked_at: null,
+          },
+          select: { edit_id: true },
+        }),
+      ]);
 
     return {
       route_sheet_id: detail.route_sheet.route_sheet_id,
@@ -208,6 +217,7 @@ export class DriverDeliveriesService {
       signature_present: signature !== null,
       signature_missing_reason:
         signature === null ? (detail.delivery_notes ?? null) : null,
+      quantity_edit_enabled: openQuantityEdit !== null,
     };
   }
 

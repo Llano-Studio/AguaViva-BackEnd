@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { CustomerCurrentAccountType } from '@prisma/client';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsIn,
   IsInt,
   IsNumber,
@@ -9,6 +13,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { DriverDeliveryDetailDto } from './driver-delivery-detail.dto';
 
@@ -50,6 +55,13 @@ export class DriverPaymentOptionDto {
     example: true,
   })
   requires_amount_received: boolean;
+
+  @ApiProperty({
+    description:
+      'Es un método de cuenta corriente (del chofer o del cliente): no entra dinero en el momento',
+    example: false,
+  })
+  is_current_account: boolean;
 }
 
 /** Datos de transferencia de la empresa (pueden no estar configurados). */
@@ -77,6 +89,146 @@ export class DriverPaymentOptionsDto {
   constructor(partial: Partial<DriverPaymentOptionsDto>) {
     Object.assign(this, partial);
   }
+}
+
+/** Métodos de pago para una parada concreta, según la cuenta del cliente. */
+export class DriverDeliveryPaymentOptionsDto extends DriverPaymentOptionsDto {
+  @ApiProperty({ example: 5885 })
+  customer_id: number;
+
+  @ApiProperty({
+    enum: CustomerCurrentAccountType,
+    description:
+      'OWN: el cliente tiene cuenta corriente propia; DRIVER: usa la del chofer; NONE: ninguna',
+  })
+  current_account_type: CustomerCurrentAccountType;
+
+  @ApiProperty({
+    description: 'Saldo pendiente de la parada',
+    example: '12000.00',
+  })
+  pending_amount: string;
+
+  constructor(partial: Partial<DriverDeliveryPaymentOptionsDto>) {
+    super(partial);
+    Object.assign(this, partial);
+  }
+}
+
+/** Una parte del cobro combinado. */
+export class CombinedPaymentLineDto {
+  @ApiProperty({ description: 'ID del método de pago', example: 1 })
+  @IsInt()
+  @Min(1)
+  payment_method_id: number;
+
+  @ApiProperty({ description: 'Monto imputado a la parada', example: 50000 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Efectivo recibido. Obligatorio para efectivo y debe ser >= amount',
+    example: 60000,
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Type(() => Number)
+  amount_received?: number;
+
+  @ApiPropertyOptional({ example: 'TRF-123456789' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  transaction_reference?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  notes?: string;
+}
+
+/**
+ * Cobro de una parada con uno o varios métodos (por ejemplo, mitad en efectivo
+ * y el resto por transferencia). Se registra todo o nada.
+ */
+export class RegisterCombinedPaymentDto {
+  @ApiProperty({ type: [CombinedPaymentLineDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => CombinedPaymentLineDto)
+  payments: CombinedPaymentLineDto[];
+
+  @ApiProperty({
+    description: 'Clave de idempotencia del cobro completo',
+    example: '8f1c2f7a-1b2c-4d5e-9f10-2a3b4c5d6e7f',
+  })
+  @IsString()
+  @MaxLength(76)
+  idempotency_key: string;
+
+  @ApiPropertyOptional({ example: 'a1b2c3d4e5f60718' })
+  @IsOptional()
+  @IsString()
+  version?: string;
+}
+
+export class CombinedPaymentLineResultDto {
+  @ApiProperty({ example: 'EFECTIVO' })
+  payment_method: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'null para la cuenta corriente del cliente (no genera cobro)',
+    example: 7001,
+  })
+  transaction_id: number | null;
+
+  @ApiProperty({ example: '50000.00' })
+  amount_applied: string;
+
+  @ApiProperty({ example: '60000.00' })
+  amount_received: string;
+
+  @ApiProperty({ example: '10000.00' })
+  change_amount: string;
+
+  @ApiPropertyOptional({ nullable: true, example: 'RS-345-D1002' })
+  document_number: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  receipt_number: string | null;
+}
+
+export class DriverCombinedPaymentResultDto {
+  @ApiProperty({ example: 41 })
+  batch_id: number;
+
+  @ApiProperty({ example: '150000.00' })
+  total_applied: string;
+
+  @ApiProperty({
+    description: 'Monto dejado en la cuenta corriente propia del cliente',
+    example: '0.00',
+  })
+  customer_account_amount: string;
+
+  @ApiProperty({ example: '10000.00' })
+  change_amount: string;
+
+  @ApiProperty({ type: [CombinedPaymentLineResultDto] })
+  payments: CombinedPaymentLineResultDto[];
+
+  @ApiProperty({ example: false })
+  idempotent_replay: boolean;
+
+  @ApiProperty({ type: DriverDeliveryDetailDto })
+  delivery: DriverDeliveryDetailDto;
 }
 
 /**
