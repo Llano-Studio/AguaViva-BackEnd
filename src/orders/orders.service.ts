@@ -17,7 +17,9 @@ import {
   person as PrismaPerson,
   sale_channel as PrismaSaleChannel,
   client_contract as PrismaClientContract,
-  Role } from '@prisma/client';
+  Role,
+  OrigenPedido,
+} from '@prisma/client';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { FilterOrdersDto } from './dto/filter-orders.dto';
@@ -458,6 +460,7 @@ export class OrdersService extends PrismaBackedService {
       status: (order.status === 'OVERDUE'
         ? 'ATRASADO'
         : order.status) as unknown as AppOrderStatus,
+      origen_pedido: (order as any).origen_pedido ?? undefined,
       notes: order.notes ?? undefined,
       delivery_address: customerPayload?.address ?? undefined,
       order_item: items,
@@ -696,6 +699,7 @@ export class OrdersService extends PrismaBackedService {
   async create(
     createOrderDto: CreateOrderDto,
     user?: any,
+    options: { origenPedido?: OrigenPedido } = {},
   ): Promise<OrderResponseDto> {
     try {
       return await this.$transaction(async (prismaTx) => {
@@ -1044,6 +1048,9 @@ export class OrdersService extends PrismaBackedService {
         const newOrderHeader = await prismaTx.order_header.create({
           data: {
             ...restOfDto,
+            ...(options.origenPedido
+              ? { origen_pedido: options.origenPedido }
+              : {}),
             order_date:
               restOfDto.order_date && typeof restOfDto.order_date === 'string'
                 ? /^\d{4}-\d{2}-\d{2}$/.test(restOfDto.order_date.trim())

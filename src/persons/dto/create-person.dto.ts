@@ -145,4 +145,13 @@ export class CreatePersonDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Contraseña inicial del cliente para el portal. Si se omite, no se asigna credencial.',
+    minLength: 8,
+  })
+  @IsString()
+  @IsOptional()
+  password?: string;
 }

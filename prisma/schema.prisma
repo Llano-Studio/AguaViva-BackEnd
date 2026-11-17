@@ -34,6 +34,8 @@ model User {
   collection_payment_transactions_created collection_payment_transaction[] @relation("CollectionPaymentTransactionCreatedBy")
   collection_payment_transactions_updated collection_payment_transaction[] @relation("CollectionPaymentTransactionUpdatedBy")
   route_sheet          route_sheet[]
+  account_adjustments_created customer_account_adjustment[] @relation("AccountAdjustmentCreatedBy")
+  account_adjustments_voided  customer_account_adjustment[] @relation("AccountAdjustmentVoidedBy")
   stock_movements      stock_movement[]
   user_vehicle         user_vehicle[]
   comodato_changes     comodato_change[]
@@ -238,11 +240,13 @@ model person {
   notes                    String?                   @db.Text
   is_active                Boolean                   @default(true)
   owns_returnable_containers Boolean                 @default(false)
+  password_hash            String?
   client_contract          client_contract[]
   customer_subscription    customer_subscription[]
   one_off_purchase         one_off_purchase[]
   one_off_purchase_headers one_off_purchase_header[]
   orders                   order_header[]            @relation("OrderHeaderToPerson")
+  account_adjustments      customer_account_adjustment[]
   collection_orders        collection_orders[]       @relation("CollectionOrderToPerson")
   paymentInstallments      payment_installment[]     @relation("PaymentInstallmentToPerson")
   comodatos                comodato[]
@@ -397,6 +401,8 @@ model order_header {
   subscription_id         Int?
   zone_id                 Int?                     @db.SmallInt
   is_active               Boolean                  @default(true)
+  /// Origen del pedido. "PORTAL_ADMINISTRADOR" por defecto para mantener compatibilidad con pedidos legacy.
+  origen_pedido           OrigenPedido             @default(PORTAL_ADMINISTRADOR)
   installment_order_link  installment_order_link[]
   client_contract         client_contract?         @relation(fields: [contract_id], references: [contract_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_contract")
   sale_channel            sale_channel             @relation(fields: [sale_channel_id], references: [sale_channel_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_salechannel")
@@ -410,6 +416,7 @@ model order_header {
 
   @@index([order_date])
   @@index([status])
+  @@index([origen_pedido], map: "idx_order_header_origen_pedido")
 }
 
 model collection_orders {
@@ -879,6 +886,12 @@ enum OrderType {
   HYBRID
 }
 
+/// Origen del pedido. Permite distinguir si fue creado por el cliente desde el portal o por un usuario administrativo.
+enum OrigenPedido {
+  PORTAL_CLIENTES
+  PORTAL_ADMINISTRADOR
+}
+
 enum OrderStatus {
   PENDING
   CONFIRMED
@@ -1056,4 +1069,39 @@ model comodato_change {
   
   @@index([comodato_id])
   @@index([change_date])
+}
+
+enum AccountMovementSide {
+  DEBIT
+  CREDIT
+}
+
+enum CustomerAccountAdjustmentKind {
+  OPENING_BALANCE
+  MANUAL
+}
+
+/// Movimientos de cuenta corriente que no salen de pedidos ni pagos: saldo
+/// inicial (deuda anterior al sistema) y ajustes manuales. Nunca se borran:
+/// se anulan con is_active = false.
+model customer_account_adjustment {
+  adjustment_id    Int                           @id @default(autoincrement())
+  customer_id      Int
+  kind             CustomerAccountAdjustmentKind
+  side             AccountMovementSide
+  amount           Decimal                       @db.Decimal(12, 2)
+  movement_date    DateTime                      @db.Date
+  description      String                        @db.VarChar(255)
+  source_reference String?                       @db.VarChar(100)
+  created_by       Int
+  created_at       DateTime                      @default(now())
+  is_active        Boolean                       @default(true)
+  voided_by        Int?
+  voided_at        DateTime?
+  void_reason      String?                       @db.VarChar(255)
+  customer         person                        @relation(fields: [customer_id], references: [person_id], onDelete: NoAction, onUpdate: NoAction)
+  created_by_user  User                          @relation("AccountAdjustmentCreatedBy", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  voided_by_user   User?                         @relation("AccountAdjustmentVoidedBy", fields: [voided_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customer_id, movement_date])
 }

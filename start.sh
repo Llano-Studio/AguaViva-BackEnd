@@ -13,6 +13,7 @@ if [ "$NODE_ENV_VALUE" = "production" ]; then
 
   if [ "$MIGRATION_MODE" = "deploy" ]; then
     if [ -d prisma/migrations ] && [ "$(ls -A prisma/migrations 2>/dev/null)" ]; then
+      node prisma/resolve-baseline.js
       echo "⏳ Aplicando migraciones (prisma migrate deploy)..."
       npx prisma migrate deploy
     else

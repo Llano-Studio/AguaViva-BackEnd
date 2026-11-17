@@ -31,6 +31,8 @@ import { AppService } from './app.service';
 import { DebugCronService } from './common/services/debug-cron.service';
 import environmentConfig from './common/config/environment.config';
 import { PrismaModule } from './prisma/prisma.module';
+import { PortalModule } from './portal/portal.module';
+import { CustomerAccountsModule } from './customer-accounts/customer-accounts.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { PrismaModule } from './prisma/prisma.module';
     CyclePaymentsModule,
     ComodatoModule,
     AuditModule,
+    PortalModule,
+    CustomerAccountsModule,
     CacheModule.register({
       isGlobal: true,
       ttl: 60,
