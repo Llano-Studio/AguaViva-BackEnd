@@ -310,7 +310,9 @@ async function main() {
     { payment_method_id: 2, code: 'TRANSFERENCIA', description: 'Transferencia bancaria' },
     { payment_method_id: 3, code: 'MERCADOPAGO', description: 'Mercado Pago' },
     { payment_method_id: 4, code: 'TARJETA', description: 'Tarjeta de crédito/débito' },
-    { payment_method_id: 5, code: 'CHEQUE', description: 'Cheque' }
+    { payment_method_id: 5, code: 'CHEQUE', description: 'Cheque' },
+    { payment_method_id: 6, code: 'CTA_CTE_CHOFER', description: 'Cuenta corriente del chofer' },
+    { payment_method_id: 7, code: 'CTA_CTE_CLIENTE', description: 'Cuenta corriente del cliente' }
   ];
 
   for (const paymentMethod of paymentMethods) {

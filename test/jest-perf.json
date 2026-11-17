@@ -1,0 +1,18 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "..",
+  "testEnvironment": "node",
+  "testRegex": "test/perf/.*\\.perf-spec\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "isolatedModules": true,
+        "diagnostics": false
+      }
+    ]
+  },
+  "setupFiles": ["<rootDir>/test/setup-e2e.ts"],
+  "testTimeout": 600000,
+  "maxWorkers": 1
+}

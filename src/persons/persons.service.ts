@@ -32,6 +32,12 @@ import { ChangeContractPriceListDto } from './dto/change-contract-price-list.dto
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { FilterPersonsDto } from './dto/filter-persons.dto';
 import {
+  BulkCurrentAccountTypeResultDto,
+  BulkUpdateCurrentAccountTypeDto,
+  CurrentAccountTypeResultDto,
+  UpdateCurrentAccountTypeDto,
+} from './dto/current-account-type.dto';
+import {
   CreateComodatoDto,
   UpdateComodatoDto,
   FilterComodatosDto,
@@ -236,12 +242,48 @@ export class PersonsService extends PrismaBackedService {
       locality: personEntity.locality as any,
       zone: personEntity.zone as any,
       is_active: personEntity.is_active,
+      current_account_type: personEntity.current_account_type,
       owns_returnable_containers: personEntity.owns_returnable_containers,
       notes: personEntity.notes || '',
       loaned_products_detail: loanedProductsDetail,
       payment_semaphore_status: paymentSemaphoreStatus,
       delivery_semaphore_status: deliverySemaphoreStatus,
       available_credits: availableCredits };
+  }
+
+  /** Asigna qué cuenta corriente puede usar el cliente al pagar en ruta. */
+  async updateCurrentAccountType(
+    personId: number,
+    dto: UpdateCurrentAccountTypeDto,
+  ): Promise<CurrentAccountTypeResultDto> {
+    const exists = await this.prisma.person.findUnique({
+      where: { person_id: personId },
+      select: { person_id: true },
+    });
+    if (!exists) {
+      throw new NotFoundException(`Persona con ID ${personId} no encontrada`);
+    }
+    return this.prisma.person.update({
+      where: { person_id: personId },
+      data: { current_account_type: dto.current_account_type },
+      select: { person_id: true, name: true, current_account_type: true },
+    });
+  }
+
+  async bulkUpdateCurrentAccountType(
+    dto: BulkUpdateCurrentAccountTypeDto,
+  ): Promise<BulkCurrentAccountTypeResultDto> {
+    const ids = [...new Set(dto.person_ids)];
+    const existing = await this.prisma.person.findMany({
+      where: { person_id: { in: ids } },
+      select: { person_id: true },
+    });
+    const found = new Set(existing.map((p) => p.person_id));
+    const { count } = await this.prisma.person.updateMany({
+      where: { person_id: { in: [...found] } },
+      data: { current_account_type: dto.current_account_type },
+    });
+    return { updated: count, not_found: ids.filter((id) => !found.has(id)) };
   }
 
   async createPerson(dto: CreatePersonDto): Promise<PersonResponseDto> {
@@ -445,6 +487,7 @@ export class PersonsService extends PrismaBackedService {
       payment_semaphore_statuses,
       is_active,
       hasScheduledVisits,
+      current_account_type,
       sortBy } = filters;
 
     const where: Prisma.personWhereInput = {};
@@ -565,6 +608,8 @@ export class PersonsService extends PrismaBackedService {
       // Si solo se proporciona una localidad (compatibilidad), usar equality
       where.locality_id = localityId;
     }
+
+    if (current_account_type) where.current_account_type = current_account_type;
 
     // Manejar filtrado por zonas (múltiples o única)
     if (zoneIds && zoneIds.length > 0) {

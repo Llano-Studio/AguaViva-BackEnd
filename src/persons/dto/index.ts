@@ -10,3 +10,4 @@ export * from './create-subscription-with-comodato.dto';
 export * from './withdraw-comodato.dto';
 export * from './withdraw-comodato-response.dto';
 export * from './cancel-subscription.dto';
+export * from './current-account-type.dto';

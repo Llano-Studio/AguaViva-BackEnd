@@ -18,6 +18,10 @@ import { PriceListItemModule } from './price-list-item/price-list-item.module';
 import { OrdersModule } from './orders/orders.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { RouteSheetModule } from './route-sheet/route-sheet.module';
+import { DriverModule } from './driver/driver.module';
+import { RouteReconciliationModule } from './route-reconciliation/route-reconciliation.module';
+import { DriverCreditModule } from './driver-credit/driver-credit.module';
+import { DriverExpensesModule } from './driver-expenses/driver-expenses.module';
 import { SubscriptionPlansModule } from './subscription-plans/subscription-plans.module';
 import { CustomerSubscriptionModule } from './customer-subscription/customer-subscription.module';
 import { CyclePaymentsModule } from './cycle-payments/cycle-payments.module';
@@ -56,6 +60,10 @@ import { CustomerAccountsModule } from './customer-accounts/customer-accounts.mo
     OrdersModule,
     InventoryModule,
     RouteSheetModule,
+    DriverModule,
+    RouteReconciliationModule,
+    DriverCreditModule,
+    DriverExpensesModule,
     SubscriptionPlansModule,
     CustomerSubscriptionModule,
     CyclePaymentsModule,

@@ -51,6 +51,25 @@ export class WaypointDto {
   @IsString()
   @IsOptional()
   address?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Origen de la coordenada. DATABASE es un dato verificado y guardado; ' +
+      'SIMULATED fue generada por el proveedor mock y no debe tratarse como real.',
+    enum: ['DATABASE', 'SIMULATED'],
+  })
+  @IsString()
+  @IsOptional()
+  coordinate_source?: 'DATABASE' | 'SIMULATED';
+
+  @ApiPropertyOptional({
+    description: 'Posición del punto dentro del recorrido calculado',
+    example: 1,
+    minimum: 0,
+  })
+  @IsInt()
+  @IsOptional()
+  sequence_number?: number;
 }
 
 export class CreateRouteOptimizationDto {
@@ -138,6 +157,21 @@ export class RouteOptimizationResponseDto {
     enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
   })
   optimization_status: string;
+
+  @ApiPropertyOptional({
+    description: 'Motor de ruteo que calculó la optimización',
+    example: 'mock',
+    enum: ['mock', 'google', 'osrm'],
+  })
+  provider?: 'mock' | 'google' | 'osrm';
+
+  @ApiPropertyOptional({
+    description:
+      'true cuando distancia y duración son estimaciones del proveedor mock y ' +
+      'no un recorrido real por calles',
+    example: true,
+  })
+  is_simulated?: boolean;
 
   @ApiProperty({
     description: 'Puntos de la ruta optimizada',

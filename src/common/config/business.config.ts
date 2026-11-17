@@ -1,4 +1,21 @@
 export const BUSINESS_CONFIG = {
+  // Configuracion del motor de optimizacion de rutas
+  ROUTE_OPTIMIZATION: {
+    // Implementaciones disponibles: mock (desarrollo/QA), google, osrm.
+    DEFAULT_PROVIDER: 'mock',
+    // Deposito central de la operacion: 27°29'36.4"S 58°56'36.8"W.
+    DEFAULT_DEPOT: { LAT: -27.4934444, LNG: -58.9435556 },
+    // Cerrar el recorrido volviendo al deposito.
+    RETURN_TO_DEPOT: true,
+    // Generacion de coordenadas simuladas.
+    MOCK_RADIUS_KM: 6,
+    // Estimaciones sin ruteo real: velocidad media y tiempo de atencion por parada.
+    AVERAGE_SPEED_KMH: 30,
+    SERVICE_MINUTES_PER_STOP: 5,
+    // La distancia en linea recta subestima el recorrido real por calles.
+    ROAD_FACTOR: 1.3,
+  },
+
   // Configuración de inventario
   INVENTORY: {
     DEFAULT_WAREHOUSE_ID: 1, // ID del almacén principal

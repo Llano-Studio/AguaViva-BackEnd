@@ -1,31 +1,49 @@
 import {
+  Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
-  InternalServerErrorException } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   CreateRouteOptimizationDto,
   RouteOptimizationResponseDto,
-  WaypointDto } from '../../route-sheet/dto/route-optimization.dto';
+  WaypointDto,
+} from '../../route-sheet/dto/route-optimization.dto';
+import {
+  GeoPoint,
+  ROUTE_OPTIMIZER,
+  RouteOptimizer,
+  RouteStopInput,
+} from '../routing/route-optimizer.port';
 import { PrismaBackedService } from '../../prisma/prisma-backed.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { formatBATimestampISO } from '../utils/date.utils';
 
 @Injectable()
 export class RouteOptimizationService extends PrismaBackedService {
-  constructor(prisma: PrismaService) {
+  constructor(
+    prisma: PrismaService,
+    @Inject(ROUTE_OPTIMIZER)
+    private readonly routeOptimizer: RouteOptimizer,
+    private readonly configService: ConfigService,
+  ) {
     super(prisma);
   }
 
   /**
-   * Optimiza una ruta calculando el orden óptimo de entrega
+   * Optimiza el recorrido de una hoja de ruta y persiste la secuencia resultante.
+   *
+   * El calculo se delega al proveedor configurado. Mientras el proveedor sea
+   * `mock`, las coordenadas faltantes se derivan de la direccion y se marcan
+   * como simuladas: nunca se guardan en el detalle como si fueran verificadas.
    */
   async optimizeRoute(
     createDto: CreateRouteOptimizationDto,
   ): Promise<RouteOptimizationResponseDto> {
-    const { route_sheet_id, optimize_by_time, consider_traffic } = createDto;
+    const { route_sheet_id } = createDto;
 
     try {
-      // 1. Verificar que la hoja de ruta existe
       const routeSheet = await this.route_sheet.findUnique({
         where: { route_sheet_id },
         include: {
@@ -33,13 +51,23 @@ export class RouteOptimizationService extends PrismaBackedService {
             include: {
               order_header: {
                 include: {
-                  customer: true } },
+                  customer: true,
+                },
+              },
               one_off_purchase: {
                 include: {
-                  person: true } },
+                  person: true,
+                },
+              },
               one_off_purchase_header: {
                 include: {
-                  person: true } } } } } });
+                  person: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
       if (!routeSheet) {
         throw new NotFoundException(
@@ -47,95 +75,40 @@ export class RouteOptimizationService extends PrismaBackedService {
         );
       }
 
-      // 2. Obtener y preparar los puntos de entrega
-      const waypoints: WaypointDto[] = [];
+      const depot = this.resolveDepot(createDto);
+      const endPoint = this.resolveEndPoint(createDto, depot);
 
-      // Agregar punto de inicio si se proporciona
-      if (createDto.start_point) {
-        waypoints.push(createDto.start_point);
-      } else {
-        // Agregar un punto de inicio predeterminado (ubicación de la empresa)
-        waypoints.push({
-          lat: -34.603722, // Estos valores serían la ubicación de la empresa
-          lng: -58.381592,
-          address: 'Depósito Central' });
-      }
-
-      // Agregar los puntos de entrega
-      for (const detail of routeSheet.route_sheet_detail) {
-        // En un sistema real, aquí habría una llamada a un servicio de geocodificación
-        // para obtener las coordenadas a partir de la dirección si no existen
-
-        // Para este ejemplo, generamos coordenadas ficticias cercanas al punto de inicio
-        const randomLat = -34.603722 + (Math.random() - 0.5) * 0.1;
-        const randomLng = -58.381592 + (Math.random() - 0.5) * 0.1;
-
-        let customerAddress = 'Dirección desconocida';
-        if (detail.order_header) {
-          customerAddress =
-            detail.order_header.customer.address || 'Dirección desconocida';
-        } else if (detail.one_off_purchase) {
-          customerAddress =
-            detail.one_off_purchase.delivery_address ||
-            detail.one_off_purchase.person.address ||
-            'Dirección desconocida';
-        } else if (detail.one_off_purchase_header) {
-          customerAddress =
-            detail.one_off_purchase_header.delivery_address ||
-            detail.one_off_purchase_header.person.address ||
-            'Dirección desconocida';
-        }
-
-        waypoints.push({
-          lat: detail.lat ? Number(detail.lat) : randomLat,
-          lng: detail.lng ? Number(detail.lng) : randomLng,
-          route_sheet_detail_id: detail.route_sheet_detail_id,
-          address: customerAddress });
-      }
-
-      // Agregar punto final si se proporciona (o usar el mismo que el inicio)
-      if (createDto.end_point) {
-        waypoints.push(createDto.end_point);
-      } else if (createDto.start_point) {
-        waypoints.push(createDto.start_point);
-      } else {
-        // Reutilizar el punto de inicio predeterminado
-        waypoints.push({
-          lat: -34.603722,
-          lng: -58.381592,
-          address: 'Depósito Central' });
-      }
-
-      // 3. En un sistema real, aquí llamaríamos a un servicio externo de optimización de rutas
-      // como Google Maps Directions API, GraphHopper, OSRM, etc.
-      // Para esta implementación, simulamos una optimización
-
-      // Ordenar los waypoints (simplemente por distancia al punto anterior, para simular)
-      const optimizedWaypoints = this.simulateRouteOptimization(
-        waypoints,
-        optimize_by_time || true,
+      const stops: RouteStopInput[] = routeSheet.route_sheet_detail.map(
+        (detail) => ({
+          stop_id: detail.route_sheet_detail_id,
+          address: this.resolveStopAddress(detail),
+          coordinates: this.readStoredCoordinates(detail),
+        }),
       );
 
-      // 4. Calcular distancia y duración estimada
-      const estimatedDistance = this.calculateTotalDistance(optimizedWaypoints);
-      const estimatedDuration = this.calculateEstimatedDuration(
-        estimatedDistance,
-        consider_traffic || true,
-      );
+      const result = await this.routeOptimizer.optimize({
+        route_sheet_id,
+        depot,
+        end_point: endPoint,
+        stops,
+      });
 
-      // 5. Guardar la optimización en la base de datos
       const optimization = await this.route_optimization.create({
         data: {
           route_sheet_id,
-          estimated_duration: estimatedDuration,
-          estimated_distance: estimatedDistance,
+          estimated_duration: result.estimated_duration_minutes,
+          estimated_distance: result.estimated_distance_km,
           optimization_status: 'COMPLETED',
-          waypoints: optimizedWaypoints as any } });
+          waypoints: this.buildPersistedWaypoints(
+            depot,
+            endPoint,
+            result.stops,
+          ) as any,
+        },
+      });
 
-      // 6. Actualizar los detalles de la hoja de ruta con el orden optimizado
       await this.updateRouteSheetDetailsWithOptimizedSequence(
-        route_sheet_id,
-        optimizedWaypoints.filter((wp) => wp.route_sheet_detail_id),
+        result.stops.filter((stop) => stop.stop_id !== null),
       );
 
       return new RouteOptimizationResponseDto({
@@ -144,10 +117,20 @@ export class RouteOptimizationService extends PrismaBackedService {
         estimated_duration: optimization.estimated_duration,
         estimated_distance: Number(optimization.estimated_distance),
         optimization_status: optimization.optimization_status,
-        waypoints: optimizedWaypoints,
-        created_at: formatBATimestampISO(optimization.created_at) });
+        provider: result.provider,
+        is_simulated: result.is_simulated,
+        waypoints: this.buildPersistedWaypoints(
+          depot,
+          endPoint,
+          result.stops,
+        ) as WaypointDto[],
+        created_at: formatBATimestampISO(optimization.created_at),
+      });
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
         throw error;
       }
       console.error('Error al optimizar la ruta:', error);
@@ -163,7 +146,8 @@ export class RouteOptimizationService extends PrismaBackedService {
   ): Promise<RouteOptimizationResponseDto> {
     const optimization = await this.route_optimization.findFirst({
       where: { route_sheet_id },
-      orderBy: { created_at: 'desc' } });
+      orderBy: { created_at: 'desc' },
+    });
 
     if (!optimization) {
       throw new NotFoundException(
@@ -177,8 +161,11 @@ export class RouteOptimizationService extends PrismaBackedService {
       estimated_duration: optimization.estimated_duration,
       estimated_distance: Number(optimization.estimated_distance),
       optimization_status: optimization.optimization_status,
+      provider: this.routeOptimizer.provider,
+      is_simulated: this.routeOptimizer.is_simulated,
       waypoints: this.parseWaypoints(optimization.waypoints),
-      created_at: formatBATimestampISO(optimization.created_at) });
+      created_at: formatBATimestampISO(optimization.created_at),
+    });
   }
 
   private parseWaypoints(value: unknown): WaypointDto[] {
@@ -197,141 +184,173 @@ export class RouteOptimizationService extends PrismaBackedService {
   }
 
   /**
-   * Actualiza los detalles de la hoja de ruta con los números de secuencia optimizados
+   * Direccion de la parada.
+   *
+   * AguaViva admite pedidos, compras unicas y compras unicas con cabecera; el
+   * pedido por orden de preferencia es la direccion de entrega declarada y, en
+   * su defecto, la registrada en la persona.
    */
-  private async updateRouteSheetDetailsWithOptimizedSequence(
-    route_sheet_id: number,
-    waypoints: WaypointDto[],
-  ): Promise<void> {
-    // Aquí tendríamos que actualizar cada uno de los route_sheet_detail con su número de secuencia
-    // y posiblemente también el tiempo estimado de llegada
-    for (let i = 0; i < waypoints.length; i++) {
-      const wp = waypoints[i];
-      if (wp.route_sheet_detail_id) {
-        await this.route_sheet_detail.update({
-          where: { route_sheet_detail_id: wp.route_sheet_detail_id },
-          data: {
-            sequence_number: i + 1,
-            lat: wp.lat as any,
-            lng: wp.lng as any,
-            // Aquí calcularíamos el tiempo estimado de llegada basado en la hora de inicio
-            // y la duración acumulada hasta este punto
-          } });
-      }
+  private resolveStopAddress(detail: {
+    order_header?: { customer?: { address?: string | null } | null } | null;
+    one_off_purchase?: {
+      delivery_address?: string | null;
+      person?: { address?: string | null } | null;
+    } | null;
+    one_off_purchase_header?: {
+      delivery_address?: string | null;
+      person?: { address?: string | null } | null;
+    } | null;
+  }): string | null {
+    if (detail.order_header?.customer?.address) {
+      return detail.order_header.customer.address;
     }
-  }
-
-  /**
-   * Simula una optimización de ruta (en un sistema real usaríamos un servicio externo)
-   */
-  private simulateRouteOptimization(
-    waypoints: WaypointDto[],
-    optimizeByTime: boolean,
-  ): WaypointDto[] {
-    // Conservar el primero y el último punto
-    const start = waypoints[0];
-    const end = waypoints[waypoints.length - 1];
-
-    // Optimizar solo los puntos intermedios
-    const pointsToOptimize = waypoints.slice(1, waypoints.length - 1);
-
-    // Algoritmo del vecino más cercano
-    const optimizedMiddlePoints: WaypointDto[] = [];
-    let currentPoint = start;
-
-    while (pointsToOptimize.length > 0) {
-      let nextPointIndex = 0;
-      let minDistance = Infinity;
-
-      for (let i = 0; i < pointsToOptimize.length; i++) {
-        const distance = this.calculateDistance(
-          currentPoint.lat,
-          currentPoint.lng,
-          pointsToOptimize[i].lat,
-          pointsToOptimize[i].lng,
-        );
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          nextPointIndex = i;
-        }
-      }
-
-      currentPoint = pointsToOptimize[nextPointIndex];
-      optimizedMiddlePoints.push(currentPoint);
-      pointsToOptimize.splice(nextPointIndex, 1);
-    }
-
-    // Devolver la ruta completa optimizada
-    return [start, ...optimizedMiddlePoints, end];
-  }
-
-  /**
-   * Calcula la distancia entre dos puntos usando la fórmula de Haversine
-   */
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ): number {
-    const R = 6371; // Radio de la Tierra en km
-    const dLat = this.deg2rad(lat2 - lat1);
-    const dLon = this.deg2rad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.deg2rad(lat1)) *
-        Math.cos(this.deg2rad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distancia en km
-    return distance;
-  }
-
-  private deg2rad(deg: number): number {
-    return deg * (Math.PI / 180);
-  }
-
-  /**
-   * Calcula la distancia total de la ruta
-   */
-  private calculateTotalDistance(waypoints: WaypointDto[]): number {
-    let totalDistance = 0;
-
-    for (let i = 0; i < waypoints.length - 1; i++) {
-      totalDistance += this.calculateDistance(
-        waypoints[i].lat,
-        waypoints[i].lng,
-        waypoints[i + 1].lat,
-        waypoints[i + 1].lng,
+    if (detail.one_off_purchase) {
+      return (
+        detail.one_off_purchase.delivery_address ??
+        detail.one_off_purchase.person?.address ??
+        null
       );
     }
+    if (detail.one_off_purchase_header) {
+      return (
+        detail.one_off_purchase_header.delivery_address ??
+        detail.one_off_purchase_header.person?.address ??
+        null
+      );
+    }
+    return null;
+  }
 
-    return parseFloat(totalDistance.toFixed(2));
+  /** Punto de partida: el indicado en la petición o el depósito configurado. */
+  private resolveDepot(dto: CreateRouteOptimizationDto): GeoPoint {
+    if (dto.start_point) {
+      return { lat: dto.start_point.lat, lng: dto.start_point.lng };
+    }
+    return {
+      lat: Number(this.configService.get('app.routeOptimization.depot.lat')),
+      lng: Number(this.configService.get('app.routeOptimization.depot.lng')),
+    };
+  }
+
+  /** Punto de cierre: fin explícito, o el de partida si el recorrido es circular. */
+  private resolveEndPoint(
+    dto: CreateRouteOptimizationDto,
+    depot: GeoPoint,
+  ): GeoPoint | null {
+    if (dto.end_point) {
+      return { lat: dto.end_point.lat, lng: dto.end_point.lng };
+    }
+    if (dto.start_point) {
+      return { lat: dto.start_point.lat, lng: dto.start_point.lng };
+    }
+    const returnToDepot =
+      this.configService.get('app.routeOptimization.returnToDepot') !== false;
+    return returnToDepot ? depot : null;
+  }
+
+  /** Devuelve las coordenadas guardadas del detalle, o null si no existen. */
+  private readStoredCoordinates(detail: {
+    lat: unknown;
+    lng: unknown;
+  }): GeoPoint | null {
+    if (detail.lat === null || detail.lat === undefined) {
+      return null;
+    }
+    if (detail.lng === null || detail.lng === undefined) {
+      return null;
+    }
+    const lat = Number(detail.lat);
+    const lng = Number(detail.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+    return { lat, lng };
+  }
+
+  /** Arma el arreglo de waypoints que se persiste y se devuelve al cliente. */
+  private buildPersistedWaypoints(
+    depot: GeoPoint,
+    endPoint: GeoPoint | null,
+    stops: Array<{
+      stop_id: number | null;
+      sequence_number: number;
+      coordinates: GeoPoint;
+      coordinate_source: 'DATABASE' | 'SIMULATED';
+      address?: string | null;
+    }>,
+  ): WaypointDto[] {
+    const waypoints: WaypointDto[] = [
+      {
+        lat: depot.lat,
+        lng: depot.lng,
+        address: 'Depósito',
+        coordinate_source: 'DATABASE',
+        sequence_number: 0,
+      },
+    ];
+
+    for (const stop of stops) {
+      if (stop.stop_id === null) {
+        continue;
+      }
+      waypoints.push({
+        lat: stop.coordinates.lat,
+        lng: stop.coordinates.lng,
+        route_sheet_detail_id: stop.stop_id,
+        address: stop.address ?? undefined,
+        coordinate_source: stop.coordinate_source,
+        sequence_number: stop.sequence_number,
+      });
+    }
+
+    if (endPoint) {
+      waypoints.push({
+        lat: endPoint.lat,
+        lng: endPoint.lng,
+        address: 'Cierre',
+        coordinate_source: 'DATABASE',
+        sequence_number: waypoints.length,
+      });
+    }
+
+    return waypoints;
   }
 
   /**
-   * Calcula la duración estimada de la ruta en minutos
+   * Persiste el orden calculado.
+   *
+   * `sequence_number` siempre se guarda porque es lo que consumen las pantallas.
+   * Las coordenadas solo se escriben cuando ya eran un dato verificado: una
+   * coordenada simulada nunca se guarda en el detalle.
    */
-  private calculateEstimatedDuration(
-    distanceKm: number,
-    considerTraffic: boolean,
-  ): number {
-    // Velocidad promedio estimada en km/h (menor si consideramos tráfico)
-    const avgSpeed = considerTraffic ? 30 : 45;
+  private async updateRouteSheetDetailsWithOptimizedSequence(
+    stops: Array<{
+      stop_id: number | null;
+      sequence_number: number;
+      coordinates: GeoPoint;
+      coordinate_source: 'DATABASE' | 'SIMULATED';
+    }>,
+  ): Promise<void> {
+    for (const stop of stops) {
+      if (stop.stop_id === null) {
+        continue;
+      }
 
-    // Tiempo en horas
-    const timeHours = distanceKm / avgSpeed;
+      const data: {
+        sequence_number: number;
+        lat?: number;
+        lng?: number;
+      } = { sequence_number: stop.sequence_number };
 
-    // Convertir a minutos y añadir tiempo para cada parada (promedio 5 minutos por entrega)
-    const deliveryStops = 5; // En un caso real, calcularíamos el número exacto de entregas
-    const stopTimeMinutes = deliveryStops * 5;
+      if (stop.coordinate_source === 'DATABASE') {
+        data.lat = stop.coordinates.lat;
+        data.lng = stop.coordinates.lng;
+      }
 
-    const totalMinutes = Math.round(timeHours * 60) + stopTimeMinutes;
-
-    return totalMinutes;
+      await this.route_sheet_detail.update({
+        where: { route_sheet_detail_id: stop.stop_id },
+        data,
+      });
+    }
   }
 }
-import { formatBATimestampISO } from '../utils/date.utils';
-
