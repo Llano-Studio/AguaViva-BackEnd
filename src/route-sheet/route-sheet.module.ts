@@ -7,6 +7,8 @@ import { CommonModule } from '../common/common.module';
 import { OrdersModule } from '../orders/orders.module';
 import { ServicesModule } from '../common/services/services.module';
 import { CyclePaymentsModule } from '../cycle-payments/cycle-payments.module';
+import { ExtraDeliveryService } from './extra-deliveries/extra-delivery.service';
+import { ExtraDeliveryListener } from './extra-deliveries/extra-delivery.listener';
 
 @Module({
   imports: [CommonModule, OrdersModule, ServicesModule, CyclePaymentsModule],
@@ -15,6 +17,8 @@ import { CyclePaymentsModule } from '../cycle-payments/cycle-payments.module';
     RouteSheetService,
     RouteOptimizationService,
     MobileInventoryService,
+    ExtraDeliveryService,
+    ExtraDeliveryListener,
   ],
   exports: [
     RouteSheetService,

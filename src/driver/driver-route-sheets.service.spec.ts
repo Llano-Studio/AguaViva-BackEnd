@@ -212,6 +212,7 @@ describe('DriverRouteSheetsService', () => {
         pending: 2,
         delivered: 1,
         not_delivered: 0,
+        extras: 0,
       });
       expect(summary.scheduled_start_time).toBe('09:00');
     });

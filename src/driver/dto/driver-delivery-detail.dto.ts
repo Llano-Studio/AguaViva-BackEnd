@@ -120,6 +120,20 @@ export class DriverDeliveryDetailDto {
   @ApiProperty({ description: 'Está resuelta (entregada, fallida, etc.)' })
   is_resolved: boolean;
 
+  @ApiProperty({
+    description:
+      'Pedido extra: se agregó a la hoja después de creada (mostrarlo distinto)',
+    example: false,
+  })
+  is_extra: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Cuándo se agregó el extra (hora de Buenos Aires)',
+    example: '2026-11-24T11:40:00-03:00',
+  })
+  extra_added_at: string | null;
+
   @ApiProperty({ enum: DriverStopType })
   stop_type: DriverStopType;
 

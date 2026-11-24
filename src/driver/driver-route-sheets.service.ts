@@ -71,7 +71,7 @@ const SUMMARY_INCLUDE = {
   vehicle: { select: { vehicle_id: true, code: true, name: true } },
   route_sheet_pause: OPEN_PAUSE_INCLUDE,
   route_sheet_detail: {
-    select: { delivery_status: true, delivery_time: true },
+    select: { delivery_status: true, delivery_time: true, is_extra: true },
   },
 } satisfies Prisma.route_sheetInclude;
 
@@ -454,6 +454,10 @@ export class DriverRouteSheetsService {
       delivery_status: detail.delivery_status,
       is_current: isCurrent,
       is_resolved: isResolved,
+      is_extra: detail.is_extra,
+      extra_added_at: detail.extra_added_at
+        ? formatBATimestampISO(detail.extra_added_at)
+        : null,
       stop_type: stop.stop_type,
       delivery_time: detail.delivery_time ?? null,
       version: this.buildVersion(detail),
@@ -1258,6 +1262,7 @@ export class DriverRouteSheetsService {
         pending: statuses.filter((s) => !RESOLVED_DELIVERY_STATUSES.has(s)).length,
         delivered: statuses.filter((s) => s === DeliveryStatus.DELIVERED).length,
         not_delivered: statuses.filter((s) => NOT_DELIVERED_STATUSES.has(s)).length,
+        extras: row.route_sheet_detail.filter((d) => d.is_extra).length,
       },
       active_pause: pause ? this.toPause(pause) : null,
     };
@@ -1277,6 +1282,10 @@ export class DriverRouteSheetsService {
           position: index + 1,
           sequence_number: detail.sequence_number ?? null,
           delivery_status: detail.delivery_status,
+          is_extra: detail.is_extra,
+          extra_added_at: detail.extra_added_at
+            ? formatBATimestampISO(detail.extra_added_at)
+            : null,
           is_resolved: resolved[index],
           is_current: index === currentIndex,
           is_locked: !resolved[index] && index !== currentIndex,

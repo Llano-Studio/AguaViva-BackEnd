@@ -65,9 +65,13 @@ function detailRow(overrides: Record<string, unknown> = {}) {
 describe('RouteSheetService - resolución de paradas (Fase 6)', () => {
   let prisma: any;
   let service: RouteSheetService;
+  let routeOptimization: { reoptimizeAfterExtras: jest.Mock };
 
   beforeEach(() => {
     prisma = prismaMock();
+    routeOptimization = {
+      reoptimizeAfterExtras: jest.fn().mockResolvedValue({ mode: 'PENDING' }),
+    };
     service = new RouteSheetService(
       prisma,
       {} as any,
@@ -75,7 +79,7 @@ describe('RouteSheetService - resolución de paradas (Fase 6)', () => {
       {} as any,
       {} as any,
       {} as any,
-      {} as any,
+      routeOptimization as any,
     );
     jest
       .spyOn(service, 'findOne')
@@ -121,12 +125,57 @@ describe('RouteSheetService - resolución de paradas (Fase 6)', () => {
           order_id: 12,
           delivery_status: 'PENDING',
           sequence_number: 4,
+          is_extra: true,
+          extra_source: 'MANUAL',
+          extra_added_at: expect.any(Date),
         }),
       });
       expect(prisma.order_header.updateMany).toHaveBeenCalledWith({
         where: expect.objectContaining({ order_id: { in: [12] } }),
         data: { status: 'READY_FOR_DELIVERY' },
       });
+      expect(routeOptimization.reoptimizeAfterExtras).toHaveBeenCalledWith(5);
+    });
+
+    it('marca el origen del extra cuando lo agrega el evento de pedido', async () => {
+      prisma.route_sheet_detail.findMany.mockResolvedValue([]);
+      prisma.route_sheet_detail.findFirst.mockResolvedValue(null);
+      prisma.route_sheet_detail.aggregate.mockResolvedValue({
+        _max: { sequence_number: 2 },
+      });
+      prisma.route_sheet_detail.create.mockResolvedValue({});
+
+      await service.addDetailsIncremental(
+        5,
+        { details: [{ order_id: 12, order_type: 'CONTRACT_DELIVERY' as any }] },
+        { source: 'ORDER_EVENT' },
+      );
+
+      expect(prisma.route_sheet_detail.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          is_extra: true,
+          extra_source: 'ORDER_EVENT',
+        }),
+      });
+    });
+
+    it('si la reoptimización falla, la parada queda agregada igual', async () => {
+      prisma.route_sheet_detail.findMany.mockResolvedValue([]);
+      prisma.route_sheet_detail.findFirst.mockResolvedValue(null);
+      prisma.route_sheet_detail.aggregate.mockResolvedValue({
+        _max: { sequence_number: 2 },
+      });
+      prisma.route_sheet_detail.create.mockResolvedValue({});
+      routeOptimization.reoptimizeAfterExtras.mockRejectedValue(
+        new Error('faltan coordenadas'),
+      );
+
+      await expect(
+        service.addDetailsIncremental(5, {
+          details: [{ order_id: 12, order_type: 'CONTRACT_DELIVERY' as any }],
+        }),
+      ).resolves.toEqual({ route_sheet_id: 5 });
+      expect(prisma.route_sheet_detail.create).toHaveBeenCalledTimes(1);
     });
 
     it('no vuelve a escribir cuando todas las paradas ya están en la hoja', async () => {
@@ -141,6 +190,7 @@ describe('RouteSheetService - resolución de paradas (Fase 6)', () => {
 
       expect(prisma.route_sheet_detail.create).not.toHaveBeenCalled();
       expect(prisma.order_header.updateMany).not.toHaveBeenCalled();
+      expect(routeOptimization.reoptimizeAfterExtras).not.toHaveBeenCalled();
     });
 
     it('rechaza una parada ya asignada a otra hoja activa de la misma fecha', async () => {

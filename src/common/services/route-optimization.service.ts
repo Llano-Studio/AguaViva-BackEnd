@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import {
   HttpException,
   Inject,
@@ -20,6 +21,16 @@ import {
 import { PrismaBackedService } from '../../prisma/prisma-backed.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { formatBATimestampISO } from '../utils/date.utils';
+import { DELIVERY_SEQUENCE_ORDER_BY } from '../../route-sheet/delivery-locks';
+import { splitForReoptimization } from '../../route-sheet/extra-deliveries/extra-delivery.rules';
+
+export type ReoptimizationOutcome =
+  | { mode: 'FULL'; provider: string }
+  | { mode: 'PENDING'; provider: string; reordered: number }
+  | {
+      mode: 'NONE';
+      reason: 'CLOSED' | 'NOTHING_TO_REORDER' | 'CONCURRENT_CHANGES';
+    };
 
 @Injectable()
 export class RouteOptimizationService extends PrismaBackedService {
@@ -137,6 +148,120 @@ export class RouteOptimizationService extends PrismaBackedService {
       console.error('Error al optimizar la ruta:', error);
       throw new InternalServerErrorException('Error al optimizar la ruta');
     }
+  }
+
+  /**
+   * Reordena una hoja después de agregarle paradas extra.
+   *
+   * - PLANNED: optimiza el recorrido completo, igual que al crear la hoja.
+   * - IN_PROGRESS / PAUSED: las paradas resueltas y la actual quedan donde
+   *   están; el resto se reoptimiza saliendo desde la parada actual. Así el
+   *   chofer no ve cambiar la parada que tiene adelante.
+   *
+   * Si el chofer resuelve una parada mientras se calcula, no se pisa su
+   * avance: se vuelve a calcular con el estado nuevo (un reintento).
+   */
+  async reoptimizeAfterExtras(
+    route_sheet_id: number,
+  ): Promise<ReoptimizationOutcome> {
+    const sheet = await this.route_sheet.findUnique({
+      where: { route_sheet_id },
+      select: { execution_status: true, is_active: true },
+    });
+    if (!sheet) {
+      throw new NotFoundException(
+        `Hoja de ruta con ID ${route_sheet_id} no encontrada`,
+      );
+    }
+    if (!sheet.is_active || sheet.execution_status === 'CLOSED') {
+      return { mode: 'NONE', reason: 'CLOSED' };
+    }
+    if (sheet.execution_status === 'PLANNED') {
+      const result = await this.optimizeRoute({ route_sheet_id });
+      return {
+        mode: 'FULL',
+        provider: result.provider ?? this.routeOptimizer.provider,
+      };
+    }
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const details = await this.route_sheet_detail.findMany({
+        where: { route_sheet_id },
+        orderBy: DELIVERY_SEQUENCE_ORDER_BY,
+        include: {
+          order_header: { include: { customer: true } },
+          one_off_purchase: { include: { person: true } },
+          one_off_purchase_header: { include: { person: true } },
+        },
+      });
+
+      const { fixed, anchor, reorderable } = splitForReoptimization(details);
+      if (!anchor || reorderable.length < 2) {
+        return { mode: 'NONE', reason: 'NOTHING_TO_REORDER' };
+      }
+
+      const depot = this.resolveDepot({ route_sheet_id });
+      const result = await this.routeOptimizer.optimize({
+        route_sheet_id,
+        depot: this.readStoredCoordinates(anchor) ?? depot,
+        end_point: this.resolveEndPoint({ route_sheet_id }, depot),
+        stops: reorderable.map((detail) => ({
+          stop_id: detail.route_sheet_detail_id,
+          address: this.resolveStopAddress(detail),
+          coordinates: this.readStoredCoordinates(detail),
+        })),
+      });
+
+      const finalOrder = [
+        ...fixed.map((detail) => detail.route_sheet_detail_id),
+        ...result.stops
+          .map((stop) => stop.stop_id)
+          .filter((id): id is number => id !== null),
+      ];
+      const snapshot = new Map(
+        details.map((d) => [d.route_sheet_detail_id, d.delivery_status]),
+      );
+
+      const applied = await this.prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          // Serializa con otras reoptimizaciones de la misma hoja.
+          await tx.$queryRaw`SELECT route_sheet_id FROM route_sheet WHERE route_sheet_id = ${route_sheet_id} FOR UPDATE`;
+          const current = await tx.route_sheet_detail.findMany({
+            where: { route_sheet_id },
+            select: { route_sheet_detail_id: true, delivery_status: true },
+          });
+          const unchanged =
+            current.length === snapshot.size &&
+            current.every(
+              (d) =>
+                snapshot.get(d.route_sheet_detail_id) === d.delivery_status,
+            );
+          if (!unchanged || finalOrder.length !== current.length) return false;
+
+          const previous = new Map(
+            details.map((d) => [d.route_sheet_detail_id, d.sequence_number]),
+          );
+          for (const [index, detailId] of finalOrder.entries()) {
+            if (previous.get(detailId) === index + 1) continue;
+            await tx.route_sheet_detail.update({
+              where: { route_sheet_detail_id: detailId },
+              data: { sequence_number: index + 1 },
+            });
+          }
+          return true;
+        },
+      );
+
+      if (applied) {
+        return {
+          mode: 'PENDING',
+          provider: result.provider,
+          reordered: reorderable.length,
+        };
+      }
+    }
+
+    return { mode: 'NONE', reason: 'CONCURRENT_CHANGES' };
   }
 
   /**

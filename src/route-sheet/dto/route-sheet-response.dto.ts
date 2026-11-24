@@ -266,6 +266,31 @@ export class RouteSheetDetailResponseDto {
   is_current_delivery?: boolean;
 
   @ApiProperty({
+    description:
+      'Pedido extra: se agregó a la hoja después de creada (mostrarlo distinto)',
+    example: false,
+    required: false,
+  })
+  is_extra?: boolean;
+
+  @ApiProperty({
+    description:
+      'Origen del extra: ORDER_EVENT (automático al crear el pedido) o MANUAL',
+    enum: ['ORDER_EVENT', 'MANUAL'],
+    nullable: true,
+    required: false,
+  })
+  extra_source?: string | null;
+
+  @ApiProperty({
+    description: 'Cuándo se agregó el extra (hora de Buenos Aires)',
+    example: '2026-11-24T11:40:00-03:00',
+    nullable: true,
+    required: false,
+  })
+  extra_added_at?: string | null;
+
+  @ApiProperty({
     description: 'Créditos/saldo de productos asociados a suscripción',
     required: false,
   })

@@ -48,6 +48,9 @@ export class DriverRouteSheetTotalsDto {
     example: 1,
   })
   not_delivered: number;
+
+  @ApiProperty({ description: 'Pedidos extra agregados a la hoja', example: 1 })
+  extras: number;
 }
 
 export class DriverRouteSheetSummaryDto {
@@ -112,7 +115,8 @@ export class DriverDeliveryCustomerDto {
 
   @ApiPropertyOptional({
     nullable: true,
-    description: 'Ubicación del cliente (AguaViva no la registra: siempre null)',
+    description:
+      'Ubicación del cliente (AguaViva no la registra: siempre null)',
   })
   location: string | null;
 }
@@ -146,6 +150,20 @@ export class DriverRouteSheetDeliveryDto {
     description: 'Pendiente y bloqueada hasta resolver las anteriores',
   })
   is_locked: boolean;
+
+  @ApiProperty({
+    description:
+      'Pedido extra: se agregó a la hoja después de creada (mostrarlo distinto)',
+    example: false,
+  })
+  is_extra: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Cuándo se agregó el extra (hora de Buenos Aires)',
+    example: '2026-11-24T11:40:00-03:00',
+  })
+  extra_added_at: string | null;
 
   @ApiPropertyOptional({ nullable: true, example: '08:00-10:00' })
   delivery_time: string | null;
