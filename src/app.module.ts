@@ -1,3 +1,4 @@
+import { GeolocationModule } from './geolocation/geolocation.module';
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
@@ -41,6 +42,7 @@ import { PrismaModule } from './prisma/prisma.module';
   imports: [
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(),
+    GeolocationModule,
     PrismaModule,
     ServicesModule,
     CommonModule,

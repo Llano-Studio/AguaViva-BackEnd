@@ -243,6 +243,14 @@ model person {
   address                  String?                   @db.VarChar(200)
   locality_id              Int?                      @db.SmallInt
   zone_id                  Int?                      @db.SmallInt
+  /// Ubicación del cliente para rutear (ver src/geolocation/geo.rules.ts).
+  lat                      Decimal?                  @db.Decimal(10, 8)
+  lng                      Decimal?                  @db.Decimal(11, 8)
+  /// ADMIN, MAPS_LINK, GOOGLE_GEOCODING o DRIVER_GPS.
+  geo_source               String?                   @db.VarChar(20)
+  /// EXACT, INTERPOLATED o APPROXIMATE.
+  geo_precision            String?                   @db.VarChar(20)
+  geo_updated_at           DateTime?
   registration_date        DateTime                  @default(dbgenerated("CURRENT_DATE")) @db.Date
   type                     PersonType
   alias                    String?                   @db.VarChar(100)
