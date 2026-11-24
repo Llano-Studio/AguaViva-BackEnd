@@ -1,6 +1,10 @@
 import { ConfigService } from '@nestjs/config';
 import { MockRouteOptimizer } from './mock-route-optimizer.adapter';
 import {
+  OsrmRouteOptimizer,
+  readOsrmRoutingConfig,
+} from './osrm-route-optimizer.adapter';
+import {
   RouteOptimizer,
   RouteOptimizerProviderName,
 } from './route-optimizer.port';
@@ -35,17 +39,19 @@ export function createRouteOptimizer(
       if (environment === 'production' && !allowMockInProduction) {
         throw new Error(
           'ROUTE_OPTIMIZER_PROVIDER=mock no esta permitido en produccion. ' +
-            'Configure un proveedor real (google|osrm) o habilite ' +
+            'Configure el proveedor real (osrm) o habilite ' +
             'ROUTE_OPTIMIZER_ALLOW_MOCK_IN_PRODUCTION=true de forma explicita.',
         );
       }
       return new MockRouteOptimizer(configService);
 
-    case 'google':
     case 'osrm':
+      return new OsrmRouteOptimizer(readOsrmRoutingConfig(configService));
+
+    case 'google':
       throw new Error(
         `El proveedor de ruteo "${provider}" todavia no esta implementado. ` +
-          'Use ROUTE_OPTIMIZER_PROVIDER=mock mientras tanto.',
+          'Use ROUTE_OPTIMIZER_PROVIDER=osrm o mock.',
       );
 
     default:

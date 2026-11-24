@@ -790,6 +790,16 @@ Notas:
     type: RouteOptimizationResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  @ApiResponse({
+    status: 422,
+    description:
+      'Con el proveedor osrm: faltan coordenadas (`missing_coordinates`) o alguna parada no tiene recorrido posible (`unreachable_stops`)',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'El servicio de ruteo no está disponible o rechazó la conexión',
+  })
   optimizeRoute(
     @Param('id', ParseIntPipe) id: number,
     @Body() optimizationDto: CreateRouteOptimizationDto,

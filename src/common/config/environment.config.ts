@@ -104,6 +104,13 @@ export default registerAs('app', () => ({
       process.env.ROUTE_ROAD_FACTOR ||
         BUSINESS_CONFIG.ROUTE_OPTIMIZATION.ROAD_FACTOR,
     ),
+    // Servicio OSRM + VROOM autoalojado (ROUTE_OPTIMIZER_PROVIDER=osrm).
+    osrm: {
+      baseUrl: process.env.ROUTING_BASE_URL || '',
+      apiToken: process.env.ROUTING_API_TOKEN || '',
+      timeoutMs: Number(process.env.ROUTING_TIMEOUT_MS || 15000),
+      profile: process.env.ROUTING_PROFILE || 'car',
+    },
   },
 
   // Configuración de paginación
