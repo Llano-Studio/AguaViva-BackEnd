@@ -776,7 +776,8 @@ Notas:
   @Auth(Role.ADMINISTRATIVE, Role.SUPERADMIN, Role.BOSSADMINISTRATIVE)
   @ApiOperation({
     summary: 'Optimizar una hoja de ruta',
-    description: 'Calcula la ruta óptima para las entregas',
+    description:
+      'Calcula la ruta óptima para las entregas. Con la hoja planificada reordena el recorrido completo (scope FULL). Con la hoja en curso o pausada no mueve las paradas resueltas ni la actual: reordena solo las pendientes que siguen, saliendo desde la parada actual (scope PENDING).',
   })
   @ApiParam({
     name: 'id',
@@ -790,6 +791,11 @@ Notas:
     type: RouteOptimizationResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Hoja de ruta no encontrada' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Hoja en curso sin paradas pendientes para reordenar después de la actual, o la hoja cambió mientras se calculaba',
+  })
   @ApiResponse({
     status: 422,
     description:

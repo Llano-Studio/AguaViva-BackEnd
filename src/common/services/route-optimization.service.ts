@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import {
+  ConflictException,
   HttpException,
   Inject,
   Injectable,
@@ -16,6 +17,7 @@ import {
   GeoPoint,
   ROUTE_OPTIMIZER,
   RouteOptimizer,
+  RouteOptimizerResult,
   RouteStopInput,
 } from '../routing/route-optimizer.port';
 import { PrismaBackedService } from '../../prisma/prisma-backed.service';
@@ -31,6 +33,18 @@ export type ReoptimizationOutcome =
       mode: 'NONE';
       reason: 'CLOSED' | 'NOTHING_TO_REORDER' | 'CONCURRENT_CHANGES';
     };
+
+type PendingReorder =
+  | {
+      status: 'APPLIED';
+      result: RouteOptimizerResult;
+      start: GeoPoint;
+      endPoint: GeoPoint | null;
+      fixedCount: number;
+      reordered: number;
+    }
+  | { status: 'NOTHING_TO_REORDER' }
+  | { status: 'CONCURRENT_CHANGES' };
 
 @Injectable()
 export class RouteOptimizationService extends PrismaBackedService {
@@ -88,6 +102,14 @@ export class RouteOptimizationService extends PrismaBackedService {
         );
       }
 
+      // En curso o pausada: no se mueve lo hecho ni la parada actual.
+      if (
+        routeSheet.execution_status === 'IN_PROGRESS' ||
+        routeSheet.execution_status === 'PAUSED'
+      ) {
+        return await this.optimizePendingRoute(route_sheet_id);
+      }
+
       const depot = this.resolveDepot(createDto);
       const endPoint = this.resolveEndPoint(createDto, depot);
 
@@ -132,6 +154,7 @@ export class RouteOptimizationService extends PrismaBackedService {
         optimization_status: optimization.optimization_status,
         provider: result.provider,
         is_simulated: result.is_simulated,
+        scope: 'FULL',
         waypoints: this.buildPersistedWaypoints(
           depot,
           endPoint,
@@ -148,6 +171,61 @@ export class RouteOptimizationService extends PrismaBackedService {
       console.error('Error al optimizar la ruta:', error);
       throw new InternalServerErrorException('Error al optimizar la ruta');
     }
+  }
+
+  /**
+   * Optimización manual de una hoja en curso o pausada: reordena solo las
+   * pendientes posteriores a la parada actual. Distancia y duración son las del
+   * tramo que falta, desde la parada actual.
+   */
+  private async optimizePendingRoute(
+    route_sheet_id: number,
+  ): Promise<RouteOptimizationResponseDto> {
+    const outcome = await this.reorderPendingStops(route_sheet_id);
+    if (outcome.status === 'NOTHING_TO_REORDER') {
+      throw new ConflictException(
+        'La hoja está en curso y no hay paradas pendientes para reordenar después de la parada actual.',
+      );
+    }
+    if (outcome.status === 'CONCURRENT_CHANGES') {
+      throw new ConflictException(
+        'La hoja cambió mientras se calculaba el recorrido. Volvé a intentar.',
+      );
+    }
+
+    const { result, start, endPoint, fixedCount } = outcome;
+    const stops = result.stops.map((stop) => ({
+      ...stop,
+      sequence_number: stop.sequence_number + fixedCount,
+    }));
+    const waypoints = this.buildPersistedWaypoints(
+      start,
+      endPoint,
+      stops,
+      'Parada actual',
+    );
+    const optimization = await this.route_optimization.create({
+      data: {
+        route_sheet_id,
+        estimated_duration: result.estimated_duration_minutes,
+        estimated_distance: result.estimated_distance_km,
+        optimization_status: 'COMPLETED',
+        waypoints: waypoints as unknown as Prisma.InputJsonValue,
+      },
+    });
+
+    return new RouteOptimizationResponseDto({
+      optimization_id: optimization.optimization_id,
+      route_sheet_id: optimization.route_sheet_id,
+      estimated_duration: optimization.estimated_duration,
+      estimated_distance: Number(optimization.estimated_distance),
+      optimization_status: optimization.optimization_status,
+      provider: result.provider,
+      is_simulated: result.is_simulated,
+      scope: 'PENDING',
+      waypoints,
+      created_at: formatBATimestampISO(optimization.created_at),
+    });
   }
 
   /**
@@ -184,6 +262,26 @@ export class RouteOptimizationService extends PrismaBackedService {
       };
     }
 
+    const outcome = await this.reorderPendingStops(route_sheet_id);
+    if (outcome.status === 'APPLIED') {
+      return {
+        mode: 'PENDING',
+        provider: outcome.result.provider,
+        reordered: outcome.reordered,
+      };
+    }
+    return { mode: 'NONE', reason: outcome.status };
+  }
+
+  /**
+   * Reordena las paradas pendientes de una hoja en curso o pausada sin mover
+   * las resueltas ni la parada actual: el tramo nuevo sale desde la parada
+   * actual. Si el chofer resuelve una parada mientras se calcula, no pisa su
+   * avance y vuelve a calcular con el estado nuevo (un reintento).
+   */
+  private async reorderPendingStops(
+    route_sheet_id: number,
+  ): Promise<PendingReorder> {
     for (let attempt = 1; attempt <= 2; attempt++) {
       const details = await this.route_sheet_detail.findMany({
         where: { route_sheet_id },
@@ -197,14 +295,16 @@ export class RouteOptimizationService extends PrismaBackedService {
 
       const { fixed, anchor, reorderable } = splitForReoptimization(details);
       if (!anchor || reorderable.length < 2) {
-        return { mode: 'NONE', reason: 'NOTHING_TO_REORDER' };
+        return { status: 'NOTHING_TO_REORDER' };
       }
 
       const depot = this.resolveDepot({ route_sheet_id });
+      const start = this.readStoredCoordinates(anchor) ?? depot;
+      const endPoint = this.resolveEndPoint({ route_sheet_id }, depot);
       const result = await this.routeOptimizer.optimize({
         route_sheet_id,
-        depot: this.readStoredCoordinates(anchor) ?? depot,
-        end_point: this.resolveEndPoint({ route_sheet_id }, depot),
+        depot: start,
+        end_point: endPoint,
         stops: reorderable.map((detail) => ({
           stop_id: detail.route_sheet_detail_id,
           address: this.resolveStopAddress(detail),
@@ -254,14 +354,17 @@ export class RouteOptimizationService extends PrismaBackedService {
 
       if (applied) {
         return {
-          mode: 'PENDING',
-          provider: result.provider,
+          status: 'APPLIED',
+          result,
+          start,
+          endPoint,
+          fixedCount: fixed.length,
           reordered: reorderable.length,
         };
       }
     }
 
-    return { mode: 'NONE', reason: 'CONCURRENT_CHANGES' };
+    return { status: 'CONCURRENT_CHANGES' };
   }
 
   /**
@@ -404,12 +507,13 @@ export class RouteOptimizationService extends PrismaBackedService {
       coordinate_source: 'DATABASE' | 'SIMULATED';
       address?: string | null;
     }>,
+    startLabel = 'Depósito',
   ): WaypointDto[] {
     const waypoints: WaypointDto[] = [
       {
         lat: depot.lat,
         lng: depot.lng,
-        address: 'Depósito',
+        address: startLabel,
         coordinate_source: 'DATABASE',
         sequence_number: 0,
       },

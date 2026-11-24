@@ -174,6 +174,15 @@ export class RouteOptimizationResponseDto {
   is_simulated?: boolean;
 
   @ApiProperty({
+    description:
+      'FULL: se optimizó el recorrido completo. PENDING: la hoja está en curso o pausada y solo se reordenaron las paradas pendientes después de la actual; distancia y duración son las del tramo que falta.',
+    enum: ['FULL', 'PENDING'],
+    example: 'FULL',
+    required: false,
+  })
+  scope?: 'FULL' | 'PENDING';
+
+  @ApiProperty({
     description: 'Puntos de la ruta optimizada',
     type: [WaypointDto],
   })
