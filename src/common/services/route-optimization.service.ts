@@ -1,4 +1,5 @@
 import {
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -34,9 +35,10 @@ export class RouteOptimizationService extends PrismaBackedService {
   /**
    * Optimiza el recorrido de una hoja de ruta y persiste la secuencia resultante.
    *
-   * El calculo se delega al proveedor configurado. Mientras el proveedor sea
-   * `mock`, las coordenadas faltantes se derivan de la direccion y se marcan
-   * como simuladas: nunca se guardan en el detalle como si fueran verificadas.
+   * El calculo se delega al proveedor configurado. Con `mock`, las coordenadas
+   * faltantes se derivan de la direccion y se marcan como simuladas: nunca se
+   * guardan en el detalle como si fueran verificadas. Con `osrm`, todas las
+   * paradas necesitan coordenadas guardadas; si falta alguna, responde 422.
    */
   async optimizeRoute(
     createDto: CreateRouteOptimizationDto,
@@ -127,10 +129,9 @@ export class RouteOptimizationService extends PrismaBackedService {
         created_at: formatBATimestampISO(optimization.created_at),
       });
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof InternalServerErrorException
-      ) {
+      // NotFound, 422 por coordenadas faltantes, 503 si el servicio de ruteo
+      // no responde: se devuelven tal cual al cliente.
+      if (error instanceof HttpException) {
         throw error;
       }
       console.error('Error al optimizar la ruta:', error);

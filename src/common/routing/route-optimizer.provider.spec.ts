@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { MockRouteOptimizer } from './mock-route-optimizer.adapter';
+import { OsrmRouteOptimizer } from './osrm-route-optimizer.adapter';
 import { createRouteOptimizer } from './route-optimizer.provider';
 
 describe('createRouteOptimizer', () => {
@@ -43,6 +44,32 @@ describe('createRouteOptimizer', () => {
     );
 
     expect(optimizer).toBeInstanceOf(MockRouteOptimizer);
+  });
+
+  it('devuelve el adaptador OSRM cuando está configurado', () => {
+    const optimizer = createRouteOptimizer(
+      buildConfig({
+        'app.routeOptimization.provider': 'osrm',
+        'app.app.environment': 'production',
+        'app.routeOptimization.osrm.baseUrl': 'https://ruteo.test',
+        'app.routeOptimization.osrm.apiToken': 'secreto',
+      }),
+    );
+
+    expect(optimizer).toBeInstanceOf(OsrmRouteOptimizer);
+    expect(optimizer.provider).toBe('osrm');
+    expect(optimizer.is_simulated).toBe(false);
+  });
+
+  it('no arranca con OSRM si falta la URL del servicio', () => {
+    expect(() =>
+      createRouteOptimizer(
+        buildConfig({
+          'app.routeOptimization.provider': 'osrm',
+          'app.routeOptimization.osrm.apiToken': 'secreto',
+        }),
+      ),
+    ).toThrow(/ROUTING_BASE_URL/);
   });
 
   it('falla cuando el proveedor todavía no está implementado', () => {
