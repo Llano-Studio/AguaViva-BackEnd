@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RouteOptimizationService } from './route-optimization.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -30,6 +31,7 @@ function detail(
 interface PrismaMock {
   route_sheet: { findUnique: jest.Mock };
   route_sheet_detail: { findMany: jest.Mock; update: jest.Mock };
+  route_optimization: { create: jest.Mock };
   $transaction: jest.Mock;
   $queryRaw: jest.Mock;
 }
@@ -57,6 +59,15 @@ describe('RouteOptimizationService.reoptimizeAfterExtras', () => {
     prisma = {
       route_sheet: { findUnique: jest.fn() },
       route_sheet_detail: { findMany: jest.fn(), update: jest.fn() },
+      route_optimization: {
+        create: jest.fn((args: { data: Record<string, unknown> }) =>
+          Promise.resolve({
+            ...args.data,
+            optimization_id: 33,
+            created_at: new Date('2026-11-24T15:00:00.000Z'),
+          }),
+        ),
+      },
       $transaction: jest.fn((fn: (tx: PrismaMock) => unknown) => fn(prisma)),
       $queryRaw: jest.fn().mockResolvedValue([]),
     };
@@ -209,5 +220,109 @@ describe('RouteOptimizationService.reoptimizeAfterExtras', () => {
       reason: 'NOTHING_TO_REORDER',
     });
     expect(optimizer.optimize).not.toHaveBeenCalled();
+  });
+
+  describe('optimizeRoute (optimización manual)', () => {
+    const stopResult = (ids: number[]) => ({
+      provider: 'mock',
+      is_simulated: true,
+      estimated_distance_km: 7.5,
+      estimated_duration_minutes: 25,
+      stops: ids.map((id, index) => ({
+        stop_id: id,
+        sequence_number: index + 1,
+        coordinates: depot,
+        coordinate_source: 'SIMULATED',
+      })),
+    });
+
+    it('con la hoja en curso reordena solo el tramo pendiente y no mueve la actual', async () => {
+      const current = { lat: -27.46, lng: -58.98 };
+      const rows = [
+        detail(101, 1, 'DELIVERED'),
+        detail(102, 2, 'VISITED', current), // actual
+        detail(103, 3, 'PENDING'),
+        detail(104, 4, 'PENDING'),
+      ];
+      prisma.route_sheet.findUnique.mockResolvedValue({
+        route_sheet_id: 9,
+        execution_status: 'IN_PROGRESS',
+        route_sheet_detail: rows,
+      });
+      prisma.route_sheet_detail.findMany
+        .mockResolvedValueOnce(rows)
+        .mockResolvedValueOnce(
+          rows.map((r) => ({
+            route_sheet_detail_id: r.route_sheet_detail_id,
+            delivery_status: r.delivery_status,
+          })),
+        );
+      optimizer.optimize.mockResolvedValue(stopResult([104, 103]));
+
+      const response = await service.optimizeRoute({ route_sheet_id: 9 });
+
+      const [input] = optimizer.optimize.mock.calls[0] as [RouteOptimizerInput];
+      expect(input.depot).toEqual(current);
+      expect(input.stops.map((s) => s.stop_id)).toEqual([103, 104]);
+      const updates = (
+        prisma.route_sheet_detail.update.mock.calls as [DetailUpdate][]
+      ).map(([args]) => [
+        args.where.route_sheet_detail_id,
+        args.data.sequence_number,
+      ]);
+      expect(updates).toEqual([
+        [104, 3],
+        [103, 4],
+      ]);
+      expect(response.scope).toBe('PENDING');
+      expect(response.optimization_id).toBe(33);
+      expect(response.estimated_distance).toBe(7.5);
+      expect(response.waypoints[0]).toMatchObject({ address: 'Parada actual' });
+      expect(
+        response.waypoints
+          .filter((w) => w.route_sheet_detail_id)
+          .map((w) => [w.route_sheet_detail_id, w.sequence_number]),
+      ).toEqual([
+        [104, 3],
+        [103, 4],
+      ]);
+    });
+
+    it('con la hoja en curso y nada para reordenar responde 409', async () => {
+      const rows = [detail(101, 1, 'DELIVERED'), detail(102, 2, 'PENDING')];
+      prisma.route_sheet.findUnique.mockResolvedValue({
+        route_sheet_id: 9,
+        execution_status: 'PAUSED',
+        route_sheet_detail: rows,
+      });
+      prisma.route_sheet_detail.findMany.mockResolvedValue(rows);
+
+      await expect(
+        service.optimizeRoute({ route_sheet_id: 9 }),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(optimizer.optimize).not.toHaveBeenCalled();
+      expect(prisma.route_optimization.create).not.toHaveBeenCalled();
+    });
+
+    it('con la hoja planificada optimiza el recorrido completo', async () => {
+      const rows = [
+        detail(101, 1, 'PENDING'),
+        detail(102, 2, 'PENDING'),
+        detail(103, 3, 'PENDING'),
+      ];
+      prisma.route_sheet.findUnique.mockResolvedValue({
+        route_sheet_id: 9,
+        execution_status: 'PLANNED',
+        route_sheet_detail: rows,
+      });
+      optimizer.optimize.mockResolvedValue(stopResult([103, 101, 102]));
+
+      const response = await service.optimizeRoute({ route_sheet_id: 9 });
+
+      const [input] = optimizer.optimize.mock.calls[0] as [RouteOptimizerInput];
+      expect(input.depot).toEqual(depot);
+      expect(input.stops.map((s) => s.stop_id)).toEqual([101, 102, 103]);
+      expect(response.scope).toBe('FULL');
+    });
   });
 });
