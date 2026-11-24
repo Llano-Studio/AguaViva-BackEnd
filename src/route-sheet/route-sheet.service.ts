@@ -43,6 +43,10 @@ import { RouteSheetGeneratorService } from '../common/services/route-sheet-gener
 import { SubscriptionQuotaService } from '../common/services/subscription-quota.service';
 import { RouteOptimizationService } from '../common/services/route-optimization.service';
 import {
+  EXTRA_SOURCE,
+  ExtraDeliverySource,
+} from './extra-deliveries/extra-delivery.rules';
+import {
   formatBATimestampISO,
   formatBAYMD,
   parseBAYMD,
@@ -1970,10 +1974,13 @@ export class RouteSheetService extends PrismaBackedService {
    * - Es idempotente: una parada ya presente en la hoja no se duplica.
    * - Rechaza hojas cerradas y paradas ya asignadas a otra hoja activa de la
    *   misma fecha de entrega.
+   * - Las paradas quedan marcadas como extra (`is_extra`) y la hoja se
+   *   reoptimiza sin mover las paradas resueltas ni la actual.
    */
   async addDetailsIncremental(
     routeSheetId: number,
     dto: AddRouteSheetDetailsDto,
+    options: { source?: ExtraDeliverySource } = {},
   ): Promise<RouteSheetResponseDto> {
     const routeSheet = await this.route_sheet.findUnique({
       where: { route_sheet_id: routeSheetId },
@@ -2006,6 +2013,9 @@ export class RouteSheetService extends PrismaBackedService {
       assertSingleReference(detail);
     }
     await this.assertDetailReferencesExist(details);
+
+    const extraSource = options.source ?? EXTRA_SOURCE.MANUAL;
+    let insertedCount = 0;
 
     try {
       await this.$transaction(async (tx) => {
@@ -2057,10 +2067,14 @@ export class RouteSheetService extends PrismaBackedService {
               delivery_time: detail.delivery_time ?? undefined,
               comments: detail.comments,
               sequence_number: nextSequence,
+              is_extra: true,
+              extra_source: extraSource,
+              extra_added_at: new Date(),
             },
           });
 
           presentKeys.add(key);
+          insertedCount += 1;
           nextSequence += 1;
           if (typeof detail.order_id === 'number') {
             orderIdsToActivate.push(detail.order_id);
@@ -2090,7 +2104,30 @@ export class RouteSheetService extends PrismaBackedService {
       );
     }
 
+    if (insertedCount > 0) {
+      await this.reoptimizeAfterExtras(routeSheetId);
+    }
+
     return await this.findOne(routeSheetId);
+  }
+
+  /**
+   * Reoptimiza la hoja después de sumarle extras. Un fallo del optimizador
+   * (por ejemplo, paradas sin coordenadas con el proveedor osrm) no deshace la
+   * inserción: la parada queda al final del recorrido.
+   */
+  private async reoptimizeAfterExtras(routeSheetId: number): Promise<void> {
+    try {
+      const outcome =
+        await this.routeOptimizationService.reoptimizeAfterExtras(routeSheetId);
+      this.logger.log(
+        `Hoja ${routeSheetId}: extras agregados, reoptimización ${JSON.stringify(outcome)}.`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Hoja ${routeSheetId}: extras agregados al final, no se pudo reoptimizar: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -3228,6 +3265,11 @@ export class RouteSheetService extends PrismaBackedService {
           comments: detail.comments || undefined,
           digital_signature_id: detail.digital_signature_id || undefined,
           is_current_delivery: isCurrent,
+          is_extra: detail.is_extra ?? false,
+          extra_source: detail.extra_source ?? null,
+          extra_added_at: detail.extra_added_at
+            ? formatBATimestampISO(detail.extra_added_at)
+            : null,
         };
 
         if (detail.order_header?.subscription_id) {

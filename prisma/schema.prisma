@@ -831,6 +831,11 @@ model route_sheet_detail {
   rejection_reason           String?
   reschedule_date            DateTime?
   sequence_number            Int?
+  /// true si la parada se agregó a una hoja ya creada (pedido extra).
+  is_extra                   Boolean                  @default(false)
+  /// Origen del extra: ORDER_EVENT (automático al crear el pedido) o MANUAL.
+  extra_source               String?                  @db.VarChar(20)
+  extra_added_at             DateTime?
   delivery_evidence          delivery_evidence[]
   delivery_incident          delivery_incident[]
   inventory_transaction      inventory_transaction[]

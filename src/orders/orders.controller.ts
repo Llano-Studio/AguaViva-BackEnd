@@ -1,3 +1,8 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  DELIVERY_CREATED_EVENT,
+  DeliveryCreatedEvent,
+} from '../route-sheet/extra-deliveries/extra-delivery.events';
 import {
   Controller,
   Get,
@@ -48,6 +53,7 @@ export class OrdersController {
     private readonly ordersService: OrdersService,
     private readonly scheduleService: ScheduleService,
     private readonly subscriptionQuotaService: SubscriptionQuotaService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post()
@@ -309,7 +315,14 @@ export class OrdersController {
     @Body(ValidationPipe) createOrderDto: CreateOrderDto,
     @GetUser() user: User,
   ): Promise<OrderResponseDto> {
-    return this.ordersService.create(createOrderDto, user);
+    const order = await this.ordersService.create(createOrderDto, user);
+    // Si ya hay hoja de ruta para esa fecha y zona, se suma como extra.
+    this.eventEmitter.emit(DELIVERY_CREATED_EVENT, {
+      kind: 'order',
+      id: order.order_id,
+      created_by: user?.id ?? null,
+    } satisfies DeliveryCreatedEvent);
+    return order;
   }
 
   @Get()

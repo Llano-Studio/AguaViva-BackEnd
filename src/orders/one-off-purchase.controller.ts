@@ -1,3 +1,8 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  DELIVERY_CREATED_EVENT,
+  DeliveryCreatedEvent,
+} from '../route-sheet/extra-deliveries/extra-delivery.events';
 import {
   Controller,
   Get,
@@ -33,7 +38,10 @@ import { Auth } from '../auth/decorators/auth.decorator';
 @ApiBearerAuth()
 @Controller('one-off-purchases')
 export class OneOffPurchaseController {
-  constructor(private readonly oneOffPurchaseService: OneOffPurchaseService) {}
+  constructor(
+    private readonly oneOffPurchaseService: OneOffPurchaseService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   @Post('one-off')
   @Auth(
@@ -100,10 +108,19 @@ export class OneOffPurchaseController {
     status: 409,
     description: 'Conflicto de stock o restricción única.',
   })
-  createOneOffPurchase(
+  async createOneOffPurchase(
     @Body(ValidationPipe) createDto: CreateOneOffPurchaseDto,
   ): Promise<OneOffPurchaseResponseDto> {
-    return this.oneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
+    const purchase =
+      await this.oneOffPurchaseService.createOneOffWithCustomerLogic(createDto);
+    // Si ya hay hoja de ruta para esa fecha y zona, se suma como extra.
+    if (purchase.purchase_header_id) {
+      this.eventEmitter.emit(DELIVERY_CREATED_EVENT, {
+        kind: 'one_off_purchase_header',
+        id: purchase.purchase_header_id,
+      } satisfies DeliveryCreatedEvent);
+    }
+    return purchase;
   }
 
   @Get('one-off')

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PersonsModule } from './persons/persons.module';
 import { AuthModule } from './auth/auth.module';
 import { MailModule } from './mail/mail.module';
@@ -41,6 +42,7 @@ import { CustomerAccountsModule } from './customer-accounts/customer-accounts.mo
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     ServicesModule,
     CommonModule,
