@@ -4,6 +4,28 @@ import { SubscriptionCycleNumberingService } from './subscription-cycle-numberin
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 import { PrismaBackedService } from '../../prisma/prisma-backed.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { calculatePaymentDueDate } from '../../customer-subscription/utils/payment-due-date';
+import { formatBAYMD, parseBAYMD } from '../utils/date.utils';
+
+// Aritmética de fechas sobre YYYY-MM-DD (sin corrimientos por zona horaria)
+function ymdToUTC(ymd: string): Date {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+function utcToYMD(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+function addDaysYMD(ymd: string, days: number): string {
+  const d = ymdToUTC(ymd);
+  d.setUTCDate(d.getUTCDate() + days);
+  return utcToYMD(d);
+}
+/** Mismo día del mes siguiente (o el último día si ese mes es más corto). */
+function addOneMonthYMD(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return utcToYMD(new Date(Date.UTC(y, m, Math.min(d, lastDay))));
+}
 
 
 @Injectable()
@@ -45,33 +67,32 @@ export class SubscriptionCycleRenewalService
     );
 
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayYMD = formatBAYMD(new Date());
 
-      // Buscar suscripciones activas cuyos ciclos actuales han expirado
-      const expiredCycles = await this.subscription_cycle.findMany({
-        where: {
-          cycle_end: {
-            lt: today, // Ciclos que terminaron antes de hoy
-          },
-          customer_subscription: {
-            status: SubscriptionStatus.ACTIVE } },
-        distinct: ['subscription_id'],
-        orderBy: { cycle_end: 'desc' },
+      // Suscripciones activas cuyo ÚLTIMO ciclo ya terminó. (Antes se tomaba cualquier ciclo
+      // vencido de la suscripción, y como el ciclo 1 queda vencido para siempre se creaba un
+      // ciclo nuevo todas las noches.)
+      const subscriptions = await this.customer_subscription.findMany({
+        where: { status: SubscriptionStatus.ACTIVE },
         include: {
-          customer_subscription: {
-            include: {
-              subscription_plan: {
-                include: {
-                  subscription_plan_product: true } } } } } });
+          subscription_plan: { include: { subscription_plan_product: true } },
+          subscription_cycle: { orderBy: { cycle_end: 'desc' }, take: 1 } } });
 
-      this.logger.log(
-        `📊 Encontrados ${expiredCycles.length} ciclos expirados para renovar`,
+      const toRenew = subscriptions.filter(
+        (s) =>
+          s.subscription_cycle.length > 0 &&
+          formatBAYMD(s.subscription_cycle[0].cycle_end) < todayYMD,
       );
 
-      for (const expiredCycle of expiredCycles) {
+      this.logger.log(
+        `📊 Encontradas ${toRenew.length} suscripciones con el ciclo vencido para renovar`,
+      );
+
+      for (const subscription of toRenew) {
         await this.createNewCycleForSubscription(
-          expiredCycle.customer_subscription,
+          subscription,
+          subscription.subscription_cycle[0],
+          todayYMD,
         );
       }
 
@@ -99,16 +120,27 @@ export class SubscriptionCycleRenewalService
   /**
    * Crea un nuevo ciclo para una suscripción específica usando CycleNumberingService
    */
-  private async createNewCycleForSubscription(subscription: any) {
+  private async createNewCycleForSubscription(
+    subscription: any,
+    lastCycle: { cycle_id: number; cycle_end: Date },
+    todayYMD: string,
+  ) {
     try {
-      // Calcular fechas del nuevo ciclo (un mes desde hoy)
-      const cycleStartDate = new Date();
-      cycleStartDate.setHours(0, 0, 0, 0);
+      // El ciclo nuevo arranca al día siguiente del último (= día de cobro) y dura un mes.
+      // Si quedaron períodos sin renovar (p.ej. abono pausado y reactivado), se salta al
+      // período que contiene hoy, sin generar cuotas de los meses intermedios.
+      let startYMD = addDaysYMD(formatBAYMD(lastCycle.cycle_end), 1);
+      while (addDaysYMD(addOneMonthYMD(startYMD), -1) < todayYMD) {
+        startYMD = addOneMonthYMD(startYMD);
+      }
+      const endYMD = addDaysYMD(addOneMonthYMD(startYMD), -1);
+      const cycleStartDate = parseBAYMD(startYMD);
+      const cycleEndDate = parseBAYMD(endYMD);
 
       const existingFutureCycle = await this.subscription_cycle.findFirst({
         where: {
           subscription_id: subscription.subscription_id,
-          cycle_start: { gte: cycleStartDate } },
+          cycle_end: { gte: cycleStartDate } },
         orderBy: { cycle_start: 'asc' },
         select: { cycle_id: true, cycle_start: true, cycle_end: true } });
       if (existingFutureCycle) {
@@ -118,14 +150,15 @@ export class SubscriptionCycleRenewalService
         return;
       }
 
-      const cycleEndDate = new Date(cycleStartDate);
-      cycleEndDate.setMonth(cycleStartDate.getMonth() + 1);
-      cycleEndDate.setDate(cycleStartDate.getDate() - 1);
-      cycleEndDate.setHours(23, 59, 59, 999);
-
-      // Calcular fecha de vencimiento de pago (10 días después del final del ciclo)
-      const paymentDueDate = new Date(cycleEndDate);
-      paymentDueDate.setDate(paymentDueDate.getDate() + 10);
+      // Vencimiento según la modalidad del abono (igual que al crear la suscripción):
+      // ADVANCE vence al inicio del ciclo (el día de cobro); ARREARS, el payment_due_day o el fin del ciclo.
+      // El recargo por mora se aplica 10 días después del vencimiento (checkAndApplyLateFees).
+      const paymentDueDate = calculatePaymentDueDate(
+        cycleStartDate,
+        cycleEndDate,
+        subscription.payment_mode || 'ADVANCE',
+        subscription.payment_due_day ?? undefined,
+      );
 
       // Crear el nuevo ciclo usando CycleNumberingService para numeración correcta
       const newCycle = await this.cycleNumberingService.createCycleWithNumber(
@@ -166,9 +199,7 @@ export class SubscriptionCycleRenewalService
       }
 
       this.logger.log(
-        `✅ Nuevo ciclo creado para suscripción ${subscription.subscription_id}: ` +
-          `${cycleStartDate.getFullYear()}-${String(cycleStartDate.getMonth() + 1).padStart(2, '0')}-${String(cycleStartDate.getDate()).padStart(2, '0')} - ` +
-          `${cycleEndDate.getFullYear()}-${String(cycleEndDate.getMonth() + 1).padStart(2, '0')}-${String(cycleEndDate.getDate()).padStart(2, '0')}`,
+        `✅ Nuevo ciclo creado para suscripción ${subscription.subscription_id}: ${startYMD} - ${endYMD}`,
       );
     } catch (error) {
       this.logger.error(
