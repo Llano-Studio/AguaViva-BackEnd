@@ -6,6 +6,7 @@ import { Prisma, SubscriptionStatus } from '@prisma/client';
 import { SubscriptionCycleCalculatorService } from './subscription-cycle-calculator.service';
 import { PrismaBackedService } from '../../prisma/prisma-backed.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { calculatePaymentDueDate } from '../../customer-subscription/utils/payment-due-date';
 
 
 export interface ProductQuotaInfo {
@@ -121,9 +122,13 @@ export class SubscriptionQuotaService
         cycle_start: cycleStart,
         cycle_end: cycleEnd,
         total_amount: 0, // Se calculará después
-        payment_due_date: new Date(
-          cycleEnd.getTime() + 10 * 24 * 60 * 60 * 1000,
-        ), // 10 días después del final del ciclo
+        // Vencimiento según la modalidad del abono (ADVANCE: inicio del ciclo)
+        payment_due_date: calculatePaymentDueDate(
+          cycleStart,
+          cycleEnd,
+          subscription.payment_mode || 'ADVANCE',
+          subscription.payment_due_day ?? undefined,
+        ),
         notes: 'Ciclo creado automáticamente por sistema de cuotas' } });
 
     // Crear los detalles del ciclo con las cantidades planificadas
