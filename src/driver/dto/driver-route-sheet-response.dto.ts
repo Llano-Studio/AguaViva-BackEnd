@@ -97,6 +97,26 @@ export class DriverRouteSheetSummaryDto {
   active_pause: DriverRouteSheetPauseDto | null;
 }
 
+export class DriverCoordinatesDto {
+  @ApiProperty({ example: -27.4512345 })
+  lat: number;
+
+  @ApiProperty({ example: -58.9867654 })
+  lng: number;
+
+  @ApiProperty({
+    enum: ['ADMIN', 'MAPS_LINK', 'GOOGLE_GEOCODING', 'DRIVER_GPS'],
+    nullable: true,
+  })
+  source: string | null;
+
+  @ApiProperty({
+    enum: ['EXACT', 'INTERPOLATED', 'APPROXIMATE'],
+    nullable: true,
+  })
+  precision: string | null;
+}
+
 export class DriverDeliveryCustomerDto {
   @ApiProperty({ example: 10 })
   person_id: number;
@@ -119,6 +139,22 @@ export class DriverDeliveryCustomerDto {
       'Ubicación del cliente (AguaViva no la registra: siempre null)',
   })
   location: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: DriverCoordinatesDto,
+    description:
+      'Coordenadas del cliente para el mapa. null si todavía no tiene ubicación.',
+  })
+  coordinates: DriverCoordinatesDto | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Link para navegar hasta el cliente con Google Maps',
+    example:
+      'https://www.google.com/maps/dir/?api=1&destination=-27.4512,-58.9867',
+  })
+  navigation_url: string | null;
 }
 
 export class DriverRouteSheetDeliveryDto {

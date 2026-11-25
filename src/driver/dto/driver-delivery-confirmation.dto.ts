@@ -1,8 +1,11 @@
+import { Type } from 'class-transformer';
+import { DriverDeliveryLocationDto } from '../../geolocation/dto/geolocation.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
   IsOptional,
   IsString,
+  ValidateNested,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -214,6 +217,16 @@ export class ConfirmDeliveryDto {
   @IsOptional()
   @IsIn(DRIVER_SIGNATURE_MISSING_REASONS)
   signature_missing_reason?: DriverSignatureMissingReason;
+
+  @ApiPropertyOptional({
+    type: DriverDeliveryLocationDto,
+    description:
+      'Ubicación del teléfono al confirmar. Si el cliente no tiene ubicación o la tiene imprecisa, y el GPS informa buena precisión, se usa para ubicarlo.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DriverDeliveryLocationDto)
+  location?: DriverDeliveryLocationDto;
 }
 
 /** Cantidad de un producto efectivamente descontada del camión al entregar. */

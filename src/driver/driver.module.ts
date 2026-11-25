@@ -1,3 +1,4 @@
+import { GeolocationModule } from '../geolocation/geolocation.module';
 import { Module } from '@nestjs/common';
 import { ServicesModule } from '../common/services/services.module';
 import { DriverCreditModule } from '../driver-credit/driver-credit.module';
@@ -14,7 +15,7 @@ import {
 } from './driver-quantity-edit.controller';
 
 @Module({
-  imports: [ServicesModule, DriverCreditModule],
+  imports: [GeolocationModule, ServicesModule, DriverCreditModule],
   controllers: [
     DriverRouteSheetsController,
     DriverDeliveriesController,

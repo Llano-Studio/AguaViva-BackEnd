@@ -46,6 +46,8 @@ type PendingReorder =
   | { status: 'NOTHING_TO_REORDER' }
   | { status: 'CONCURRENT_CHANGES' };
 
+type PersonCoordinates = { lat: unknown; lng: unknown };
+
 @Injectable()
 export class RouteOptimizationService extends PrismaBackedService {
   constructor(
@@ -117,7 +119,7 @@ export class RouteOptimizationService extends PrismaBackedService {
         (detail) => ({
           stop_id: detail.route_sheet_detail_id,
           address: this.resolveStopAddress(detail),
-          coordinates: this.readStoredCoordinates(detail),
+          coordinates: this.stopCoordinates(detail),
         }),
       );
 
@@ -299,7 +301,7 @@ export class RouteOptimizationService extends PrismaBackedService {
       }
 
       const depot = this.resolveDepot({ route_sheet_id });
-      const start = this.readStoredCoordinates(anchor) ?? depot;
+      const start = this.stopCoordinates(anchor) ?? depot;
       const endPoint = this.resolveEndPoint({ route_sheet_id }, depot);
       const result = await this.routeOptimizer.optimize({
         route_sheet_id,
@@ -308,7 +310,7 @@ export class RouteOptimizationService extends PrismaBackedService {
         stops: reorderable.map((detail) => ({
           stop_id: detail.route_sheet_detail_id,
           address: this.resolveStopAddress(detail),
-          coordinates: this.readStoredCoordinates(detail),
+          coordinates: this.stopCoordinates(detail),
         })),
       });
 
@@ -478,6 +480,29 @@ export class RouteOptimizationService extends PrismaBackedService {
   }
 
   /** Devuelve las coordenadas guardadas del detalle, o null si no existen. */
+  /**
+   * Coordenadas de la parada: primero las del cliente, que es el dato vigente
+   * (las corrige administración o el GPS del chofer); si no tiene, las que
+   * hubiera guardadas en la parada.
+   */
+  private stopCoordinates(detail: {
+    lat: unknown;
+    lng: unknown;
+    order_header?: { customer?: PersonCoordinates | null } | null;
+    one_off_purchase?: { person?: PersonCoordinates | null } | null;
+    one_off_purchase_header?: { person?: PersonCoordinates | null } | null;
+  }): GeoPoint | null {
+    const person =
+      detail.order_header?.customer ??
+      detail.one_off_purchase?.person ??
+      detail.one_off_purchase_header?.person ??
+      null;
+    return (
+      (person ? this.readStoredCoordinates(person) : null) ??
+      this.readStoredCoordinates(detail)
+    );
+  }
+
   private readStoredCoordinates(detail: {
     lat: unknown;
     lng: unknown;

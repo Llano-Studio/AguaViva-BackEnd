@@ -1,3 +1,4 @@
+import { customerCoordinates } from '../geolocation/geolocation.service';
 import {
   BadRequestException,
   ConflictException,
@@ -59,6 +60,10 @@ const CUSTOMER_SELECT = {
   alias: true,
   address: true,
   phone: true,
+  lat: true,
+  lng: true,
+  geo_source: true,
+  geo_precision: true,
 } satisfies Prisma.personSelect;
 
 const DETAIL_CUSTOMER_SELECT = {
@@ -496,6 +501,7 @@ export class DriverRouteSheetsService {
         address: null,
         phone: '',
         location: null,
+        ...customerCoordinates(null),
         tax_id: null,
         notes: null,
       };
@@ -509,6 +515,7 @@ export class DriverRouteSheetsService {
       address: deliveryAddress || detailed.address || null,
       phone: detailed.phone,
       location: null,
+      ...customerCoordinates(detailed),
       tax_id: detailed.tax_id ?? null,
       notes: detailed.notes ?? null,
     };
@@ -1324,6 +1331,7 @@ export class DriverRouteSheetsService {
       address: deliveryAddress || customer.address || null,
       phone: customer.phone,
       location: null,
+      ...customerCoordinates(customer),
     };
   }
 

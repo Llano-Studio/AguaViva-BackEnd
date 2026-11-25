@@ -205,6 +205,59 @@ describe('RouteOptimizationService.reoptimizeAfterExtras', () => {
     expect(prisma.route_sheet_detail.update).not.toHaveBeenCalled();
   });
 
+  it('usa las coordenadas del cliente antes que las guardadas en la parada', async () => {
+    prisma.route_sheet.findUnique.mockResolvedValue({
+      execution_status: 'IN_PROGRESS',
+      is_active: true,
+    });
+    const stale = { lat: -27.4, lng: -58.9 };
+    const withCustomer = (
+      id: number,
+      seq: number,
+      status: string,
+      customer: { lat: number; lng: number } | null,
+    ) => ({
+      ...detail(id, seq, status, stale),
+      order_header: {
+        customer: {
+          address: `Calle ${id}`,
+          ...(customer ?? { lat: null, lng: null }),
+        },
+      },
+    });
+    const rows = [
+      withCustomer(102, 1, 'PENDING', { lat: -27.46, lng: -58.98 }), // actual
+      withCustomer(103, 2, 'PENDING', { lat: -27.47, lng: -58.97 }),
+      withCustomer(104, 3, 'PENDING', null), // sin coordenadas en el cliente
+    ];
+    prisma.route_sheet_detail.findMany
+      .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce(
+        rows.map((r) => ({
+          route_sheet_detail_id: r.route_sheet_detail_id,
+          delivery_status: r.delivery_status,
+        })),
+      );
+    optimizer.optimize.mockResolvedValue({
+      provider: 'mock',
+      stops: [103, 104].map((id, index) => ({
+        stop_id: id,
+        sequence_number: index + 1,
+        coordinates: depot,
+        coordinate_source: 'DATABASE',
+      })),
+    });
+
+    await service.reoptimizeAfterExtras(9);
+
+    const [input] = optimizer.optimize.mock.calls[0] as [RouteOptimizerInput];
+    expect(input.depot).toEqual({ lat: -27.46, lng: -58.98 });
+    expect(input.stops.map((s) => s.coordinates)).toEqual([
+      { lat: -27.47, lng: -58.97 },
+      stale, // el cliente no tiene: se usa la de la parada
+    ]);
+  });
+
   it('con una sola pendiente después de la actual no llama al optimizador', async () => {
     prisma.route_sheet.findUnique.mockResolvedValue({
       execution_status: 'PAUSED',

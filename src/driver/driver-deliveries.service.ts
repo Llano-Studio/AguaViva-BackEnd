@@ -1,8 +1,12 @@
+import { GeolocationService } from '../geolocation/geolocation.service';
+import { DriverDeliveryLocationDto } from '../geolocation/dto/geolocation.dto';
+import { customerCoordinates } from '../geolocation/geolocation.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { OrderStatus, Prisma, RouteSheetExecutionStatus } from '@prisma/client';
 import * as fs from 'fs-extra';
@@ -56,6 +60,10 @@ const PERSON_SELECT = {
   address: true,
   phone: true,
   tax_id: true,
+  lat: true,
+  lng: true,
+  geo_source: true,
+  geo_precision: true,
 } satisfies Prisma.personSelect;
 
 const STOP_INCLUDE = {
@@ -174,10 +182,13 @@ export class DriverDeliveriesService {
     DELIVERY_EVIDENCE_FOLDER,
   );
 
+  private readonly geoLogger = new Logger('DriverDeliveryLocation');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly routeSheetsService: DriverRouteSheetsService,
     private readonly inventoryService: MobileInventoryService,
+    private readonly geolocation: GeolocationService,
   ) {}
 
   /** Resumen de productos, cantidades, cobros y saldo que el cliente firma. */
@@ -358,6 +369,10 @@ export class DriverDeliveriesService {
       }),
     );
 
+    if (applied) {
+      await this.captureDriverLocation(detailId, dto.location);
+    }
+
     return this.buildConfirmation(
       driverId,
       routeSheetId,
@@ -368,6 +383,29 @@ export class DriverDeliveriesService {
       detail.order_header ? OrderStatus.DELIVERED : null,
       !applied,
     );
+  }
+
+  /** El GPS del teléfono ayuda a ubicar al cliente; nunca hace fallar la entrega. */
+  private async captureDriverLocation(
+    detailId: number,
+    location: DriverDeliveryLocationDto | undefined,
+  ): Promise<void> {
+    if (!location) return;
+    try {
+      const result = await this.geolocation.captureFromDriver(
+        detailId,
+        location,
+      );
+      if (result.applied) {
+        this.geoLogger.log(
+          `Parada ${detailId}: cliente ubicado con el GPS del chofer.`,
+        );
+      }
+    } catch (error) {
+      this.geoLogger.warn(
+        `Parada ${detailId}: no se pudo guardar la ubicación del chofer: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -656,6 +694,7 @@ export class DriverDeliveriesService {
         address: null,
         phone: '',
         location: null,
+        ...customerCoordinates(null),
         tax_id: null,
         notes: null,
       };
@@ -671,6 +710,7 @@ export class DriverDeliveriesService {
       address: deliveryAddress || person.address || null,
       phone: person.phone,
       location: null,
+      ...customerCoordinates(person),
       tax_id: person.tax_id ?? null,
       notes: null,
     };
